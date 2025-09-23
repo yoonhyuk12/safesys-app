@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 방패 배경 -->
+  <path d="M24 4L6 12V22C6 32.5 12.5 42.26 24 44C35.5 42.26 42 32.5 42 22V12L24 4Z" 
+        fill="#2563eb" 
+        stroke="#1d4ed8" 
+        stroke-width="2"/>
+  
+  <!-- 체크마크 -->
+  <path d="M16 24L22 30L32 18" 
+        stroke="#ffffff" 
+        stroke-width="3" 
+        stroke-linecap="round" 
+        stroke-linejoin="round" 
+        fill="none"/>
+</svg> 

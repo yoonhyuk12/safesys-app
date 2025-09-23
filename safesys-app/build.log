@@ -1,0 +1,68 @@
+
+> safesys-app@0.1.0 build
+> next build
+
+   ▲ Next.js 15.4.4
+   - Environments: .env.local, .env.production
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 25.0s
+   Skipping validation of types
+   Skipping linting
+   Collecting page data ...
+(node:15424) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:25300) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:13836) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+   Generating static pages (0/22) ...
+(node:29848) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+   Generating static pages (5/22) 
+   Generating static pages (10/22) 
+   Generating static pages (16/22) 
+ ✓ Generating static pages (22/22)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                   Size  First Load JS
+┌ ○ /                                        651 B         147 kB
+├ ○ /_not-found                              153 B         100 kB
+├ ƒ /api/find-id                             153 B         100 kB
+├ ƒ /api/geocoding                           153 B         100 kB
+├ ƒ /api/living-weather-index                153 B         100 kB
+├ ƒ /api/projects/[id]/quarters              153 B         100 kB
+├ ƒ /api/projects/[id]/status                153 B         100 kB
+├ ƒ /api/test-apparent-temp                  153 B         100 kB
+├ ƒ /api/weather-crawl                       153 B         100 kB
+├ ƒ /api/weather-region-code                 153 B         100 kB
+├ ○ /list                                    354 B         180 kB
+├ ○ /login                                   353 B         146 kB
+├ ○ /map                                     353 B         180 kB
+├ ƒ /project/[id]                          7.08 kB         145 kB
+├ ƒ /project/[id]/edit                     3.09 kB         151 kB
+├ ƒ /project/[id]/headquarters-inspection  17.7 kB         155 kB
+├ ƒ /project/[id]/heatwave                   23 kB         161 kB
+├ ƒ /project/[id]/manager-inspection       11.4 kB         149 kB
+├ ○ /project/new                           2.67 kB         150 kB
+├ ○ /reset-password                        3.56 kB         141 kB
+├ ○ /safe                                    353 B         180 kB
+├ ƒ /safe/branch/[branch]                    354 B         180 kB
+├ ƒ /safe/branch/[branch]/headquarters       353 B         180 kB
+├ ƒ /safe/branch/[branch]/heatwave           354 B         180 kB
+├ ƒ /safe/branch/[branch]/manager            354 B         180 kB
+├ ○ /safe/headquarters                       354 B         180 kB
+├ ○ /safe/heatwave                           353 B         180 kB
+├ ○ /safe/manager                            352 B         180 kB
+├ ○ /signup                                7.64 kB         145 kB
+└ ○ /tbm                                     354 B         180 kB
++ First Load JS shared by all               100 kB
+  ├ chunks/4bd1b696-cc729d47eba2cee4.js    54.1 kB
+  ├ chunks/5964-4f12b6422f73cb12.js        43.9 kB
+  └ other shared chunks (total)            2.23 kB
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

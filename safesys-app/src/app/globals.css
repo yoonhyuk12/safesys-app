@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+/* 다크모드 비활성화 - 항상 라이트 모드 강제 적용 */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  color-scheme: light only;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* 다크모드 미디어 쿼리 제거하여 다크모드 비활성화 */
+/*
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+*/
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+  color-scheme: light only;
+}
+
+/* 모든 요소에 대해 다크모드 강제 비활성화 */
+* {
+  color-scheme: light only;
+}

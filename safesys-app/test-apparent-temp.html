@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>체감온도 API 테스트</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="number"], input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+        .success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .example-coords {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 2s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌡️ 기상청 생활기상지수 API 체감온도 테스트</h1>
+        
+        <div class="form-group">
+            <label for="lat">위도 (Latitude):</label>
+            <input type="number" id="lat" step="any" value="37.5665" placeholder="예: 37.5665">
+            <div class="example-coords">서울시청: 37.5665, 126.9780</div>
+        </div>
+        
+        <div class="form-group">
+            <label for="lng">경도 (Longitude):</label>
+            <input type="number" id="lng" step="any" value="126.9780" placeholder="예: 126.9780">
+            <div class="example-coords">부산시청: 35.1796, 129.0756</div>
+        </div>
+        
+        <div class="form-group">
+            <label for="areaNo">지역번호 (선택사항):</label>
+            <input type="text" id="areaNo" placeholder="예: 11 (서울), 공백시 전체지점">
+            <div class="example-coords">서울: 11, 부산: 26, 대구: 27, 인천: 28, 광주: 29, 대전: 30, 울산: 31</div>
+        </div>
+        
+        <button onclick="testApparentTemp()" id="testBtn">체감온도 조회</button>
+        <button onclick="testPresetLocations()">주요 도시 테스트</button>
+        <button onclick="clearResult()">결과 지우기</button>
+        
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function testApparentTemp() {
+            const lat = document.getElementById('lat').value;
+            const lng = document.getElementById('lng').value;
+            const areaNo = document.getElementById('areaNo').value;
+            const resultDiv = document.getElementById('result');
+            const testBtn = document.getElementById('testBtn');
+            
+            if (!lat || !lng) {
+                resultDiv.innerHTML = '<div class="error">위도와 경도를 입력해주세요.</div>';
+                return;
+            }
+            
+            testBtn.disabled = true;
+            testBtn.innerHTML = '<span class="loading"></span> 조회 중...';
+            
+            try {
+                const params = new URLSearchParams({
+                    lat: lat,
+                    lng: lng
+                });
+                
+                if (areaNo) {
+                    params.append('areaNo', areaNo);
+                }
+                
+                const response = await fetch(`http://localhost:3005/api/test-apparent-temp?${params}`);
+                const data = await response.json();
+                
+                                 if (data.success) {
+                     resultDiv.innerHTML = `<div class="success">✅ 체감온도 조회 성공!
+
+ 📍 좌표: (${data.coordinates.lat}, ${data.coordinates.lng})
+ 🏙️ 지역번호: ${data.areaNo}
+ 🌡️ 체감온도: ${data.apparentTemperature}°C
+ ⏱️ 응답시간: ${data.responseTime}
+ 🔧 API 방식: ${data.apiMethod}
+ 📅 조회시간: ${new Date(data.timestamp).toLocaleString('ko-KR')}
+
+ <a href="https://www.weather.go.kr/w/theme/daily-life/regional-composite-index.do?nolayout=Y#dong/4111157100/${data.coordinates.lat}/${data.coordinates.lng}/" target="_blank" style="color: #007bff; text-decoration: underline;">🌡️ 기상청 체감온도 상세보기</a></div>`;
+                 } else {
+                    resultDiv.innerHTML = `<div class="error">❌ 체감온도 조회 실패
+
+오류: ${data.error}
+세부사항: ${data.details || '없음'}
+시간: ${new Date(data.timestamp).toLocaleString('ko-KR')}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `<div class="error">❌ API 호출 오류
+
+${error.message}
+서버가 실행되지 않았거나 네트워크 오류가 발생했습니다.</div>`;
+            } finally {
+                testBtn.disabled = false;
+                testBtn.innerHTML = '체감온도 조회';
+            }
+        }
+        
+        async function testPresetLocations() {
+            const locations = [
+                { name: '서울시청', lat: 37.5665, lng: 126.9780, areaNo: '11' },
+                { name: '부산시청', lat: 35.1796, lng: 129.0756, areaNo: '26' },
+                { name: '제주시청', lat: 33.4996, lng: 126.5312, areaNo: '50' }
+            ];
+            
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<div>🔄 주요 도시 테스트 진행 중...</div>';
+            
+            let results = '🏙️ 주요 도시 체감온도 테스트 결과\n\n';
+            
+            for (const location of locations) {
+                try {
+                    const response = await fetch(`http://localhost:3005/api/test-apparent-temp?lat=${location.lat}&lng=${location.lng}&areaNo=${location.areaNo}`);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        results += `✅ ${location.name}: ${data.apparentTemperature}°C (${data.responseTime})\n`;
+                    } else {
+                        results += `❌ ${location.name}: 실패 - ${data.error}\n`;
+                    }
+                } catch (error) {
+                    results += `❌ ${location.name}: API 오류 - ${error.message}\n`;
+                }
+            }
+            
+            resultDiv.innerHTML = `<div class="success">${results}</div>`;
+        }
+        
+        function clearResult() {
+            document.getElementById('result').innerHTML = '';
+        }
+        
+        // Enter 키로 조회
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                testApparentTemp();
+            }
+        });
+    </script>
+</body>
+</html>
