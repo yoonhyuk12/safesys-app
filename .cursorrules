@@ -1,0 +1,23 @@
+## Component Guidelines
+- supabase MCP는 읽기 전용으로 사용자에게 SQL명령어를 제공하여 사용자가 직접 수정한다.
+
+### ShadCN Components
+-   모든 UI 컴포넌트는 ShadCN을 사용해야 함.
+-   컴포넌트 사용 전 설치여부를 확인해야 합니다. : '/components/ui' 디렉토리 체크
+-   컴포넌트 설치 명령어를 사용해야 합니다.: 'npx shadcn@latest add [component-name]'
+    -   ⚠ 주의: 'npx shadcn-ui@latest add' 명령어는 deprecated. 반드시 'npx shadcn@latest add' 사용해야 합니다.
+
+### Icons
+-   모든 아이콘은 Lucide React 사용.
+-   아이콘 임포트 방법: 'import { IconName } from "lucide-react"'
+-   예시: 'import { Search, Menu } from "lucide-react"'
+
+### Component Structure
+-   컴포넌트는 '/components' 디렉토리 내에 위치해야 함.
+-   UI 컴포넌트는 '/components/ui' 디렉토리에 위치해야 함.
+-   페이지별 컴포넌트는 '/app' 디렉토리 내 해당 라우트에 위치해야 함.
+
+### Best Practices
+-   TypeScript 타입을 반드시 정의해야 함.
+-   재사용 가능하도록 컴포넌트를 설계해야 함.
+-   코드를 수정하고 배포 할때는, vercel deploy --prod 명령어를 사용한다.

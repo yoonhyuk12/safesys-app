@@ -1,0 +1,369 @@
+✅ 본부 불시점검 데이터 이미 로딩됨. 재로딩 스킵
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:409 🔍 카드용 데이터 로딩 조건 확인: {user: true, userProfile: true, role: '발주청', viewMode: 'safety', selectedSafetyCard: 'headquarters', …}
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:432 ❌ 카드용 데이터 로딩 조건 불만족 - 스킵
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:525 발주청 프로젝트 조회 시작: {id: '04584e0a-2fe3-416f-a4bc-1b1655a8a483', email: 'yoonhyuk1@nate.com', full_name: '윤혁', phone_number: '010-2676-5472', position: '차장', …}
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:409 🔍 카드용 데이터 로딩 조건 확인: {user: true, userProfile: true, role: '발주청', viewMode: 'safety', selectedSafetyCard: null, …}
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:427 ❌ 상세 카드 경로 감지 - 메인 카드 데이터 로딩 차단: /safe/headquarters
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:409 🔍 카드용 데이터 로딩 조건 확인: {user: true, userProfile: true, role: '발주청', viewMode: 'safety', selectedSafetyCard: null, …}
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:427 ❌ 상세 카드 경로 감지 - 메인 카드 데이터 로딩 차단: /safe/headquarters
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:403 🔍 본부 불시점검 전용 데이터 로딩 시작
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:594 🔍 headquarters 점검 데이터만 조회: 2025Q3 본부: 경기 지사: 
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:607 📋 본부 불시점검 데이터만 조회 중...
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:648 본부 불시점검 데이터 조회 시작: {quarterYear: '2025Q3', selectedHq: '경기', selectedBranch: ''}
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:409 🔍 카드용 데이터 로딩 조건 확인: {user: true, userProfile: true, role: '발주청', viewMode: 'safety', selectedSafetyCard: 'headquarters', …}
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:427 ❌ 상세 카드 경로 감지 - 메인 카드 데이터 로딩 차단: /safe/headquarters
+headquarters:1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:752 조회된 본부 불시점검 수: 4
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:610 ✅ 본부 불시점검 조회 완료: 4건
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:470 === 전체 프로젝트 데이터 (디버깅용) ===
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 1. "문지지구 배수개선사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "파주지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 7edbf991-ea4a-4f2f-8ff1-2b6c68cf283f
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 2. "문지지구배수공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "파주지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: df714559-3865-478f-9f59-a58d531d698e
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 3. "공릉호 순환산책로 조성사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "파주지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: add012da-babe-40cd-8a09-ec803af2474b
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 4. "현엥지구 수리시설 개보수사엎"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "파주지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: d5d728e1-bcb2-4522-8aac-70c857f3a0eb
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 5. "금현지구 수리시설 개보수사업토목공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "파주지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 6808a874-154e-4865-bf66-455a9e42d783
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 6. "대연평 공공하수도 건설사업 시설공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 71d06a12-9dfa-4878-9cc5-4acc1e25766c
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 7. "고시 등 9지구 재해예방계측 통신설비 설치공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "전남"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "전남본부"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: e6e26ed2-6452-40d2-81f6-9a4fa6ca9758
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 8. "민북지구 농수관로공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "파주지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 403352b7-539c-49a2-882b-b4e136318be4
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 9. "윤혁 테스트 지구(고양)"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "고양지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: b4857fbc-45f2-4376-9eb7-7e88796ffd8b
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 10. "00지구 테스트"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "경기본부"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 7c2b8c4f-96ac-4ce0-9356-8feba41b9684
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 11. "운정3지구 농업관련 대체시설 설치사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "파주지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 5fb8714d-229f-4984-bcca-b7c39e38143a
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 12. "용정지구 지방관리방조제 개보수"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 89b8f842-e313-4d50-bd43-46d61255c773
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 13. "당하양수장지구"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "김포지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: b936e827-dd9e-40d5-a9eb-3fdfc41ae7b9
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 14. "호곡지구 수로개보수사업 토목공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "화성·수원지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: fdcbb51d-3d1c-4c0e-95c7-616307602fae
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 15. "캠프 잭슨 환경오염 정화사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "경기본부"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 3989bd4f-317b-4ba9-b06a-aad0849ce578
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 16. "상방 면단위 공공하수처리시설 설치사업 시설공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: c4622e5c-d1dd-4f74-a443-92e3c9e3a159
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 17. "교산지구 국가관리방조제 개보수사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: eba63800-794f-4a2b-87fb-c324f682967a
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 18. "당산지구 지방관리방조제 개보수사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 9604d1d4-7783-4094-b262-dee0b3b4800c
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 19. "디지털혁신처"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "본사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "본사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: c1dbe4cb-f926-4e08-bdb4-c67bdd7b8994
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 20. "중부 안전체험교육장 건립 건축(기계,토목,조경)공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "경기본부"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: d909ab2d-a638-4354-8086-7469790481ea
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 21. "대명항 어촌 뉴딜사업 3단계 건축토목조경기계공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "김포지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 4616fc28-b6df-4d5c-af20-1e455eebc7ca
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 22. "선감탄도흘곶항 어촌뉴딜사업 건축공사(2단계)"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "화성·수원지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: c4e086d5-d32e-4646-8813-162ed05b5716
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 23. "캠프모빌 및 주변지역 환경오염정화용역"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "경기본부"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: b96c19a0-39c0-4e4e-b42b-84174c435758
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 24. "지석지구 배수개선사업  토목공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: e208cb69-4ffe-4442-b9fb-639d059110f3
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 25. "매음지구 다목적농촌용수 개발사업현장"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: bf7c2231-bd16-4a8c-8c9e-48d7bff86dff
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 26. "아산(평택)호 준설사업 3단계"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "평택지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 47856aff-3db8-413f-b7c6-65e8d7754b10
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 27. "서울시 오염지하수 저감분석"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "경기본부"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: d5c59cd0-9ee6-473a-b775-3c8c8ee7abca
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 28. "선곡지구 수리시설개보수현장"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "연천·포천·가평지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 64a8e3c6-6a67-4a3c-a888-249b0dea7b0f
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 29. "백사지구배수개선사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "여주·이천지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 706c31c0-d1b9-41e4-b6c1-90a318a1bb9a
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 30. "점동지구 다목적 농촌용수 개발사업 토목공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "여주·이천지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 54528950-f768-4eef-ba16-0c3c64db0f66
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 31. "대산지구 농업용수 수질개선사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 138fe04e-3d7d-4c6d-b817-147cd8b787ae
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 32. "하리지구 국가관리방조제 개보수사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 089a4c0a-42e6-45c7-94db-3204fcdeb013
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 33. "옹진 미래산업 스마트팜 조성사업 온실공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "경기본부"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 4d6dcae9-de6e-4b6c-b278-a9f3dc796b0d
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 34. "볼음 마을하수도 정비사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 86986b54-9548-4fb6-b0d9-a943e948d5d3
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 35. "금왕1리 취약지역생활"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "양평·광주·서울지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 0a672781-76e6-400c-b1a9-98da1792d456
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 36. "개군면기초생활거점조성사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "양평·광주·서울지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 716f6f18-072e-4774-b710-523e93953aa9
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 37. "단월면 기초생활거점 조성사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "양평·광주·서울지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 7fa90860-493a-49d5-9f0b-721205531d2c
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 38. "천서지구 수리시설개보수사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "양평·광주·서울지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 3721b79c-484e-4bc6-b41d-0101bd18d584
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 39. "소청 하수처리시설 확충공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 4f72c9ce-7ecf-4c7a-88c6-929342bc66ad
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 40. "고삼호수"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "안성지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 34a9a912-df03-4782-9eaa-85a228f95cb9
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 41. "풍무역세권부지조성현장"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "김포지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 5246714f-d160-4742-9c2f-5af0b7e3b370
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 42. "애룡지구 힐링명소 조성사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "파주지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 31679be1-6619-4ea7-a057-3ea41cd3644d
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 43. "도장지구 수리시설 개보수사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: b7524c2b-9732-470f-ae75-b3d5dd5c4a99
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 44. "난정지구 수리시설 개보수사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 6deb3a30-2634-4005-8a6a-6eb1cbbddc22
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 45. "석모 마을하수도 정비사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: ca0c64fb-d508-47f1-aad7-f8499698c3a5
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 46. "동방지구 수리시설 개보수 토목공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "화성·수원지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 3c2daa6b-c978-43b4-9934-0e8d529e0909
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 47. "기흥저수지공원화사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "평택지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: b074df8f-0be0-44f8-89de-20d076e94434
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 48. "북내지구 다목적농촌용수개발사업 토목공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "여주·이천지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 61a66d18-0473-41b8-858d-9e53a9467d55
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 49. "장안4지구 영농편의수리시설개보수사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "화성·수원지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: e59d17e4-c293-4414-9ff8-93fa4879a4f4
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 50. "죽당천 비점오염저감사업 토목,조경(기계포함) 공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "여주·이천지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 2b2863b6-5cea-4eb1-ba3f-aa7e544adf32
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 51. "백운지구 수리시설개보수사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "화성·수원지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 7454c3bc-6182-4064-bd70-67e541468627
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 52. "남양2지구 국가관리방조제 개보수사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "화성·수원지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 80051a37-f6a4-4288-b964-a03dafe32a09
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 53. "신도지구 지방관리 방조제 개보수사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "강화·옹진지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 8e2f1c6d-5fce-4c4f-9f15-d198148e699e
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 54. "성남 골프장 오염토정화사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "경기본부"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: f8b03144-cf5e-4b5c-a838-132ee9e00d45
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 55. "포승읍농촌중심지활성화사업 토목건축공사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "평택지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: bf2ff04c-5aac-44c2-b4d9-1532e4d0b6f3
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:472 56. "원삼면한발대비용수개발사업"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:473    본부: "경기"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:474    지사: "안성지사"
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:475    ID: 1ab2a42d-ebf7-4076-b3c5-0cea50ac958d
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:476 ---
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:478 === 디버깅 데이터 끝 ===
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:133 === 프로젝트 권한 조회 시작 ===
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:134 사용자 프로필: {role: '발주청', hq_division: '경기', branch_division: '경기본부'}
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:148 본부가 지정됨: 경기
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:153 해당 본부의 지사 목록: (11) ['경기본부', '여주·이천지사', '양평·광주·서울지사', '화성·수원지사', '연천·포천·가평지사', '파주지사', '고양지사', '강화·옹진지사', '김포지사', '평택지사', '안성지사']
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:158 본부 대표 지사 여부: true
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:159 첫 번째 지사: 경기본부
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:160 사용자 지사: 경기본부
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:164 ✅ 본부 대표 지사 사용자 권한: 경기 산하 모든 지사 프로젝트 조회
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:187 === 데이터베이스 쿼리 실행 ===
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:399 ✅ 본부 불시점검 데이터 이미 로딩됨. 재로딩 스킵
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:195 📊 조회된 프로젝트 수: 54
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:197 조회된 프로젝트 목록:
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   1. 문지지구 배수개선사업 (경기 - 파주지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   2. 문지지구배수공사 (경기 - 파주지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   3. 공릉호 순환산책로 조성사업 (경기 - 파주지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   4. 현엥지구 수리시설 개보수사엎 (경기 - 파주지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   5. 금현지구 수리시설 개보수사업토목공사 (경기 - 파주지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   6. 대연평 공공하수도 건설사업 시설공사 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   7. 민북지구 농수관로공사 (경기 - 파주지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   8. 윤혁 테스트 지구(고양) (경기 - 고양지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   9. 00지구 테스트 (경기 - 경기본부)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   10. 운정3지구 농업관련 대체시설 설치사업 (경기 - 파주지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   11. 용정지구 지방관리방조제 개보수 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   12. 당하양수장지구 (경기 - 김포지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   13. 호곡지구 수로개보수사업 토목공사 (경기 - 화성·수원지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   14. 캠프 잭슨 환경오염 정화사업 (경기 - 경기본부)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   15. 상방 면단위 공공하수처리시설 설치사업 시설공사 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   16. 교산지구 국가관리방조제 개보수사업 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   17. 당산지구 지방관리방조제 개보수사업 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   18. 중부 안전체험교육장 건립 건축(기계,토목,조경)공사 (경기 - 경기본부)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   19. 대명항 어촌 뉴딜사업 3단계 건축토목조경기계공사 (경기 - 김포지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   20. 선감탄도흘곶항 어촌뉴딜사업 건축공사(2단계) (경기 - 화성·수원지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   21. 캠프모빌 및 주변지역 환경오염정화용역 (경기 - 경기본부)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   22. 지석지구 배수개선사업  토목공사 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   23. 매음지구 다목적농촌용수 개발사업현장 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   24. 아산(평택)호 준설사업 3단계 (경기 - 평택지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   25. 서울시 오염지하수 저감분석 (경기 - 경기본부)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   26. 선곡지구 수리시설개보수현장 (경기 - 연천·포천·가평지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   27. 백사지구배수개선사업 (경기 - 여주·이천지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   28. 점동지구 다목적 농촌용수 개발사업 토목공사 (경기 - 여주·이천지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   29. 대산지구 농업용수 수질개선사업 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   30. 하리지구 국가관리방조제 개보수사업 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   31. 옹진 미래산업 스마트팜 조성사업 온실공사 (경기 - 경기본부)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   32. 볼음 마을하수도 정비사업 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   33. 금왕1리 취약지역생활 (경기 - 양평·광주·서울지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   34. 개군면기초생활거점조성사업 (경기 - 양평·광주·서울지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   35. 단월면 기초생활거점 조성사업 (경기 - 양평·광주·서울지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   36. 천서지구 수리시설개보수사업 (경기 - 양평·광주·서울지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   37. 소청 하수처리시설 확충공사 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   38. 고삼호수 (경기 - 안성지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   39. 풍무역세권부지조성현장 (경기 - 김포지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   40. 애룡지구 힐링명소 조성사업 (경기 - 파주지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   41. 도장지구 수리시설 개보수사업 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   42. 난정지구 수리시설 개보수사업 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   43. 석모 마을하수도 정비사업 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   44. 동방지구 수리시설 개보수 토목공사 (경기 - 화성·수원지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   45. 기흥저수지공원화사업 (경기 - 평택지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   46. 북내지구 다목적농촌용수개발사업 토목공사 (경기 - 여주·이천지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   47. 장안4지구 영농편의수리시설개보수사업 (경기 - 화성·수원지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   48. 죽당천 비점오염저감사업 토목,조경(기계포함) 공사 (경기 - 여주·이천지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   49. 백운지구 수리시설개보수사업 (경기 - 화성·수원지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   50. 남양2지구 국가관리방조제 개보수사업 (경기 - 화성·수원지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   51. 신도지구 지방관리 방조제 개보수사업 (경기 - 강화·옹진지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   52. 성남 골프장 오염토정화사업 (경기 - 경기본부)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   53. 포승읍농촌중심지활성화사업 토목건축공사 (경기 - 평택지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:199   54. 원삼면한발대비용수개발사업 (경기 - 안성지사)
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\lib\projects.ts:202 === 프로젝트 권한 조회 완료 ===
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:532 조회된 프로젝트 수: 54
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:537 프로젝트 좌표 설정...
+C:\Users\EKR\Documents\커서AI\safesys\safesys-app\src\components\Dashboard.tsx:546 좌표 설정 완료: 54

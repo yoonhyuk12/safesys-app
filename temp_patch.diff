@@ -1,0 +1,113 @@
+*** Begin Patch
+*** Update File: safesys-app/src/components/Dashboard.tsx
+@@
+-                                // 지정된 지점들만 필터링
+-                                const filteredBranches = orderedBranches.filter(branch => branchStats.has(branch))
+-
+-                                // 합계 계산
+-                                const totalStats = filteredBranches.reduce((acc, branch) => {
+-                                  const stats = branchStats.get(branch)! as any
+-                                  return {
+-                                    projectCount: acc.projectCount + stats.projectCount,
+-                                    targetCount: acc.targetCount + stats.targetCount,
+-                                    inspectionCount: acc.inspectionCount + stats.inspectionCount,
+-                                    targetInspectionCount: acc.targetInspectionCount + (stats.targetInspectionCount || 0),
+-                                    pendingCount: acc.pendingCount + stats.pendingCount
+-                                  }
+-                                }, { projectCount: 0, targetCount: 0, inspectionCount: 0, targetInspectionCount: 0, pendingCount: 0 })
+-
+-                                const totalInspectionRate = totalStats.targetCount > 0 ? (totalStats.targetInspectionCount / totalStats.targetCount) * 100 : 0
+-
+-                                return [
+-                                  // 합계 행
+-                                  <tr key="subtotal" className="bg-blue-50 font-semibold border-b-2 border-blue-200">
+-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
+-                                      합계 ({filteredBranches.length}개 지점)
+-                                    </td>
+-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
+-                                      {totalStats.projectCount}건
+-                                    </td>
+-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
+-                                      {totalStats.targetCount}건
+-                                    </td>
+-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
+-                                      {totalStats.inspectionCount}건({totalStats.targetInspectionCount})
+-                                    </td>
+-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
+-                                      {totalStats.pendingCount}건
+-                                    </td>
+-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
+-                                      {totalInspectionRate.toFixed(1)}%
+-                                    </td>
+-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-center text-sm font-bold text-blue-900 text-center">
+-                                      -
+-                                    </td>
+-                                  </tr>,
+-                                  // 지점별 행들
+-                                  ...filteredBranches.map(branch => {
++                                // 지정된 지점들만 필터링
++                                const filteredBranches = orderedBranches.filter(branch => branchStats.has(branch))
++                                const branchesToDisplay = showUnInspectedOnly
++                                  ? filteredBranches.filter(branch => {
++                                      const stats = branchStats.get(branch) as any
++                                      if (!stats) return false
++                                      return stats.targetCount > (stats.targetInspectionCount || 0)
++                                    })
++                                  : filteredBranches
++
++                                if (branchesToDisplay.length === 0) {
++                                  return [
++                                    <tr key="empty" className="bg-white">
++                                      <td colSpan={7} className="px-2 py-6 sm:px-6 sm:py-8 text-center text-sm text-gray-500">
++                                        미점검 지점이 없습니다.
++                                      </td>
++                                    </tr>
++                                  ]
++                                }
++
++                                // 합계 계산
++                                const totalStats = branchesToDisplay.reduce((acc, branch) => {
++                                  const stats = branchStats.get(branch)! as any
++                                  return {
++                                    projectCount: acc.projectCount + stats.projectCount,
++                                    targetCount: acc.targetCount + stats.targetCount,
++                                    inspectionCount: acc.inspectionCount + stats.inspectionCount,
++                                    targetInspectionCount: acc.targetInspectionCount + (stats.targetInspectionCount || 0),
++                                    pendingCount: acc.pendingCount + stats.pendingCount
++                                  }
++                                }, { projectCount: 0, targetCount: 0, inspectionCount: 0, targetInspectionCount: 0, pendingCount: 0 })
++
++                                const totalInspectionRate = totalStats.targetCount > 0 ? (totalStats.targetInspectionCount / totalStats.targetCount) * 100 : 0
++
++                                const summaryLabel = showUnInspectedOnly
++                                  ? 미점검 개 / 전체 개
++                                  : 합계 (개 지점)
++
++                                return [
++                                  // 합계 행
++                                  <tr key="subtotal" className="bg-blue-50 font-semibold border-b-2 border-blue-200">
++                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
++                                      {summaryLabel}
++                                    </td>
++                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
++                                      {totalStats.projectCount}건
++                                    </td>
++                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
++                                      {totalStats.targetCount}건
++                                    </td>
++                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
++                                      {totalStats.inspectionCount}건({totalStats.targetInspectionCount})
++                                    </td>
++                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
++                                      {totalStats.pendingCount}건
++                                    </td>
++                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
++                                      {totalInspectionRate.toFixed(1)}%
++                                    </td>
++                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-center text-sm font-bold text-blue-900 text-center">
++                                      -
++                                    </td>
++                                  </tr>,
++                                  // 지점별 행들
++                                  ...branchesToDisplay.map(branch => {
+*** End Patch

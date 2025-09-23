@@ -1,0 +1,10 @@
+node_modules/ 
+.next/ 
+.env.local 
+.vercel 
+dist/ 
+out/ 
+.DS_Store 
+.turbo 
+safesys-app/.next/ 
+safesys-app/node_modules/ 
