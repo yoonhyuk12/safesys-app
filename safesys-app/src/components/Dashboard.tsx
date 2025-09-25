@@ -15,6 +15,15 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import ProfileEditModal from '@/components/auth/ProfileEditModal'
 import PWAInstallButtonHeader from '@/components/common/PWAInstallButtonHeader'
 import TBMStatus from '@/components/project/TBMStatus'
+import ClientMapView from '@/components/dashboard/ClientMapView'
+import TBMContainer from '@/components/dashboard/TBMContainer'
+import ContractorDashboard from '@/components/dashboard/ContractorDashboard'
+import ClientDashboard from '@/components/dashboard/ClientDashboard'
+import ProjectCardsGrid from '@/components/dashboard/ProjectCardsGrid'
+import ClientListView from '@/components/dashboard/ClientListView'
+import SafetyHeatwaveView from '@/components/dashboard/SafetyHeatwaveView'
+import SafetyManagerView from '@/components/dashboard/SafetyManagerView'
+import SafetyHeadquartersView from '@/components/dashboard/SafetyHeadquartersView'
 
 // JSX IntrinsicElements 선언: 빌드 도중 JSX 타입 미탐지 방지용 안전망
 // JSX 타입 선언
@@ -124,7 +133,7 @@ const Dashboard: React.FC = () => {
   // 전사 보기 가능 여부: 발주청이면서 관리자급(hq_division 없음) 또는 본사 지사 사용자
   const canSeeAllHq = React.useMemo(() => {
     if (!userProfile || userProfile.role !== '발주청') return false
-    return userProfile.hq_division == null || userProfile.branch_division?.endsWith('본부')
+    return (userProfile.hq_division == null) || !!userProfile.branch_division?.endsWith('본부')
   }, [userProfile])
 
   // viewMode 변경 시 localStorage에 저장
@@ -1081,26 +1090,21 @@ const Dashboard: React.FC = () => {
 
         {/* 컨텐츠 영역 */}
         {viewMode === 'tbm' ? (
-          <TBMStatus
+          <TBMContainer
             projects={filteredProjects}
             selectedHq={selectedHq}
             selectedBranch={selectedBranch}
             onProjectClick={handleMapProjectClick}
             onBranchSelect={(branchName: string) => setSelectedBranch(branchName)}
-            onHqSelect={(hqName: string) => {
-              setSelectedHq(hqName)
-              setSelectedBranch('') // 본부 변경 시 지사 초기화
-            }}
+            onHqSelect={(hqName: string) => { setSelectedHq(hqName); setSelectedBranch('') }}
           />
         ) : viewMode === 'map' ? (
-          <div ref={mapContainerRef} className="bg-white/90 backdrop-blur rounded-lg shadow-sm border border-white/20 overflow-hidden">
-            <KakaoMap
-              projects={projectsForMap}
+          <ClientMapView
+            containerRef={mapContainerRef}
+            heightPx={mapDynamicHeight}
+            projects={projectsForMap as any}
               onProjectClick={handleMapProjectClick}
-              height={`${mapDynamicHeight}px`}
-              className="w-full"
             />
-          </div>
         ) : viewMode === 'safety' ? (
           <div className="space-y-6">
             {/* 헤더 및 날짜 선택 - 메인 안전현황에서만 표시 */}
@@ -1128,12 +1132,17 @@ const Dashboard: React.FC = () => {
             ) : null}
 
             {/* 안전점검 카드들 또는 상세 테이블 */}
-            {selectedSafetyCard === 'heatwave' ? (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                {/* 폭염점검 헤더: 뒤로 가기 버튼 + 날짜 선택 */}
-                <div className="px-2 py-2 sm:px-6 sm:py-4 border-b border-gray-200 flex items-center justify-between">
-                  <button
-                    onClick={() => {
+            {selectedSafetyCard ? (
+              <>
+                {selectedSafetyCard === 'heatwave' && (
+                  <SafetyHeatwaveView
+                    loading={loading}
+                    selectedDate={selectedDate}
+                    selectedHq={selectedHq}
+                    selectedBranch={selectedBranch}
+                    selectedSafetyBranch={selectedSafetyBranch}
+                    heatWaveChecks={heatWaveChecks}
+                    onBack={() => {
                       setSelectedSafetyCard(null)
                       if (selectedSafetyBranch) {
                         router.push(`/safe/branch/${encodeURIComponent(selectedSafetyBranch)}`)
@@ -1141,174 +1150,112 @@ const Dashboard: React.FC = () => {
                         router.push('/safe')
                       }
                     }}
-                    className="flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    안전현황으로 돌아가기
-                  </button>
-                  <div className="flex items-center space-x-2">
-                    <Calendar className="h-4 w-4 text-gray-500" />
-                    <input
-                      type="date"
-                      value={selectedDate}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSelectedDate(e.target.value)}
-                      className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
+                    onDateChange={(val) => setSelectedDate(val)}
+                    onRowClick={handleHeatWaveCheckClick}
+                  />
+                )}
 
-                {/* 폭염점검 결과 테이블 */}
-                <div className="p-6">
-                  {loading ? (
-                    <div className="flex justify-center items-center py-12">
-                      <LoadingSpinner />
-                    </div>
-                  ) : (() => {
-                    // 서버에서 이미 필터링된 데이터이므로 추가 필터링은 불필요
-                    const filteredHeatWaveChecks = heatWaveChecks
+                {selectedSafetyCard === 'manager' && (
+                  <SafetyManagerView
+                    loading={inspectionDataLoading}
+                    projects={projects}
+                    managerInspections={managerInspections}
+                    selectedSafetyBranch={selectedSafetyBranch}
+                    selectedHq={selectedHq}
+                    selectedBranch={selectedBranch}
+                    selectedQuarter={selectedQuarter}
+                    isHqDownloadMode={isHqDownloadMode}
+                    selectedBranchesForReport={selectedBranchesForReport}
+                    selectedProjectIdsForReport={selectedProjectIdsForReport}
+                    isGeneratingReport={isGeneratingReport}
+                    onBack={() => {
+                      setSelectedSafetyCard(null)
+                      if (selectedSafetyBranch) router.push(`/safe/branch/${encodeURIComponent(selectedSafetyBranch)}`)
+                      else router.push('/safe')
+                    }}
+                    onBackToAllBranches={() => {
+                      setSelectedSafetyBranch('')
+                      router.push('/safe/manager')
+                    }}
+                    onQuarterChange={(val) => setSelectedQuarter(val)}
+                    onToggleDownloadMode={(on) => {
+                      setIsHqDownloadMode(on)
+                      if (on) {
+                        setSelectedBranchesForReport([])
+                        setSelectedProjectIdsForReport([])
+                      }
+                    }}
+                    onGenerateReport={async () => {
+                      try {
+                        setIsGeneratingReport(true)
+                        if (selectedSafetyBranch) {
+                          const { downloadBranchManagerReports } = await import('@/lib/reports/manager-inspection-branch')
+                          await downloadBranchManagerReports({
+                            projects,
+                            inspections: managerInspections,
+                            selectedProjectIds: selectedProjectIdsForReport,
+                            selectedQuarter,
+                            selectedHq,
+                            selectedSafetyBranch: selectedSafetyBranch as string,
+                          })
+                        } else {
+                          const { generateManagerInspectionBulkReport } = await import('@/lib/reports/manager-inspection-report')
+                          const filteredProjects = projects.filter((p: any) => {
+                            if (selectedHq && p.managing_hq !== selectedHq) return false
+                            if (selectedBranch && p.managing_branch !== selectedBranch) return false
+                            if (selectedBranchesForReport.length > 0 && !selectedBranchesForReport.includes(p.managing_branch)) return false
+                            return true
+                          })
+                          const projectInspections: { project: any; inspections: any[] }[] = []
+                          filteredProjects.forEach((p: any) => {
+                            const ins = managerInspections.filter((i: any) => i.project_id === p.id && isInSelectedQuarter(i.inspection_date))
+                            if (ins.length > 0) projectInspections.push({ project: p, inspections: ins })
+                          })
+                          if (projectInspections.length === 0) { alert('선택한 조건에 해당하는 점검 결과가 없습니다.'); return }
+                          await generateManagerInspectionBulkReport({ projectInspections })
+                        }
+                        setIsHqDownloadMode(false)
+                      } catch (e: any) {
+                        console.error(e)
+                        const msg = (e && e.message) ? e.message : '보고서 생성 중 오류가 발생했습니다.'
+                        alert(msg)
+                      } finally {
+                        setIsGeneratingReport(false)
+                      }
+                    }}
+                    onCancelReport={() => {
+                      setIsHqDownloadMode(false)
+                      setSelectedBranchesForReport([])
+                      setSelectedProjectIdsForReport([])
+                    }}
+                    onProjectToggleForReport={(projectId) => {
+                      setSelectedProjectIdsForReport(prev => prev.includes(projectId) ? prev.filter(id => id !== projectId) : [...prev, projectId])
+                    }}
+                    onBranchToggleForReport={(branch) => {
+                      setSelectedBranchesForReport(prev => prev.includes(branch) ? prev.filter(b => b !== branch) : [...prev, branch])
+                    }}
+                    onRowClick={(projectId) => router.push(`/project/${projectId}/manager-inspection?fromBranch=${encodeURIComponent(selectedSafetyBranch || '')}`)}
+                    onSelectSafetyBranch={(branch) => {
+                      setSelectedSafetyBranch(branch)
+                      router.push(`/safe/branch/${encodeURIComponent(branch)}/manager`)
+                    }}
+                  />
+                )}
 
-                    return filteredHeatWaveChecks.length === 0 ? (
-                      <div className="text-center py-12">
-                        <Thermometer className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                        <h4 className="text-lg font-medium text-gray-900 mb-2">
-                          점검 데이터가 없습니다
-                        </h4>
-                        <p className="text-gray-600">
-                          {selectedHq || selectedBranch 
-                            ? `선택한 ${selectedHq ? selectedHq + ' ' : ''}${selectedBranch ? selectedBranch + ' ' : ''}지역의 선택한 날짜(${selectedDate})에 등록된 폭염점검 결과가 없습니다.`
-                            : `선택한 날짜(${selectedDate})에 등록된 폭염점검 결과가 없습니다.`
-                          }
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                            <tr>
-                              <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                <div className="sm:hidden" style={{width: '80px', minWidth: '80px'}}>프로젝트</div>
-                                <div className="hidden sm:block">프로젝트명</div>
-                              </th>
-                              <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                측정시간
-                              </th>
-                              <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                체감온도
-                              </th>
-                              <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                물
-                              </th>
-                              <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                바람그늘
-                              </th>
-                              <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                휴식
-                              </th>
-                              <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                보냉장구
-                              </th>
-                              <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                응급조치
-                              </th>
-                              <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                작업시간조정
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-            {filteredHeatWaveChecks.map((check: HeatWaveCheck) => (
-                            <tr 
-                              key={check.id} 
-                              className="hover:bg-gray-50 cursor-pointer transition-colors"
-                              onClick={() => handleHeatWaveCheckClick(check)}
-                            >
-                              <td className="px-2 py-2 sm:px-6 sm:py-4 text-sm font-medium text-blue-600 hover:text-blue-800">
-                                <div className="sm:hidden flex flex-col" style={{width: '80px', minWidth: '80px'}}>
-                                  <span className="font-medium">
-                                    {(check.project_name || '').length > 4 ? `${(check.project_name || '').substring(0, 4)}...` : (check.project_name || '미지정')}
-                                  </span>
-                                  <span className="text-xs text-gray-500">({check.managing_branch})</span>
-                                </div>
-                                <div className="hidden sm:flex flex-col">
-                                  <span className="font-medium break-words">{check.project_name || '미지정'}</span>
-                                  <span className="text-xs text-gray-500">({check.managing_branch})</span>
-                                </div>
-                              </td>
-                              <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
-                                {new Date(check.check_time).toLocaleTimeString('ko-KR', { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit',
-                                  hour12: false 
-                                })}
-                              </td>
-                              <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-900">
-                                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                  check.feels_like_temp >= 35 
-                                    ? 'bg-red-100 text-red-800'
-                                    : check.feels_like_temp >= 30
-                                    ? 'bg-yellow-100 text-yellow-800'
-                                    : 'bg-green-100 text-green-800'
-                                }`}>
-                                  {check.feels_like_temp}℃
-                                </span>
-                              </td>
-                              <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-center">
-                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
-                                  check.water_supply ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {check.water_supply ? 'O' : 'X'}
-                                </span>
-                              </td>
-                              <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-center">
-                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
-                                  check.ventilation ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {check.ventilation ? 'O' : 'X'}
-                                </span>
-                              </td>
-                              <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-center">
-                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
-                                  check.rest_time ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {check.rest_time ? 'O' : 'X'}
-                                </span>
-                              </td>
-                              <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-center">
-                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
-                                  check.cooling_equipment ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {check.cooling_equipment ? 'O' : 'X'}
-                                </span>
-                              </td>
-                              <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-center">
-                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
-                                  check.emergency_care ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {check.emergency_care ? 'O' : 'X'}
-                                </span>
-                              </td>
-                              <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-center">
-                                <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${
-                                  check.work_time_adjustment ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {check.work_time_adjustment ? 'O' : 'X'}
-                                </span>
-                              </td>
-                            </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )
-                  })()}
-                </div>
-              </div>
-            ) : selectedSafetyCard === 'manager' ? (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                {/* 뒤로 가기 버튼 */}
-                <div className="px-2 py-2 sm:px-6 sm:py-4 border-b border-gray-200">
-                  <button
-                    onClick={() => {
+                {selectedSafetyCard === 'headquarters' && (
+                  <SafetyHeadquartersView
+                    loading={inspectionDataLoading}
+                    projects={projects}
+                    headquartersInspections={headquartersInspections}
+                    selectedSafetyBranch={selectedSafetyBranch}
+                    selectedHq={selectedHq}
+                    selectedBranch={selectedBranch}
+                    selectedQuarter={selectedQuarter}
+                    isHqDownloadMode={isHqDownloadMode}
+                    selectedBranchesForReport={selectedBranchesForReport}
+                    selectedProjectIdsForReport={selectedProjectIdsForReport}
+                    isGeneratingReport={isGeneratingReport}
+                    onBack={() => {
                       setSelectedSafetyCard(null)
                       if (selectedSafetyBranch) {
                         router.push(`/safe/branch/${encodeURIComponent(selectedSafetyBranch)}`)
@@ -1316,1189 +1263,43 @@ const Dashboard: React.FC = () => {
                         router.push('/safe')
                       }
                     }}
-                    className="flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    안전현황으로 돌아가기
-                  </button>
-                </div>
-
-                {/* 분기 선택 및 관리자 점검 현황 */}
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                      <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-                      (지사) 관리자 점검 현황
-                    </h3>
-                    <div className="flex items-center space-x-2">
-                      {!isHqDownloadMode ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsHqDownloadMode(true)
-                            setSelectedBranchesForReport([])
-                            setSelectedProjectIdsForReport([])
-                          }}
-                          className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          aria-label="보고서 선택 모드"
-                          title="보고서 선택 모드"
-                        >
-                          <Download className="h-5 w-5" />
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                setIsGeneratingReport(true)
-                                if (selectedSafetyBranch) {
-                                  const { downloadBranchManagerReports } = await import('@/lib/reports/manager-inspection-branch')
-                                  await downloadBranchManagerReports({
-                                    projects,
-                                    inspections: managerInspections,
-                                    selectedProjectIds: selectedProjectIdsForReport,
-                                    selectedQuarter,
-                                    selectedHq,
-                                    selectedSafetyBranch: selectedSafetyBranch as string,
-                                  })
-                                } else {
-                                  const { generateManagerInspectionBulkReport } = await import('@/lib/reports/manager-inspection-report')
-                                  const filteredProjects = projects.filter((p: any) => {
-                                    if (selectedHq && p.managing_hq !== selectedHq) return false
-                                    if (selectedBranch && p.managing_branch !== selectedBranch) return false
-                                    if (selectedBranchesForReport.length > 0 && !selectedBranchesForReport.includes(p.managing_branch)) return false
-                                    return true
-                                  })
-                                  const projectInspections: { project: any; inspections: any[] }[] = []
-                                  filteredProjects.forEach((p: any) => {
-                                    const ins = managerInspections.filter((i: any) => i.project_id === p.id && isInSelectedQuarter(i.inspection_date))
-                                    if (ins.length > 0) projectInspections.push({ project: p, inspections: ins })
-                                  })
-                                  if (projectInspections.length === 0) { alert('선택한 조건에 해당하는 점검 결과가 없습니다.'); return }
-                                  await generateManagerInspectionBulkReport({ projectInspections })
-                                }
-                                setIsHqDownloadMode(false)
-                              } catch (e) {
-                                console.error(e)
-                                alert('보고서 생성 중 오류가 발생했습니다.')
-                              } finally {
-                                setIsGeneratingReport(false)
-                              }
-                            }}
-                            className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                            aria-label="선택한 항목 보고서 받기"
-                            title="선택한 항목 보고서 받기"
-                            disabled={isGeneratingReport}
-                          >
-                            {isGeneratingReport ? '생성중...' : '프린터'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsHqDownloadMode(false)
-                              setSelectedBranchesForReport([])
-                              setSelectedProjectIdsForReport([])
-                            }}
-                            className="px-3 py-2 bg-gray-500 text-white text-sm font-medium rounded-lg hover:bg-gray-600 transition-colors"
-                            aria-label="보고서 선택 모드 종료"
-                            title="보고서 선택 모드 종료"
-                          >
-                            취소
-                          </button>
-                        </>
-                      )}
-                      <select
-                        value={selectedQuarter}
-                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedQuarter(e.target.value)}
-                        className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="2025Q4">25년 4분기</option>
-                        <option value="2025Q3">25년 3분기</option>
-                        <option value="2025Q2">25년 2분기</option>
-                        <option value="2025Q1">25년 1분기</option>
-                        <option value="2024Q4">24년 4분기</option>
-                        <option value="2024Q3">24년 3분기</option>
-                        <option value="2024Q2">24년 2분기</option>
-                        <option value="2024Q1">24년 1분기</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {inspectionDataLoading ? (
-                    <div className="flex justify-center items-center py-12">
-                      <LoadingSpinner />
-                    </div>
-                  ) : (() => {
-                    // 특정 지사가 선택된 경우 해당 지사의 프로젝트별 점검 현황
-                    if (selectedSafetyBranch) {
-                      // 선택된 지사의 프로젝트들 필터링
-                      const branchProjects = projects.filter((project: Project) => {
-                        if (selectedHq && project.managing_hq !== selectedHq) return false
-                        if (project.managing_branch !== selectedSafetyBranch) return false
-                        return true
-                      })
-
-                      // 각 프로젝트별 점검 통계 계산
-                      const projectStats = branchProjects.map((project: Project) => {
-                        const projectInspections = managerInspections.filter((inspection: ManagerInspection) => 
-                          inspection.project_id === project.id
-                        )
-                        const latestInspection = projectInspections.sort((a: ManagerInspection, b: ManagerInspection) => 
-                          new Date(b.inspection_date).getTime() - new Date(a.inspection_date).getTime()
-                        )[0]
-
-                        return {
-                          ...project,
-                          inspectionCount: projectInspections.length,
-                          latestInspection: latestInspection || null
-                        }
-                      })
-
-                      return (
-                        <div>
-                          {/* 뒤로가기 버튼 */}
-                          <div className="flex items-center mb-4">
-                            <button
-                              onClick={() => setSelectedSafetyBranch(null)}
-                              className="flex items-center px-3 py-1 text-sm text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
-                            >
-                              <ArrowLeft className="h-3 w-3 mr-1" />
-                              전체 지사로 돌아가기
-                            </button>
-                          </div>
-
-                          {/* 선택된 지사 정보 */}
-                          <div className="bg-blue-50 rounded-lg p-4 mb-6">
-                            <h4 className="text-lg font-semibold text-blue-900 mb-2">
-                              {selectedSafetyBranch} - 프로젝트별 관리자 점검 현황
-                            </h4>
-                            <p className="text-blue-700 text-sm">
-                              총 {branchProjects.length}개 프로젝트, {managerInspections.filter((i: ManagerInspection) => i.managing_branch === selectedSafetyBranch).length}건 점검완료
-                            </p>
-                          </div>
-
-                          {branchProjects.length === 0 ? (
-                            <div className="text-center py-12">
-                              <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                              <h4 className="text-lg font-medium text-gray-900 mb-2">프로젝트가 없습니다</h4>
-                              <p className="text-gray-600">선택한 지사에 등록된 프로젝트가 없습니다.</p>
-                            </div>
-                          ) : (
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                  <tr>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">프로젝트명</th>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검 대상</th>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검 횟수</th>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">조치대기</th>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">최근 점검일</th>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">최근 점검자</th>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                  {/* 소계 행 */}
-                                  <tr className="bg-blue-50 font-semibold border-b-2 border-blue-200">
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      소계 ({branchProjects.length}개 프로젝트)
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      {(() => {
-                                        const quarterNum = (() => {
-                                          const parts = (selectedQuarter || '').split('Q')
-                                          const q = parseInt(parts[1] || '0')
-                                          return Number.isNaN(q) ? Math.ceil((new Date().getMonth() + 1) / 3) : q
-                                        })()
-                                        const targetCount = branchProjects.filter((project: Project) => {
-                                          const ia: any = (project as any).is_active
-                                          if (ia && typeof ia === 'object') {
-                                            const key = `q${quarterNum}` as 'q1' | 'q2' | 'q3' | 'q4'
-                                            return !!ia[key]
-                                          }
-                                          return false
-                                        }).length
-                                        return `${targetCount}개`
-                                      })()}
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      {managerInspections.filter((i: ManagerInspection) => i.managing_branch === selectedSafetyBranch).length}건
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      0건
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      -
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      -
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-center text-sm font-bold text-blue-900 text-center">
-                                      -
-                                    </td>
-                                  </tr>
-                                  {branchProjects.map((project: Project) => {
-                                    // 각 프로젝트별 점검 데이터 계산
-                                    const projectInspections = managerInspections.filter((inspection: ManagerInspection) => 
-                                      inspection.project_id === project.id
-                                    )
-                                    const latestInspection = projectInspections.sort((a: ManagerInspection, b: ManagerInspection) => 
-                                      new Date(b.inspection_date).getTime() - new Date(a.inspection_date).getTime()
-                                    )[0]
-
-                                    // 조치대기 건수 계산
-                                    const pendingCount = 0
-
-                                    const inspectionCount = projectInspections.length
-
-                                    return (
-                                      <tr key={project.id} className="hover:bg-gray-50 cursor-pointer"
-                                          onClick={() => router.push(`/project/${project.id}/manager-inspection?fromBranch=${encodeURIComponent(selectedSafetyBranch || '')}`)}>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 text-sm font-medium text-blue-600 hover:text-blue-800 border-r border-gray-200 text-center max-w-[120px] sm:max-w-none">
-                                          <div className="sm:hidden">
-                                            {(project.project_name || '').length > 4 ? `${(project.project_name || '').substring(0, 4)}...` : (project.project_name || '미지정')}
-                                          </div>
-                                          <div className="hidden sm:block break-words">
-                                            {project.project_name || '미지정'}
-                                          </div>
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-center border-r border-gray-200">
-                                          {(() => {
-                                            const quarterNum = (() => {
-                                              const parts = (selectedQuarter || '').split('Q')
-                                              const q = parseInt(parts[1] || '0')
-                                              return Number.isNaN(q) ? Math.ceil((new Date().getMonth() + 1) / 3) : q
-                                            })()
-                                            const ia: any = (project as any).is_active
-                                            if (ia && typeof ia === 'object') {
-                                              const key = `q${quarterNum}` as 'q1' | 'q2' | 'q3' | 'q4'
-                                              // 선택 분기 값만 기준: true면 대상
-                                              const isTarget = !!ia[key]
-                                              return isTarget ? (
-                                                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">대상</span>
-                                              ) : (
-                                                <span className="text-gray-400">-</span>
-                                              )
-                                            }
-                                            return <span className="text-gray-400">-</span>
-                                          })()}
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
-                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                            inspectionCount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                                          }`}>
-                                            {inspectionCount > 0 ? `${inspectionCount}건` : '-'}
-                                          </span>
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
-                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                            pendingCount > 0 ? 'bg-red-100 text-red-800' : 
-                                            inspectionCount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                                          }`}>
-                                            {pendingCount > 0 ? `${pendingCount}건` : '-'}
-                                          </span>
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 text-center">
-                                          {latestInspection 
-                                            ? new Date(latestInspection.inspection_date).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })
-                                            : '-'
-                                          }
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 text-center">
-                                          {latestInspection?.inspector_name || '-'}
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-center text-sm">
-                                          {isHqDownloadMode ? (
-                                            <input
-                                              type="checkbox"
-                                              className="w-4 h-4 text-blue-600 border-gray-300 rounded"
-                                              onClick={(e) => {
-                                                e.stopPropagation()
-                                                setSelectedProjectIdsForReport(prev => {
-                                                  const exists = prev.includes(project.id)
-                                                  if (exists) return prev.filter(id => id !== project.id)
-                                                  return [...prev, project.id]
-                                                })
-                                              }}
-                                              checked={selectedProjectIdsForReport.includes(project.id)}
-                                              readOnly
-                                            />
-                                          ) : null}
-                                        </td>
-                                      </tr>
-                                    )
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    }
-                    // 본부 단위에서는 지사별 점검 통계
-                    else if (userProfile?.branch_division?.endsWith('본부') || !selectedBranch) {
-                      // 지사별로 점검 횟수 및 해당 분기 공사중 대상 수 집계
-                      const branchStats = new Map<string, { projectCount: number; targetCount: number; inspectionCount: number; pendingCount: number }>()
-                      const quarterNum = (() => {
-                        const parts = (selectedQuarter || '').split('Q')
-                        const q = parseInt(parts[1] || '0')
-                        return Number.isNaN(q) ? Math.ceil((new Date().getMonth() + 1) / 3) : q
-                      })()
-                      
-                      // 관할 프로젝트 수 계산
-                      const filteredProjects = projects.filter((project: Project) => {
-                        if (selectedHq && project.managing_hq !== selectedHq) return false
-                        if (selectedBranch && project.managing_branch !== selectedBranch) return false
-                        return true
-                      })
-                      
-                      // 대상 프로젝트 집합 구성
-                      const targetProjectIds = new Set<string>()
-
-                      filteredProjects.forEach((project: Project) => {
-                        const branch = project.managing_branch
-                        if (!branchStats.has(branch)) {
-                          branchStats.set(branch, { projectCount: 0, targetCount: 0, inspectionCount: 0, pendingCount: 0, targetInspectionCount: 0 as number } as any)
-                        }
-                        const entry = branchStats.get(branch)!
-                        entry.projectCount++
-
-                        // 해당 분기 공사중 여부 (is_active JSONB 기준; 구형 boolean은 제외)
-                        const ia: any = (project as any).is_active
-                        if (ia && typeof ia === 'object') {
-                          const key = `q${quarterNum}` as 'q1' | 'q2' | 'q3' | 'q4'
-                          const activeThisQuarter = !!ia[key] && !ia.completed
-                          if (activeThisQuarter) {
-                            entry.targetCount++
-                            targetProjectIds.add(project.id)
-                          }
-                        }
-                      })
-                      
-                      // 점검 횟수 및 조치대기 건수 집계
-                      managerInspections.forEach((inspection: ManagerInspection) => {
-                        const branch = inspection.managing_branch || '미지정'
-                        if (branchStats.has(branch)) {
-                          const entry = branchStats.get(branch) as any
-                          entry.inspectionCount++
-                          if (inspection.project_id && targetProjectIds.has(inspection.project_id)) {
-                            entry.targetInspectionCount++
-                          }
-                        }
-                      })
-
-                      return branchStats.size === 0 ? (
-                        <div className="text-center py-12">
-                          <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                          <h4 className="text-lg font-medium text-gray-900 mb-2">점검 데이터가 없습니다</h4>
-                          <p className="text-gray-600">선택한 분기에 등록된 관리자 점검 결과가 없습니다.</p>
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">지사명</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">총 프로젝트 수</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검대상 수</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검횟수(대상)</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">조치대기</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검률(대상)</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {(() => {
-                                // 정의된 지사 순서대로 정렬
-                                const orderedBranches: string[] = []
-                                
-                                if (selectedHq) {
-                                  // 특정 본부가 선택된 경우 해당 본부의 지사 순서 사용
-                                  orderedBranches.push(...(BRANCH_OPTIONS[selectedHq] || []))
-                                } else {
-                                  // 전체 본부인 경우 모든 본부의 지사를 순서대로 추가
-                                  Object.keys(HEADQUARTERS_OPTIONS).forEach(hq => {
-                                    if (BRANCH_OPTIONS[hq]) {
-                                      orderedBranches.push(...BRANCH_OPTIONS[hq])
-                                    }
-                                  })
-                                }
-                                
-                                // 실제 데이터가 있는 지사들만 정의된 순서대로 표시
-                                const filteredBranches = orderedBranches.filter(branch => branchStats.has(branch))
-                                
-                                // 소계 계산
-                                const totalStats = filteredBranches.reduce((acc, branch) => {
-                                  const stats = branchStats.get(branch)! as any
-                                  return {
-                                    projectCount: acc.projectCount + stats.projectCount,
-                                    targetCount: acc.targetCount + stats.targetCount,
-                                    inspectionCount: acc.inspectionCount + stats.inspectionCount,
-                                    targetInspectionCount: acc.targetInspectionCount + (stats.targetInspectionCount || 0),
-                                    pendingCount: acc.pendingCount + stats.pendingCount
-                                  }
-                                }, { projectCount: 0, targetCount: 0, inspectionCount: 0, targetInspectionCount: 0, pendingCount: 0 })
-                                
-                                const totalInspectionRate = totalStats.targetCount > 0 ? (totalStats.targetInspectionCount / totalStats.targetCount) * 100 : 0
-                                
-                                return [
-                                  // 소계 행
-                                  <tr key="subtotal" className="bg-blue-50 font-semibold border-b-2 border-blue-200">
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      소계 ({filteredBranches.length}개 지사)
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      {totalStats.projectCount}개
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      {totalStats.targetCount}개
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      {totalStats.inspectionCount}건 ({totalStats.targetInspectionCount})
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      {totalStats.pendingCount}건
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      {totalInspectionRate.toFixed(1)}%
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-center text-sm font-bold text-blue-900 text-center">
-                                      -
-                                    </td>
-                                  </tr>,
-                                  // 데이터 행들
-                                  ...filteredBranches.map(branch => {
-                                    const stats = branchStats.get(branch)! as any
-                                    const inspectionRate = stats.targetCount > 0 ? (stats.targetInspectionCount / stats.targetCount) * 100 : 0
-                                    return (
-                                      <tr key={branch} className="hover:bg-gray-50 cursor-pointer" 
-                                          onClick={() => setSelectedSafetyBranch(branch)}>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:text-blue-800 border-r border-gray-200 text-center">{branch}</td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 text-center">{stats.projectCount > 0 ? stats.projectCount : '-'}</td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-blue-600 font-medium border-r border-gray-200 text-center">{stats.targetCount > 0 ? stats.targetCount : '-'}</td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-900 border-r border-gray-200 text-center">{stats.inspectionCount > 0 ? stats.inspectionCount : '-'} <span className="text-gray-500">({stats.targetInspectionCount || 0})</span></td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
-                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                            stats.pendingCount > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                                          }`}>
-                                            {stats.pendingCount > 0 ? `${stats.pendingCount}건` : '-'}
-                                          </span>
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
-                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                            inspectionRate >= 80 ? 'bg-green-100 text-green-800' :
-                                            inspectionRate >= 50 ? 'bg-yellow-100 text-yellow-800' :
-                                            'bg-red-100 text-red-800'
-                                          }`}>
-                                            {inspectionRate.toFixed(1)}%
-                                          </span>
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-center text-sm">
-                                          {isHqDownloadMode ? (
-                                            <input
-                                              type="checkbox"
-                                              className="w-4 h-4 text-blue-600 border-gray-300 rounded"
-                                              onClick={(e) => {
-                                                e.stopPropagation()
-                                                setSelectedBranchesForReport(prev => {
-                                                  const exists = prev.includes(branch)
-                                                  if (exists) return prev.filter(b => b !== branch)
-                                                  return [...prev, branch]
-                                                })
-                                              }}
-                                              checked={selectedBranchesForReport.includes(branch)}
-                                              readOnly
-                                            />
-                                          ) : null}
-                                        </td>
-                                      </tr>
-                                    )
-                                  })
-                                ]
-                              })()}
-                            </tbody>
-                          </table>
-                        </div>
-                      )
-                    } else {
-                      // 지사에서는 프로젝트별 점검 현황 (본부 사용자가 지사 선택했거나, 지사 소속 사용자)
-                      return managerInspections.length === 0 ? (
-                        <div className="text-center py-12">
-                          <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                          <h4 className="text-lg font-medium text-gray-900 mb-2">점검 데이터가 없습니다</h4>
-                          <p className="text-gray-600">선택한 분기에 등록된 관리자 점검 결과가 없습니다.</p>
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">프로젝트명</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검일</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검자</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {managerInspections.map((inspection: ManagerInspection) => (
-                                <tr key={inspection.id} className="hover:bg-gray-50 cursor-pointer"
-                                    onClick={() => router.push(`/project/${inspection.project_id}/manager-inspection?fromBranch=${encodeURIComponent(selectedSafetyBranch || '')}`)}>
-                                  <td className="px-2 py-2 sm:px-6 sm:py-4 text-sm font-medium text-blue-600 hover:text-blue-800 border-r border-gray-200 text-center max-w-[120px] sm:max-w-none">
-                                    <div className="sm:hidden">
-                                      {(inspection.project_name || '').length > 4 ? `${(inspection.project_name || '').substring(0, 4)}...` : (inspection.project_name || '미지정')}
-                                    </div>
-                                    <div className="hidden sm:block break-words">
-                                      {inspection.project_name || '미지정'}
-                                    </div>
-                                  </td>
-                                  <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
-                                    {inspection.inspection_date ? new Date(inspection.inspection_date).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) : '-'}
-                                  </td>
-                                  <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
-                                    {inspection.inspector_name || '-'}
-                                  </td>
-                                  <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {inspection.remarks || '-'}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )
-                    }
-                  })()}
-                </div>
-              </div>
-            ) : selectedSafetyCard === 'headquarters' ? (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                {/* 뒤로 가기 버튼 */}
-                <div className="px-2 py-2 sm:px-6 sm:py-4 border-b border-gray-200">
-                  <button
-                    onClick={() => {
-                      setSelectedSafetyCard(null)
-                      if (selectedSafetyBranch) {
-                        router.push(`/safe/branch/${encodeURIComponent(selectedSafetyBranch)}`)
-                      } else {
-                        router.push('/safe')
+                    onBackToAllBranches={() => {
+                      // 전체 지사로 돌아가기: 지사 선택 해제 및 본부 헤드쿼터 경로로 이동
+                      setSelectedSafetyBranch('')
+                      router.push('/safe/headquarters')
+                    }}
+                    onQuarterChange={(val) => setSelectedQuarter(val)}
+                    onToggleDownloadMode={(on) => {
+                      setIsHqDownloadMode(on)
+                      if (on) {
+                        setSelectedBranchesForReport([])
+                        setSelectedProjectIdsForReport([])
                       }
                     }}
-                    className="flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    안전현황으로 돌아가기
-                  </button>
-                </div>
-
-                {/* 분기 선택 및 본부 불시 점검 현황 */}
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                      <AlertTriangle className="h-5 w-5 text-orange-600 mr-2" />
-                      (본부) 불시 점검 현황
-                    </h3>
-                    <div className="flex items-center space-x-2">
-                      {!isHqDownloadMode ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setIsHqDownloadMode(true)
-                            setSelectedBranchesForReport([])
-                            setSelectedProjectIdsForReport([])
-                          }}
-                          className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          aria-label="보고서 선택 모드"
-                          title="보고서 선택 모드"
-                        >
-                          <Download className="h-5 w-5" />
-                        </button>
-                      ) : (
-                        <>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                setIsGeneratingReport(true)
-                                const { generateHeadquartersInspectionReportBulk } = await import('@/lib/reports/headquarters-inspection')
-                                const groups: { projectName: string; inspections: any[]; branchName?: string }[] = []
-                                if (selectedSafetyBranch) {
-                                  // 지사 단위: 체크된 프로젝트만
-                                  const branchProjects = projects.filter((p: any) => (!selectedHq || p.managing_hq === selectedHq) && p.managing_branch === selectedSafetyBranch)
-                                  const targetProjects = selectedProjectIdsForReport.length > 0 ? branchProjects.filter((p: any) => selectedProjectIdsForReport.includes(p.id)) : []
-                                  if (targetProjects.length === 0) { 
-                                    alert('선택한 프로젝트가 없습니다. 체크박스를 선택해주세요.'); 
-                                    return 
-                                  }
-                                  targetProjects.forEach((p: any) => {
-                                    const ins = headquartersInspections.filter((i: any) => i.project_id === p.id && isInSelectedQuarter(i.inspection_date))
-                                    if (ins.length > 0) groups.push({ projectName: p.project_name || 'project', inspections: ins, branchName: p.managing_branch })
-                                  })
-                                } else {
-                                  // 본부 단위: 체크된 지사만
-                                  if (selectedBranchesForReport.length === 0) {
-                                    alert('선택한 지사가 없습니다. 체크박스를 선택해주세요.');
-                                    return
-                                  }
-                                  const filteredProjects = projects.filter((p: any) => {
-                                    if (selectedHq && p.managing_hq !== selectedHq) return false
-                                    if (selectedBranch && p.managing_branch !== selectedBranch) return false
-                                    return selectedBranchesForReport.includes(p.managing_branch)
-                                  })
-                                  filteredProjects.forEach((p: any) => {
-                                    const ins = headquartersInspections.filter((i: any) => i.project_id === p.id && isInSelectedQuarter(i.inspection_date))
-                                    if (ins.length > 0) groups.push({ projectName: p.project_name || 'project', inspections: ins, branchName: p.managing_branch })
-                                  })
-                                }
-                                if (groups.length === 0) { alert('선택한 조건에 해당하는 점검 결과가 없습니다.'); return }
-                                await generateHeadquartersInspectionReportBulk(groups)
-                                setIsHqDownloadMode(false)
-                              } catch (e) {
-                                console.error(e)
-                                alert('보고서 생성 중 오류가 발생했습니다.')
-                              } finally {
-                                setIsGeneratingReport(false)
-                              }
-                            }}
-                            className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                            aria-label="선택한 항목 보고서 받기"
-                            title="선택한 항목 보고서 받기"
-                            disabled={isGeneratingReport}
-                          >
-                            {isGeneratingReport ? '생성중...' : '프린터'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsHqDownloadMode(false)
-                              setSelectedBranchesForReport([])
-                              setSelectedProjectIdsForReport([])
-                            }}
-                            className="px-3 py-2 bg-gray-500 text-white text-sm font-medium rounded-lg hover:bg-gray-600 transition-colors"
-                            aria-label="보고서 선택 모드 종료"
-                            title="보고서 선택 모드 종료"
-                          >
-                            취소
-                          </button>
-                        </>
-                      )}
-                      <select
-                        value={selectedQuarter}
-                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedQuarter(e.target.value)}
-                        className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="2025Q4">25년 4분기</option>
-                        <option value="2025Q3">25년 3분기</option>
-                        <option value="2025Q2">25년 2분기</option>
-                        <option value="2025Q1">25년 1분기</option>
-                        <option value="2024Q4">24년 4분기</option>
-                        <option value="2024Q3">24년 3분기</option>
-                        <option value="2024Q2">24년 2분기</option>
-                        <option value="2024Q1">24년 1분기</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* 불시 점검 결과 테이블 */}
-                  {inspectionDataLoading ? (
-                    <div className="flex justify-center items-center py-12">
-                      <LoadingSpinner />
-                    </div>
-                  ) : (() => {
-                    // 특정 지사가 선택된 경우 해당 지사의 프로젝트별 점검 현황
-                    if (selectedSafetyBranch) {
-                      // 선택된 지사의 프로젝트들 필터링
-                      const branchProjects = projects.filter((project: Project) => {
-                        if (selectedHq && project.managing_hq !== selectedHq) return false
-                        if (project.managing_branch !== selectedSafetyBranch) return false
-                        return true
-                      })
-
-                      // 각 프로젝트별 점검 통계 계산
-                      const projectStats = branchProjects.map((project: Project) => {
-                        const projectInspections = headquartersInspections.filter((inspection: HeadquartersInspection) => 
-                          inspection.project_id === project.id
-                        )
-                        const latestInspection = projectInspections.sort((a: HeadquartersInspection, b: HeadquartersInspection) => 
-                          new Date(b.inspection_date).getTime() - new Date(a.inspection_date).getTime()
-                        )[0]
-
-                        // 조치대기 건수 계산
-                        const pendingCount = projectInspections.reduce((count: number, inspection: HeadquartersInspection) => {
-                          const overallStatus = inspection.issue2_status ? 
-                            (inspection.issue1_status === 'completed' && inspection.issue2_status === 'completed' ? 'completed' :
-                             inspection.issue1_status === 'pending' && inspection.issue2_status === 'pending' ? 'pending' : 'in_progress')
-                            : inspection.issue1_status
-                          return overallStatus === 'pending' ? count + 1 : count
-                        }, 0)
-
-                        return {
-                          ...project,
-                          inspectionCount: projectInspections.length,
-                          pendingCount: pendingCount,
-                          latestInspection: latestInspection || null
-                        }
-                      })
-
-                      return (
-                        <div>
-                          {/* 뒤로가기 버튼 */}
-                          <div className="flex items-center mb-4">
-                            <button
-                              onClick={() => setSelectedSafetyBranch(null)}
-                              className="flex items-center px-3 py-1 text-sm text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
-                            >
-                              <ArrowLeft className="h-3 w-3 mr-1" />
-                              전체 지사로 돌아가기
-                            </button>
-                          </div>
-
-                          {/* 선택된 지사 정보 */}
-                          <div className="bg-orange-50 rounded-lg p-4 mb-6">
-                            <h4 className="text-lg font-semibold text-orange-900 mb-2">
-                              {selectedSafetyBranch} - 프로젝트별 본부 불시점검 현황
-                            </h4>
-                            <p className="text-orange-700 text-sm">
-                              총 {branchProjects.length}개 프로젝트, {headquartersInspections.filter((i: HeadquartersInspection) => i.managing_branch === selectedSafetyBranch).length}건 점검완료
-                            </p>
-                          </div>
-
-                          {branchProjects.length === 0 ? (
-                            <div className="text-center py-12">
-                              <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                              <h4 className="text-lg font-medium text-gray-900 mb-2">프로젝트가 없습니다</h4>
-                              <p className="text-gray-600">선택한 지사에 등록된 프로젝트가 없습니다.</p>
-                            </div>
-                          ) : (
-                            <div className="overflow-x-auto">
-                              <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                  <tr>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">프로젝트명</th>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검 대상</th>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검 횟수</th>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">조치대기</th>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">최근 점검일</th>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">최근 점검자</th>
-                                    <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
-                                  {(() => {
-                                    // 지사 상세 테이블 소계 행
-                                    const quarterNum = (() => {
-                                      const parts = (selectedQuarter || '').split('Q')
-                                      const q = parseInt(parts[1] || '0')
-                                      return Number.isNaN(q) ? Math.ceil((new Date().getMonth() + 1) / 3) : q
-                                    })()
-                                    const subtotal = branchProjects.reduce((acc: { targetCount: number; inspectionCount: number; pendingCount: number }, project: Project) => {
-                                      // 대상 여부
-                                      const ia: any = (project as any).is_active
-                                      let isTarget = false
-                                      if (ia && typeof ia === 'object') {
-                                        const key = `q${quarterNum}` as 'q1' | 'q2' | 'q3' | 'q4'
-                                        isTarget = !!ia[key] && !ia.completed
-                                      }
-                                      if (isTarget) acc.targetCount += 1
-
-                                      // 해당 프로젝트 점검들
-                                      const projectInspections = headquartersInspections.filter((inspection: HeadquartersInspection) => inspection.project_id === project.id)
-                                      acc.inspectionCount += projectInspections.length
-                                      const pendingCount = projectInspections.reduce((count: number, inspection: HeadquartersInspection) => {
-                                        const overallStatus = inspection.issue2_status 
-                                          ? ((inspection.issue1_status === 'completed' && inspection.issue2_status === 'completed') ? 'completed' : ((inspection.issue1_status === 'pending' && inspection.issue2_status === 'pending') ? 'pending' : 'in_progress'))
-                                          : inspection.issue1_status
-                                        return overallStatus === 'pending' ? count + 1 : count
-                                      }, 0)
-                                      acc.pendingCount += pendingCount
-                                      return acc
-                                    }, { targetCount: 0, inspectionCount: 0, pendingCount: 0 })
-
-                                    return (
-                                      <tr key="subtotal" className="bg-blue-50 font-semibold border-b-2 border-blue-200">
-                                        <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                          소계 ({branchProjects.length}개 프로젝트)
-                                        </td>
-                                        <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                          {subtotal.targetCount}개
-                                        </td>
-                                        <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                          {subtotal.inspectionCount}건
-                                        </td>
-                                        <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                          {subtotal.pendingCount}건
-                                        </td>
-                                        <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">-</td>
-                                        <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">-</td>
-                                        <td className="px-2 py-3 sm:px-6 sm:py-4 text-center text-sm font-bold text-blue-900 text-center">-</td>
-                                      </tr>
-                                    )
-                                  })()}
-                                  {branchProjects.map((project: Project) => {
-                                    // 각 프로젝트별 점검 데이터 계산
-                                    const projectInspections = headquartersInspections.filter((inspection: HeadquartersInspection) => 
-                                      inspection.project_id === project.id
-                                    )
-                                    const latestInspection = projectInspections.sort((a: HeadquartersInspection, b: HeadquartersInspection) => 
-                                      new Date(b.inspection_date).getTime() - new Date(a.inspection_date).getTime()
-                                    )[0]
-
-                                    // 조치대기 건수 계산
-                                    const pendingCount = projectInspections.reduce((count: number, inspection: HeadquartersInspection) => {
-                                      const overallStatus = inspection.issue2_status ? 
-                                        (inspection.issue1_status === 'completed' && inspection.issue2_status === 'completed' ? 'completed' :
-                                         inspection.issue1_status === 'pending' && inspection.issue2_status === 'pending' ? 'pending' : 'in_progress')
-                                        : inspection.issue1_status
-                                      return overallStatus === 'pending' ? count + 1 : count
-                                    }, 0)
-
-                                    const inspectionCount = projectInspections.length
-
-                                    return (
-                                      <tr key={project.id} className="hover:bg-gray-50 cursor-pointer"
-                                          onClick={() => router.push(`/project/${project.id}/headquarters-inspection?fromBranch=${encodeURIComponent(selectedSafetyBranch || '')}`)}>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 text-sm font-medium text-blue-600 hover:text-blue-800 border-r border-gray-200 text-center max-w-[120px] sm:max-w-none">
-                                          <div className="sm:hidden">
-                                            {(project.project_name || '').length > 4 ? `${(project.project_name || '').substring(0, 4)}...` : (project.project_name || '미지정')}
-                                          </div>
-                                          <div className="hidden sm:block break-words">
-                                            {project.project_name || '미지정'}
-                                          </div>
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-center border-r border-gray-200">
-                                          {(() => {
-                                            const quarterNum = (() => {
-                                              const parts = (selectedQuarter || '').split('Q')
-                                              const q = parseInt(parts[1] || '0')
-                                              return Number.isNaN(q) ? Math.ceil((new Date().getMonth() + 1) / 3) : q
-                                            })()
-                                            const ia: any = (project as any).is_active
-                                            if (ia && typeof ia === 'object') {
-                                              const key = `q${quarterNum}` as 'q1' | 'q2' | 'q3' | 'q4'
-                                              const isTarget = !!ia[key] && !ia.completed
-                                              return isTarget ? (
-                                                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">대상</span>
-                                              ) : (
-                                                <span className="text-gray-400">-</span>
-                                              )
-                                            }
-                                            return <span className="text-gray-400">-</span>
-                                          })()}
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
-                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                            inspectionCount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                                          }`}>
-                                            {inspectionCount > 0 ? `${inspectionCount}건` : '-'}
-                                          </span>
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
-                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                            pendingCount > 0 ? 'bg-red-100 text-red-800' : 
-                                            inspectionCount > 0 ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                                          }`}>
-                                            {pendingCount > 0 ? `${pendingCount}건` : '-'}
-                                          </span>
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 text-center">
-                                          {latestInspection 
-                                            ? new Date(latestInspection.inspection_date).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })
-                                            : '-'
-                                          }
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 text-center">
-                                          {latestInspection?.inspector_name || '-'}
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-center text-sm">
-                                          {isHqDownloadMode ? (
-                                            <input
-                                              type="checkbox"
-                                              className="w-4 h-4 text-blue-600 border-gray-300 rounded"
-                                              onClick={(e) => {
-                                                e.stopPropagation()
-                                                setSelectedProjectIdsForReport(prev => {
-                                                  const exists = prev.includes(project.id)
-                                                  if (exists) return prev.filter(id => id !== project.id)
-                                                  return [...prev, project.id]
-                                                })
-                                              }}
-                                              checked={selectedProjectIdsForReport.includes(project.id)}
-                                              readOnly
-                                            />
-                                          ) : null}
-                                        </td>
-                                      </tr>
-                                    )
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    }
-                    // 본부 단위에서는 지사별 점검 통계
-                    else if (userProfile?.branch_division?.endsWith('본부') || !selectedBranch) {
-                      // 지사별로 점검 횟수 및 대상 수 집계
-                      const branchStats = new Map<string, { projectCount: number; targetCount: number; inspectionCount: number; pendingCount: number; targetInspectionCount: number }>()
-                      
-                      // 관할 프로젝트 수 계산
-                      const filteredProjects = projects.filter((project: Project) => {
-                        if (selectedHq && project.managing_hq !== selectedHq) return false
-                        if (selectedBranch && project.managing_branch !== selectedBranch) return false
-                        return true
-                      })
-                      
-                      const targetProjectIds = new Set<string>()
-                      filteredProjects.forEach((project: Project) => {
-                        const branch = project.managing_branch
-                        if (!branchStats.has(branch)) {
-                          branchStats.set(branch, { projectCount: 0, targetCount: 0, inspectionCount: 0, pendingCount: 0, targetInspectionCount: 0 })
-                        }
-                        const entry = branchStats.get(branch)!
-                        entry.projectCount++
-
-                        // 해당 분기 공사중 여부 (is_active JSONB 기준; 구형 boolean은 제외)
-                        const quarterNum = (() => {
-                          const parts = (selectedQuarter || '').split('Q')
-                          const q = parseInt(parts[1] || '0')
-                          return Number.isNaN(q) ? Math.ceil((new Date().getMonth() + 1) / 3) : q
-                        })()
-                        const ia: any = (project as any).is_active
-                        if (ia && typeof ia === 'object') {
-                          const key = `q${quarterNum}` as 'q1' | 'q2' | 'q3' | 'q4'
-                          const activeThisQuarter = !!ia[key] && !ia.completed
-                          if (activeThisQuarter) { entry.targetCount++; targetProjectIds.add(project.id) }
-                        }
-                      })
-                      
-                      // 점검 횟수 및 조치대기 건수 집계
-                      headquartersInspections.forEach((inspection: HeadquartersInspection) => {
-                        const branch = inspection.managing_branch || '미지정'
-                        if (branchStats.has(branch)) {
-                          const entry = branchStats.get(branch)!
-                          entry.inspectionCount++
-                          if (inspection.project_id && targetProjectIds.has(inspection.project_id)) {
-                            entry.targetInspectionCount++
-                          }
-                          // 조치대기 건수 집계: issue1/issue2 상태로 종합 상태 판정
-                          const overallStatus = inspection.issue2_status
-                            ? ((inspection.issue1_status === 'completed' && inspection.issue2_status === 'completed')
-                                ? 'completed'
-                                : ((inspection.issue1_status === 'pending' && inspection.issue2_status === 'pending')
-                                    ? 'pending'
-                                    : 'in_progress'))
-                            : inspection.issue1_status
-                          if (overallStatus === 'pending') {
-                            entry.pendingCount++
-                          }
-                        }
-                      })
-
-                      return branchStats.size === 0 ? (
-                        <div className="text-center py-12">
-                          <CheckCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                          <h4 className="text-lg font-medium text-gray-900 mb-2">점검 데이터가 없습니다</h4>
-                          <p className="text-gray-600">선택한 분기에 등록된 본부 불시점검 결과가 없습니다.</p>
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">지사명</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">총 프로젝트 수</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검대상 수</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검횟수(대상)</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">조치대기</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검률(대상)</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {(() => {
-                                // 정의된 지사 순서대로 정렬
-                                const orderedBranches: string[] = []
-                                
-                                if (selectedHq) {
-                                  // 특정 본부가 선택된 경우 해당 본부의 지사 순서 사용
-                                  orderedBranches.push(...(BRANCH_OPTIONS[selectedHq] || []))
-                                } else {
-                                  // 전체 본부인 경우 모든 본부의 지사를 순서대로 추가
-                                  Object.keys(HEADQUARTERS_OPTIONS).forEach(hq => {
-                                    if (BRANCH_OPTIONS[hq]) {
-                                      orderedBranches.push(...BRANCH_OPTIONS[hq])
-                                    }
-                                  })
-                                }
-                                
-                                // 실제 데이터가 있는 지사들만 정의된 순서대로 표시
-                                const filteredBranches = orderedBranches.filter(branch => branchStats.has(branch))
-                                
-                                // 소계 계산
-                                const totalStats = filteredBranches.reduce((acc, branch) => {
-                                  const stats = branchStats.get(branch)! as any
-                                  return {
-                                    projectCount: acc.projectCount + stats.projectCount,
-                                    targetCount: acc.targetCount + stats.targetCount,
-                                    inspectionCount: acc.inspectionCount + stats.inspectionCount,
-                                    targetInspectionCount: acc.targetInspectionCount + (stats.targetInspectionCount || 0),
-                                    pendingCount: acc.pendingCount + stats.pendingCount
-                                  }
-                                }, { projectCount: 0, targetCount: 0, inspectionCount: 0, targetInspectionCount: 0, pendingCount: 0 })
-                                
-                                const totalInspectionRate = totalStats.targetCount > 0 ? (totalStats.targetInspectionCount / totalStats.targetCount) * 100 : 0
-                                
-                                return [
-                                  // 소계 행
-                                  <tr key="subtotal" className="bg-blue-50 font-semibold border-b-2 border-blue-200">
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      소계 ({filteredBranches.length}개 지사)
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      {totalStats.projectCount}개
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      {totalStats.targetCount}개
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      {totalStats.inspectionCount}건 ({totalStats.targetInspectionCount})
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      {totalStats.pendingCount}건
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                                      {totalInspectionRate.toFixed(1)}%
-                                    </td>
-                                    <td className="px-2 py-3 sm:px-6 sm:py-4 text-center text-sm font-bold text-blue-900 text-center">
-                                      -
-                                    </td>
-                                  </tr>,
-                                  // 데이터 행들
-                                  ...filteredBranches.map(branch => {
-                                    const stats = branchStats.get(branch)!
-                                    const inspectionRate = stats.targetCount > 0 ? (stats.targetInspectionCount / stats.targetCount) * 100 : 0
-                                    return (
-                                      <tr key={branch} className="hover:bg-gray-50 cursor-pointer" 
-                                          onClick={() => setSelectedSafetyBranch(branch)}>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:text-blue-800 border-r border-gray-200 text-center">{branch}</td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 text-center">{stats.projectCount > 0 ? stats.projectCount : '-'}</td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-blue-600 font-medium border-r border-gray-200 text-center">{stats.targetCount > 0 ? stats.targetCount : '-'}</td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-900 border-r border-gray-200 text-center">{stats.inspectionCount > 0 ? stats.inspectionCount : '-'} <span className="text-gray-500">({(stats as any).targetInspectionCount || 0})</span></td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
-                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                            stats.pendingCount > 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                                          }`}>
-                                            {stats.pendingCount > 0 ? `${stats.pendingCount}건` : '-'}
-                                          </span>
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
-                                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                            inspectionRate >= 80 ? 'bg-green-100 text-green-800' :
-                                            inspectionRate >= 50 ? 'bg-yellow-100 text-yellow-800' :
-                                            'bg-red-100 text-red-800'
-                                          }`}>
-                                            {inspectionRate.toFixed(1)}%
-                                          </span>
-                                        </td>
-                                        <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-center text-sm">
-                                          {isHqDownloadMode ? (
-                                            <input
-                                              type="checkbox"
-                                              className="w-4 h-4 text-blue-600 border-gray-300 rounded"
-                                              onClick={(e) => {
-                                                e.stopPropagation()
-                                                setSelectedBranchesForReport(prev => {
-                                                  const exists = prev.includes(branch)
-                                                  if (exists) return prev.filter(b => b !== branch)
-                                                  return [...prev, branch]
-                                                })
-                                              }}
-                                              checked={selectedBranchesForReport.includes(branch)}
-                                              readOnly
-                                            />
-                                          ) : null}
-                                        </td>
-                                      </tr>
-                                    )
-                                  })
-                                ]
-                              })()}
-                            </tbody>
-                          </table>
-                        </div>
-                      )
-                    } else {
-                      // 지사에서는 프로젝트별 점검 현황 (본부 사용자가 지사 선택했거나, 지사 소속 사용자)
-                      return headquartersInspections.length === 0 ? (
-                        <div className="text-center py-12">
-                          <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                          <h4 className="text-lg font-medium text-gray-900 mb-2">점검 데이터가 없습니다</h4>
-                          <p className="text-gray-600">선택한 분기에 등록된 본부 불시점검 결과가 없습니다.</p>
-                        </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">프로젝트명</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검일</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검자</th>
-                                <th className="px-2 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {headquartersInspections.map((inspection: HeadquartersInspection) => {
-                                // 지적사항이 있는 경우만 표시 (issue1은 필수, issue2는 선택)
-                                const issues = [
-                                  inspection.issue_content1,
-                                  inspection.issue_content2
-                                ].filter(Boolean)
-                                
-                                // 전체 조치 상태 계산 (issue2가 없다면 issue1 상태만 고려)
-                                const overallStatus = inspection.issue2_status ? 
-                                  (inspection.issue1_status === 'completed' && inspection.issue2_status === 'completed' ? 'completed' :
-                                   inspection.issue1_status === 'pending' && inspection.issue2_status === 'pending' ? 'pending' : 'in_progress')
-                                  : inspection.issue1_status
-
-                                return (
-                                  <tr key={inspection.id} className="hover:bg-gray-50 cursor-pointer"
-                                      onClick={() => router.push(`/project/${inspection.project_id}/headquarters-inspection?fromBranch=${encodeURIComponent(selectedSafetyBranch || '')}`)}>
-                                    <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm font-medium text-blue-600 hover:text-blue-800 border-r border-gray-200">
-                                      {(inspection.project_name || '').length > 4 ? `${(inspection.project_name || '').substring(0, 4)}...` : (inspection.project_name || '미지정')}
-                                    </td>
-                                    <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
-                                      {inspection.inspection_date ? new Date(inspection.inspection_date).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' }) : '-'}
-                                    </td>
-                                    <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">
-                                      {inspection.inspector_name || '-'}
-                                    </td>
-                                    <td className="px-2 py-2 sm:px-6 sm:py-4 text-sm text-gray-900 max-w-xs border-r border-gray-200">
-                                      <div className="truncate" title={issues.join(', ')}>
-                                        {issues.join(', ')}
-                                      </div>
-                                    </td>
-                                    <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm">
-                                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                        overallStatus === 'completed' ? 'bg-green-100 text-green-800' :
-                                        overallStatus === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
-                                        'bg-red-100 text-red-800'
-                                      }`}>
-                                        {overallStatus === 'completed' ? '조치완료' :
-                                         overallStatus === 'in_progress' ? '조치중' : '조치대기'}
-                                      </span>
-                                    </td>
-                                  </tr>
-                                )
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )
-                    }
-                  })()}
-                </div>
-              </div>
+                    onGenerateReport={async (groups) => {
+                      const { generateHeadquartersInspectionReportBulk } = await import('@/lib/reports/headquarters-inspection')
+                      await generateHeadquartersInspectionReportBulk(groups)
+                      setIsHqDownloadMode(false)
+                    }}
+                    onCancelReport={() => {
+                      setIsHqDownloadMode(false)
+                      setSelectedBranchesForReport([])
+                      setSelectedProjectIdsForReport([])
+                    }}
+                    onProjectToggleForReport={(projectId) => {
+                      setSelectedProjectIdsForReport(prev => prev.includes(projectId) ? prev.filter(id => id !== projectId) : [...prev, projectId])
+                    }}
+                    onBranchToggleForReport={(branch) => {
+                      setSelectedBranchesForReport(prev => prev.includes(branch) ? prev.filter(b => b !== branch) : [...prev, branch])
+                    }}
+                    onRowClickProject={(projectId) => router.push(`/project/${projectId}/headquarters-inspection?fromBranch=${encodeURIComponent(selectedSafetyBranch || '')}`)}
+                    onSelectSafetyBranch={(branch) => {
+                      setSelectedSafetyBranch(branch)
+                      router.push(`/safe/branch/${encodeURIComponent(branch)}/headquarters`)
+                    }}
+                  />
+                )}
+              </>
             ) : (
               <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                 {/* 폭염대비점검 카드 */}
@@ -2808,82 +1609,22 @@ const Dashboard: React.FC = () => {
   }
 
   // 시공사/감리단용 대시보드
-  const renderContractorDashboard = () => {
-    if (loading) {
-      return (
-        <div className="flex justify-center items-center min-h-[60vh]">
-          <LoadingSpinner />
-        </div>
-      )
-    }
-
-    if (error) {
-      return (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
-          <div className="text-sm text-red-700">{error}</div>
-          <button 
-            onClick={loadUserProjects}
-            className="mt-2 text-sm text-red-600 hover:text-red-800 font-medium"
-          >
-            다시 시도
-          </button>
-        </div>
-      )
-    }
-
-    if (projects.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-[60vh]">
-          <div className="text-center mb-8">
-            <Building className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              현장 관리 시스템
-            </h2>
-            <p className="text-gray-600 max-w-md">
-              {userProfile?.role === '시공사' ? '시공' : '감리'} 업무를 위한 현장을 등록하고 관리하세요.
-            </p>
-          </div>
-          
-          <div className="bg-white p-8 rounded-lg shadow-sm border border-gray-200 text-center">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">
-              등록된 현장이 없습니다
-            </h3>
-            <p className="text-gray-600 mb-6">
-              새로운 현장을 등록하여 안전관리를 시작하세요.
-            </p>
-            <button
-              onClick={handleSiteRegistration}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              현장 등록
-            </button>
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div>
-        {/* 프로젝트 카드 그리드 */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-          {projects.map((project: Project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              onClick={handleProjectClick}
-              onEdit={handleProjectEdit}
-              onDelete={handleProjectDelete}
-              onStatusChange={handleProjectStatusChange}
-              onHandover={handleProjectHandover}
-              canEditQuarters={userProfile?.role === '발주청'}
-              onIsActiveChange={handleProjectIsActiveJsonChange}
-            />
-          ))}
-        </div>
-      </div>
-    )
-  }
+  const renderContractorDashboard = () => (
+    <ContractorDashboard
+      loading={loading}
+      error={error}
+      projects={projects}
+      userRole={userProfile?.role}
+      onRetry={loadUserProjects}
+      onSiteRegistration={handleSiteRegistration}
+      onProjectClick={handleProjectClick}
+      onProjectEdit={handleProjectEdit}
+      onProjectDelete={handleProjectDelete}
+      onProjectStatusChange={handleProjectStatusChange}
+      onProjectHandover={handleProjectHandover}
+      onProjectIsActiveJsonChange={handleProjectIsActiveJsonChange}
+    />
+  )
 
   return (
     <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
@@ -2962,7 +1703,41 @@ const Dashboard: React.FC = () => {
       <main className="max-w-7xl lg:max-w-none mx-auto py-6 sm:px-6 lg:px-4">
         <div className="px-4 py-6 sm:px-0 lg:px-0">
           {userProfile?.role === '발주청' 
-            ? renderClientDashboard() 
+            ? (
+              // 1차 래핑: 기존 거대한 JSX를 그대로 유지하되 ClientDashboard 래퍼로 감싸 구조를 단순화
+              <ClientDashboard
+                loading={loading}
+                error={error}
+                viewMode={viewMode}
+                selectedHq={selectedHq}
+                selectedBranch={selectedBranch}
+                selectedSafetyCard={selectedSafetyCard}
+                selectedSafetyBranch={selectedSafetyBranch}
+                selectedDate={selectedDate}
+                selectedQuarter={selectedQuarter}
+                canSeeAllHq={canSeeAllHq}
+                projects={projects}
+                projectsWithCoords={projectsWithCoords}
+                heatWaveChecks={heatWaveChecks}
+                managerInspections={managerInspections}
+                headquartersInspections={headquartersInspections}
+                onRetryLoadBranches={loadBranchProjects}
+                onProjectClick={handleProjectClick}
+                onProjectEdit={handleProjectEdit}
+                onProjectDelete={handleProjectDelete}
+                onProjectStatusChange={handleProjectStatusChange}
+                onProjectHandover={handleProjectHandover}
+                onProjectIsActiveJsonChange={handleProjectIsActiveJsonChange}
+                onMapProjectClick={handleMapProjectClick}
+                onHeatWaveCheckClick={handleHeatWaveCheckClick}
+                onBranchSelect={(branch) => setSelectedBranch(branch)}
+                onHqSelect={(hq) => { setSelectedHq(hq); setSelectedBranch('') }}
+                MapContainerRef={mapContainerRef}
+                mapDynamicHeight={mapDynamicHeight}
+                Header={null as any}
+                Content={renderClientDashboard()}
+              />
+            )
             : renderContractorDashboard()
           }
         </div>

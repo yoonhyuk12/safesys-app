@@ -168,7 +168,7 @@ export default function EditProjectPage() {
       {/* 메인 콘텐츠 */}
       <main className="max-w-7xl lg:max-w-none mx-auto py-6 sm:px-6 lg:px-4">
         <div className="px-4 py-6 sm:px-0 lg:px-0">
-        <div className="bg-white shadow-sm rounded-lg">
+        <div className="bg-white shadow-sm rounded-lg max-w-2xl mx-auto">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-medium text-gray-900">프로젝트 정보 수정</h2>
             <p className="mt-1 text-sm text-gray-600">

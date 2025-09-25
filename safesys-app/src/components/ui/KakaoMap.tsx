@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { MapPin, Building2, Calendar } from 'lucide-react'
 
-interface ProjectMarker {
+export interface ProjectMarker {
   id: string
   name: string
   address: string

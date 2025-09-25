@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { CheckCircle, Calendar, ArrowLeft } from 'lucide-react'
+import { CheckCircle, Calendar, ArrowLeft, Download } from 'lucide-react'
 import { type ManagerInspection, type Project } from '@/lib/projects'
 import { type UserProfile } from '@/lib/supabase'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
@@ -45,6 +45,16 @@ const ManagerInspectionStatus: React.FC<ManagerInspectionStatusProps> = ({
             (지사) 관리자 점검 현황
           </h3>
           <div className="flex items-center space-x-2">
+            {selectedSafetyBranch ? (
+              <button
+                type="button"
+                className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                aria-label="보고서 선택 모드"
+                title="보고서 선택 모드"
+              >
+                <Download className="h-5 w-5" />
+              </button>
+            ) : null}
             <Calendar className="h-4 w-4 text-gray-500" />
             {(() => {
               const [, qStr] = (selectedQuarter || '').split('Q')
