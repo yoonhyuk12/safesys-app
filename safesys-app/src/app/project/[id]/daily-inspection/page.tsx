@@ -129,63 +129,20 @@ export default function DailyInspectionPage() {
 
     setIsGeneratingAI(true)
     try {
-      const prompt = `
-당신은 건설현장 안전관리 전문가입니다.
-나는 공사현장의 일일점검일지를 작성하려 합니다.
-
-오늘의 작업 내용: "${workDescription}"
-
-위 작업 내용에 대해 다음과 같이 점검 항목을 생성해주세요:
-
-1) 산업안전보건기준에 따른 근로자 개인보호 및 기본 안전관리 항목 8개
-   - 첫 번째 항목: "개인보호구(안전모, 안전화, 안전대 등) 착용 여부" (반드시 한 항목으로 통합)
-   - 나머지 7개: 작업 전 안전교육, 안전난간 설치, 추락방지망, 정리정돈, 안전통로 확보 등
-
-2) 건설기술진흥법 및 관련 고시 기준에 따른 해당 공종의 안전조치 항목 15개
-   - "${workDescription}" 작업에 특화된 안전점검 항목
-   - 해당 공종의 법적 안전기준 및 조치사항
-   - 장비, 공법, 작업환경 등에 따른 구체적 점검사항
-
-모든 항목은 "점검표 형식(여부 체크 가능)"으로 작성하고, 각 항목은 명확하고 구체적으로 표현해주세요.
-
-응답 형식 (총 23개):
-기본안전|안전모 착용 여부
-기본안전|안전화 착용 여부
-기본안전|안전대 착용 및 체결 여부
-...
-공종안전|[구체적 점검항목]
-공종안전|[구체적 점검항목]
-...
-
-카테고리는 "기본안전" 8개, "공종안전" 15개로 구분해주세요.
-`;
-
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch('/api/ai/daily-inspection', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: '건설현장 안전관리 전문가로서 일일 안전점검 체크리스트를 작성해주세요.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: 0.7
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workDescription })
       })
 
       const data = await response.json()
 
-      if (data.choices && data.choices[0]) {
-        const content = data.choices[0].message.content
+      if (data.error) {
+        throw new Error(data.error)
+      }
+
+      if (data.content) {
+        const content = data.content
         const lines = content.split('\n').filter((line: string) => line.includes('|'))
 
         const items: InspectionItem[] = lines.map((line: string) => {
