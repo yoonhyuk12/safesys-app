@@ -1,10 +1,16 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { Users, CheckCircle, XCircle, Clock, AlertTriangle, Camera, Upload, Shield, ChevronRight, ChevronLeft, PenTool, RotateCw } from 'lucide-react'
+import { useParams } from 'next/navigation'
+import { Users, CheckCircle, XCircle, Clock, AlertTriangle, Camera, Upload, ChevronRight, ChevronLeft, PenTool, RotateCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import WorkerSignaturePad from '@/components/ui/WorkerSignaturePad'
+import ConsentStepIndicator from '@/components/worker-consent/ConsentStepIndicator'
+import ConsentForms from '@/components/worker-consent/ConsentForms'
+import HealthQuestionnaire from '@/components/worker-consent/HealthQuestionnaire'
+import SafetyPledge from '@/components/worker-consent/SafetyPledge'
+import type { PrivacyManager, HealthQuestionnaireData, SafetyEquipmentData } from '@/components/worker-consent/types'
+import { createDefaultHealthData, createDefaultSafetyEquipment } from '@/components/worker-consent/types'
 
 interface TokenData {
   id: string
@@ -15,12 +21,15 @@ interface TokenData {
   project?: {
     project_name: string
     managing_branch: string
+    privacy_manager_name: string | null
+    privacy_manager_position: string | null
+    privacy_manager_email: string | null
+    privacy_manager_phone: string | null
   }
 }
 
 export default function WorkerSelfRegisterPage() {
   const params = useParams()
-  const router = useRouter()
   const token = params.token as string
 
   const [tokenData, setTokenData] = useState<TokenData | null>(null)
@@ -28,7 +37,7 @@ export default function WorkerSelfRegisterPage() {
   const [error, setError] = useState('')
   const [status, setStatus] = useState<'loading' | 'valid' | 'invalid' | 'expired' | 'used' | 'success'>('loading')
 
-  const [step, setStep] = useState(1) // 1: 정보입력, 2: 동의
+  const [step, setStep] = useState(1) // 1~4
   const [formData, setFormData] = useState({
     name: '',
     birth_date: '',
@@ -43,9 +52,23 @@ export default function WorkerSelfRegisterPage() {
   const [ocrLoading, setOcrLoading] = useState(false)
   const [ocrSuccess, setOcrSuccess] = useState(false)
 
-  // 동의 체크박스 상태
-  const [agreePrivacy, setAgreePrivacy] = useState(false)
-  const [agreeThirdParty, setAgreeThirdParty] = useState(false)
+  // 동의 체크박스 상태 (Step 2)
+  const [agreePersonalInfo, setAgreePersonalInfo] = useState(false)
+  const [agreeUniqueId, setAgreeUniqueId] = useState(false)
+  const [agreeSensitiveInfo, setAgreeSensitiveInfo] = useState(false)
+  const [agreeCctvCollection, setAgreeCctvCollection] = useState(false)
+  const [agreeCctvThirdParty, setAgreeCctvThirdParty] = useState(false)
+
+  // 건강문진표 (Step 3)
+  const [healthData, setHealthData] = useState<HealthQuestionnaireData>(createDefaultHealthData())
+
+  // 안전서약서 (Step 4)
+  const [safetyEquipment, setSafetyEquipment] = useState<SafetyEquipmentData>(createDefaultSafetyEquipment())
+  const [agreeSafetyPledge, setAgreeSafetyPledge] = useState(false)
+
+  // 프로젝트 정보
+  const [projectName, setProjectName] = useState('')
+  const [privacyManager, setPrivacyManager] = useState<PrivacyManager>({ name: '', position: '', email: '', phone: '' })
 
   // 신분증 사진 관련 상태
   const [idCardImage, setIdCardImage] = useState<string | null>(null)
@@ -65,7 +88,6 @@ export default function WorkerSelfRegisterPage() {
 
   // 서명 관련 상태
   const [showSignature, setShowSignature] = useState(false)
-  const [signatureImage, setSignatureImage] = useState<string | null>(null)
 
   // 토큰 유효성 검사
   useEffect(() => {
@@ -82,7 +104,7 @@ export default function WorkerSelfRegisterPage() {
           .from('worker_registration_tokens')
           .select(`
             *,
-            project:projects(project_name, managing_branch)
+            project:projects(project_name, managing_branch, privacy_manager_name, privacy_manager_position, privacy_manager_email, privacy_manager_phone)
           `)
           .eq('token', token)
           .single()
@@ -96,14 +118,11 @@ export default function WorkerSelfRegisterPage() {
         }
 
         if (!data) {
-          console.error('토큰 데이터 없음:', token)
           setStatus('invalid')
           setError('유효하지 않은 등록 링크입니다. (데이터를 찾을 수 없음)')
           setLoading(false)
           return
         }
-
-        console.log('토큰 데이터 로드 성공:', data)
 
         // 이미 사용된 토큰인지 확인
         if (data.used_at) {
@@ -116,7 +135,6 @@ export default function WorkerSelfRegisterPage() {
         // 만료 확인
         const expiresAt = new Date(data.expires_at)
         const now = new Date()
-        console.log('만료 시간:', expiresAt.toISOString(), '현재 시간:', now.toISOString())
 
         if (expiresAt < now) {
           setStatus('expired')
@@ -126,6 +144,16 @@ export default function WorkerSelfRegisterPage() {
         }
 
         setTokenData(data)
+        // 프로젝트 정보 설정
+        if (data.project) {
+          setProjectName(data.project.project_name || '')
+          setPrivacyManager({
+            name: data.project.privacy_manager_name || '',
+            position: data.project.privacy_manager_position || '',
+            email: data.project.privacy_manager_email || '',
+            phone: data.project.privacy_manager_phone || '',
+          })
+        }
         setStatus('valid')
       } catch (err: any) {
         console.error('토큰 검증 예외 발생:', err)
@@ -225,60 +253,49 @@ export default function WorkerSelfRegisterPage() {
     e.target.value = ''
   }
 
-  // 다음 단계로
-  const handleNext = () => {
+  // Step 1 -> Step 2
+  const handleNextFromStep1 = () => {
     setFormError('')
 
-    if (!formData.name.trim()) {
-      setFormError('이름을 입력해주세요.')
-      return
-    }
-
-    if (!formData.birth_date) {
-      setFormError('생년월일을 입력해주세요.')
-      return
-    }
-
-    if (!formData.registration_number.trim()) {
-      setFormError('등록번호를 입력해주세요.')
-      return
-    }
-
-    if (!formData.completion_date) {
-      setFormError('이수일자를 입력해주세요.')
-      return
-    }
-
-    if (!certificateImage) {
-      setFormError('안전교육 이수증 사진을 등록해주세요.')
-      return
-    }
-
-    if (!idCardImage) {
-      setFormError('신분증 사진을 등록해주세요.')
-      return
-    }
+    if (!formData.name.trim()) { setFormError('이름을 입력해주세요.'); return }
+    if (!formData.birth_date) { setFormError('생년월일을 입력해주세요.'); return }
+    if (!formData.registration_number.trim()) { setFormError('등록번호를 입력해주세요.'); return }
+    if (!formData.completion_date) { setFormError('이수일자를 입력해주세요.'); return }
+    if (!certificateImage) { setFormError('안전교육 이수증 사진을 등록해주세요.'); return }
+    if (!idCardImage) { setFormError('신분증 사진을 등록해주세요.'); return }
 
     setStep(2)
   }
 
-  // 서명 버튼 클릭
-  const handleSignClick = () => {
+  // Step 2 -> Step 3
+  const handleNextFromStep2 = () => {
     setFormError('')
-
-    if (!agreePrivacy || !agreeThirdParty) {
-      setFormError('모든 항목에 동의해주세요.')
+    if (!agreePersonalInfo || !agreeUniqueId || !agreeSensitiveInfo || !agreeCctvCollection || !agreeCctvThirdParty) {
+      setFormError('모든 동의 항목에 체크해주세요.')
       return
     }
+    setStep(3)
+  }
 
+  // Step 3 -> Step 4
+  const handleNextFromStep3 = () => {
+    setFormError('')
+    setStep(4)
+  }
+
+  // Step 4 -> 서명
+  const handleSignClick = () => {
+    setFormError('')
+    if (!agreeSafetyPledge) {
+      setFormError('안전서약에 동의해주세요.')
+      return
+    }
     setShowSignature(true)
   }
 
   // 서명 저장
   const handleSignatureSave = async (signature: string) => {
-    setSignatureImage(signature)
     setShowSignature(false)
-    // 서명 후 자동으로 제출
     await submitWorker(signature)
   }
 
@@ -303,24 +320,14 @@ export default function WorkerSelfRegisterPage() {
         const fileExt = idCardFile.name.split('.').pop()
         const fileName = `${tokenData.project_id}/id_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
 
-        console.log('신분증 파일 업로드 시작:', fileName)
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('worker-id-cards')
-          .upload(fileName, idCardFile, {
-            cacheControl: '3600',
-            upsert: false
-          })
+          .upload(fileName, idCardFile, { cacheControl: '3600', upsert: false })
 
-        if (uploadError) {
-          console.error('신분증 업로드 실패:', uploadError)
-          throw new Error(`신분증 사진 업로드에 실패했습니다: ${uploadError.message}`)
-        }
+        if (uploadError) throw new Error(`신분증 사진 업로드에 실패했습니다: ${uploadError.message}`)
 
-        const { data: urlData } = supabase.storage
-          .from('worker-id-cards')
-          .getPublicUrl(fileName)
+        const { data: urlData } = supabase.storage.from('worker-id-cards').getPublicUrl(fileName)
         idCardUrl = urlData.publicUrl
-        console.log('신분증 업로드 성공:', idCardUrl)
       }
 
       // 이수증 이미지 업로드
@@ -328,24 +335,14 @@ export default function WorkerSelfRegisterPage() {
         const fileExt = certificateFile.name.split('.').pop()
         const fileName = `${tokenData.project_id}/cert_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
 
-        console.log('이수증 파일 업로드 시작:', fileName)
-        const { data: uploadData, error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabase.storage
           .from('worker-id-cards')
-          .upload(fileName, certificateFile, {
-            cacheControl: '3600',
-            upsert: false
-          })
+          .upload(fileName, certificateFile, { cacheControl: '3600', upsert: false })
 
-        if (uploadError) {
-          console.error('이수증 업로드 실패:', uploadError)
-          throw new Error(`이수증 사진 업로드에 실패했습니다: ${uploadError.message}`)
-        }
+        if (uploadError) throw new Error(`이수증 사진 업로드에 실패했습니다: ${uploadError.message}`)
 
-        const { data: urlData } = supabase.storage
-          .from('worker-id-cards')
-          .getPublicUrl(fileName)
+        const { data: urlData } = supabase.storage.from('worker-id-cards').getPublicUrl(fileName)
         certificateUrl = urlData.publicUrl
-        console.log('이수증 업로드 성공:', certificateUrl)
       }
 
       // 서명 이미지 업로드
@@ -361,24 +358,14 @@ export default function WorkerSelfRegisterPage() {
 
         const fileName = `${tokenData.project_id}/sig_${Date.now()}_${Math.random().toString(36).substring(7)}.png`
 
-        console.log('서명 파일 업로드 시작:', fileName)
         const { error: uploadError } = await supabase.storage
           .from('worker-id-cards')
-          .upload(fileName, signatureFile, {
-            cacheControl: '3600',
-            upsert: false
-          })
+          .upload(fileName, signatureFile, { cacheControl: '3600', upsert: false })
 
-        if (uploadError) {
-          console.error('서명 업로드 실패:', uploadError)
-          throw new Error(`서명 업로드에 실패했습니다: ${uploadError.message}`)
-        }
+        if (uploadError) throw new Error(`서명 업로드에 실패했습니다: ${uploadError.message}`)
 
-        const { data: urlData } = supabase.storage
-          .from('worker-id-cards')
-          .getPublicUrl(fileName)
+        const { data: urlData } = supabase.storage.from('worker-id-cards').getPublicUrl(fileName)
         signatureUrl = urlData.publicUrl
-        console.log('서명 업로드 성공:', signatureUrl)
       }
 
       // 근로자 등록
@@ -397,7 +384,17 @@ export default function WorkerSelfRegisterPage() {
           signature_url: signatureUrl,
           is_foreigner: formData.is_foreigner,
           privacy_agreed: true,
-          privacy_agreed_at: new Date().toISOString()
+          privacy_agreed_at: new Date().toISOString(),
+          phone: healthData.phone || null,
+          address: healthData.address || null,
+          agree_personal_info: agreePersonalInfo,
+          agree_unique_id: agreeUniqueId,
+          agree_sensitive_info: agreeSensitiveInfo,
+          agree_cctv_collection: agreeCctvCollection,
+          agree_cctv_third_party: agreeCctvThirdParty,
+          agree_safety_pledge: agreeSafetyPledge,
+          health_questionnaire: healthData,
+          safety_equipment: safetyEquipment,
         })
 
       if (insertError) throw insertError
@@ -429,27 +426,21 @@ export default function WorkerSelfRegisterPage() {
     )
   }
 
-  // 오류 상태 (무효, 만료, 사용됨)
+  // 오류 상태
   if (status === 'invalid' || status === 'expired' || status === 'used') {
     return (
       <div className="min-h-screen bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center bg-red-100">
-            {status === 'expired' ? (
-              <Clock className="h-8 w-8 text-red-600" />
-            ) : status === 'used' ? (
-              <AlertTriangle className="h-8 w-8 text-orange-600" />
-            ) : (
-              <XCircle className="h-8 w-8 text-red-600" />
-            )}
+            {status === 'expired' ? <Clock className="h-8 w-8 text-red-600" /> :
+             status === 'used' ? <AlertTriangle className="h-8 w-8 text-orange-600" /> :
+             <XCircle className="h-8 w-8 text-red-600" />}
           </div>
           <h1 className="text-xl font-bold text-gray-900 mb-2">
             {status === 'expired' ? '링크 만료' : status === 'used' ? '이미 사용됨' : '유효하지 않은 링크'}
           </h1>
           <p className="text-gray-600 mb-6">{error}</p>
-          <p className="text-sm text-gray-500">
-            관리자에게 새로운 QR 코드를 요청해주세요.
-          </p>
+          <p className="text-sm text-gray-500">관리자에게 새로운 QR 코드를 요청해주세요.</p>
         </div>
       </div>
     )
@@ -467,20 +458,18 @@ export default function WorkerSelfRegisterPage() {
           <p className="text-gray-600 mb-2">
             <span className="font-semibold">{formData.name}</span>님의 정보가
           </p>
-          <p className="text-gray-600 mb-6">
-            성공적으로 등록되었습니다.
-          </p>
+          <p className="text-gray-600 mb-6">성공적으로 등록되었습니다.</p>
           <div className="bg-gray-50 rounded-lg p-4 mb-4">
             <p className="text-sm text-gray-500">등록 현장</p>
             <p className="font-medium text-gray-900">{tokenData?.project?.project_name}</p>
           </div>
-          <p className="text-sm text-gray-500">
-            이 페이지를 닫아도 됩니다.
-          </p>
+          <p className="text-sm text-gray-500">이 페이지를 닫아도 됩니다.</p>
         </div>
       </div>
     )
   }
+
+  const stepLabel = step === 1 ? '1단계: 정보 입력' : step === 2 ? '2단계: 동의서' : step === 3 ? '3단계: 건강문진표' : '4단계: 안전서약서'
 
   // 유효한 토큰 - 등록 폼 표시
   return (
@@ -494,9 +483,7 @@ export default function WorkerSelfRegisterPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold">근로자 등록</h1>
-              <p className="text-sm text-blue-200">
-                {step === 1 ? '1단계: 정보 입력' : '2단계: 개인정보 동의'}
-              </p>
+              <p className="text-sm text-blue-200">{stepLabel}</p>
             </div>
           </div>
           {tokenData?.project && (
@@ -508,18 +495,23 @@ export default function WorkerSelfRegisterPage() {
           )}
         </div>
 
-        {/* 1단계: 정보 입력 */}
+        {/* 단계 표시 */}
+        <div className="px-4 pt-3">
+          <ConsentStepIndicator currentStep={step} />
+        </div>
+
+        {/* Step 1: 정보 입력 */}
         {step === 1 && (
-          <form onSubmit={(e) => { e.preventDefault(); handleNext(); }} className="p-6 space-y-4">
+          <form onSubmit={(e) => { e.preventDefault(); handleNextFromStep1(); }} className="p-6 space-y-4">
             {formError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                 <p className="text-sm text-red-700">{formError}</p>
               </div>
             )}
 
-            {/* 이수증 + 신분증 사진 (수평 배치) */}
+            {/* 이수증 + 신분증 사진 */}
             <div className="grid grid-cols-2 gap-3">
-              {/* 이수증 사진 */}
+              {/* 이수증 */}
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-dashed border-blue-200 rounded-xl p-3">
                 <div className="text-center relative overflow-hidden">
                   {ocrLoading && (
@@ -573,7 +565,7 @@ export default function WorkerSelfRegisterPage() {
                 <input ref={certificateInputRef} type="file" accept="image/*" onChange={handleCertificateSelect} className="hidden" />
               </div>
 
-              {/* 신분증 사진 */}
+              {/* 신분증 */}
               <div className="bg-gradient-to-br from-gray-50 to-slate-50 border-2 border-dashed border-gray-200 rounded-xl p-3">
                 <div className="text-center">
                   {idCardImage ? (
@@ -621,43 +613,20 @@ export default function WorkerSelfRegisterPage() {
             {/* 이름 */}
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  이름 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="name"
-                  value={formData.name}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg"
-                  placeholder="홍길동"
-                  autoComplete="name"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">이름 <span className="text-red-500">*</span></label>
+                <input type="text" name="name" value={formData.name} onChange={handleChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg" placeholder="홍길동" autoComplete="name" />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  국적 <span className="text-red-500">*</span>
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">국적 <span className="text-red-500">*</span></label>
                 <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden w-full">
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, is_foreigner: false }))}
-                    className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${!formData.is_foreigner
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                      }`}
-                  >
+                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, is_foreigner: false }))}
+                    className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${!formData.is_foreigner ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
                     내국인
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, is_foreigner: true }))}
-                    className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${formData.is_foreigner
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white text-gray-700 hover:bg-gray-50'
-                      }`}
-                  >
+                  <button type="button" onClick={() => setFormData(prev => ({ ...prev, is_foreigner: true }))}
+                    className={`flex-1 px-3 py-3 text-sm font-medium transition-colors ${formData.is_foreigner ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
                     외국인
                   </button>
                 </div>
@@ -666,171 +635,136 @@ export default function WorkerSelfRegisterPage() {
 
             {/* 생년월일 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                생년월일 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                name="birth_date"
-                value={formData.birth_date}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1">생년월일 <span className="text-red-500">*</span></label>
+              <input type="date" name="birth_date" value={formData.birth_date} onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg" />
             </div>
 
             {/* 등록번호 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                등록번호 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                name="registration_number"
-                value={formData.registration_number}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="등록번호 입력"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1">등록번호 <span className="text-red-500">*</span></label>
+              <input type="text" name="registration_number" value={formData.registration_number} onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="등록번호 입력" />
             </div>
 
             {/* 이수일자 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                안전교육 이수일자 <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="date"
-                name="completion_date"
-                value={formData.completion_date}
-                onChange={handleChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+              <label className="block text-sm font-medium text-gray-700 mb-1">안전교육 이수일자 <span className="text-red-500">*</span></label>
+              <input type="date" name="completion_date" value={formData.completion_date} onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
 
             {/* 근로계약 기간 */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                근로계약 기간 <span className="text-gray-400">(선택)</span>
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">근로계약 기간 <span className="text-gray-400">(선택)</span></label>
               <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  name="contract_start_date"
-                  value={formData.contract_start_date}
-                  onChange={handleChange}
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+                <input type="date" name="contract_start_date" value={formData.contract_start_date} onChange={handleChange}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
                 <span className="text-gray-500">~</span>
-                <input
-                  type="date"
-                  name="contract_end_date"
-                  value={formData.contract_end_date}
-                  onChange={handleChange}
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
+                <input type="date" name="contract_end_date" value={formData.contract_end_date} onChange={handleChange}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
               </div>
             </div>
 
-            {/* 다음 버튼 */}
-            <button
-              type="submit"
-              className="w-full py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 mt-6"
-            >
+            <button type="submit"
+              className="w-full py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 mt-6">
               다음 <ChevronRight className="h-5 w-5" />
             </button>
           </form>
         )}
 
-        {/* 2단계: 개인정보 동의 */}
+        {/* Step 2: 동의서 */}
         {step === 2 && (
-          <form className="p-6 space-y-4">
+          <div className="p-6 space-y-4">
             {formError && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3">
                 <p className="text-sm text-red-700">{formError}</p>
               </div>
             )}
 
-            <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
-              <Shield className="h-10 w-10 text-blue-600" />
-              <div>
-                <p className="font-medium text-gray-900">개인정보 수집 및 제3자 제공 동의</p>
-                <p className="text-sm text-gray-600">안전관리를 위해 아래 내용에 동의해주세요</p>
-              </div>
-            </div>
+            <ConsentForms
+              siteName={projectName}
+              privacyManager={privacyManager}
+              agreePersonalInfo={agreePersonalInfo}
+              setAgreePersonalInfo={setAgreePersonalInfo}
+              agreeUniqueId={agreeUniqueId}
+              setAgreeUniqueId={setAgreeUniqueId}
+              agreeSensitiveInfo={agreeSensitiveInfo}
+              setAgreeSensitiveInfo={setAgreeSensitiveInfo}
+              agreeCctvCollection={agreeCctvCollection}
+              setAgreeCctvCollection={setAgreeCctvCollection}
+              agreeCctvThirdParty={agreeCctvThirdParty}
+              setAgreeCctvThirdParty={setAgreeCctvThirdParty}
+            />
 
-            {/* 개인정보 수집 동의 */}
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-                <p className="font-medium text-gray-900 text-sm">건설현장 안전 CCTV 촬영에 대한 개인정보 수집 동의</p>
-              </div>
-              <div className="p-4 text-sm text-gray-600 max-h-40 overflow-y-auto space-y-2">
-                <p><strong>1. 수집 목적</strong></p>
-                <p>건설현장 내 안전사고 예방, 작업환경 모니터링, 비상상황 대응 및 안전교육 자료 활용</p>
-                <p><strong>2. 수집 항목</strong></p>
-                <p>CCTV 영상정보(얼굴, 신체, 행동 등), 촬영 일시 및 장소</p>
-                <p><strong>3. 보유 및 이용 기간</strong></p>
-                <p>촬영일로부터 30일간 보관 후 자동 삭제 (단, 안전사고 발생 시 관련 영상은 사고 처리 완료 시까지 보관)</p>
-                <p><strong>4. 동의 거부 권리</strong></p>
-                <p>귀하는 개인정보 수집에 대한 동의를 거부할 권리가 있습니다. 다만, 동의하지 않을 경우 해당 건설현장 출입이 제한될 수 있습니다.</p>
-              </div>
-              <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={agreePrivacy}
-                    onChange={(e) => setAgreePrivacy(e.target.checked)}
-                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm font-medium text-gray-900">위 내용에 동의합니다</span>
-                </label>
-              </div>
-            </div>
-
-            {/* 제3자 제공 동의 */}
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-                <p className="font-medium text-gray-900 text-sm">제3자 개인정보 제공 동의</p>
-              </div>
-              <div className="p-4 text-sm text-gray-600 max-h-40 overflow-y-auto space-y-2">
-                <p><strong>1. 제공받는 자</strong></p>
-                <p>한국농어촌공사</p>
-                <p><strong>2. 제공 목적</strong></p>
-                <p>건설현장 안전관리 감독, 안전교육 이수 현황 관리, 재해예방 및 사고분석</p>
-                <p><strong>3. 제공 항목</strong></p>
-                <p>영상정보(CCTV 촬영본), 안전교육 이수정보(교육일자, 교육내용, 이수증 정보), 근로자 인적사항(성명, 생년월일)</p>
-                <p><strong>4. 보유 및 이용 기간</strong></p>
-                <p>공사 완료 후 5년간 보관 (관련 법령에 따른 보존 기간 준수)</p>
-                <p><strong>5. 동의 거부 권리</strong></p>
-                <p>귀하는 제3자 정보제공에 대한 동의를 거부할 권리가 있습니다. 다만, 동의하지 않을 경우 해당 건설현장 근무가 제한될 수 있습니다.</p>
-              </div>
-              <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={agreeThirdParty}
-                    onChange={(e) => setAgreeThirdParty(e.target.checked)}
-                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm font-medium text-gray-900">위 내용에 동의합니다</span>
-                </label>
-              </div>
-            </div>
-
-            {/* 버튼 */}
             <div className="flex gap-3 pt-4">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="flex-1 flex items-center justify-center gap-1 py-4 border border-gray-300 text-gray-700 text-lg font-semibold rounded-lg hover:bg-gray-50 transition-colors"
-              >
+              <button type="button" onClick={() => setStep(1)}
+                className="flex-1 flex items-center justify-center gap-1 py-4 border border-gray-300 text-gray-700 text-lg font-semibold rounded-lg hover:bg-gray-50 transition-colors">
                 <ChevronLeft className="h-5 w-5" /> 이전
               </button>
-              <button
-                type="button"
-                onClick={handleSignClick}
-                disabled={submitting || !agreePrivacy || !agreeThirdParty}
-                className="flex-1 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
+              <button type="button" onClick={handleNextFromStep2}
+                disabled={!agreePersonalInfo || !agreeUniqueId || !agreeSensitiveInfo || !agreeCctvCollection || !agreeCctvThirdParty}
+                className="flex-1 flex items-center justify-center gap-1 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                다음 <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: 건강문진표 */}
+        {step === 3 && (
+          <div className="p-6 space-y-4">
+            {formError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-700">{formError}</p>
+              </div>
+            )}
+
+            <HealthQuestionnaire
+              workerName={formData.name}
+              workerBirthDate={formData.birth_date}
+              healthData={healthData}
+              setHealthData={setHealthData}
+            />
+
+            <div className="flex gap-3 pt-4">
+              <button type="button" onClick={() => setStep(2)}
+                className="flex-1 flex items-center justify-center gap-1 py-4 border border-gray-300 text-gray-700 text-lg font-semibold rounded-lg hover:bg-gray-50 transition-colors">
+                <ChevronLeft className="h-5 w-5" /> 이전
+              </button>
+              <button type="button" onClick={handleNextFromStep3}
+                className="flex-1 flex items-center justify-center gap-1 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+                다음 <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: 안전서약서 */}
+        {step === 4 && (
+          <div className="p-6 space-y-4">
+            {formError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-sm text-red-700">{formError}</p>
+              </div>
+            )}
+
+            <SafetyPledge
+              siteName={projectName}
+              safetyEquipment={safetyEquipment}
+              setSafetyEquipment={setSafetyEquipment}
+              agreeSafetyPledge={agreeSafetyPledge}
+              setAgreeSafetyPledge={setAgreeSafetyPledge}
+            />
+
+            <div className="flex gap-3 pt-4">
+              <button type="button" onClick={() => setStep(3)}
+                className="flex-1 flex items-center justify-center gap-1 py-4 border border-gray-300 text-gray-700 text-lg font-semibold rounded-lg hover:bg-gray-50 transition-colors">
+                <ChevronLeft className="h-5 w-5" /> 이전
+              </button>
+              <button type="button" onClick={handleSignClick}
+                disabled={submitting || !agreeSafetyPledge}
+                className="flex-1 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                 {submitting ? (
                   <>
                     <span className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></span>
@@ -844,7 +778,7 @@ export default function WorkerSelfRegisterPage() {
                 )}
               </button>
             </div>
-          </form>
+          </div>
         )}
       </div>
 

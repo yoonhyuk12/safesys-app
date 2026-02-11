@@ -6,12 +6,19 @@ import { QRCodeSVG } from 'qrcode.react'
 import { supabase } from '@/lib/supabase'
 import WorkerSignaturePad from '@/components/ui/WorkerSignaturePad'
 import ImageEditor from '@/components/ui/ImageEditor'
+import ConsentForms from '@/components/worker-consent/ConsentForms'
+import HealthQuestionnaire from '@/components/worker-consent/HealthQuestionnaire'
+import SafetyPledge from '@/components/worker-consent/SafetyPledge'
+import type { PrivacyManager, HealthQuestionnaireData, SafetyEquipmentData } from '@/components/worker-consent/types'
+import { createDefaultHealthData, createDefaultSafetyEquipment } from '@/components/worker-consent/types'
 
 interface WorkerRegistrationModalProps {
   isOpen: boolean
   onClose: () => void
   onSuccess: () => void
   projectId: string
+  projectName?: string
+  privacyManager?: PrivacyManager
   workerToEdit?: {
     id: string
     name: string
@@ -38,15 +45,25 @@ function generateToken(): string {
   return token
 }
 
+// 단계 라벨
+const MANUAL_STEPS = [
+  { id: 1, label: '정보입력' },
+  { id: 2, label: '동의서' },
+  { id: 3, label: '건강문진표' },
+  { id: 4, label: '안전서약서' },
+]
+
 export default function WorkerRegistrationModal({
   isOpen,
   onClose,
   onSuccess,
   projectId,
+  projectName = '',
+  privacyManager = { name: '', position: '', email: '', phone: '' },
   workerToEdit
 }: WorkerRegistrationModalProps) {
   const [activeTab, setActiveTab] = useState<'qr' | 'manual'>('qr')
-  const [step, setStep] = useState(1) // 1: 정보입력, 2: 동의
+  const [step, setStep] = useState(1) // 1: 정보입력, 2: 동의서, 3: 건강문진표, 4: 안전서약서
   const [qrToken, setQrToken] = useState<string>('')
   const [qrLoading, setQrLoading] = useState(false)
   const [qrUrl, setQrUrl] = useState<string>('')
@@ -64,9 +81,19 @@ export default function WorkerRegistrationModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // 동의 체크박스 상태
-  const [agreePrivacy, setAgreePrivacy] = useState(false)
-  const [agreeThirdParty, setAgreeThirdParty] = useState(false)
+  // 동의 체크박스 상태 (5종 등록부 대응)
+  const [agreePersonalInfo, setAgreePersonalInfo] = useState(false)
+  const [agreeUniqueId, setAgreeUniqueId] = useState(false)
+  const [agreeSensitiveInfo, setAgreeSensitiveInfo] = useState(false)
+  const [agreeCctvCollection, setAgreeCctvCollection] = useState(false)
+  const [agreeCctvThirdParty, setAgreeCctvThirdParty] = useState(false)
+  const [agreeSafetyPledge, setAgreeSafetyPledge] = useState(false)
+
+  // 건강문진표 데이터
+  const [healthData, setHealthData] = useState<HealthQuestionnaireData>(createDefaultHealthData())
+
+  // 안전보호구 데이터
+  const [safetyEquipment, setSafetyEquipment] = useState<SafetyEquipmentData>(createDefaultSafetyEquipment())
 
   // 이미지 OCR 관련 상태
   const [cardImage, setCardImage] = useState<string | null>(null)
@@ -145,8 +172,15 @@ export default function WorkerRegistrationModal({
   useEffect(() => {
     if (isOpen) {
       setError('')
-      setAgreePrivacy(false)
-      setAgreeThirdParty(false)
+      // 동의 상태 초기화
+      setAgreePersonalInfo(false)
+      setAgreeUniqueId(false)
+      setAgreeSensitiveInfo(false)
+      setAgreeCctvCollection(false)
+      setAgreeCctvThirdParty(false)
+      setAgreeSafetyPledge(false)
+      setHealthData(createDefaultHealthData())
+      setSafetyEquipment(createDefaultSafetyEquipment())
 
       if (workerToEdit) {
         // 수정 모드: 데이터 채우기
@@ -297,8 +331,8 @@ export default function WorkerRegistrationModal({
     e.target.value = ''
   }
 
-  // 다음 단계로
-  const handleNext = () => {
+  // Step 1 → Step 2 (정보입력 → 동의서)
+  const handleNextFromStep1 = () => {
     setError('')
 
     if (!formData.name.trim()) {
@@ -335,18 +369,28 @@ export default function WorkerRegistrationModal({
     setStep(2)
   }
 
-  // 서명 버튼 클릭
+  // Step 2 → Step 3 (동의서 → 건강문진표)
+  const handleNextFromStep2 = () => {
+    setError('')
+    if (!agreePersonalInfo || !agreeUniqueId || !agreeSensitiveInfo || !agreeCctvCollection || !agreeCctvThirdParty) {
+      setError('모든 동의 항목에 체크해주세요.')
+      return
+    }
+    setStep(3)
+  }
+
+  // Step 3 → Step 4 (건강문진표 → 안전서약서)
+  const handleNextFromStep3 = () => {
+    setError('')
+    setStep(4)
+  }
+
+  // Step 4 → 서명 (안전서약서 → 서명)
   const handleSignClick = () => {
     setError('')
 
-    if (!agreePrivacy || !agreeThirdParty) {
-      setError('모든 항목에 동의해주세요.')
-      return
-    }
-
-    // 수정 모드일 때는 서명 단계 건너뛰고 바로 수정
-    if (workerToEdit) {
-      submitWorker(null)
+    if (!agreeSafetyPledge) {
+      setError('안전서약에 동의해주세요.')
       return
     }
 
@@ -481,7 +525,7 @@ export default function WorkerRegistrationModal({
 
         if (updateError) throw updateError
       } else {
-        // 신규 등록인 경우
+        // 신규 등록인 경우 - 5종 등록부 데이터 모두 포함
         const { error: insertError } = await supabase
           .from('workers')
           .insert({
@@ -498,7 +542,17 @@ export default function WorkerRegistrationModal({
             is_foreigner: formData.is_foreigner,
             visa_type: formData.is_foreigner ? (formData.visa_type || null) : null,
             privacy_agreed: true,
-            privacy_agreed_at: new Date().toISOString()
+            privacy_agreed_at: new Date().toISOString(),
+            phone: healthData.phone || null,
+            address: healthData.address || null,
+            agree_personal_info: agreePersonalInfo,
+            agree_unique_id: agreeUniqueId,
+            agree_sensitive_info: agreeSensitiveInfo,
+            agree_cctv_collection: agreeCctvCollection,
+            agree_cctv_third_party: agreeCctvThirdParty,
+            agree_safety_pledge: agreeSafetyPledge,
+            health_questionnaire: healthData,
+            safety_equipment: safetyEquipment,
           })
 
         if (insertError) throw insertError
@@ -520,8 +574,14 @@ export default function WorkerRegistrationModal({
       setOcrSuccess(false)
       setIdCardImage(null)
       setIdCardFile(null)
-      setAgreePrivacy(false)
-      setAgreeThirdParty(false)
+      setAgreePersonalInfo(false)
+      setAgreeUniqueId(false)
+      setAgreeSensitiveInfo(false)
+      setAgreeCctvCollection(false)
+      setAgreeCctvThirdParty(false)
+      setAgreeSafetyPledge(false)
+      setHealthData(createDefaultHealthData())
+      setSafetyEquipment(createDefaultSafetyEquipment())
       setStep(1)
 
       onSuccess()
@@ -563,6 +623,12 @@ export default function WorkerRegistrationModal({
     generateQrToken()
   }
 
+  // 현재 단계 라벨 생성
+  const getStepLabel = () => {
+    const s = MANUAL_STEPS.find(ms => ms.id === step)
+    return s ? `${step}단계: ${s.label}` : ''
+  }
+
   if (!isOpen) return null
 
   return (
@@ -578,7 +644,7 @@ export default function WorkerRegistrationModal({
               <h2 className="text-lg font-semibold text-gray-900">{workerToEdit ? '근로자 정보 수정' : '근로자 등록'}</h2>
               {activeTab === 'manual' && !workerToEdit && (
                 <p className="text-xs text-gray-500">
-                  {step === 1 ? '1단계: 정보 입력' : '2단계: 개인정보 동의'}
+                  {getStepLabel()}
                 </p>
               )}
             </div>
@@ -614,6 +680,40 @@ export default function WorkerRegistrationModal({
               <UserPlus className="h-4 w-4" />
               직접 등록
             </button>
+          </div>
+        )}
+
+        {/* 단계 인디케이터 (수정 모드가 아닌 직접 등록 시) */}
+        {activeTab === 'manual' && !workerToEdit && (
+          <div className="flex items-center justify-between px-6 py-3 bg-gray-50 border-b border-gray-200">
+            {MANUAL_STEPS.map((s, index) => (
+              <React.Fragment key={s.id}>
+                <div className="flex flex-col items-center gap-1">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${step > s.id
+                      ? 'bg-green-500 text-white'
+                      : step === s.id
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-200 text-gray-500'
+                      }`}
+                  >
+                    {step > s.id ? <CheckCircle className="h-4 w-4" /> : s.id}
+                  </div>
+                  <span
+                    className={`text-[10px] font-medium ${step === s.id ? 'text-blue-600' : step > s.id ? 'text-green-600' : 'text-gray-400'
+                      }`}
+                  >
+                    {s.label}
+                  </span>
+                </div>
+                {index < MANUAL_STEPS.length - 1 && (
+                  <div
+                    className={`flex-1 h-0.5 mx-1 mb-4 ${step > s.id ? 'bg-green-400' : 'bg-gray-200'
+                      }`}
+                  />
+                )}
+              </React.Fragment>
+            ))}
           </div>
         )}
 
@@ -836,19 +936,18 @@ export default function WorkerRegistrationModal({
                       <option value="기타">기타</option>
                     </select>
                     {formData.visa_type && (
-                      <div className={`mt-1.5 p-2 rounded-lg text-xs leading-relaxed ${
-                        ['C-3', 'C-4', 'D-4', 'F-1', 'F-3'].includes(formData.visa_type)
-                          ? 'bg-red-50 border border-red-200 text-red-700'
-                          : 'bg-blue-50 border border-blue-200 text-blue-700'
-                      }`}>
+                      <div className={`mt-1.5 p-2 rounded-lg text-xs leading-relaxed ${['C-3', 'C-4', 'D-4', 'F-1', 'F-3'].includes(formData.visa_type)
+                        ? 'bg-red-50 border border-red-200 text-red-700'
+                        : 'bg-blue-50 border border-blue-200 text-blue-700'
+                        }`}>
                         {(formData.visa_type === 'E-9' || formData.visa_type === 'F-2' || formData.visa_type === 'F-5' || formData.visa_type === 'F-6') && (
-                          <><span className="font-semibold text-green-700">가능</span>: 건설채용, 단순노무<br/><span className="font-semibold text-red-600">불가</span>: 기능직</>
+                          <><span className="font-semibold text-green-700">가능</span>: 건설채용, 단순노무<br /><span className="font-semibold text-red-600">불가</span>: 기능직</>
                         )}
                         {formData.visa_type === 'H-2' && (
                           <><span className="font-semibold text-green-700">가능</span>: 건설채용, 특례고용가능확인서 제출</>
                         )}
                         {formData.visa_type === 'F-4' && (
-                          <><span className="font-semibold text-green-700">가능</span>: 건설채용, 기능직(자격필요)<br/><span className="font-semibold text-red-600">불가</span>: 단순노무</>
+                          <><span className="font-semibold text-green-700">가능</span>: 건설채용, 기능직(자격필요)<br /><span className="font-semibold text-red-600">불가</span>: 단순노무</>
                         )}
                         {formData.visa_type === 'D-2' && (
                           <><span className="font-semibold text-green-700">가능</span>: 건설채용, 출입국관리사무소의 건설업 취업확인을 받은 경우</>
@@ -898,23 +997,33 @@ export default function WorkerRegistrationModal({
 
 
             {/* 버튼 */}
-            <div className="flex gap-3 pt-4">
-              <button type="button" onClick={handleClose}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
-                취소
-              </button>
-              <button type="button" onClick={handleNext}
-                className="flex-1 flex items-center justify-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                {workerToEdit ? '수정 완료' : '다음'} {(!workerToEdit && <ChevronRight className="h-4 w-4" />)}
-              </button>
-            </div>
+            {(() => {
+              const isStep1Valid = !!(formData.name.trim() && formData.birth_date && formData.registration_number.trim() && formData.completion_date && idCardImage)
+              return (
+                <div className="flex gap-2 pt-4">
+                  <button type="button" onClick={handleClose}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    취소
+                  </button>
+                  <button type="button" onClick={handleNextFromStep1} disabled={!isStep1Valid}
+                    className="flex-1 flex items-center justify-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                    {workerToEdit ? '수정 완료' : '서명하기'} {(!workerToEdit && <ChevronRight className="h-4 w-4" />)}
+                  </button>
+                  {!workerToEdit && (
+                    <button type="button" onClick={() => submitWorker(null)} disabled={loading || !isStep1Valid}
+                      className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap">
+                      {loading ? '저장 중...' : '서명없이 저장'}
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         )}
 
-        {/* 수정 모드에서는 2단계(개인정보 동의) 생략 */}
+        {/* 수정 모드에서는 2~4단계 생략 */}
 
-
-        {/* 직접 등록 탭 - 2단계: 개인정보 동의 */}
+        {/* 직접 등록 탭 - 2단계: 개인정보 동의서 (5종 등록부 대응) */}
         {activeTab === 'manual' && step === 2 && (
           <div className="p-4 space-y-4">
             {error && (
@@ -923,63 +1032,20 @@ export default function WorkerRegistrationModal({
               </div>
             )}
 
-            <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
-              <Shield className="h-8 w-8 text-blue-600" />
-              <div>
-                <p className="font-medium text-gray-900">개인정보 수집 및 제3자 제공 동의</p>
-                <p className="text-sm text-gray-600">안전관리를 위해 아래 내용에 동의해주세요</p>
-              </div>
-            </div>
-
-            {/* 개인정보 수집 동의 */}
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-                <p className="font-medium text-gray-900 text-sm">건설현장 안전 CCTV 촬영에 대한 개인정보 수집 동의</p>
-              </div>
-              <div className="p-4 text-sm text-gray-600 max-h-40 overflow-y-auto space-y-2">
-                <p><strong>1. 수집 목적</strong></p>
-                <p>건설현장 내 안전사고 예방, 작업환경 모니터링, 비상상황 대응 및 안전교육 자료 활용</p>
-                <p><strong>2. 수집 항목</strong></p>
-                <p>CCTV 영상정보(얼굴, 신체, 행동 등), 촬영 일시 및 장소</p>
-                <p><strong>3. 보유 및 이용 기간</strong></p>
-                <p>촬영일로부터 30일간 보관 후 자동 삭제 (단, 안전사고 발생 시 관련 영상은 사고 처리 완료 시까지 보관)</p>
-                <p><strong>4. 동의 거부 권리</strong></p>
-                <p>귀하는 개인정보 수집에 대한 동의를 거부할 권리가 있습니다. 다만, 동의하지 않을 경우 해당 건설현장 출입이 제한될 수 있습니다.</p>
-              </div>
-              <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={agreePrivacy} onChange={(e) => setAgreePrivacy(e.target.checked)}
-                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
-                  <span className="text-sm font-medium text-gray-900">위 내용에 동의합니다</span>
-                </label>
-              </div>
-            </div>
-
-            {/* 제3자 제공 동의 */}
-            <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
-                <p className="font-medium text-gray-900 text-sm">제3자 개인정보 제공 동의</p>
-              </div>
-              <div className="p-4 text-sm text-gray-600 max-h-40 overflow-y-auto space-y-2">
-                <p><strong>1. 제공받는 자</strong></p>
-                <p>한국농어촌공사</p>
-                <p><strong>2. 제공 목적</strong></p>
-                <p>건설현장 안전관리 감독, 안전교육 이수 현황 관리, 재해예방 및 사고분석</p>
-                <p><strong>3. 제공 항목</strong></p>
-                <p>영상정보(CCTV 촬영본), 안전교육 이수정보(교육일자, 교육내용, 이수증 정보), 근로자 인적사항(성명, 생년월일)</p>
-                <p><strong>4. 보유 및 이용 기간</strong></p>
-                <p>공사 완료 후 5년간 보관 (관련 법령에 따른 보존 기간 준수)</p>
-                <p><strong>5. 동의 거부 권리</strong></p>
-                <p>귀하는 제3자 정보제공에 대한 동의를 거부할 권리가 있습니다. 다만, 동의하지 않을 경우 해당 건설현장 근무가 제한될 수 있습니다.</p>
-              </div>
-              <div className="px-4 py-3 border-t border-gray-200 bg-gray-50">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" checked={agreeThirdParty} onChange={(e) => setAgreeThirdParty(e.target.checked)}
-                    className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
-                  <span className="text-sm font-medium text-gray-900">위 내용에 동의합니다</span>
-                </label>
-              </div>
-            </div>
+            <ConsentForms
+              siteName={projectName}
+              privacyManager={privacyManager}
+              agreePersonalInfo={agreePersonalInfo}
+              setAgreePersonalInfo={setAgreePersonalInfo}
+              agreeUniqueId={agreeUniqueId}
+              setAgreeUniqueId={setAgreeUniqueId}
+              agreeSensitiveInfo={agreeSensitiveInfo}
+              setAgreeSensitiveInfo={setAgreeSensitiveInfo}
+              agreeCctvCollection={agreeCctvCollection}
+              setAgreeCctvCollection={setAgreeCctvCollection}
+              agreeCctvThirdParty={agreeCctvThirdParty}
+              setAgreeCctvThirdParty={setAgreeCctvThirdParty}
+            />
 
             {/* 버튼 */}
             <div className="flex gap-3 pt-4">
@@ -987,7 +1053,69 @@ export default function WorkerRegistrationModal({
                 className="flex-1 flex items-center justify-center gap-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
                 <ChevronLeft className="h-4 w-4" /> 이전
               </button>
-              <button type="button" onClick={handleSignClick} disabled={loading || !agreePrivacy || !agreeThirdParty}
+              <button type="button" onClick={handleNextFromStep2}
+                disabled={!agreePersonalInfo || !agreeUniqueId || !agreeSensitiveInfo || !agreeCctvCollection || !agreeCctvThirdParty}
+                className="flex-1 flex items-center justify-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                다음 <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 직접 등록 탭 - 3단계: 건강문진표 */}
+        {activeTab === 'manual' && step === 3 && (
+          <div className="p-4 space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+
+            <HealthQuestionnaire
+              workerName={formData.name}
+              workerBirthDate={formData.birth_date}
+              healthData={healthData}
+              setHealthData={setHealthData}
+            />
+
+            {/* 버튼 */}
+            <div className="flex gap-3 pt-4">
+              <button type="button" onClick={() => setStep(2)}
+                className="flex-1 flex items-center justify-center gap-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                <ChevronLeft className="h-4 w-4" /> 이전
+              </button>
+              <button type="button" onClick={handleNextFromStep3}
+                className="flex-1 flex items-center justify-center gap-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                다음 <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 직접 등록 탭 - 4단계: 안전서약서 */}
+        {activeTab === 'manual' && step === 4 && (
+          <div className="p-4 space-y-4">
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-3">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+
+            <SafetyPledge
+              siteName={projectName}
+              safetyEquipment={safetyEquipment}
+              setSafetyEquipment={setSafetyEquipment}
+              agreeSafetyPledge={agreeSafetyPledge}
+              setAgreeSafetyPledge={setAgreeSafetyPledge}
+            />
+
+            {/* 버튼 */}
+            <div className="flex gap-3 pt-4">
+              <button type="button" onClick={() => setStep(3)}
+                className="flex-1 flex items-center justify-center gap-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                <ChevronLeft className="h-4 w-4" /> 이전
+              </button>
+              <button type="button" onClick={handleSignClick} disabled={loading || !agreeSafetyPledge}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                 {loading ? (
                   <>

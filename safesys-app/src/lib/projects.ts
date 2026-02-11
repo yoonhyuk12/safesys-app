@@ -35,6 +35,11 @@ export interface Project {
   disaster_prevention_target?: boolean
   cctv_rtsp_url?: string
   display_order?: number  // 지사별 순서 번호
+  // 개인정보 관리책임자
+  privacy_manager_name?: string
+  privacy_manager_position?: string
+  privacy_manager_email?: string
+  privacy_manager_phone?: string
   user_profiles?: {
     role?: '발주청' | '감리단' | '시공사'
     company_name?: string
@@ -63,6 +68,11 @@ export interface CreateProjectData {
   industrial_law_safety_ledger?: boolean
   disaster_prevention_target?: boolean
   cctv_rtsp_url?: string
+  // 개인정보 관리책임자
+  privacy_manager_name?: string
+  privacy_manager_position?: string
+  privacy_manager_email?: string
+  privacy_manager_phone?: string
 }
 
 export interface ProjectWithCoords extends Project {

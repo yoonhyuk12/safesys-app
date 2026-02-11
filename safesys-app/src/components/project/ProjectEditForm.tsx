@@ -31,6 +31,11 @@ interface FormData {
   cctv_rtsp_url?: string
   client_telegram_id?: string
   contractor_telegram_id?: string
+  // 개인정보 관리책임자
+  privacy_manager_name?: string
+  privacy_manager_position?: string
+  privacy_manager_email?: string
+  privacy_manager_phone?: string
 }
 
 interface ProjectEditFormProps {
@@ -66,7 +71,11 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
     disaster_prevention_target: project.disaster_prevention_target || false,
     cctv_rtsp_url: project.cctv_rtsp_url || '',
     client_telegram_id: (project as any).client_telegram_id || '',
-    contractor_telegram_id: (project as any).contractor_telegram_id || ''
+    contractor_telegram_id: (project as any).contractor_telegram_id || '',
+    privacy_manager_name: project.privacy_manager_name || '',
+    privacy_manager_position: project.privacy_manager_position || '',
+    privacy_manager_email: project.privacy_manager_email || '',
+    privacy_manager_phone: project.privacy_manager_phone || ''
   })
 
   // 천단위 쉼표 포맷팅 함수
@@ -138,7 +147,7 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
         ...prev,
         [name]: formattedValue
       }))
-    } else if (name === 'supervisor_phone') {
+    } else if (name === 'supervisor_phone' || name === 'privacy_manager_phone') {
       // 전화번호는 하이픈 자동 포맷팅 적용
       const formattedPhone = formatPhoneNumber(value)
       setFormData(prev => ({
@@ -273,7 +282,11 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
         disaster_prevention_target: formData.disaster_prevention_target,
         cctv_rtsp_url: formData.cctv_rtsp_url?.trim() || undefined,
         client_telegram_id: formData.client_telegram_id?.trim() || undefined,
-        contractor_telegram_id: formData.contractor_telegram_id?.trim() || undefined
+        contractor_telegram_id: formData.contractor_telegram_id?.trim() || undefined,
+        privacy_manager_name: formData.privacy_manager_name?.trim() || undefined,
+        privacy_manager_position: formData.privacy_manager_position?.trim() || undefined,
+        privacy_manager_email: formData.privacy_manager_email?.trim() || undefined,
+        privacy_manager_phone: formData.privacy_manager_phone?.trim() || undefined
       })
 
       alert('프로젝트가 성공적으로 수정되었습니다!')
@@ -717,6 +730,78 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
               )}
               <p className="mt-1 text-xs text-gray-500">
                 안전점검 알림을 받을 텔레그램 채팅 ID를 입력하세요
+              </p>
+            </div>
+
+            {/* 개인정보 관리책임자 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                개인정보 관리책임자 (근로자 동의서에 표시)
+              </label>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label htmlFor="privacy_manager_name" className="block text-xs text-gray-500 mb-1">
+                    성명
+                  </label>
+                  <input
+                    type="text"
+                    id="privacy_manager_name"
+                    name="privacy_manager_name"
+                    value={formData.privacy_manager_name}
+                    onChange={handleInputChange}
+                    placeholder="관리책임자 성명"
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    disabled={loading}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="privacy_manager_position" className="block text-xs text-gray-500 mb-1">
+                    직위
+                  </label>
+                  <input
+                    type="text"
+                    id="privacy_manager_position"
+                    name="privacy_manager_position"
+                    value={formData.privacy_manager_position}
+                    onChange={handleInputChange}
+                    placeholder="예: 현장소장"
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    disabled={loading}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="privacy_manager_email" className="block text-xs text-gray-500 mb-1">
+                    이메일
+                  </label>
+                  <input
+                    type="email"
+                    id="privacy_manager_email"
+                    name="privacy_manager_email"
+                    value={formData.privacy_manager_email}
+                    onChange={handleInputChange}
+                    placeholder="example@company.com"
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    disabled={loading}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="privacy_manager_phone" className="block text-xs text-gray-500 mb-1">
+                    연락처
+                  </label>
+                  <input
+                    type="tel"
+                    id="privacy_manager_phone"
+                    name="privacy_manager_phone"
+                    value={formData.privacy_manager_phone}
+                    onChange={handleInputChange}
+                    placeholder="010-1234-5678"
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+              <p className="mt-1 text-xs text-gray-500">
+                근로자 등록 시 동의서에 표시되는 관리책임자 정보입니다
               </p>
             </div>
           </div>

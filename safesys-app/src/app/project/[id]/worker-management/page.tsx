@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, Users, Trash2, X, Printer } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import WorkerRegistrationModal from '@/components/project/WorkerRegistrationModal'
+import { generateConsentFormPage1HTML, generateConsentFormPage2HTML, generateHealthQuestionnaireHTML, generateSafetyPledgeHTML } from '@/lib/reports/worker-documents'
 
 interface Worker {
   id: string
@@ -22,6 +23,16 @@ interface Worker {
   id_card_url: string | null
   certificate_card_url: string | null
   signature_url: string | null
+  phone: string | null
+  address: string | null
+  agree_personal_info: boolean
+  agree_unique_id: boolean
+  agree_sensitive_info: boolean
+  agree_cctv_collection: boolean
+  agree_cctv_third_party: boolean
+  agree_safety_pledge: boolean
+  health_questionnaire: Record<string, unknown> | null
+  safety_equipment: Record<string, unknown> | null
   created_at: string
 }
 
@@ -294,105 +305,17 @@ export default function WorkerManagementPage() {
         }))
       }
 
-      const pdf = new jsPDF('p', 'mm', 'a4')
-
-      for (let i = 0; i < selectedWorkersList.length; i++) {
-        const worker = selectedWorkersList[i]
-
-        // HTML 컨테이너 생성
+      // HTML을 캡처하여 PDF 페이지로 추가하는 헬퍼
+      const addHTMLPage = async (pdf: InstanceType<typeof jsPDF>, html: string, isFirstPage: boolean) => {
         const container = document.createElement('div')
-        container.style.width = '794px' // A4 width at 96 DPI
-        container.style.padding = '40px'
-        container.style.backgroundColor = 'white'
-        container.style.fontFamily = "'Malgun Gothic', '맑은 고딕', sans-serif"
         container.style.position = 'fixed'
         container.style.left = '-9999px'
         container.style.top = '0'
-
-        container.innerHTML = `
-          <div style="border: 2px solid #334155; padding: 20px; position: relative;">
-            <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #334155; padding-bottom: 15px;">
-              <h1 style="font-size: 28px; font-weight: 800; color: #1e293b; margin: 0; letter-spacing: 5px;">인 원 등 록 부</h1>
-            </div>
-
-            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; margin-bottom: 20px; font-weight: 600;">
-              현장명: <span style="color: #2563eb; margin-left: 8px;">${project?.project_name || '-'}</span>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
-              <div>
-                <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 13px; font-weight: 700; border-bottom: none;">기초안전보건교육 이수증</div>
-                <div style="border: 1px solid #cbd5e1; height: 180px; display: flex; align-items: center; justify-content: center; overflow: hidden; background-color: #fcfcfc;">
-                  ${worker.certificate_card_url
-            ? `<img src="${worker.certificate_card_url}" style="max-width: 100%; max-height: 100%; object-fit: contain;" />`
-            : '<span style="color: #94a3b8; font-size: 12px;">미등록</span>'}
-                </div>
-              </div>
-              <div>
-                <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 13px; font-weight: 700; border-bottom: none;">신분증 사진</div>
-                <div style="border: 1px solid #cbd5e1; height: 180px; display: flex; align-items: center; justify-content: center; overflow: hidden; background-color: #fcfcfc;">
-                  ${worker.id_card_url
-            ? `<img src="${worker.id_card_url}" style="max-width: 100%; max-height: 100%; object-fit: contain;" />`
-            : '<span style="color: #94a3b8; font-size: 12px;">미등록</span>'}
-                </div>
-              </div>
-            </div>
-
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; table-layout: fixed;">
-              <tr>
-                <th style="width: 20%; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">성 명</th>
-                <td style="width: 30%; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${worker.name}</td>
-                <th style="width: 20%; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">구 분</th>
-                <td style="width: 30%; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${worker.is_foreigner ? '외국인' : '내국인'}${worker.is_foreigner && worker.visa_type ? ` (${worker.visa_type})` : ''}</td>
-              </tr>
-              <tr>
-                <th style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">생년월일</th>
-                <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${formatDate(worker.birth_date)}</td>
-                <th style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">나이(만)</th>
-                <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${worker.birth_date ? calculateAge(worker.birth_date) + '세' : '-'}</td>
-              </tr>
-              <tr>
-                <th style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">등록번호</th>
-                <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${worker.registration_number || '-'}</td>
-              </tr>
-              <tr>
-                <th style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">이수일자</th>
-                <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${formatDate(worker.completion_date)}</td>
-              </tr>
-              <tr>
-                <th style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">근로계약기간</th>
-                <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${formatDate(worker.contract_start_date || '')} ~ ${formatDate(worker.contract_end_date || '')}</td>
-              </tr>
-              <tr>
-                <th style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">등록일자</th>
-                <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${formatDate(worker.created_at)}</td>
-              </tr>
-              <tr>
-                <th style="height: 80px; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">서 명</th>
-                <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px; vertical-align: middle;">
-                  ${worker.signature_url
-            ? `<img src="${worker.signature_url}" style="height: 60px; object-fit: contain;" />`
-            : '<span style="color: #94a3b8; font-size: 12px;">서명 없음</span>'}
-                </td>
-              </tr>
-              <tr>
-                <th style="height: 80px; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">비 고</th>
-                <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px;"></td>
-              </tr>
-            </table>
-
-            <div style="text-align: right; color: #94a3b8; font-size: 11px;">
-              출력일: ${new Date().toLocaleDateString('ko-KR')} | SAFESYS 안전관리시스템
-            </div>
-          </div>
-        `
-
+        container.innerHTML = html
         document.body.appendChild(container)
 
-        // 이미지 로딩 대기
         await waitForImages(container)
 
-        // Canvas 캡처
         const canvas = await html2canvas(container, {
           scale: 2,
           useCORS: true,
@@ -404,23 +327,133 @@ export default function WorkerManagementPage() {
         const imgWidth = 210
         const imgHeight = (canvas.height * imgWidth) / canvas.width
 
-        if (i > 0) pdf.addPage()
+        if (!isFirstPage) pdf.addPage()
         pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight)
 
-        // 임시 엘리먼트 삭제
         document.body.removeChild(container)
       }
 
+      // 프로젝트 데이터 (관리책임자 포함)
+      const projectData = {
+        project_name: project?.project_name || '',
+        privacy_manager_name: project?.privacy_manager_name || null,
+        privacy_manager_position: project?.privacy_manager_position || null,
+        privacy_manager_email: project?.privacy_manager_email || null,
+        privacy_manager_phone: project?.privacy_manager_phone || null,
+      }
+
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      let isFirstPage = true
+
+      for (let i = 0; i < selectedWorkersList.length; i++) {
+        const worker = selectedWorkersList[i]
+
+        // === 페이지 1: 인원등록부 ===
+        const registrationHTML = `
+          <div style="width: 794px; padding: 40px; background-color: white; font-family: 'Malgun Gothic', '맑은 고딕', sans-serif;">
+            <div style="border: 2px solid #334155; padding: 20px; position: relative;">
+              <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #334155; padding-bottom: 15px;">
+                <h1 style="font-size: 28px; font-weight: 800; color: #1e293b; margin: 0; letter-spacing: 5px;">인 원 등 록 부</h1>
+              </div>
+
+              <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; margin-bottom: 20px; font-weight: 600;">
+                현장명: <span style="color: #2563eb; margin-left: 8px;">${project?.project_name || '-'}</span>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
+                <div>
+                  <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 13px; font-weight: 700; border-bottom: none;">기초안전보건교육 이수증</div>
+                  <div style="border: 1px solid #cbd5e1; height: 180px; display: flex; align-items: center; justify-content: center; overflow: hidden; background-color: #fcfcfc;">
+                    ${worker.certificate_card_url
+            ? `<img src="${worker.certificate_card_url}" style="max-width: 100%; max-height: 100%; object-fit: contain;" />`
+            : '<span style="color: #94a3b8; font-size: 12px;">미등록</span>'}
+                  </div>
+                </div>
+                <div>
+                  <div style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-size: 13px; font-weight: 700; border-bottom: none;">신분증 사진</div>
+                  <div style="border: 1px solid #cbd5e1; height: 180px; display: flex; align-items: center; justify-content: center; overflow: hidden; background-color: #fcfcfc;">
+                    ${worker.id_card_url
+            ? `<img src="${worker.id_card_url}" style="max-width: 100%; max-height: 100%; object-fit: contain;" />`
+            : '<span style="color: #94a3b8; font-size: 12px;">미등록</span>'}
+                  </div>
+                </div>
+              </div>
+
+              <table style="width: 100%; border-collapse: collapse; margin-bottom: 25px; table-layout: fixed;">
+                <tr>
+                  <th style="width: 20%; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">성 명</th>
+                  <td style="width: 30%; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${worker.name}</td>
+                  <th style="width: 20%; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">구 분</th>
+                  <td style="width: 30%; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${worker.is_foreigner ? '외국인' : '내국인'}${worker.is_foreigner && worker.visa_type ? ` (${worker.visa_type})` : ''}</td>
+                </tr>
+                <tr>
+                  <th style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">생년월일</th>
+                  <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${formatDate(worker.birth_date)}</td>
+                  <th style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">나이(만)</th>
+                  <td style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${worker.birth_date ? calculateAge(worker.birth_date) + '세' : '-'}</td>
+                </tr>
+                <tr>
+                  <th style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">등록번호</th>
+                  <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${worker.registration_number || '-'}</td>
+                </tr>
+                <tr>
+                  <th style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">이수일자</th>
+                  <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${formatDate(worker.completion_date)}</td>
+                </tr>
+                <tr>
+                  <th style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">근로계약기간</th>
+                  <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${formatDate(worker.contract_start_date || '')} ~ ${formatDate(worker.contract_end_date || '')}</td>
+                </tr>
+                <tr>
+                  <th style="background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">등록일자</th>
+                  <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px; font-size: 13px;">${formatDate(worker.created_at)}</td>
+                </tr>
+                <tr>
+                  <th style="height: 80px; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">서 명</th>
+                  <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px; vertical-align: middle;">
+                    ${worker.signature_url
+            ? `<img src="${worker.signature_url}" style="height: 60px; object-fit: contain;" />`
+            : '<span style="color: #94a3b8; font-size: 12px;">서명 없음</span>'}
+                  </td>
+                </tr>
+                <tr>
+                  <th style="height: 80px; background-color: #f1f5f9; border: 1px solid #cbd5e1; padding: 10px; font-size: 13px; text-align: center; font-weight: 700;">비 고</th>
+                  <td colspan="3" style="border: 1px solid #cbd5e1; padding: 10px;"></td>
+                </tr>
+              </table>
+
+            </div>
+          </div>
+        `
+
+        await addHTMLPage(pdf, registrationHTML, isFirstPage)
+        isFirstPage = false
+
+        // === 페이지 2: 동의서 (1/2) - 개인정보·고유식별·민감정보 ===
+        const consentPage1HTML = generateConsentFormPage1HTML(worker, projectData)
+        await addHTMLPage(pdf, consentPage1HTML, false)
+
+        // === 페이지 3: 동의서 (2/2) - CCTV ===
+        const consentPage2HTML = generateConsentFormPage2HTML(worker, projectData)
+        await addHTMLPage(pdf, consentPage2HTML, false)
+
+        // === 페이지 4: 건강문진표 ===
+        const healthHTML = generateHealthQuestionnaireHTML(worker, projectData)
+        await addHTMLPage(pdf, healthHTML, false)
+
+        // === 페이지 5: 안전서약서 ===
+        const pledgeHTML = generateSafetyPledgeHTML(worker, projectData)
+        await addHTMLPage(pdf, pledgeHTML, false)
+      }
+
       const fileName = selectedWorkersList.length === 1
-        ? `인원등록부_${selectedWorkersList[0].name}_${new Date().toISOString().split('T')[0]}.pdf`
-        : `인원등록부_일괄_${selectedWorkersList.length}명_${new Date().toISOString().split('T')[0]}.pdf`
+        ? `근로자서류_${selectedWorkersList[0].name}_${new Date().toISOString().split('T')[0]}.pdf`
+        : `근로자서류_일괄_${selectedWorkersList.length}명_${new Date().toISOString().split('T')[0]}.pdf`
 
       pdf.save(fileName)
 
-      // 완료 메시지
-      alert(`${selectedWorkersList.length}명의 인원등록부가 다운로드되었습니다.`)
+      alert(`${selectedWorkersList.length}명의 근로자 서류(5종)가 다운로드되었습니다.`)
 
-      // 프린트 모드 종료
       setSelectedForPrint(new Set())
       setPrintMode(false)
 
@@ -724,6 +757,13 @@ export default function WorkerManagementPage() {
         onClose={handleModalClose}
         onSuccess={handleWorkerAdded}
         projectId={projectId}
+        projectName={project?.project_name || ''}
+        privacyManager={{
+          name: project?.privacy_manager_name || '',
+          position: project?.privacy_manager_position || '',
+          email: project?.privacy_manager_email || '',
+          phone: project?.privacy_manager_phone || '',
+        }}
         workerToEdit={selectedWorker}
       />
     </div>
