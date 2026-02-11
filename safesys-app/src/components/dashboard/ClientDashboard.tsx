@@ -12,7 +12,7 @@ import type { Project, ProjectWithCoords, HeatWaveCheck, ManagerInspection, Head
 // 점진적으로 하위 블록을 더 쪼갤 예정입니다.
 
 interface ClientDashboardProps {
-  viewMode: 'tbm' | 'map' | 'list' | 'safety'
+  viewMode: 'tbm' | 'map' | 'list' | 'safety' | 'business'
   loading: boolean
   error: string
   // 상태

@@ -87,12 +87,13 @@ const LoginForm: React.FC = () => {
     setError('')
 
     try {
-      // 실제 Supabase 로그인 사용
-      await signIn(formData.email, formData.password)
+      // 실제 Supabase 로그인 사용 (이메일은 소문자로 변환)
+      const lowerEmail = formData.email.toLowerCase()
+      await signIn(lowerEmail, formData.password)
       
       // 로그인 성공 시 로그인 정보 저장/삭제 처리
       if (rememberMe) {
-        localStorage.setItem('rememberedEmail', formData.email)
+        localStorage.setItem('rememberedEmail', lowerEmail)
         localStorage.setItem('rememberedPassword', formData.password)
       } else {
         localStorage.removeItem('rememberedEmail')
@@ -108,9 +109,10 @@ const LoginForm: React.FC = () => {
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.name === 'email' ? e.target.value.toLowerCase() : e.target.value
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: value
     })
   }
 
@@ -223,7 +225,13 @@ const LoginForm: React.FC = () => {
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-                {error}
+                {error.split(/(010-\d{4}-\d{4})/).map((part, i) =>
+                  /^010-\d{4}-\d{4}$/.test(part) ? (
+                    <a key={i} href={`tel:${part.replace(/-/g, '')}`} className="underline font-semibold text-red-800">{part}</a>
+                  ) : (
+                    <span key={i}>{part}</span>
+                  )
+                )}
               </div>
             )}
 
@@ -266,10 +274,17 @@ const LoginForm: React.FC = () => {
               <button
                 type="button"
                 className="text-blue-600 hover:text-blue-500 text-sm font-medium transition-colors"
-                onClick={() => router.push('/signup')}
+                onClick={() => {
+                  // 회원가입 버튼 클릭 시 약관 동의 상태 초기화
+                  sessionStorage.removeItem('termsAgreed')
+                  router.push('/signup/terms')
+                }}
               >
                 계정이 없으신가요? 회원가입
               </button>
+              <p className="mt-3 text-xs text-gray-500">
+                문의 : 윤혁 차장(<a href="tel:01026765472" className="underline font-semibold text-gray-700">010-2676-5472</a>)
+              </p>
             </div>
           </form>
         </div>

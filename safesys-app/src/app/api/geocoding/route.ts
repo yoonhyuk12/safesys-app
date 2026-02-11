@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const vworldApiKey = 'CE948BCA-7A65-3ED3-A1ED-F6D3F0F8B8BB'
+    const vworldApiKey = '2D3F686F-8FE7-39F4-95AC-2C8E1DD0482A'
     
     // 1차 시도: 원본 주소
     console.log('=== V-world API 주소 변환 시도 ===')

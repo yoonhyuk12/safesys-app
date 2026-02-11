@@ -155,6 +155,7 @@ const ManagerInspectionStatus: React.FC<ManagerInspectionStatusProps> = ({
                           <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">프로젝트명</th>
                           <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">현장 주소</th>
                           <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검 대상</th>
+                          <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">재해예방 대상</th>
                           <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검 횟수</th>
                           <th className="px-3 py-2 sm:px-6 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">상태</th>
                         </tr>
@@ -175,6 +176,13 @@ const ManagerInspectionStatus: React.FC<ManagerInspectionStatusProps> = ({
                             <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap border-r border-gray-200 text-center">
                               {project.isTarget ? (
                                 <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-800">대상</span>
+                              ) : (
+                                <span className="text-gray-400">-</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap border-r border-gray-200 text-center">
+                              {project.disaster_prevention_target ? (
+                                <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-800">대상</span>
                               ) : (
                                 <span className="text-gray-400">-</span>
                               )}

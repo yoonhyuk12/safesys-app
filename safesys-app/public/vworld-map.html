@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>주소 검색</title>
+    <!-- jQuery for V-world API JSONP -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- V-world API (document.write 사용으로 인해 정적 로드 필수) -->
+    <script type="text/javascript" src="https://map.vworld.kr/js/vworldMapInit.js.do?version=2.0&apiKey=2D3F686F-8FE7-39F4-95AC-2C8E1DD0482A"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+        .bottom-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #fff;
+            z-index: 1000;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+        .search-container {
+            display: flex;
+            gap: 8px;
+            padding: 10px 12px;
+            background: #fff;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .search-container input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .search-container input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+        .btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+        }
+        .btn-primary {
+            background: #2563eb;
+            color: white;
+        }
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+        .btn-secondary {
+            background: #4b5563;
+            color: white;
+        }
+        .btn-secondary:hover {
+            background: #374151;
+        }
+        #map {
+            flex: 1;
+            width: 100%;
+            position: relative;
+            padding-bottom: 110px;
+        }
+        .layer-control {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+            display: flex;
+        }
+        .layer-btn {
+            width: 60px;
+            height: 32px;
+            background: white;
+            color: #333;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .layer-btn.active {
+            background: #2563eb;
+            color: white;
+            font-weight: bold;
+        }
+        .layer-btn:not(:last-child) {
+            border-right: 1px solid #ccc;
+        }
+        .location-control {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+        .location-btn {
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .location-btn:hover {
+            background: #f0f0f0;
+        }
+        .address-bar {
+            padding: 10px 12px;
+            background: #f0f9ff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .address-display {
+            flex: 1;
+            padding: 12px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #374151;
+        }
+        .btn-confirm {
+            padding: 12px 24px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-confirm:hover {
+            background: #1d4ed8;
+        }
+        .btn-confirm:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 100;
+        }
+        .loading-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map">
+        <div class="loading" id="loadingIndicator">
+            <div class="loading-icon">🗺️</div>
+            <p>지도를 불러오는 중...</p>
+        </div>
+    </div>
+    
+    <div class="bottom-panel">
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="주소를 입력하세요" />
+            <button class="btn btn-primary" id="searchBtn">검색</button>
+            <button class="btn btn-secondary" id="locationBtn">📍</button>
+        </div>
+        
+        <div class="address-bar">
+            <div class="address-display" id="addressDisplay">지도에서 위치를 선택하세요</div>
+            <button class="btn-confirm" id="confirmBtn" disabled>선택 완료</button>
+        </div>
+    </div>
+
+    <script>
+        const API_KEY = '2D3F686F-8FE7-39F4-95AC-2C8E1DD0482A';
+        
+        let vworldMap = null;
+        let markerLayer = null;
+        let currentMapType = 'graphic';
+        let selectedAddress = '';
+        let selectedCoordinates = null;
+
+        // 지도 초기화
+        function initMap() {
+            console.log('지도 초기화 시작...');
+            
+            let checkCount = 0;
+            const maxChecks = 50;
+            
+            const checkInterval = setInterval(() => {
+                checkCount++;
+                
+                if (typeof vw !== 'undefined' && typeof vw.ol3 !== 'undefined' && typeof vw.ol3.Map === 'function') {
+                    clearInterval(checkInterval);
+                    document.getElementById('loadingIndicator').style.display = 'none';
+                    console.log('V-world API 로드 완료');
+                    createMap();
+                } else if (checkCount >= maxChecks) {
+                    clearInterval(checkInterval);
+                    document.getElementById('loadingIndicator').innerHTML = `
+                        <div class="loading-icon">⚠️</div>
+                        <p style="color: #dc3545;">지도 로딩 실패</p>
+                        <button onclick="location.reload()" class="btn btn-primary" style="margin-top: 12px;">새로고침</button>
+                    `;
+                }
+            }, 100);
+        }
+
+        function createMap() {
+            try {
+                vw.ol3.MapOptions = {
+                    basemapType: vw.ol3.BasemapType.GRAPHIC,
+                    controlDensity: vw.ol3.DensityType.EMPTY,
+                    interactionDensity: vw.ol3.DensityType.BASIC,
+                    controlsAutoArrange: true,
+                    homePosition: vw.ol3.CameraPosition,
+                    initPosition: vw.ol3.CameraPosition
+                };
+
+                vworldMap = new vw.ol3.Map("map", vw.ol3.MapOptions);
+                console.log('V-world 지도 생성 완료');
+
+                setTimeout(() => {
+                    addMapControls();
+                    setupClickEvent();
+                    
+                    // 줌 컨트롤 추가
+                    try {
+                        const zoom = new vw.ol3.control.Zoom(vworldMap);
+                        zoom.delta = 1;
+                        zoom.sliderVisible = true;
+                        zoom.site = vw.ol3.SiteAlignType.CENTER_RIGHT;
+                        zoom.draw();
+                        vworldMap.addControl(zoom);
+                    } catch (e) {
+                        console.log('줌 컨트롤 추가 실패:', e);
+                    }
+                }, 1000);
+
+            } catch (error) {
+                console.error('지도 생성 실패:', error);
+            }
+        }
+
+        function addMapControls() {
+            const mapContainer = document.getElementById('map');
+            
+            // 레이어 전환 버튼
+            const layerControl = document.createElement('div');
+            layerControl.className = 'layer-control';
+            layerControl.innerHTML = `
+                <button class="layer-btn active" data-type="graphic">2D배경</button>
+                <button class="layer-btn" data-type="hybrid">항공</button>
+            `;
+            mapContainer.appendChild(layerControl);
+
+            layerControl.querySelectorAll('.layer-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const type = btn.dataset.type;
+                    switchMapLayer(type);
+                    layerControl.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                });
+            });
+
+            // 현재 위치 버튼 (지도 내부)
+            const locationControl = document.createElement('div');
+            locationControl.className = 'location-control';
+            locationControl.innerHTML = '<button class="location-btn">📍 현재위치</button>';
+            mapContainer.appendChild(locationControl);
+            locationControl.querySelector('.location-btn').addEventListener('click', getCurrentLocation);
+        }
+
+        function switchMapLayer(type) {
+            if (!vworldMap) return;
+            
+            try {
+                const basemapType = type === 'hybrid' 
+                    ? vw.ol3.BasemapType.PHOTO_HYBRID 
+                    : vw.ol3.BasemapType.GRAPHIC;
+                
+                vworldMap.setBasemapType(basemapType);
+                currentMapType = type;
+            } catch (error) {
+                console.error('레이어 전환 실패:', error);
+            }
+        }
+
+        function setupClickEvent() {
+            if (!vworldMap) return;
+
+            vworldMap.on('singleclick', (event) => {
+                try {
+                    const coordinate = event.coordinate;
+                    if (!coordinate || coordinate.length < 2) return;
+
+                    let wgs84Coordinate;
+                    try {
+                        wgs84Coordinate = ol.proj.transform(
+                            coordinate,
+                            vworldMap.getView().getProjection(),
+                            'EPSG:4326'
+                        );
+                    } catch (e) {
+                        const lon = coordinate[0];
+                        const lat = coordinate[1];
+                        if (Math.abs(lon) > 180 || Math.abs(lat) > 90) {
+                            wgs84Coordinate = [
+                                126.0 + (lon - 14000000) / 100000,
+                                37.0 + (lat - 4200000) / 111000
+                            ];
+                        } else {
+                            wgs84Coordinate = coordinate;
+                        }
+                    }
+
+                    const lng = wgs84Coordinate[0];
+                    const lat = wgs84Coordinate[1];
+
+                    // 확대 이동
+                    zoomToLocation(lng, lat);
+                    
+                    // 마커 추가
+                    addMarker(lng, lat);
+                    
+                    // 좌표 저장
+                    selectedCoordinates = { lat, lng };
+                    
+                    // 주소 검색
+                    getAddressFromCoordinates(lng, lat);
+
+                } catch (error) {
+                    console.error('클릭 처리 오류:', error);
+                }
+            });
+        }
+
+        function zoomToLocation(lng, lat, zoomLevel) {
+            if (!vworldMap) return;
+
+            try {
+                const currentView = vworldMap.getView();
+                const currentZoom = currentView.getZoom();
+                const targetZoom = zoomLevel || Math.min(currentZoom + 2, 18);
+
+                let targetCenter;
+                try {
+                    targetCenter = ol.proj.transform([lng, lat], 'EPSG:4326', vworldMap.getView().getProjection());
+                } catch (e) {
+                    targetCenter = [14000000 + (lng - 126.0) * 100000, 4200000 + (lat - 37.0) * 111000];
+                }
+
+                currentView.animate({
+                    center: targetCenter,
+                    zoom: targetZoom,
+                    duration: 1000
+                });
+            } catch (error) {
+                console.error('확대 이동 실패:', error);
+            }
+        }
+
+        function moveMapToLocation(lng, lat, zoom) {
+            if (!vworldMap) return;
+
+            try {
+                let targetCenter;
+                try {
+                    targetCenter = ol.proj.transform([lng, lat], 'EPSG:4326', vworldMap.getView().getProjection());
+                } catch (e) {
+                    targetCenter = [14000000 + (lng - 126.0) * 100000, 4200000 + (lat - 37.0) * 111000];
+                }
+
+                vworldMap.getView().setCenter(targetCenter);
+                if (zoom) vworldMap.getView().setZoom(zoom);
+            } catch (error) {
+                console.error('지도 이동 실패:', error);
+            }
+        }
+
+        function addMarker(lng, lat) {
+            if (!vworldMap) return;
+
+            try {
+                // 팝업 제거
+                document.querySelectorAll('.ol-popup, .ol-overlay-container').forEach(el => el.remove());
+
+                if (!markerLayer) {
+                    markerLayer = new vw.ol3.layer.Marker(vworldMap);
+                    vworldMap.addLayer(markerLayer);
+                }
+
+                if (typeof markerLayer.hidePop === 'function') markerLayer.hidePop();
+                if (typeof markerLayer.removeAllMarker === 'function') markerLayer.removeAllMarker();
+
+                vw.ol3.markerOption = {
+                    x: lng,
+                    y: lat,
+                    epsg: "EPSG:4326",
+                    title: '',
+                    contents: '',
+                    iconUrl: 'http://map.vworld.kr/images/ol3/marker_blue.png',
+                    text: {
+                        offsetX: 0.5,
+                        offsetY: 20,
+                        font: '12px sans-serif',
+                        fill: { color: '#333' },
+                        stroke: { color: '#fff', width: 2 },
+                        text: ''
+                    },
+                    attr: { "id": "selected_marker", "lat": lat, "lon": lng }
+                };
+
+                markerLayer.addMarker(vw.ol3.markerOption);
+            } catch (error) {
+                console.error('마커 추가 실패:', error);
+            }
+        }
+
+        function getAddressFromCoordinates(lng, lat) {
+            $.ajax({
+                type: "get",
+                url: "https://api.vworld.kr/req/address",
+                data: {
+                    service: 'address',
+                    request: 'getAddress',
+                    version: '2.0',
+                    crs: 'epsg:4326',
+                    point: `${lng},${lat}`,
+                    format: 'json',
+                    type: 'both',
+                    zipcode: 'true',
+                    simple: 'false',
+                    key: API_KEY
+                },
+                dataType: 'jsonp',
+                success: (data) => {
+                    if (data?.response?.status === 'OK' && data.response.result?.length > 0) {
+                        const results = data.response.result;
+                        let parcelAddress = '';
+                        let roadAddress = '';
+
+                        for (const result of results) {
+                            if (result.type === 'parcel' && result.text) {
+                                parcelAddress = result.text.trim().replace(/\s*[답전대임야학종창공도천구하잡목장혼유어염광사종교]$/, '');
+                            } else if (result.type === 'road' && result.text) {
+                                roadAddress = result.text.trim();
+                            }
+                        }
+
+                        if (parcelAddress && roadAddress && parcelAddress !== roadAddress) {
+                            selectedAddress = `${parcelAddress}(${roadAddress})`;
+                        } else if (parcelAddress) {
+                            selectedAddress = parcelAddress;
+                        } else if (roadAddress) {
+                            selectedAddress = roadAddress;
+                        } else {
+                            selectedAddress = `좌표: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                        }
+                    } else {
+                        selectedAddress = `좌표: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                    }
+                    updateAddressDisplay();
+                },
+                error: () => {
+                    selectedAddress = `좌표: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                    updateAddressDisplay();
+                }
+            });
+        }
+
+        function updateAddressDisplay() {
+            document.getElementById('addressDisplay').textContent = selectedAddress || '지도에서 위치를 선택하세요';
+            document.getElementById('confirmBtn').disabled = !selectedAddress;
+        }
+
+        // 주소 검색
+        function searchAddress(query) {
+            if (!query.trim()) return;
+
+            $.ajax({
+                type: "get",
+                url: "https://map.vworld.kr/search.do",
+                data: {
+                    category: 'jibun',
+                    q: query,
+                    pageUnit: 1,
+                    output: 'json',
+                    pageIndex: 1,
+                    apiKey: API_KEY
+                },
+                dataType: 'jsonp',
+                success: (data) => {
+                    if (data.Jibun && data.Jibun > 0 && data.LIST?.length > 0) {
+                        const item = data.LIST[0];
+                        handleSearchResult(item);
+                    } else {
+                        // 도로명 검색
+                        $.ajax({
+                            type: "get",
+                            url: "https://map.vworld.kr/search.do",
+                            data: {
+                                category: 'juso',
+                                q: query,
+                                pageUnit: 1,
+                                output: 'json',
+                                pageIndex: 1,
+                                apiKey: API_KEY
+                            },
+                            dataType: 'jsonp',
+                            success: (data2) => {
+                                if (data2.Juso && data2.Juso > 0 && data2.LIST?.length > 0) {
+                                    handleSearchResult(data2.LIST[0]);
+                                } else {
+                                    alert('검색 결과가 없습니다.');
+                                }
+                            },
+                            error: () => alert('주소 검색 중 오류가 발생했습니다.')
+                        });
+                    }
+                },
+                error: () => alert('주소 검색 중 오류가 발생했습니다.')
+            });
+        }
+
+        function handleSearchResult(item) {
+            const lng = parseFloat(item.xpos);
+            const lat = parseFloat(item.ypos);
+
+            moveMapToLocation(lng, lat, 16);
+            addMarker(lng, lat);
+            selectedAddress = item.JUSO || item.nameFull;
+            selectedCoordinates = { lat, lng };
+            updateAddressDisplay();
+        }
+
+        // 현재 위치
+        function getCurrentLocation() {
+            if (!navigator.geolocation) {
+                alert('이 브라우저에서는 위치 정보를 지원하지 않습니다.');
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+
+                    moveMapToLocation(lng, lat, 16);
+                    addMarker(lng, lat);
+                    selectedCoordinates = { lat, lng };
+                    getAddressFromCoordinates(lng, lat);
+                },
+                (error) => {
+                    let msg = '위치 정보를 가져올 수 없습니다.';
+                    if (error.code === error.PERMISSION_DENIED) msg = '위치 정보 접근이 거부되었습니다.';
+                    else if (error.code === error.POSITION_UNAVAILABLE) msg = '위치 정보를 사용할 수 없습니다.';
+                    else if (error.code === error.TIMEOUT) msg = '위치 정보 요청 시간이 초과되었습니다.';
+                    alert(msg);
+                }
+            );
+        }
+
+        // 이벤트 리스너
+        document.getElementById('searchBtn').addEventListener('click', () => {
+            searchAddress(document.getElementById('searchInput').value);
+        });
+
+        document.getElementById('searchInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchAddress(e.target.value);
+        });
+
+        document.getElementById('locationBtn').addEventListener('click', getCurrentLocation);
+
+        document.getElementById('confirmBtn').addEventListener('click', () => {
+            if (selectedAddress && selectedCoordinates) {
+                // 부모 창으로 메시지 전송
+                window.parent.postMessage({
+                    type: 'ADDRESS_SELECTED',
+                    address: selectedAddress,
+                    coordinates: selectedCoordinates
+                }, '*');
+            }
+        });
+
+        // 페이지 로드 시 지도 초기화
+        window.addEventListener('load', initMap);
+    </script>
+</body>
+</html>

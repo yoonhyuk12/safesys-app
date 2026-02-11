@@ -87,7 +87,7 @@ const VworldAddressSearch: React.FC<VworldAddressSearchProps> = ({
     try {
       console.log('주소 검색 시작:', query)
       
-      const apiKey = 'CE948BCA-7A65-3ED3-A1ED-F6D3F0F8B8BB'
+      const apiKey = '2D3F686F-8FE7-39F4-95AC-2C8E1DD0482A'
       
       // jQuery AJAX JSONP 방식으로 CORS 우회 (샘플 코드와 동일한 방식)
       const searchWithJsonp = (searchQuery: string) => {

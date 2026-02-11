@@ -1,10 +1,34 @@
-node_modules/ 
-.next/ 
-.env.local 
-.vercel 
-dist/ 
-out/ 
-.DS_Store 
-.turbo 
-safesys-app/.next/ 
-safesys-app/node_modules/ 
+node_modules/
+.next/
+.env.local
+.vercel
+dist/
+out/
+.DS_Store
+.turbo
+safesys-app/.next/
+safesys-app/node_modules/
+safesys-app/safesys-app/
+
+# AI tool configs
+.agent/
+.agents/
+.claude/agents/
+.claude/skills/
+.claude/settings.local.json
+.codex/
+.cursor/
+.gemini/
+
+# Playwright artifacts
+.playwright-mcp/
+safesys-app/playwright-report/
+safesys-app/test-results/
+
+# Windows artifacts
+nul
+safesys-app/nul
+
+# Temporary files
+safesys-app/addresses.txt
+safesys-app/temp_read_excel.js

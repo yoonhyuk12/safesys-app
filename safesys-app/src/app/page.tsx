@@ -8,22 +8,27 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, Suspense } from 'react'
 
 function HomeContent() {
-  const { user, loading } = useAuth()
+  const { user, userProfile, loading } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
 
   useEffect(() => {
     if (loading) return
     if (!user) return
-    // 안전 관련 쿼리 파라미터가 있으면 /safe로, 아니면 /list로 리다이렉트
+
+    // userProfile이 로드될 때까지 대기 (회원가입 직후 프로필 로딩 보장)
+    if (!userProfile) return
+
+    // 안전 관련 쿼리 파라미터가 있으면 /safe로, 아니면 /tbm으로 리다이렉트
     if (searchParams.get('selectedSafetyBranch')) {
       router.replace('/safe')
     } else {
-      router.replace('/list')
+      router.replace('/tbm')
     }
-  }, [user, loading, searchParams, router])
+  }, [user, userProfile, loading, searchParams, router])
 
-  if (loading) {
+  // 로딩 중이거나 user는 있지만 userProfile이 아직 로드되지 않은 경우
+  if (loading || (user && !userProfile)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <LoadingSpinner />

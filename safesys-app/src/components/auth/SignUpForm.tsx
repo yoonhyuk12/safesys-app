@@ -2,10 +2,22 @@
 
 import React, { useState, useEffect } from 'react'
 import { Mail, Lock, Eye, EyeOff, Building, Phone, UserCircle, CheckCircle2, XCircle } from 'lucide-react'
-import { signUp, SignUpData, checkEmailExists } from '@/lib/auth'
+import { signUp, SignUpData, ConsentData, checkEmailExists } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
 import ShieldIcon from '@/components/ui/ShieldIcon'
+
+// IP 주소 가져오기 (외부 API 사용)
+const getClientIP = async (): Promise<string | null> => {
+  try {
+    const response = await fetch('https://api.ipify.org?format=json')
+    const data = await response.json()
+    return data.ip
+  } catch (error) {
+    console.error('Failed to get IP address:', error)
+    return null
+  }
+}
 
 const SignUpForm: React.FC = () => {
   const router = useRouter()
@@ -47,8 +59,16 @@ const SignUpForm: React.FC = () => {
 
   // 이메일 중복 확인
   const checkEmail = async (email: string) => {
-    if (!validateEmail(email)) {
+    const lowerEmail = email.toLowerCase()
+    if (!validateEmail(lowerEmail)) {
       setEmailError('유효한 이메일 주소를 입력해주세요.')
+      setIsEmailAvailable(null)
+      return
+    }
+
+    // 발주청은 @ekr.or.kr 도메인만 허용
+    if (formData.role === '발주청' && !lowerEmail.endsWith('@ekr.or.kr')) {
+      setEmailError('발주청은 회사메일(@ekr.or.kr)로만 가입이 가능합니다.')
       setIsEmailAvailable(null)
       return
     }
@@ -56,7 +76,7 @@ const SignUpForm: React.FC = () => {
     setIsCheckingEmail(true)
     setEmailError('')
     try {
-      const exists = await checkEmailExists(email)
+      const exists = await checkEmailExists(lowerEmail)
       setIsEmailAvailable(!exists)
       if (exists) {
         setEmailError('이미 사용 중인 이메일입니다.')
@@ -82,7 +102,7 @@ const SignUpForm: React.FC = () => {
   const handlePasswordConfirmChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const confirmValue = e.target.value
     setPasswordConfirm(confirmValue)
-    
+
     if (formData.password !== confirmValue) {
       setPasswordError('비밀번호가 일치하지 않습니다.')
     } else {
@@ -94,7 +114,7 @@ const SignUpForm: React.FC = () => {
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newPassword = e.target.value
     setFormData(prev => ({ ...prev, password: newPassword }))
-    
+
     if (!validatePassword(newPassword)) {
       setPasswordError('비밀번호는 최소 6자 이상이어야 합니다.')
     } else if (passwordConfirm && newPassword !== passwordConfirm) {
@@ -108,7 +128,7 @@ const SignUpForm: React.FC = () => {
   const formatPhoneNumber = (value: string) => {
     // 숫자만 추출
     const numbers = value.replace(/[^\d]/g, '')
-    
+
     // 길이에 따라 포맷팅
     if (numbers.length <= 3) {
       return numbers
@@ -129,16 +149,23 @@ const SignUpForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // 환경변수 확인
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
       setError('Supabase 환경변수가 설정되지 않았습니다. .env.local 파일을 확인해주세요.')
       return
     }
-    
+
     // 유효성 검사
-    if (!validateEmail(formData.email)) {
+    const lowerEmail = formData.email.toLowerCase()
+    if (!validateEmail(lowerEmail)) {
       setError('유효한 이메일 주소를 입력해주세요.')
+      return
+    }
+
+    // 발주청은 @ekr.or.kr 도메인만 허용 (자동완성으로 인한 중복 도메인 방지)
+    if (formData.role === '발주청' && !lowerEmail.endsWith('@ekr.or.kr')) {
+      setError('발주청은 회사메일(@ekr.or.kr)로만 가입이 가능합니다. 이메일 주소를 다시 확인해주세요.')
       return
     }
 
@@ -162,13 +189,41 @@ const SignUpForm: React.FC = () => {
 
     try {
       // 발주청인 경우 company_name을 null로 설정
+      const lowerEmail = formData.email.toLowerCase()
       const signUpData = {
         ...formData,
+        email: lowerEmail,
         company_name: formData.role === '발주청' ? null : formData.company_name
       }
 
-      await signUp(formData.email, formData.password, signUpData)
-      alert('회원가입이 완료되었습니다. 로그인 페이지로 이동합니다.')
+      // 동의 정보 수집
+      let consentData: ConsentData | undefined
+      const consentInfoStr = sessionStorage.getItem('consentInfo')
+      if (consentInfoStr) {
+        try {
+          const consentInfo = JSON.parse(consentInfoStr)
+          const clientIP = await getClientIP()
+          consentData = {
+            consent_version: consentInfo.version,
+            consent_ip: clientIP,
+            consent_device: consentInfo.userAgent,
+            consented_at: consentInfo.agreedAt
+          }
+        } catch (e) {
+          console.error('Failed to parse consent info:', e)
+        }
+      }
+
+      await signUp(lowerEmail, formData.password, signUpData, consentData)
+
+      // 회원가입 완료 후 sessionStorage 클리어
+      sessionStorage.removeItem('termsAgreed')
+      sessionStorage.removeItem('consentInfo')
+
+      // 이메일 인증 안내 메시지
+      alert('회원가입이 완료되었습니다.\n\n이메일을 확인하여 인증을 완료해주세요.\n(스팸메일함도 확인해주세요)\n\n⚠️ 24시간 이내에 이메일 인증을 완료하지 않으면\n계정이 자동 삭제됩니다.\n\n인증 후 로그인이 가능합니다.')
+
+      // 로그인 페이지로 이동
       router.push('/login')
     } catch (err: any) {
       console.error('Signup failed:', err)
@@ -234,10 +289,64 @@ const SignUpForm: React.FC = () => {
               새 계정을 만드세요
             </p>
           </div>
-          
+
           {/* 회원가입 폼 */}
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-4">
+              {/* 역할 선택 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">역할</label>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      role: '발주청',
+                      ...(prev.role !== '발주청' ? {
+                        hq_division: '',
+                        branch_division: ''
+                      } : {})
+                    }))}
+                    className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${formData.role === '발주청'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                  >
+                    발주청
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      role: '감리단',
+                      hq_division: '',
+                      branch_division: ''
+                    }))}
+                    className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${formData.role === '감리단'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                  >
+                    감리단
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({
+                      ...prev,
+                      role: '시공사',
+                      hq_division: '',
+                      branch_division: ''
+                    }))}
+                    className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${formData.role === '시공사'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                      }`}
+                  >
+                    시공사
+                  </button>
+                </div>
+              </div>
+
               {/* 이메일 입력 */}
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">이메일 주소</label>
@@ -249,10 +358,22 @@ const SignUpForm: React.FC = () => {
                     autoComplete="email"
                     required
                     className="appearance-none rounded-lg relative block w-full px-3 py-3 pl-10 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
-                    placeholder="이메일을 입력하세요"
+                    placeholder={formData.role === '발주청' ? "@ekr.or.kr" : "이메일을 입력하세요"}
                     value={formData.email}
                     onChange={(e) => {
-                      setFormData(prev => ({ ...prev, email: e.target.value }))
+                      let lowerEmail = e.target.value.toLowerCase()
+                      const prevEmail = formData.email
+
+                      // 발주청 역할이고 "@"를 입력했을 때 자동으로 도메인 추가
+                      // 단, 삭제 중(새 값이 이전 값보다 짧음)일 때는 자동완성 하지 않음
+                      if (formData.role === '발주청' && lowerEmail.length > prevEmail.length) {
+                        // "@"가 입력되었고, 아직 도메인이 완성되지 않은 경우
+                        if (lowerEmail.endsWith('@') && !lowerEmail.includes('@ekr.or.kr')) {
+                          lowerEmail = lowerEmail + 'ekr.or.kr'
+                        }
+                      }
+
+                      setFormData(prev => ({ ...prev, email: lowerEmail }))
                       setIsEmailAvailable(null)
                       setEmailError('')
                     }}
@@ -275,6 +396,9 @@ const SignUpForm: React.FC = () => {
                     </div>
                   )}
                 </div>
+                {formData.role === '발주청' && (
+                  <p className="mt-2 text-sm text-blue-600">회사메일(@ekr.or.kr)로 가입이 가능합니다</p>
+                )}
                 {emailError && (
                   <p className="mt-2 text-sm text-red-600">{emailError}</p>
                 )}
@@ -405,66 +529,6 @@ const SignUpForm: React.FC = () => {
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <UserCircle className="h-5 w-5 text-gray-400" />
                   </div>
-                </div>
-              </div>
-
-              {/* 역할 선택 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">역할</label>
-                <div className="grid grid-cols-3 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ 
-                      ...prev, 
-                      role: '발주청',
-                      // 발주청이 아닌 경우 본부/지사 정보 초기화
-                      ...(prev.role !== '발주청' ? {
-                        hq_division: '',
-                        branch_division: ''
-                      } : {})
-                    }))}
-                    className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${
-                      formData.role === '발주청'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    발주청
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ 
-                      ...prev, 
-                      role: '감리단',
-                      // 발주청이 아닌 경우 본부/지사 정보 초기화
-                      hq_division: '',
-                      branch_division: ''
-                    }))}
-                    className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${
-                      formData.role === '감리단'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    감리단
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormData(prev => ({ 
-                      ...prev, 
-                      role: '시공사',
-                      // 발주청이 아닌 경우 본부/지사 정보 초기화
-                      hq_division: '',
-                      branch_division: ''
-                    }))}
-                    className={`px-4 py-3 rounded-lg border text-sm font-medium transition-colors ${
-                      formData.role === '시공사'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    시공사
-                  </button>
                 </div>
               </div>
 

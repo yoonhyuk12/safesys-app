@@ -10,6 +10,9 @@ export default function LoginPage() {
   const { user, loading } = useAuth()
 
   useEffect(() => {
+    // 로그인 페이지 접속 시 약관 동의 상태 초기화
+    sessionStorage.removeItem('termsAgreed')
+
     // 이미 로그인된 사용자는 대시보드로 리다이렉트
     if (user && !loading) {
       router.push('/')

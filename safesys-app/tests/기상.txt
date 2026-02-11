@@ -1,0 +1,101 @@
+전체 흐름 (위경도 → 지점번호 → 기간 일자료)
+0) 전제
+
+현장 좌표: lat=37.39211584, lon=127.23806862
+
+목표 컬럼: 일평균기온(TA_AVG), 일평균 전운량(CA_TOT), 일강수량(RN_DAY)
+(ASOS “일자료(기간조회)” 응답에 실제로 포함됨)
+
+1) (최초 1회/가끔) 현장 좌표 → 가장 가까운 ASOS 지점번호(STN_ID) 찾기
+1-1) ASOS 지점 목록 받기
+
+지점 목록 API는 stn_inf.php이고, 지점종류로 SFC(지상; ASOS 포함) 를 사용해.
+
+예시:
+
+https://apihub.kma.go.kr/api/typ01/url/stn_inf.php?inf=SFC&tm=&stn=&help=1&authKey=YOUR_AUTH_KEY
+
+
+inf=SFC: 지상(ASOS 포함)
+
+help=1: 필드 설명 헤더도 같이(개발할 때만 켜고, 운영은 0 추천)
+
+이 응답에 각 지점의 위도/경도가 있으니(필드명은 문서/출력 헤더 참고), 앱에서 하버사인 거리로 “가장 가까운 STN_ID 1개”를 정하면 돼.
+
+1-2) 최근접 지점 계산(예시 코드)
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat/2)**2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+// stations: [{ stnId, lat, lon, name }, ...]  // stn_inf.php에서 파싱
+function pickNearestStation(lat, lon, stations) {
+  let best = null;
+  for (const s of stations) {
+    const d = haversineKm(lat, lon, s.lat, s.lon);
+    if (!best || d < best.distKm) best = { ...s, distKm: d };
+  }
+  return best; // {stnId, name, distKm, ...}
+}
+
+
+운영 팁: 현장(좌표) ↔ stnId 매핑 결과를 DB에 캐시해두면, 이후엔 2단계만 반복하면 돼.
+
+2) (핵심) 선택 기간의 “일자료(기간조회)” 가져오기: kma_sfcdd3.php
+
+KMA “지상관측(ASOS)” 문서에 일자료(기간 조회) API가 kma_sfcdd3.php로 안내돼 있고, 요청인자는 tm1, tm2, stn, help, mode, obs 등이야.
+
+2-1) 요청 URL 템플릿
+https://apihub.kma.go.kr/api/typ01/url/kma_sfcdd3.php?tm1=YYYYMMDD&tm2=YYYYMMDD&stn=STN_ID&help=0&mode=0&authKey=YOUR_AUTH_KEY
+
+
+tm1, tm2: 기간 시작일/종료일 (KST 기준)
+
+stn: 지점번호(여러 개면 :로 구분 가능)
+
+mode: 0이면 해독결과만 표출(보통 이걸 씀)
+
+help=0: 불필요한 헤더 최소화
+
+obs는 문서에 “관측종류”로 나열돼 있는데(예: CA_TOT 전운량 등), 그걸 넣으면 출력이 바뀔 수 있어서(필터링/형식 변경 가능성) 감독일지 목적이면 일단 obs 없이 전체 일자료를 받아서 필요한 컬럼만 뽑는 방식이 제일 안전해. (문서상 출력결과 목록에 TA_AVG/CA_TOT/RN_DAY가 이미 포함)
+
+2-2) 응답에서 뽑을 필드(윤혁 차장님 “3개만”)
+
+kma_sfcdd3.php 출력결과에 아래가 명시돼 있어:
+
+TA_AVG : 일 평균기온(℃)
+
+CA_TOT : 전운량(1/10)
+
+RN_DAY : 일 강수량(mm)
+
+감독일지에 표현을 바꾸고 싶으면:
+
+전운량 퍼센트: CA_TOT * 10 (%) (예: 7 → 70%)
+
+3) 기간이 길 때(월/분기 단위) 운영 방법
+
+문서에서 “기간조회” 류는 최대 조회기간 제한이 걸리는 경우가 있음(예: 시간자료 기간조회는 최대 31일 표기).
+kma_sfcdd3.php(일자료 기간조회)는 페이지에 “31일 제한”이 명확히 안 보이지만, 안전하게 운영하려면:
+
+31일 단위로 쪼개서 반복 호출 (tm1~tm2를 월 단위로 분할)
+
+받은 결과를 날짜 기준으로 합쳐서 사용자에게 반환
+
+이렇게 해두면 “사용자가 3개월/1년 선택”도 문제 없이 처리돼.
+
+4) Next.js API 라우트(개발 구조 추천)
+
+/api/weather/asos-range?lat=...&lon=...&start=YYYYMMDD&end=YYYYMMDD
+
+(캐시 없으면) stn_inf.php?inf=SFC...로 지점목록 로드 → 최근접 stnId 계산 → 캐시 저장
+
+kma_sfcdd3.php?tm1=start&tm2=end&stn=stnId... 호출
+
+응답 파싱 후 {date, tempAvgC, cloudAvg10, rainSumMm} 배열로 반환

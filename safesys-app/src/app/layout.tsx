@@ -5,6 +5,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 import SupabaseProvider from '@/providers/SupabaseProvider'
 import ServiceWorkerRegistration from '@/components/common/ServiceWorkerRegistration'
 import UpdateNotifier from '@/components/common/UpdateNotifier'
+import { Agentation } from 'agentation'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -53,12 +54,9 @@ export default function RootLayout({
     <html lang="ko">
       <head>
         <meta name="color-scheme" content="light only" />
-        <script 
-          type="text/javascript" 
-          src="https://map.vworld.kr/js/vworldMapInit.js.do?apiKey=CE948BCA-7A65-3ED3-A1ED-F6D3F0F8B8BB&domain=localhost"
-        />
-        <script 
-          type="text/javascript" 
+        {/* Kakao Map API - head에서 정적 로드 */}
+        <script
+          type="text/javascript"
           src="//dapi.kakao.com/v2/maps/sdk.js?appkey=b063321f61b035d423af3a02be79e6cf&libraries=services"
         />
       </head>
@@ -70,6 +68,7 @@ export default function RootLayout({
             {children}
           </AuthProvider>
         </SupabaseProvider>
+        {process.env.NODE_ENV === 'development' && <Agentation />}
       </body>
     </html>
   )

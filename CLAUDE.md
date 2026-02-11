@@ -1,14 +1,15 @@
 # CLAUDE.md
 
-이 파일은 Claude Code (claude.ai/code)가 이 저장소에서 코드 작업을 할 때 안내를 제공합니다.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## 프로젝트 개요
 
-SafeSys는 Next.js 15, React 19, Supabase로 구축된 한국의 안전관리 시스템입니다. 한국 건설회사의 건설 프로젝트 안전 점검, 열중질환 모니터링, TBM(터널굴착기) 상태 추적을 관리합니다.
+SafeSys는 Next.js 15, React 19, Supabase로 구축된 한국의 안전관리 시스템입니다. 한국 건설회사의 건설 프로젝트 안전 점검, 열중질환 모니터링, TBM 상태 추적, 관리자 점검, 본부불시점검을 관리합니다.
 
 ## 개발 명령어
 
-모든 명령어는 `safesys-app` 디렉토리로 이동하여 실행:
+**중요**: 모든 명령어는 `safesys-app` 디렉토리에서 실행해야 합니다.
+**중요**: npm run build 프로덕션 빌드는 동의 없이 시작 하지 않습니다.
 
 ```bash
 cd safesys-app
@@ -20,7 +21,10 @@ cd safesys-app
 - `npm run build:no-cache` - 캐시 없는 프로덕션 빌드
 - `npm run start` - 프로덕션 서버 시작
 - `npm run lint` - ESLint 검사 실행
+
+**배포:**
 - `vercel deploy --prod` - 프로덕션 배포 (**사용자 명시적 요청 시에만 실행**)
+- 배포 전 반드시 사용자 확인을 받아야 함
 
 ## 아키텍처
 
@@ -59,77 +63,67 @@ safesys-app/src/
 
 **핵심 기능:**
 - 한국 행정구역이 포함된 프로젝트 관리
-- 열중질환 안전 점검 (열중질환 점검)
-- TBM 상태 모니터링
+- 열중질환 안전 점검 (폭염점검)
+- 관리자 점검 (지사별 안전점검)
+- 본부불시점검 (본부 주도 안전점검)
+- TBM 안전점검 (일일 안전점검)
+- TBM 상태 모니터링 (Google Apps Script 연동)
 - 안전 경고를 위한 날씨 통합
-- 현장 위치를 위한 지도 통합
-
-**데이터베이스 스키마:**
-- `user_profiles` - 사용자 역할 및 조직 구조
-- `projects` - 위치 데이터가 있는 건설 프로젝트
-- `heat_wave_checks` - 안전 점검 기록
-- 모든 테이블에서 행 레벨 보안(RLS) 사용
+- 현장 위치를 위한 지도 통합 (Kakao Maps, VWorld Maps)
 
 ## 환경 설정
 
 `.env.local`에 필요한 환경 변수:
 ```
+# Supabase 설정
 NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# 기상청 API
+NEXT_PUBLIC_KMA_API_KEY=your-kma-api-key
+
+# V-world API (주소 검색 및 지도)
+VWORLD_API_KEY=your-vworld-api-key
+
+# 애플리케이션 설정
+NEXT_PUBLIC_APP_NAME=SafeSys Safety Management System
+NEXT_PUBLIC_APP_VERSION=1.0.0
 ```
 
-## 외부 API
-
-애플리케이션에서 통합하는 API:
-- Kakao Maps API (layout.tsx에 포함)
-- VWorld Map API (한국 정부 지도 서비스)
-- 안전 모니터링을 위한 날씨 API
-- 주소 검색 서비스
+**중요**: API 키 변경 위치
+- V-World API 키는 3곳에서 사용됨:
+  1. `.env.local` - 환경 변수
+  2. `src/app/layout.tsx:58` - 지도 스크립트 초기화
+  3. `src/app/api/geocoding/route.ts:54` - 지오코딩 API
+  4. `src/components/ui/VworldAddressSearch.tsx:90` - 주소 검색
+- Kakao Maps API 키는 `src/app/layout.tsx:62`에 하드코딩됨
 
 ## 개발 참고사항
 
-- TypeScript strict 모드 활성화되었지만 프로덕션에서 빌드 오류 무시
-- 서비스 워커가 있는 PWA 활성화
-- 전체 한국어 인터페이스
-- 개발용 캐싱 비활성화 (next.config.ts 참조)
-- 빌드 호환성을 위해 `@ts-ignore` 주석 사용
+### Next.js 설정 (next.config.ts)
+- **캐시 비활성화**: 개발 중 모든 경로에 대해 캐싱 비활성화 (headers 설정)
+- **빌드 설정**: TypeScript/ESLint 오류가 빌드를 차단하지 않음
+- **출력 모드**: `standalone` - 항상 서버 사이드 렌더링
+- **Webpack 경고 억제**: punycode deprecation 경고 무시
 
-## 배포 정책
+### PWA 및 서비스 워커
+- PWA 기능 활성화됨
+- 서비스 워커 자동 등록 (`ServiceWorkerRegistration.tsx`)
+- 설치 프롬프트 제공 (`PWAInstallButton.tsx`, `PWAInstallButtonHeader.tsx`)
+- 업데이트 알림 시스템 (`UpdateNotifier.tsx`)
 
-**중요**: `vercel deploy --prod` 명령어는 사용자가 명시적으로 요청한 경우에만 실행합니다. 
-- 코드 수정이나 빌드 작업 중 자동으로 배포하지 않습니다
-- 배포가 필요한 경우 사용자에게 배포 여부를 확인받습니다
+### 다국어 지원
+- 전체 UI는 한국어로 작성
+- 사용자 역할명: '발주청' (클라이언트), '감리단' (감독), '시공사' (계약업체)
 
 ## 컴포넌트 가이드라인
 
 ### UI 컴포넌트
 - 모든 UI 컴포넌트는 가능한 경우 ShadCN 사용
+- **중요**: `npx shadcn@latest add [component-name]` 사용 (deprecated된 `npx shadcn-ui@latest add` 사용 금지)
 - 사용 전 `/components/ui` 디렉토리에서 컴포넌트 설치 여부 확인
-- 컴포넌트 설치: `npx shadcn@latest add [component-name]`
 - 모든 아이콘에 Lucide React 사용: `import { IconName } from "lucide-react"`
-
-### 파일 구조
-- 페이지 컴포넌트: App Router 구조를 따르는 `/app` 디렉토리
-- 재사용 가능한 컴포넌트: `/components` 디렉토리
-- UI 컴포넌트: `/components/ui` 디렉토리
-- 모든 컴포넌트에 TypeScript 타입 정의 필수
-
-## 주요 라이브러리 및 API
-
-### 외부 서비스
-- **Supabase**: 인증, 데이터베이스, 실시간 구독
-- **Kakao Maps**: 한국 지도 서비스 (layout.tsx에 API 키 포함)
-- **VWorld Maps**: 한국 정부 지도 서비스
-- **Weather APIs**: 열중질환 모니터링 및 안전 경고
-
-### 주요 의존성
-- App Router가 있는 Next.js 15
-- React 19
-- Tailwind CSS 4
-- Supabase Auth UI 컴포넌트
-- 추가 지도 기능을 위한 Leaflet
-- 날짜 조작을 위한 Date-fns
-- 보고서 생성을 위한 HTML2Canvas 및 jsPDF
 
 ## 데이터베이스
 
@@ -144,9 +138,21 @@ Supabase SQL Editor에서 `database/schema.sql`을 실행하여 데이터베이�
 - 모든 테이블에서 사용자 역할 기반 행 레벨 보안(RLS) 구현
 
 ### 인증 플로우
-- 자동 토큰 갱신(5분마다)이 있는 Supabase Auth
-- 한국 조직 구조를 가진 역할 기반 접근 제어
-- 프로필 관리에 본사/지사 구분 포함
+- **Supabase Auth** 자동 토큰 갱신 (`autoRefreshToken` 활성화)
+- **AuthContext** (`src/contexts/AuthContext.tsx`): 전역 인증 상태 관리
+  - `user`: Supabase User 객체
+  - `userProfile`: user_profiles 테이블 데이터
+  - `refreshProfile()`: 프로필 수동 갱신
+  - `signOut()`: 로그아웃
+- **SupabaseProvider** (`src/providers/SupabaseProvider.tsx`): Supabase 클라이언트 제공
+
+### 역할 기반 접근 제어
+- **역할 종류**: '발주청', '감리단', '시공사'
+- **조직 구조**: 본부(hq_division) → 지사(branch_division)
+- **권한 로직**:
+  - 발주청: 전사 데이터 조회 가능 (본부급 또는 관리자)
+  - 감리단/시공사: 소속 지사 데이터만 조회
+- **RLS 정책**: PostgreSQL Row Level Security로 DB 레벨 접근 제어
 
 ## Supabase MCP 주의사항
 
@@ -164,7 +170,17 @@ Supabase SQL Editor에서 `database/schema.sql`을 실행하여 데이터베이�
 - 데이터베이스 상태 점검
 
 ### 데이터베이스 변경이 필요한 경우
-데이터베이스 스키마 변경이나 데이터 수정이 필요한 경우, Supabase 웹 콘솔에서 직접 작업하거나 읽기 권한 해제를 요청해야 합니다.
+데이터베이스 스키마 변경이나 데이터 수정이 필요한 경우:
+1. Supabase 웹 콘솔에서 직접 SQL 실행
+2. 읽기 전용 모드 해제를 사용자에게 요청
+3. **중요**: MCP를 통해 DDL/DML 명령을 시도하지 않음 - 항상 실패함
+
+### 마이그레이션 파일
+`database/` 디렉토리에 SQL 마이그레이션 파일들이 있음:
+- `schema.sql` - 기본 스키마
+- `add_manager_inspections_table.sql` - 관리자 점검 테이블
+- `add_project_quarters_columns.sql` - 프로젝트 분기 컬럼
+- 기타 RLS 정책 및 컬럼 추가 마이그레이션
 
 ## 안전현황 대시보드 아키텍처
 
@@ -219,6 +235,60 @@ export default function SafePage() {
 ### 접근 권한 관리
 ```typescript
 // 전사 보기 권한: 발주청 + (관리자급 또는 본사/본부 소속)
-const canSeeAllHq = userProfile?.role === '발주청' && 
+const canSeeAllHq = userProfile?.role === '발주청' &&
   (userProfile.hq_division == null || userProfile.branch_division?.endsWith('본부'))
 ```
+
+## 보고서 및 문서 생성 시스템
+
+### PDF 보고서 생성 (src/lib/reports/)
+- **headquarters-inspection.ts**: 본부불시점검 보고서 생성
+- **headquarters-inspection-branch.ts**: 지사별 본부불시점검 보고서
+- **manager-inspection-report.ts**: 관리자점검 개별 보고서
+- **manager-inspection-branch.ts**: 지사별 관리자점검 보고서
+- **manager-inspection-summary.ts**: 관리자점검 요약 보고서
+- **사용 기술**: jsPDF + html2canvas (HTML을 이미지로 변환 후 PDF 삽입)
+
+### Excel 파일 생성 (src/lib/excel/)
+- **project-list-export.ts**: 프로젝트 목록 Excel 다운로드
+- **사용 라이브러리**: xlsx
+- **기능**: 프로젝트 데이터를 Excel 형식으로 내보내기
+
+### 서명 기능
+- **SignaturePad.tsx**: react-signature-canvas 기반 전자서명
+- **SignatureModal.tsx**: 서명 입력 모달
+- 점검 보고서에 서명 추가 가능
+
+## 유틸리티 및 상수 (src/lib/)
+
+### 주요 유틸리티 파일
+- **projects.ts**: 프로젝트 CRUD, 점검 데이터 조회 함수
+  - `getUserProjects()`, `getProjectsByUserBranch()`
+  - `getHeatWaveChecksByUserBranch()`, `getManagerInspectionsByUserBranch()`
+  - `deleteProject()`, `createProject()`, `updateProject()`
+- **supabase.ts**: Supabase 클라이언트 초기화 및 타입 정의
+- **constants.ts**: 본부/지사 옵션, 디버그 플래그 등
+  - `HEADQUARTERS_OPTIONS`, `BRANCH_OPTIONS`
+  - `DEBUG_LOGS` - 콘솔 로그 출력 제어
+- **weather.ts**: 날씨 API 연동
+- **tbm.ts**: TBM(터널굴착기) 상태 관리
+
+### 주요 타입 정의
+```typescript
+// UserProfile: 사용자 프로필 (role, hq_division, branch_division, is_admin 등)
+// Project: 프로젝트 정보 (is_active는 boolean 또는 분기별 객체)
+// ProjectWithCoords: 프로젝트 + 좌표 정보 (지도 표시용)
+// HeatWaveCheck: 열중질환 점검 기록 (폭염점검)
+// ManagerInspection: 관리자 점검 기록 (지사별 점검)
+// HeadquartersInspection: 본부불시 점검 기록
+// TBMSafetyInspection: TBM 안전점검 기록 (일일 점검)
+// TBMRecord: Google Apps Script에서 가져온 TBM 현황 데이터
+```
+
+## 문제 해결
+
+- **빌드 캐시 문제**: `npm run build:no-cache` 사용
+- **프로필 미동기화**: `refreshProfile()` 함수 호출
+- **중복 요청**: Dashboard.tsx의 ref 기반 캐시 확인
+- **권한 오류**: RLS 정책 및 사용자 역할, `hq_division`/`branch_division` 값 확인
+- **지도 문제**: layout.tsx의 API 키 포함 여부, projects 테이블의 latitude/longitude 확인

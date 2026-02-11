@@ -45,14 +45,15 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
         table { border-collapse: collapse; }
         table td, table th { vertical-align: middle; padding: 0; }
         td, th { position: relative; }
-        .cell { display: flex; align-items: center; height: 100%; min-height: 36px; padding: 8px 10px 16px; }
+        .cell { display: flex; align-items: center; height: 100%; min-height: 36px; padding: 3px 10px 8px; }
         .cell.center { justify-content: center; }
         .pre { white-space: pre-wrap; }
         .num { display:inline-block; width: 1.2em; margin-right: 4px; }
         .txt { display:inline; word-break: break-word; }
+        .important-badge { display: inline-block; background: #dc2626; color: white; padding: 2px 6px; font-weight: bold; margin-right: 4px; font-size: 11px; vertical-align: middle; }
         /* 본문 행 기본 높이: 50px 고정 + 좌측 패딩 보정 */
         .chk-table tbody tr td { height: 50px; }
-        .chk-table tbody tr .cell { min-height: 0; padding: 6px 10px; }
+        .chk-table tbody tr .cell { min-height: 0; padding: 3px 10px; }
         /* 행 높이 고정: 1,2,8행(전체) → 30px
            tbody 기준으로 8행(전체)은 6번째(tr): 섹션1 헤더(1) + 항목5개(2~6)
         */
@@ -89,8 +90,7 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
           </tr>
         </thead>
         <tbody>
-          ${(() => { const totalRows = 2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0); const rowH = (230/totalRows).toFixed(2); return `
-          <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:${rowH}mm;"><div class="cell">중요 (부딪힘, 물체에맞음) 굴착기 등 사용 작업</div></td></tr>` })()}
+          <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:8mm; padding:6px 10px; vertical-align:middle; line-height:1.4;"><span class="important-badge" style="display:inline-block; vertical-align:middle;">중요</span><span style="display:inline-block; vertical-align:middle;"> (부딪힘, 물체에맞음) 굴착기 등 사용 작업</span></td></tr>
           ${(ins.critical_items||[]).map((it:any,idx:number)=>`
             <tr>
               <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell"><span class="num">${(['➊','➋','➌','➍','➎','➏','➐','➑','➒','➓'][idx] || (idx+1))}</span><span class="txt">${it.title||''}</span></div></td>
@@ -99,8 +99,7 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
               <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell pre">${it.remarks||''}</div></td>
             </tr>
           `).join('')}
-          ${(() => { const totalRows = 2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0); const rowH = (230/totalRows).toFixed(2); return `
-          <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:${rowH}mm;"><div class="cell">중요 (추락) 가설구조물, 고소작업 등</div></td></tr>` })()}
+          <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:8mm; padding:6px 10px; vertical-align:middle; line-height:1.4;"><span class="important-badge" style="display:inline-block; vertical-align:middle;">중요</span><span style="display:inline-block; vertical-align:middle;"> (추락) 가설구조물, 고소작업 등</span></td></tr>
           ${(ins.caution_items||[]).map((it:any,idx:number)=>`
             <tr>
               <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell"><span class="num">${(['➊','➋','➌','➍','➎','➏','➐','➑','➒','➓'][idx] || (idx+1))}</span><span class="txt">${it.title||''}</span></div></td>
@@ -111,7 +110,7 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
           `).join('')}
           ${(() => {
             const others = ins.other_items||[]
-            const titles = ['법적이행사항 확인','VAR 매뉴얼 작동성 확인','취약근로자 안전관리 확인','기타 현장 안전관리에 관한사항']
+            const titles = ['재해예방기술지도 지적사항 이행 확인','VAR 매뉴얼 작동성 확인','취약근로자 안전관리 확인','법적이행사항 확인']
             return others.map((it:any,idx:number)=>`
               <tr>
                 <td style="border:0.5px solid #000;"><div class="cell">${titles[idx]||it.title||`기타항목 ${idx+1}`} </div></td>
@@ -124,13 +123,33 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
         </tbody>
       </table>
       <div style="font-size:9px; color:#555; margin-top:8px;">※ 점검표는 항목 변경 될 수 있음(변경 시 분기 시작 전 알림 예정)</div>
+      <div style="text-align: right; margin-top: 30px;">
+        <div style="font-size: 13px; margin-bottom: 15px;">
+          ${ins.inspection_date ? (() => {
+            const d = new Date(ins.inspection_date);
+            return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
+          })() : new Date().getFullYear() + '. &nbsp;&nbsp;. &nbsp;&nbsp;.'}
+        </div>
+        <div style="display: flex; justify-content: flex-end; align-items: center; gap: 15px; font-size: 13px;">
+          <span>점검자</span>
+          <div style="display: inline-flex; align-items: center; gap: 10px;">
+            <span>${ins.inspector_name || ''}</span>
+            ${ins.signature ? `<img src="${ins.signature}" style="max-width: 80px; max-height: 40px; vertical-align: middle;" />` : '<span style="display: inline-block; width: 30px; height: 30px; border: 1px solid #333; border-radius: 50%; vertical-align: middle;"></span>'}
+          </div>
+        </div>
+      </div>
     `
 
     page1.style.position = 'absolute'
     page1.style.left = '-9999px'
     document.body.appendChild(page1)
     await new Promise(r=>setTimeout(r,300))
-    const canvas1 = await html2canvas(page1, { scale: 1.9, useCORS: true, backgroundColor: '#ffffff' })
+    const canvas1 = await html2canvas(page1, {
+      scale: 1.9,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff'
+    })
     document.body.removeChild(page1)
 
     const imgW = 210
@@ -192,7 +211,7 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
             <div class="photo-small">${ins.site_photo_issue1 ? `<img src="${ins.site_photo_issue1}" />` : ''}</div>
           </td>
           <td colspan="2" style="padding:0; width:50%;">
-            <div class="photo-small">${ins.action_photo_issue1 ? `<img src="${ins.action_photo_issue1}" />` : ''}</div>
+            <div class="photo-small">${ins.action_photo_issue1 === '해당 사항 없음' ? '<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:16px; font-weight:bold; color:#666;">해당 사항 없음</div>' : (ins.action_photo_issue1 ? `<img src="${ins.action_photo_issue1}" />` : '')}</div>
           </td>
         </tr>
         <tr>
@@ -205,7 +224,7 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
             <div class="photo-small">${ins.site_photo_issue2 ? `<img src="${ins.site_photo_issue2}" />` : ''}</div>
           </td>
           <td colspan="2" style="padding:0; width:50%;">
-            <div class="photo-small">${ins.action_photo_issue2 ? `<img src="${ins.action_photo_issue2}" />` : ''}</div>
+            <div class="photo-small">${ins.action_photo_issue2 === '해당 사항 없음' ? '<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:16px; font-weight:bold; color:#666;">해당 사항 없음</div>' : (ins.action_photo_issue2 ? `<img src="${ins.action_photo_issue2}" />` : '')}</div>
           </td>
         </tr>
       </table>
@@ -215,7 +234,12 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
     page2.style.left = '-9999px'
     document.body.appendChild(page2)
     await new Promise(r=>setTimeout(r,300))
-    const canvas2 = await html2canvas(page2, { scale: 1.9, useCORS: true, backgroundColor: '#ffffff' })
+    const canvas2 = await html2canvas(page2, {
+      scale: 1.9,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#ffffff'
+    })
     document.body.removeChild(page2)
 
     const imgH2 = (canvas2.height * imgW) / canvas2.width
@@ -233,8 +257,19 @@ export interface HeadquartersInspectionReportGroup {
 }
 
 // 여러 프로젝트/지사의 점검 결과를 하나의 PDF로 병합 생성
-export async function generateHeadquartersInspectionReportBulk(groups: HeadquartersInspectionReportGroup[], filename?: string): Promise<void> {
+export type HeadquartersReportOptions = { 
+  signal?: AbortSignal
+  onProgress?: (current: number, total: number) => void
+}
+
+function ensureNotCancelled(signal?: AbortSignal) {
+  if (signal?.aborted) throw new Error('cancelled')
+}
+
+export async function generateHeadquartersInspectionReportBulk(groups: HeadquartersInspectionReportGroup[], filename?: string, options?: HeadquartersReportOptions): Promise<void> {
   if (!groups || groups.length === 0) return
+  const signal = options?.signal
+  const onProgress = options?.onProgress
 
   const html2canvas = (await import('html2canvas')).default
   const jsPDF = (await import('jspdf')).jsPDF
@@ -242,10 +277,18 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
   const pdf = new jsPDF('p', 'mm', 'a4')
   let first = true
 
+  // 전체 점검 수 계산
+  const totalInspections = groups.reduce((sum, group) => sum + group.inspections.length, 0)
+  let currentInspectionIndex = 0
+
   for (const group of groups) {
+    ensureNotCancelled(signal)
     const { projectName, inspections, branchName } = group
     for (let i = 0; i < inspections.length; i++) {
+      ensureNotCancelled(signal)
       const ins = inspections[i]
+      currentInspectionIndex++
+      onProgress?.(currentInspectionIndex, totalInspections)
 
       // ---------- Page 1 ----------
       const page1 = document.createElement('div')
@@ -261,13 +304,14 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
           table { border-collapse: collapse; }
           table td, table th { vertical-align: middle; padding: 0; }
           td, th { position: relative; }
-          .cell { display: flex; align-items: center; height: 100%; min-height: 36px; padding: 8px 10px 16px; }
+          .cell { display: flex; align-items: center; height: 100%; min-height: 36px; padding: 3px 10px 8px; }
           .cell.center { justify-content: center; }
           .pre { white-space: pre-wrap; }
           .num { display:inline-block; width: 1.2em; margin-right: 4px; }
           .txt { display:inline; word-break: break-word; }
+          .important-badge { display: inline-block; background: #dc2626; color: white; padding: 2px 6px; font-weight: bold; margin-right: 4px; font-size: 11px; vertical-align: middle; }
           .chk-table tbody tr td { height: 50px; }
-          .chk-table tbody tr .cell { min-height: 0; padding: 6px 10px; }
+          .chk-table tbody tr .cell { min-height: 0; padding: 3px 10px; }
           .chk-table thead tr:nth-child(1) th,
           .chk-table thead tr:nth-child(2) th,
           .chk-table tbody tr:nth-child(6) td { height: 30px; }
@@ -301,8 +345,7 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
             </tr>
           </thead>
           <tbody>
-            ${(() => { const totalRows = 2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0); const rowH = (230/totalRows).toFixed(2); return `
-            <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:${rowH}mm;"><div class="cell">중요 (부딪힘, 물체에맞음) 굴착기 등 사용 작업</div></td></tr>` })()}
+            <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:8mm; padding:6px 10px; vertical-align:middle; line-height:1.4;"><span class="important-badge" style="display:inline-block; vertical-align:middle;">중요</span><span style="display:inline-block; vertical-align:middle;"> (부딪힘, 물체에맞음) 굴착기 등 사용 작업</span></td></tr>
             ${(ins.critical_items||[]).map((it:any,idx:number)=>`
               <tr>
                 <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell"><span class="num">${(['➊','➋','➌','➍','➎','➏','➐','➑','➒','➓'][idx] || (idx+1))}</span><span class="txt">${it.title||''}</span></div></td>
@@ -311,8 +354,7 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
                 <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell pre">${it.remarks||''}</div></td>
               </tr>
             `).join('')}
-            ${(() => { const totalRows = 2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0); const rowH = (230/totalRows).toFixed(2); return `
-            <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:${rowH}mm;"><div class="cell">중요 (추락) 가설구조물, 고소작업 등</div></td></tr>` })()}
+            <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:8mm; padding:6px 10px; vertical-align:middle; line-height:1.4;"><span class="important-badge" style="display:inline-block; vertical-align:middle;">중요</span><span style="display:inline-block; vertical-align:middle;"> (추락) 가설구조물, 고소작업 등</span></td></tr>
             ${(ins.caution_items||[]).map((it:any,idx:number)=>`
               <tr>
                 <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell"><span class="num">${(['➊','➋','➌','➍','➎','➏','➐','➑','➒','➓'][idx] || (idx+1))}</span><span class="txt">${it.title||''}</span></div></td>
@@ -323,7 +365,7 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
             `).join('')}
             ${(() => {
               const others = ins.other_items||[]
-              const titles = ['법적이행사항 확인','VAR 매뉴얼 작동성 확인','취약근로자 안전관리 확인','기타 현장 안전관리에 관한사항']
+              const titles = ['재해예방기술지도 지적사항 이행 확인','VAR 매뉴얼 작동성 확인','취약근로자 안전관리 확인','법적이행사항 확인']
               return others.map((it:any,idx:number)=>`
                 <tr>
                   <td style="border:0.5px solid #000;"><div class="cell">${titles[idx]||it.title||`기타항목 ${idx+1}`} </div></td>
@@ -336,13 +378,35 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
           </tbody>
         </table>
         <div style="font-size:9px; color:#555; margin-top:8px;">※ 점검표는 항목 변경 될 수 있음(변경 시 분기 시작 전 알림 예정)</div>
+        <div style="text-align: right; margin-top: 30px;">
+          <div style="font-size: 13px; margin-bottom: 15px;">
+            ${ins.inspection_date ? (() => {
+              const d = new Date(ins.inspection_date);
+              return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
+            })() : new Date().getFullYear() + '. &nbsp;&nbsp;. &nbsp;&nbsp;.'}
+          </div>
+          <div style="display: flex; justify-content: flex-end; align-items: center; gap: 15px; font-size: 13px;">
+            <span>점검자</span>
+            <div style="display: inline-flex; align-items: center; gap: 10px;">
+              <span>${ins.inspector_name || ''}</span>
+              ${ins.signature ? `<img src="${ins.signature}" style="max-width: 80px; max-height: 40px; vertical-align: middle;" />` : '<span style="display: inline-block; width: 30px; height: 30px; border: 1px solid #333; border-radius: 50%; vertical-align: middle;"></span>'}
+            </div>
+          </div>
+        </div>
       `
 
       page1.style.position = 'absolute'
       page1.style.left = '-9999px'
       document.body.appendChild(page1)
       await new Promise(r=>setTimeout(r,300))
-      const canvas1 = await html2canvas(page1, { scale: 1.9, useCORS: true, backgroundColor: '#ffffff' })
+      ensureNotCancelled(signal)
+      const canvas1 = await html2canvas(page1, {
+        scale: 1.9,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff'
+      })
+      ensureNotCancelled(signal)
       document.body.removeChild(page1)
       const imgW = 210
       const imgH1 = (canvas1.height * imgW) / canvas1.width
@@ -400,7 +464,7 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
               <div class="photo-small">${ins.site_photo_issue1 ? `<img src="${ins.site_photo_issue1}" />` : ''}</div>
             </td>
             <td colspan="2" style="padding:0; width:50%;">
-              <div class="photo-small">${ins.action_photo_issue1 ? `<img src="${ins.action_photo_issue1}" />` : ''}</div>
+              <div class="photo-small">${ins.action_photo_issue1 === '해당 사항 없음' ? '<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:16px; font-weight:bold; color:#666;">해당 사항 없음</div>' : (ins.action_photo_issue1 ? `<img src="${ins.action_photo_issue1}" />` : '')}</div>
             </td>
           </tr>
           <tr>
@@ -413,7 +477,7 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
               <div class="photo-small">${ins.site_photo_issue2 ? `<img src="${ins.site_photo_issue2}" />` : ''}</div>
             </td>
             <td colspan="2" style="padding:0; width:50%;">
-              <div class="photo-small">${ins.action_photo_issue2 ? `<img src="${ins.action_photo_issue2}" />` : ''}</div>
+              <div class="photo-small">${ins.action_photo_issue2 === '해당 사항 없음' ? '<div style="display:flex; align-items:center; justify-content:center; height:100%; font-size:16px; font-weight:bold; color:#666;">해당 사항 없음</div>' : (ins.action_photo_issue2 ? `<img src="${ins.action_photo_issue2}" />` : '')}</div>
             </td>
           </tr>
         </table>
@@ -423,7 +487,14 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
       page2.style.left = '-9999px'
       document.body.appendChild(page2)
       await new Promise(r=>setTimeout(r,300))
-      const canvas2 = await html2canvas(page2, { scale: 1.9, useCORS: true, backgroundColor: '#ffffff' })
+      ensureNotCancelled(signal)
+      const canvas2 = await html2canvas(page2, {
+        scale: 1.9,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff'
+      })
+      ensureNotCancelled(signal)
       document.body.removeChild(page2)
 
       const imgW2 = 210

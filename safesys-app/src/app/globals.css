@@ -5,6 +5,12 @@
   --background: #ffffff;
   --foreground: #171717;
   color-scheme: light only;
+  
+  /* 안전서류 점검 시스템 스타일 변수 */
+  --apple-gray: #f5f5f7;
+  --apple-blue: #0071e3;
+  --apple-text: #1d1d1f;
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 @theme inline {
@@ -34,4 +40,286 @@ body {
 /* 모든 요소에 대해 다크모드 강제 비활성화 */
 * {
   color-scheme: light only;
+}
+
+/* 흔들거리는 애니메이션 (편집 모드용) */
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  10%, 30%, 50%, 70%, 90% {
+    transform: translateX(-2px);
+  }
+  20%, 40%, 60%, 80% {
+    transform: translateX(2px);
+  }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out infinite;
+}
+
+/* ===== 안전서류 점검 시스템 스타일 ===== */
+.safe-documents-container {
+  position: relative;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.safe-documents-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.safe-documents-form-group {
+  margin-bottom: 1.25rem;
+}
+
+.safe-documents-form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.safe-documents-select-control {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.safe-documents-button {
+  background-color: var(--apple-blue);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.safe-documents-button:hover {
+  opacity: 0.9;
+}
+
+.safe-documents-radio-group {
+  display: flex;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.safe-documents-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+}
+
+.safe-documents-radio-label input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.safe-documents-checklist-label {
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.safe-documents-construction-type-item {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  background-color: #f9fafb;
+}
+
+.safe-documents-type-label {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-weight: normal;
+}
+
+.safe-documents-construction-types-list {
+  margin: 0.625rem 0;
+  padding: 1rem;
+  background-color: #f9fafb;
+  border-radius: 0.5rem;
+  font-weight: normal;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.safe-documents-type-item {
+  margin: 0.25rem 0;
+  color: #4b5563;
+  font-size: 0.95em;
+}
+
+/* 안전서류 하이라이트 애니메이션 */
+@keyframes safe-documents-highlight {
+  0% {
+    transform: scale(1);
+    background-color: #ffffff;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+    border: 2px solid transparent;
+  }
+  25% {
+    transform: scale(1.03);
+    background-color: #fee2e2;
+    box-shadow: 0 0 20px 0 rgba(239, 68, 68, 0.5);
+    border: 2px solid #ef4444;
+  }
+  50% {
+    transform: scale(1.05);
+    background-color: #fecaca;
+    box-shadow: 0 0 30px 0 rgba(239, 68, 68, 0.3);
+    border: 2px solid #ef4444;
+  }
+  75% {
+    transform: scale(1.03);
+    background-color: #fee2e2;
+    box-shadow: 0 0 20px 0 rgba(239, 68, 68, 0.5);
+    border: 2px solid #ef4444;
+  }
+  100% {
+    transform: scale(1);
+    background-color: #ffffff;
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+    border: 2px solid transparent;
+  }
+}
+
+.highlight-animation {
+  animation: safe-documents-highlight 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 0.5rem;
+}
+
+/* 페이드 인 애니메이션 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+/* 안전서류 점검 폼에서 사용하는 기존 클래스들 (Tailwind 이외) */
+.container {
+  position: relative;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 1.25rem;
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.select-control {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+
+.button {
+  background-color: var(--apple-blue);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.button:hover {
+  opacity: 0.9;
+}
+
+.radio-group {
+  display: flex;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  cursor: pointer;
+}
+
+.radio-label input[type="radio"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.checklist-label {
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.construction-type-item {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  background-color: #f9fafb;
+}
+
+.type-label {
+  display: block;
+  margin-bottom: 0.375rem;
+  font-weight: normal;
+}
+
+.construction-types-list {
+  margin: 0.625rem 0;
+  padding: 1rem;
+  background-color: #f9fafb;
+  border-radius: 0.5rem;
+  font-weight: normal;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.type-item {
+  margin: 0.25rem 0;
+  color: #4b5563;
+  font-size: 0.95em;
 }

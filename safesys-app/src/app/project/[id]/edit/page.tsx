@@ -55,7 +55,7 @@ export default function EditProjectPage() {
   }
 
   const handleBack = () => {
-    router.push('/list')
+    router.back()
   }
 
   // 로딩 중
@@ -177,7 +177,7 @@ export default function EditProjectPage() {
           </div>
           
           <div className="px-6 py-4">
-            <ProjectEditForm project={project} />
+            <ProjectEditForm project={project} onCancel={handleBack} />
           </div>
         </div>
         </div>

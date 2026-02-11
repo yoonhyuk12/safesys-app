@@ -18,6 +18,13 @@ export interface SignUpData {
   company_name: string | null
 }
 
+export interface ConsentData {
+  consent_version: string      // 동의한 약관 버전 (YYYY-MM-DD 형식)
+  consent_ip: string | null    // 동의 시 IP 주소
+  consent_device: string       // 동의 시 디바이스 정보 (User-Agent)
+  consented_at: string         // 동의 일시 (ISO 8601 형식)
+}
+
 // 현재 사용자 정보 가져오기
 export const getCurrentUser = async () => {
   const { data: { user }, error } = await supabase.auth.getUser()
@@ -53,26 +60,27 @@ export const dummySignIn = async (email: string, password: string) => {
       error: null
     }
   }
-  
+
   throw new Error('잘못된 이메일 또는 비밀번호입니다.')
 }
 
 // 로그인
 export const signIn = async (email: string, password: string) => {
   try {
+    const lowerEmail = email.toLowerCase()
     const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+      email: lowerEmail,
       password
     })
 
     if (error) {
       console.error('SignIn error details:', error)
-      
+
       // 구체적인 에러 메시지 제공
       if (error.message.includes('Invalid login credentials')) {
         throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.')
       } else if (error.message.includes('Email not confirmed')) {
-        throw new Error('이메일 인증이 필요합니다. 이메일을 확인해주세요.')
+        throw new Error('이메일 인증을 먼저 해주시기 바랍니다. 가입 시 입력한 이메일의 받은편지함을 확인해주세요. (꼭 스팸메일함 확인해주세요) 문의 : 3급 윤혁(010-2676-5472)')
       } else if (error.message.includes('Too many requests')) {
         throw new Error('너무 많은 로그인 시도입니다. 잠시 후 다시 시도해주세요.')
       } else {
@@ -88,11 +96,12 @@ export const signIn = async (email: string, password: string) => {
 }
 
 // 회원가입
-export const signUp = async (email: string, password: string, userData: SignUpData) => {
+export const signUp = async (email: string, password: string, userData: SignUpData, consentData?: ConsentData) => {
   try {
-    // 1. 사용자 계정 생성 (한글 데이터 제외)
+    // 1. 사용자 계정 생성 (한글 데이터 제외, 이메일은 소문자로 변환)
+    const lowerEmail = email.toLowerCase()
     const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
+      email: lowerEmail,
       password,
       // options.data에서 한글 문자 제거
     })
@@ -106,10 +115,10 @@ export const signUp = async (email: string, password: string, userData: SignUpDa
       throw new Error('회원가입에 실패했습니다')
     }
 
-    // 2. 사용자 프로필 생성 (한글 데이터 포함)
-    const profileData = {
+    // 2. 사용자 프로필 생성 (한글 데이터 포함, 이메일은 소문자로 변환)
+    const profileData: Record<string, unknown> = {
       id: authData.user.id,
-      email: userData.email,
+      email: lowerEmail,
       full_name: userData.full_name,
       phone_number: userData.phone_number,
       position: userData.position,
@@ -117,6 +126,14 @@ export const signUp = async (email: string, password: string, userData: SignUpDa
       hq_division: userData.role === '발주청' ? userData.hq_division : null,
       branch_division: userData.role === '발주청' ? userData.branch_division : null,
       company_name: userData.company_name
+    }
+
+    // 3. 동의 정보 추가 (있는 경우)
+    if (consentData) {
+      profileData.consent_version = consentData.consent_version
+      profileData.consent_ip = consentData.consent_ip
+      profileData.consent_device = consentData.consent_device
+      profileData.consented_at = consentData.consented_at
     }
 
     const { error: profileError } = await supabase
@@ -154,23 +171,24 @@ export const checkUserRole = async (userId: string): Promise<string | null> => {
     .select('role')
     .eq('id', userId)
     .single()
-  
+
   if (error) {
     console.error('Error checking user role:', error)
     return null
   }
-  
+
   return data?.role || null
-} 
+}
 
 // 이메일 중복 확인
 export const checkEmailExists = async (email: string): Promise<boolean> => {
   try {
-    // user_profiles 테이블에서 이메일 확인
+    // user_profiles 테이블에서 이메일 확인 (소문자로 변환하여 비교)
+    const lowerEmail = email.toLowerCase()
     const { data, error } = await supabase
       .from('user_profiles')
       .select('email')
-      .eq('email', email)
+      .eq('email', lowerEmail)
       .limit(1)
 
     // 테이블이 없거나 데이터가 없는 경우는 사용 가능한 이메일로 처리
@@ -194,11 +212,12 @@ export const checkEmailExists = async (email: string): Promise<boolean> => {
 // 비밀번호 찾기 (재설정 요청)
 export const resetPassword = async (email: string, name: string, phone: string) => {
   try {
-    // 1. 사용자 정보 확인
+    // 1. 사용자 정보 확인 (이메일은 소문자로 변환)
+    const lowerEmail = email.toLowerCase()
     const { data: userProfile, error: profileError } = await supabase
       .from('user_profiles')
       .select('id, email, full_name, phone_number')
-      .eq('email', email)
+      .eq('email', lowerEmail)
       .eq('full_name', name)
       .eq('phone_number', phone)
       .single()
@@ -208,7 +227,7 @@ export const resetPassword = async (email: string, name: string, phone: string) 
     }
 
     // 2. 비밀번호 재설정 이메일 발송
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(lowerEmail, {
       redirectTo: `${window.location.origin}/reset-password`
     })
 

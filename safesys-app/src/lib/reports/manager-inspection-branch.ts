@@ -8,6 +8,10 @@ type DownloadBranchManagerReportsParams = {
   selectedHq?: string
   selectedSafetyBranch: string
 }
+type DownloadBranchManagerReportsOptions = { 
+  signal?: AbortSignal
+  onProgress?: (current: number, total: number) => void
+}
 
 function isInQuarter(dateStr?: string, quarterYear?: string): boolean {
   if (!dateStr || !quarterYear) return false
@@ -23,7 +27,10 @@ function isInQuarter(dateStr?: string, quarterYear?: string): boolean {
   return d >= start && d <= end
 }
 
-export async function downloadBranchManagerReports(params: DownloadBranchManagerReportsParams): Promise<void> {
+export async function downloadBranchManagerReports(
+  params: DownloadBranchManagerReportsParams,
+  options?: DownloadBranchManagerReportsOptions
+): Promise<void> {
   const { projects, inspections, selectedProjectIds, selectedQuarter, selectedHq, selectedSafetyBranch } = params
 
   const { generateManagerInspectionBulkReport } = await import('@/lib/reports/manager-inspection-report')
@@ -43,11 +50,18 @@ export async function downloadBranchManagerReports(params: DownloadBranchManager
     throw new Error('선택한 조건에 해당하는 점검 결과가 없습니다.')
   }
 
-  // 파일명 생성
-  const filename = `${selectedSafetyBranch}_관리자점검표_${selectedQuarter}_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '')}.pdf`
+  // 파일명 생성: 지사명_25년4분기_관리자점검.pdf
+  const quarterMatch = selectedQuarter.match(/(\d{4})Q(\d)/)
+  const year = quarterMatch ? quarterMatch[1] : new Date().getFullYear().toString()
+  const quarter = quarterMatch ? parseInt(quarterMatch[2]) : Math.ceil((new Date().getMonth() + 1) / 3)
+  const yearShort = year.slice(-2) // 마지막 2자리만 (2025 -> 25)
+  const filename = `${selectedSafetyBranch}_${yearShort}년${quarter}분기_관리자점검.pdf`
 
-  await generateManagerInspectionBulkReport({
-    projectInspections,
-    filename
-  })
+  await generateManagerInspectionBulkReport(
+    {
+      projectInspections,
+      filename
+    },
+    { signal: options?.signal, onProgress: options?.onProgress }
+  )
 }

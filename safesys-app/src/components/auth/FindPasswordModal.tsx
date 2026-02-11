@@ -48,11 +48,12 @@ const FindPasswordModal: React.FC<FindPasswordModalProps> = ({ isOpen, onClose }
     setError('')
 
     try {
-      // 사용자 정보 확인
+      // 사용자 정보 확인 (이메일은 소문자로 변환하여 비교)
+      const lowerEmail = formData.email.toLowerCase()
       const { data: users, error } = await supabase
         .from('user_profiles')
         .select('*')
-        .eq('email', formData.email)
+        .eq('email', lowerEmail)
         .eq('full_name', formData.name)
         .eq('phone_number', formData.phone)
         .single()
@@ -185,6 +186,12 @@ const FindPasswordModal: React.FC<FindPasswordModalProps> = ({ isOpen, onClose }
       setFormData(prev => ({
         ...prev,
         [name]: formattedPhone
+      }))
+    } else if (name === 'email') {
+      // 이메일은 소문자로 변환
+      setFormData(prev => ({
+        ...prev,
+        [name]: value.toLowerCase()
       }))
     } else {
       setFormData(prev => ({

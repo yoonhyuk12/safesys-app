@@ -159,6 +159,7 @@ function getStatusTBMRecords(targetDate, selectedHq, selectedBranch) {
       if (row[8] === '작업없음') continue;
       
       // TBM 기록 객체 생성 (정확한 컬럼 매핑)
+      // 주의: "신규근로자" 컬럼이 J열에 추가되어 이후 컬럼 인덱스가 1씩 밀림
       const tbmRecord = {
         id: `tbm_${i}`,
         project_id: `proj_${i}`,
@@ -170,21 +171,22 @@ function getStatusTBMRecords(targetDate, selectedHq, selectedBranch) {
         attendees: row[9] || '',                // J열: 투입인원 (attendees)
         topics: parseStatusTBMTopics(row),      // 여러 컬럼에서 주제 추출
         location: row[7] || '현장',             // H열: 주소 (address)
-        leader: row[31] || '미지정',            // AF열: 성함 (name)
+        leader: row[32] || '미지정',            // AG열: 성함 (name) - 인덱스 변경
         created_at: row[0],                     // A열: 타임스탬프 (timestamp)
-        latitude: parseFloat(row[40]) || null,  // AO열: latitude
-        longitude: parseFloat(row[41]) || null, // AP열: longitude
+        latitude: parseFloat(row[41]) || null,  // AP열: latitude - 인덱스 변경
+        longitude: parseFloat(row[42]) || null, // AQ열: longitude - 인덱스 변경
         status: '완료',
         duration: 0,                            // 사용하지 않음
         construction_company: row[6] || '',     // G열: 시공사명 (constructionCompany)
         today_work: row[8] || '',               // I열: 금일작업 (todayWork)
-        equipment_input: row[10] || '',         // K열: 투입장비 (equipmentInput)
-        risk_work_type: row[11] || '',          // L열: 위험공종 (riskWorkType)
-        cctv_usage: row[12] || '',              // M열: CCTV사용유무 (cctvUsage)
-        education_content: row[30] || '',       // AE열: 교육내용 (기타사항)
-        education_photo: row[16] || '',         // Q열: 교육사진 (educationPhoto)
-        signature: row[17] || '',               // R열: 서명 (signature)
-        contact: row[32] || ''                  // AG열: 연락처 (contact)
+        equipment_input: row[11] || '',         // L열: 투입장비 (equipmentInput) - 인덱스 변경
+        risk_work_type: row[12] || '',          // M열: 위험공종 (riskWorkType) - 인덱스 변경
+        cctv_usage: row[13] || '',              // N열: CCTV사용유무 (cctvUsage) - 인덱스 변경
+        education_content: row[31] || '',       // AF열: 교육내용 (기타사항) - 인덱스 변경
+        education_photo: row[17] || '',         // R열: 교육사진 (educationPhoto) - 인덱스 변경
+        signature: row[18] || '',               // S열: 서명 (signature) - 인덱스 변경
+        contact: row[33] || '',                 // AH열: 연락처 (contact) - 인덱스 변경
+        new_workers: row[10] || ''              // K열: 신규근로자 (newWorkers)
       };
       
       tbmRecords.push(tbmRecord);
@@ -247,8 +249,8 @@ function getStatusTBMStats(targetDate, selectedHq, selectedBranch) {
       projects.add(row[4]); // E열: 사업명
       companies.add(row[6]); // G열: 시공사명
       
-      // 위험공종 계산 (L열: 위험공종)
-      const riskWorkType = row[11] || '';
+      // 위험공종 계산 (M열: 위험공종) - 인덱스 변경
+      const riskWorkType = row[12] || '';
       if (riskWorkType && riskWorkType.trim() !== '' && riskWorkType !== '해당없음') {
         riskWorkTypes++;
       }
@@ -303,8 +305,8 @@ function getStatusProjects(selectedHq, selectedBranch) {
       const projectKey = `${row[4]}_${row[2]}_${row[3]}`;
       
       if (!projectMap.has(projectKey)) {
-        const lat = parseFloat(row[40]); // AO열: latitude
-        const lng = parseFloat(row[41]); // AP열: longitude
+        const lat = parseFloat(row[41]); // AP열: latitude - 인덱스 변경
+        const lng = parseFloat(row[42]); // AQ열: longitude - 인덱스 변경
         
         if (lat && lng) {
           projectMap.set(projectKey, {
@@ -350,23 +352,23 @@ function parseStatusTBMTopics(row) {
     topics.push('작업계획');
   }
   
-  // 위험공종이 있으면 위험작업점검 추가 (L열: 위험공종)
-  if (row[11] && row[11].trim() !== '' && row[11] !== '해당없음') {
+  // 위험공종이 있으면 위험작업점검 추가 (M열: 위험공종) - 인덱스 변경
+  if (row[12] && row[12].trim() !== '' && row[12] !== '해당없음') {
     topics.push('위험작업점검');
   }
   
-  // CCTV 사용 시 CCTV점검 추가 (M열: CCTV사용유무)
-  if (row[12] && row[12].includes('사용중')) {
+  // CCTV 사용 시 CCTV점검 추가 (N열: CCTV사용유무) - 인덱스 변경
+  if (row[13] && row[13].includes('사용중')) {
     topics.push('CCTV점검');
   }
   
-  // 위험요인이 있으면 안전점검 추가 (T,V,X열: 잠재위험요인들)
-  if (row[19] || row[21] || row[23]) {
+  // 위험요인이 있으면 안전점검 추가 (U,W,Y열: 잠재위험요인들) - 인덱스 변경
+  if (row[20] || row[22] || row[24]) {
     topics.push('안전점검');
   }
   
-  // 교육사진이 있으면 안전교육 추가 (Q열: 교육사진)
-  if (row[16] && row[16].trim() !== '') {
+  // 교육사진이 있으면 안전교육 추가 (R열: 교육사진) - 인덱스 변경
+  if (row[17] && row[17].trim() !== '') {
     topics.push('안전교육');
   }
   

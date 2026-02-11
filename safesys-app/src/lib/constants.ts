@@ -15,11 +15,23 @@ export const HEADQUARTERS_OPTIONS = [
   '영산강',
   '새만금산업단지',
   '토지개발',
+  '충남서부관리단',
   '기타'
 ] as const;
 
 export const BRANCH_OPTIONS: { [key: string]: string[] } = {
-  '본사': ['본사'],
+  '본사': [
+    '본사',
+    '안전혁신',
+    '기획전략',
+    '기반사업',
+    '수자원관리',
+    '농어촌계획',
+    '농지은행',
+    '농어촌연구',
+    '인재개발',
+    '농자원'
+  ],
   '경기': [
     '경기본부',
     '여주·이천지사',
@@ -54,8 +66,8 @@ export const BRANCH_OPTIONS: { [key: string]: string[] } = {
     '홍천·춘천지사',
     '원주지사',
     '강릉지사',
-    '영북지사',
-    '철원지사'
+    '속초·고성·양양지사',
+    '철원·화천지사'
   ],
   '충북': [
     '충북본부',
@@ -160,8 +172,101 @@ export const BRANCH_OPTIONS: { [key: string]: string[] } = {
     '토지관리부',
     '토지개발부'
   ],
+  '충남서부관리단': [
+    '사업관리부',
+    '시설관리부'
+  ],
   '기타': ['기타']
-}; 
+};
+
+// 사업분류 옵션
+export const PROJECT_CATEGORY_OPTIONS = [
+  '기반사업처',
+  '수자원시설처',
+  '스마트농업처',
+  '기전기술처',
+  '환경관리처',
+  '지하수지질처',
+  '농촌공간계획처',
+  '어촌수산처',
+  '총사업비 22백만원이상',
+  '총사업비 22백만원 미만'
+] as const;
 
 // 전역 디버그 로그 플래그 (운영 환경에서는 false 유지)
 export const DEBUG_LOGS = false;
+
+// TBM 위험공종별 색상 매핑 (구분하기 쉬운 대비 색상)
+export const RISK_WORK_COLORS: { [key: string]: string } = {
+  '고소작업': '#DC2626',        // 진한 빨강 (2.0m 이상 고소작업)
+  '굴착가설': '#EA580C',        // 진한 주황 (1.5m 이상 굴착·가설공사)
+  '철골구조물': '#D97706',      // 황토색 (철골 구조물 공사)
+  '도장공사': '#FACC15',        // 밝은 노랑 (2.0m이상 외부 도장공사)
+  '승강기': '#16A34A',          // 진한 초록 (승강기 설치공사)
+  '취수탑': '#0891B2',          // 청록 (취수탑 공사)
+  '복통잠관': '#2563EB',        // 파랑 (복통, 잠관 공사)
+  '기타': '#7C3AED',            // 보라 (이외의 작업계획서작성 대상)
+  '해당없음': '#6B7280'         // 회색 (해당없음)
+};
+
+/**
+ * 오늘 날짜 기준으로 작년, 올해, 내년의 모든 분기 옵션을 반환합니다.
+ * 내년 4분기부터 작년 1분기까지 총 12개의 옵션을 반환합니다.
+ * (예: 26년 4분기, 26년 3분기, ..., 25년 1분기, 24년 4분기, ..., 24년 1분기)
+ */
+export function getQuarterOptions(): { value: string; label: string }[] {
+  const today = new Date()
+  const currentYear = today.getFullYear()
+  const nextYear = currentYear + 1
+  const lastYear = currentYear - 1
+
+  const options = []
+
+  // 내년 4분기부터 1분기까지
+  for (let q = 4; q >= 1; q--) {
+    options.push({
+      value: `${nextYear}Q${q}`,
+      label: `${String(nextYear).slice(-2)}년 ${q}분기`
+    })
+  }
+
+  // 올해 4분기부터 1분기까지
+  for (let q = 4; q >= 1; q--) {
+    options.push({
+      value: `${currentYear}Q${q}`,
+      label: `${String(currentYear).slice(-2)}년 ${q}분기`
+    })
+  }
+
+  // 작년 4분기부터 1분기까지
+  for (let q = 4; q >= 1; q--) {
+    options.push({
+      value: `${lastYear}Q${q}`,
+      label: `${String(lastYear).slice(-2)}년 ${q}분기`
+    })
+  }
+
+  return options
+}
+
+/**
+ * 지도 보기용: 오늘 날짜 기준으로 올해의 모든 분기 옵션만 반환합니다.
+ * 4분기부터 1분기까지 총 4개의 옵션을 반환합니다.
+ * (예: 4분기, 3분기, 2분기, 1분기)
+ */
+export function getCurrentYearQuarterOptions(): { value: string; label: string }[] {
+  const today = new Date()
+  const currentYear = today.getFullYear()
+
+  const options = []
+
+  // 올해 4분기부터 1분기까지
+  for (let q = 4; q >= 1; q--) {
+    options.push({
+      value: `${currentYear}Q${q}`,
+      label: `${q}분기`
+    })
+  }
+
+  return options
+}

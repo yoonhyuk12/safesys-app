@@ -127,14 +127,10 @@ const UninspectedProjectsTable: React.FC<UninspectedProjectsTableProps> = ({
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">지사명</th>
-                  <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">프로젝트명</th>
-                  <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검 대상</th>
-                  <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">점검 횟수</th>
-                  <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">조치대기</th>
-                  <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">최근 점검일</th>
-                  <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">최근 점검자</th>
-                  <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
+                  <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto whitespace-nowrap">지사명</th>
+                  <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto whitespace-nowrap">프로젝트명</th>
+                  <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto whitespace-nowrap">점검 대상</th>
+                  <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-auto whitespace-nowrap">비고</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -142,20 +138,14 @@ const UninspectedProjectsTable: React.FC<UninspectedProjectsTableProps> = ({
                 {(() => {
                   const totalProjects = uninspectedProjects.length
                   const targetCount = totalProjects
-                  const inspectionCount = 0
-                  const pendingCount = 0
                   return (
                     <tr className="bg-blue-50 font-semibold border-b-2 border-blue-200">
-                      <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">
-                        소계 ({totalProjects}개 프로젝트)
+                      <td className="px-2 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">
+                        소계
                       </td>
-                      <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">-</td>
-                      <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">{targetCount > 0 ? `${targetCount}개` : '-'}</td>
-                      <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">{inspectionCount > 0 ? `${inspectionCount}건` : '-'}</td>
-                      <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">{pendingCount > 0 ? `${pendingCount}건` : '-'}</td>
-                      <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">-</td>
-                      <td className="px-2 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center">-</td>
-                      <td className="px-2 py-3 sm:px-6 sm:py-4 text-center text-sm font-bold text-blue-900 text-center">-</td>
+                      <td className="px-2 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">-</td>
+                      <td className="px-2 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">{targetCount > 0 ? `${targetCount}개` : '-'}</td>
+                      <td className="px-2 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-blue-900 text-center whitespace-nowrap">-</td>
                     </tr>
                   )
                 })()}
@@ -193,29 +183,21 @@ const UninspectedProjectsTable: React.FC<UninspectedProjectsTableProps> = ({
                         alert('해당 프로젝트는 점검 내역이 없습니다.')
                       }}
                     >
-                      <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-center border-r border-gray-200">
+                      <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-center border-r border-gray-200">
                         <span className="text-gray-900">{project.managing_branch || '-'}</span>
                       </td>
-                      <td className="px-2 py-2 sm:px-6 sm:py-4 text-sm font-medium text-blue-600 hover:text-blue-800 border-r border-gray-200 text-center max-w-[120px] sm:max-w-none">
-                        <div className="sm:hidden">{(project.project_name || '').length > 6 ? `${(project.project_name || '').substring(0, 6)}...` : project.project_name || '미지정'}</div>
-                        <div className="hidden sm:block break-words">{project.project_name || '미지정'}</div>
+                      <td className="px-2 py-2 sm:px-6 sm:py-4 text-xs sm:text-sm font-medium text-blue-600 hover:text-blue-800 border-r border-gray-200 text-center">
+                        <span className="sm:hidden whitespace-nowrap">{(project.project_name || '').length > 5 ? `${(project.project_name || '').substring(0, 5)}...` : project.project_name || '미지정'}</span>
+                        <span className="hidden sm:inline break-words">{project.project_name || '미지정'}</span>
                       </td>
-                      <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-center border-r border-gray-200">
+                      <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-center border-r border-gray-200">
                         {isActive ? (
                           <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">대상(미점검)</span>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
-                      <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">-</span>
-                      </td>
-                      <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">-</span>
-                      </td>
-                      <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 text-center">-</td>
-                      <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200 text-center">-</td>
-                      <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-center text-sm">-</td>
+                      <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-center text-xs sm:text-sm text-gray-400">-</td>
                     </tr>
                   )
                 })}
