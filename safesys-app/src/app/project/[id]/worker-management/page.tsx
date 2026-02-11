@@ -111,7 +111,7 @@ export default function WorkerManagementPage() {
         console.error('Workers load error:', workersError)
         setWorkers([])
       } else {
-        setWorkers(workersData || [])
+        setWorkers((workersData || []) as unknown as Worker[])
       }
     } catch (err: any) {
       console.error('데이터 로드 실패:', err)

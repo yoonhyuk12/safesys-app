@@ -61,7 +61,7 @@ async function fetchTBMDataFromSupabase(date: string): Promise<TBMRecord[]> {
     }
 
     // Supabase 데이터를 TBMRecord 형식으로 변환
-    const records: TBMRecord[] = (data || []).map(item => ({
+    const records: TBMRecord[] = (data || []).map((item: any) => ({
       id: item.id,
       project_id: item.project_id || '',
       project_name: item.project_name || '',

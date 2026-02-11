@@ -1,25 +1,33 @@
 import { createClient } from '@supabase/supabase-js'
 
-if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL')
-}
-if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-  throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY')
+// Supabase 클라이언트 (lazy 초기화 - 빌드 시 환경변수 없어도 에러 방지)
+let _supabase: ReturnType<typeof createClient> | null = null
+
+function getSupabaseClient() {
+  if (!_supabase) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!url) throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL')
+    if (!key) throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY')
+
+    _supabase = createClient(url, key, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    })
+  }
+  return _supabase
 }
 
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  {
-    auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
-      refreshTokenRetryInterval: 2000, // 2초마다 재시도
-      refreshTokenRetryAttempts: 3 // 최대 3번 재시도
-    }
+// 기존 코드와 호환성 유지를 위한 Proxy 패턴
+export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+  get(_target, prop) {
+    return (getSupabaseClient() as any)[prop]
   }
-)
+})
 
 // 데이터베이스 타입 정의
 export interface SafetyInspection {
