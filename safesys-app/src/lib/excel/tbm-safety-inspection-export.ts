@@ -37,6 +37,21 @@ function getDateRange(startDate: string, endDate: string): string[] {
 }
 
 /**
+ * 건설기계 투입 텍스트에서 총 대수를 추출
+ * 예: "굴삭기1대, 펌프카1대" → 2
+ * 예: "굴삭기 0.2 1대\n크레인 100톤 1대" → 2
+ */
+function extractEquipmentCount(text: string): number | null {
+  if (!text) return null
+  const matches = text.match(/(\d+)\s*대/g)
+  if (!matches || matches.length === 0) return null
+  return matches.reduce((sum, match) => {
+    const num = match.match(/(\d+)/)
+    return sum + (num ? parseInt(num[1]) : 0)
+  }, 0)
+}
+
+/**
  * TBM 안전활동점검 현황을 엑셀 파일로 다운로드 (새 형식)
  * @param projects - 프로젝트 배열
  * @param tbmInspections - TBM 안전활동점검 배열
@@ -565,9 +580,9 @@ export async function downloadTBMSafetyInspectionExcel(
   for (let i = 0; i < dateRange.length - 1; i++) {
     tbmPracticeHeaderRow1.push('')
   }
-  // 건설기계 병합 공간 (날짜당 1컬럼)
+  // 건설기계 병합 공간 (날짜당 2컬럼: 투입장비 + 대수)
   tbmPracticeHeaderRow1.push('건설기계')
-  for (let i = 0; i < dateRange.length - 1; i++) {
+  for (let i = 0; i < dateRange.length * 2 - 1; i++) {
     tbmPracticeHeaderRow1.push('')
   }
   tbmPracticeHeaderRow1.push('비고')
@@ -583,9 +598,10 @@ export async function downloadTBMSafetyInspectionExcel(
   dateRange.forEach(date => {
     tbmPracticeHeaderRow2.push(formatDateForHeader(date))
   })
-  // 건설기계 날짜들 (날짜당 1컬럼 - 병합 없음)
+  // 건설기계 날짜들 (날짜당 2컬럼: 투입장비 + 대수)
   dateRange.forEach(date => {
     tbmPracticeHeaderRow2.push(formatDateForHeader(date))
+    tbmPracticeHeaderRow2.push('') // 병합될 두 번째 컬럼
   })
   tbmPracticeHeaderRow2.push('')
 
@@ -600,8 +616,9 @@ export async function downloadTBMSafetyInspectionExcel(
   dateRange.forEach(() => {
     tbmPracticeHeaderRow3.push('신규인원\n(명)')
   })
-  // 건설기계: 대수(대)만
+  // 건설기계: 투입장비/대수(대) (날짜당 2컬럼)
   dateRange.forEach(() => {
+    tbmPracticeHeaderRow3.push('투입장비')
     tbmPracticeHeaderRow3.push('대수\n(대)')
   })
   tbmPracticeHeaderRow3.push('')
@@ -628,9 +645,9 @@ export async function downloadTBMSafetyInspectionExcel(
   const tbmPracticeWorkerEndCol = tbmPracticeWorkerStartCol + dateRange.length - 1
   worksheet2.mergeCells(1, tbmPracticeWorkerStartCol, 1, tbmPracticeWorkerEndCol) // 신규근로자
 
-  // 1행: 건설기계 병합 (날짜당 1컬럼)
+  // 1행: 건설기계 병합 (날짜당 2컬럼: 투입장비 + 대수)
   const tbmPracticeEquipmentStartCol = tbmPracticeWorkerEndCol + 1
-  const tbmPracticeEquipmentEndCol = tbmPracticeEquipmentStartCol + dateRange.length - 1
+  const tbmPracticeEquipmentEndCol = tbmPracticeEquipmentStartCol + dateRange.length * 2 - 1
   worksheet2.mergeCells(1, tbmPracticeEquipmentStartCol, 1, tbmPracticeEquipmentEndCol) // 건설기계
 
   // 날짜별 컬럼 병합 (2-3행) - TBM입회여부만 (날짜당 2컬럼)
@@ -646,10 +663,10 @@ export async function downloadTBMSafetyInspectionExcel(
     tbmPracticeColIndex += 1
   })
 
-  // 건설기계: 2-3행 병합 (날짜당 1컬럼)
+  // 건설기계: 날짜당 2컬럼 (투입장비 + 대수)
   dateRange.forEach(() => {
-    worksheet2.mergeCells(2, tbmPracticeColIndex, 3, tbmPracticeColIndex) // 날짜와 대수 헤더 병합
-    tbmPracticeColIndex += 1
+    worksheet2.mergeCells(2, tbmPracticeColIndex, 2, tbmPracticeColIndex + 1) // 날짜 병합
+    tbmPracticeColIndex += 2
   })
 
   worksheet2.mergeCells(1, tbmPracticeColIndex, 3, tbmPracticeColIndex) // 비고
@@ -760,10 +777,11 @@ export async function downloadTBMSafetyInspectionExcel(
     worksheet2.getColumn(tbmPracticeWidthColIndex).width = 10 // 신규인원
     tbmPracticeWidthColIndex += 1
   })
-  // 건설기계: 대수(대)만 (날짜당 1컬럼)
+  // 건설기계: 투입장비 + 대수(대) (날짜당 2컬럼)
   dateRange.forEach(() => {
-    worksheet2.getColumn(tbmPracticeWidthColIndex).width = 10 // 대수
-    tbmPracticeWidthColIndex += 1
+    worksheet2.getColumn(tbmPracticeWidthColIndex).width = 15 // 투입장비
+    worksheet2.getColumn(tbmPracticeWidthColIndex + 1).width = 8 // 대수
+    tbmPracticeWidthColIndex += 2
   })
   worksheet2.getColumn(tbmPracticeWidthColIndex).width = 20 // 비고
 
@@ -893,7 +911,7 @@ export async function downloadTBMSafetyInspectionExcel(
       console.log(`✅ TBM실시 데이터 ${practiceData.data.length}개 프로젝트 발견`)
 
       // TBM실시 시트용 총 컬럼 수 (작업주소 컬럼 추가)
-      const totalCols2 = 5 + dateRange.length * 2 + dateRange.length + dateRange.length + 1
+      const totalCols2 = 5 + dateRange.length * 2 + dateRange.length + dateRange.length * 2 + 1
 
       // 소계 행 추가 (4행) - 데이터 행보다 먼저 추가해야 함
       const tbmPracticeSubtotalRow: (string | number | null)[] = ['소계']
@@ -988,10 +1006,12 @@ export async function downloadTBMSafetyInspectionExcel(
           dataRow.push(dateData.신규인원 || null)
         })
 
-        // 건설기계: 대수(대)만 (날짜당 1컬럼)
+        // 건설기계: 투입장비 + 대수(대) (날짜당 2컬럼)
         dateRange.forEach(date => {
           const dateData = item.날짜별데이터?.[date] || {}
-          dataRow.push(dateData.대수 || null)
+          const equipText = dateData.대수 || ''
+          dataRow.push(equipText || null) // 투입장비 텍스트
+          dataRow.push(equipText ? extractEquipmentCount(equipText) : null) // 대수 숫자
         })
 
         dataRow.push(null) // 비고
@@ -1009,10 +1029,14 @@ export async function downloadTBMSafetyInspectionExcel(
             right: { style: isSectionBorder ? 'medium' : 'thin', color: { argb: 'FF000000' } }
           }
 
-          // 장비 대수 컬럼은 좌측 정렬, 신규인원 컬럼은 숫자 서식, 나머지는 중앙 정렬
-          // 건설기계 대수 컬럼: tbmPracticeEquipmentStartCol ~ tbmPracticeEquipmentEndCol (날짜당 1컬럼)
+          // 건설기계 컬럼: 투입장비(텍스트, 좌측정렬) + 대수(숫자, 중앙정렬)
+          const isEquipmentTextCol = col >= tbmPracticeEquipmentStartCol &&
+            col <= tbmPracticeEquipmentEndCol &&
+            (col - tbmPracticeEquipmentStartCol) % 2 === 0
+
           const isEquipmentCountCol = col >= tbmPracticeEquipmentStartCol &&
-            col <= tbmPracticeEquipmentEndCol
+            col <= tbmPracticeEquipmentEndCol &&
+            (col - tbmPracticeEquipmentStartCol) % 2 === 1
 
           // 신규인원 컬럼: tbmPracticeWorkerStartCol ~ tbmPracticeWorkerEndCol (날짜당 1컬럼)
           const isWorkerCountCol = col >= tbmPracticeWorkerStartCol &&
@@ -1023,13 +1047,23 @@ export async function downloadTBMSafetyInspectionExcel(
             const numValue = Number(cell.value)
             if (!isNaN(numValue)) {
               cell.value = numValue
-              cell.numFmt = '0' // 숫자 형식 (소수점 없음)
+              cell.numFmt = '0'
+            }
+          }
+
+          // 대수(대) 컬럼에 숫자 서식 적용
+          if (isEquipmentCountCol && cell.value !== null && cell.value !== '') {
+            const numValue = Number(cell.value)
+            if (!isNaN(numValue)) {
+              cell.value = numValue
+              cell.numFmt = '0'
             }
           }
 
           cell.alignment = {
-            horizontal: isEquipmentCountCol ? 'left' : 'center',
-            vertical: 'middle'
+            horizontal: isEquipmentTextCol ? 'left' : 'center',
+            vertical: 'middle',
+            wrapText: isEquipmentTextCol ? true : undefined
           }
         }
       })
