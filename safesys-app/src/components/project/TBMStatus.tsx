@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Activity, Calendar, Users, FileText, ChevronRight, AlertTriangle, Building2, Eye, Video, RefreshCw, ArrowUp, Phone, Copy, X, CheckCircle, Trash2, Download } from 'lucide-react'
+import { Activity, Calendar, Users, FileText, ChevronRight, AlertTriangle, Building2, Eye, Video, RefreshCw, ArrowUp, Phone, Copy, X, CheckCircle, Trash2, Download, FileSpreadsheet } from 'lucide-react'
 import KakaoMap from '@/components/ui/KakaoMap'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import NavigationSelector from '@/components/ui/NavigationSelector'
@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { usePathname } from 'next/navigation'
 import type { TBMSafetyInspection } from '@/lib/projects'
 import { generateSupervisorDiaryExcel } from '@/lib/excel/supervisor-diary-export'
+import { downloadTBMStatusExcel } from '@/lib/excel/tbm-status-export'
 
 // TBMRecord와 TBMStats는 lib/tbm.ts에서 import하므로 제거
 
@@ -2131,6 +2132,20 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                   작업 현황
                 </h4>
                 <div className="flex items-center gap-2">
+                  {/* 엑셀 다운로드 버튼 (모바일) - 본부 단위에서만 표시 */}
+                  {selectedHq && !selectedBranch && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const hqRecords = allTbmRecords.filter(r => r.managing_hq === selectedHq)
+                        void downloadTBMStatusExcel(hqRecords, selectedHq, selectedDate)
+                      }}
+                      className="inline-flex items-center justify-center p-1.5 rounded-md bg-gray-100 text-green-600 hover:bg-green-100 hover:text-green-700 shadow-sm transition-colors"
+                      title="엑셀 다운로드"
+                    >
+                      <FileSpreadsheet className="h-4 w-4" />
+                    </button>
+                  )}
                   {/* 삭제 모드 버튼 (모바일) - 지사 선택 시에만 표시 */}
                   {selectedBranch && (
                     deleteMode ? (
@@ -2716,6 +2731,20 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                       )}
                     </h4>
                     <div className="flex items-center gap-3">
+                      {/* 엑셀 다운로드 버튼 - 본부 단위에서만 표시 */}
+                      {selectedHq && !selectedBranch && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const hqRecords = allTbmRecords.filter(r => r.managing_hq === selectedHq)
+                            void downloadTBMStatusExcel(hqRecords, selectedHq, selectedDate)
+                          }}
+                          className="inline-flex items-center justify-center p-1.5 rounded-md bg-gray-100 text-green-600 hover:bg-green-100 hover:text-green-700 shadow-sm transition-colors"
+                          title="엑셀 다운로드"
+                        >
+                          <FileSpreadsheet className="h-4 w-4" />
+                        </button>
+                      )}
                       {/* AI공감일지 보고서 다운 버튼 - 지사 선택 시에만 표시 (휴지통 좌측) */}
                       {selectedBranch && (
                         <button
