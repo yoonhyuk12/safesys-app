@@ -155,6 +155,7 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
                 project={project}
                 onClick={onProjectClick}
                 isShared={true}
+                onShare={onProjectShare}
                 showQuarters={showQuarters}
                 canEditQuarters={canEditQuartersForProject ? canEditQuartersForProject(project) : false}
                 onIsActiveChange={onProjectIsActiveJsonChange}

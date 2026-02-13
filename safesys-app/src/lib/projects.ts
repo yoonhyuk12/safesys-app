@@ -392,19 +392,7 @@ export async function deleteProject(projectId: string): Promise<{ success: boole
       return { success: false, error: '로그인이 필요합니다.' }
     }
 
-    // 트랜잭션으로 관련 데이터 순서대로 삭제
-    // 1. 먼저 heat_wave_checks 삭제
-    const { error: heatWaveError } = await supabase
-      .from('heat_wave_checks')
-      .delete()
-      .eq('project_id', projectId)
-
-    if (heatWaveError) {
-      console.error('Heat wave checks deletion error:', heatWaveError)
-      return { success: false, error: '점검 데이터 삭제에 실패했습니다.' }
-    }
-
-    // 2. 프로젝트 삭제
+    // 프로젝트 삭제 (모든 관련 테이블은 ON DELETE CASCADE로 자동 삭제)
     const { error: projectError } = await supabase
       .from('projects')
       .delete()

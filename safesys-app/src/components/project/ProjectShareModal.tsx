@@ -23,6 +23,7 @@ const ProjectShareModal: React.FC<ProjectShareModalProps> = ({ isOpen, project, 
   const [shares, setShares] = useState<ProjectShare[]>([])
   const [sharesLoading, setSharesLoading] = useState(false)
   const [revokingId, setRevokingId] = useState<string | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   // 이메일 존재 확인 (디바운스)
   useEffect(() => {
@@ -67,6 +68,13 @@ const ProjectShareModal: React.FC<ProjectShareModalProps> = ({ isOpen, project, 
 
     return () => clearTimeout(timer)
   }, [email])
+
+  // 현재 사용자 ID 로드
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null)
+    })
+  }, [])
 
   // 공유 목록 로드
   useEffect(() => {
@@ -235,18 +243,22 @@ const ProjectShareModal: React.FC<ProjectShareModalProps> = ({ isOpen, project, 
                         {share.user_profiles?.email || ''} {share.user_profiles?.company_name ? `(${share.user_profiles.company_name})` : ''}
                       </p>
                     </div>
-                    <button
-                      onClick={() => handleRevoke(share.id)}
-                      disabled={revokingId === share.id}
-                      className="ml-2 p-1 text-gray-400 hover:text-red-500 disabled:opacity-50 flex-shrink-0"
-                      title="공유 취소"
-                    >
-                      {revokingId === share.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </button>
+                    {currentUserId && share.shared_with === currentUserId ? (
+                      <span className="ml-2 px-1 text-xs text-gray-500 flex-shrink-0">(본인)</span>
+                    ) : (
+                      <button
+                        onClick={() => handleRevoke(share.id)}
+                        disabled={revokingId === share.id}
+                        className="ml-2 p-1 text-gray-400 hover:text-red-500 disabled:opacity-50 flex-shrink-0"
+                        title="공유 취소"
+                      >
+                        {revokingId === share.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
