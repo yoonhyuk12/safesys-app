@@ -2085,7 +2085,9 @@ const Dashboard: React.FC = () => {
           lng: project.coords!.lng,
           managingHq: project.managing_hq,
           managingBranch: project.managing_branch,
-          is_active: project.is_active // JSONB 객체 또는 boolean 그대로 전달
+          is_active: project.is_active, // JSONB 객체 또는 boolean 그대로 전달
+          supervisor_position: project.supervisor_position,
+          supervisor_name: project.supervisor_name
         })
       })
   }, [filteredProjectsWithCoords])

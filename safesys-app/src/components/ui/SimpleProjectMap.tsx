@@ -15,6 +15,8 @@ export interface SimpleProjectMarker {
   managingHq: string
   managingBranch: string
   isActive: boolean | { q1?: boolean; q2?: boolean; q3?: boolean; q4?: boolean; completed?: boolean } // 공사중 여부 또는 분기별 활성화 상태
+  supervisorPosition?: string
+  supervisorName?: string
 }
 
 interface InspectionData {
@@ -870,11 +872,13 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           kakao.maps.event.addListener(hqMarker, 'mouseover', () => {
             hqMarker.setImage(hqMarkerImageLarge)
             hqMarker.setZIndex(10)
+            if (supervisorTooltip) supervisorTooltip.setMap(map)
           })
           kakao.maps.event.addListener(hqMarker, 'mouseout', () => {
             setTimeout(() => {
               hqMarker.setImage(hqMarkerImage)
               hqMarker.setZIndex(5)
+              if (supervisorTooltip) supervisorTooltip.setMap(null)
             }, 100)
           })
           kakao.maps.event.addListener(hqMarker, 'click', () => {
@@ -954,11 +958,13 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           kakao.maps.event.addListener(branchMarker, 'mouseover', () => {
             branchMarker.setImage(branchMarkerImageLarge)
             branchMarker.setZIndex(10)
+            if (supervisorTooltip) supervisorTooltip.setMap(map)
           })
           kakao.maps.event.addListener(branchMarker, 'mouseout', () => {
             setTimeout(() => {
               branchMarker.setImage(branchMarkerImage)
               branchMarker.setZIndex(5)
+              if (supervisorTooltip) supervisorTooltip.setMap(null)
             }, 100)
           })
           kakao.maps.event.addListener(branchMarker, 'click', () => {
@@ -1020,6 +1026,35 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           labelOverlay.setMap(map)
         }
 
+        // 감독 정보 툴팁 오버레이 (마우스 오버 시 표시)
+        const hasSupervisor = project.supervisorPosition || project.supervisorName
+        let supervisorTooltip: any = null
+        if (hasSupervisor) {
+          const tooltipContent = `
+            <div style="
+              background: rgba(30, 41, 59, 0.92);
+              color: white;
+              border-radius: 8px;
+              padding: 7px 11px;
+              font-size: 12px;
+              line-height: 1.6;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+              white-space: nowrap;
+              pointer-events: none;
+            ">
+              ${project.supervisorPosition ? `<div style="font-size:10px;color:#94a3b8;margin-bottom:1px;">${project.supervisorPosition}</div>` : ''}
+              <div style="font-weight:700;font-size:13px;">${project.supervisorName || '-'}</div>
+            </div>
+          `
+          supervisorTooltip = new (window as any).kakao.maps.CustomOverlay({
+            content: tooltipContent,
+            position: markerPosition,
+            yAnchor: 1.4,
+            xAnchor: -0.1,
+            zIndex: 20
+          })
+        }
+
         // 호버 효과
         let hoverTimeout: ReturnType<typeof setTimeout> | null = null
 
@@ -1030,12 +1065,14 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           }
           marker.setImage(largeMarkerImage)
           marker.setZIndex(5)
+          if (supervisorTooltip) supervisorTooltip.setMap(map)
         }
 
         const removeHoverEffect = () => {
           hoverTimeout = setTimeout(() => {
             marker.setImage(normalMarkerImage)
             marker.setZIndex(1)
+            if (supervisorTooltip) supervisorTooltip.setMap(null)
           }, 100)
         }
 
@@ -1171,16 +1208,52 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           tbmLabelOverlay.setMap(map)
           newOverlays.push(tbmLabelOverlay)
 
+          // TBM 오늘 작업내용 툴팁
+          let tbmTooltip: any = null
+          if (tbmRecord.today_work) {
+            const truncated = tbmRecord.today_work.length > 80
+              ? tbmRecord.today_work.substring(0, 80) + '...'
+              : tbmRecord.today_work
+            tbmTooltip = new (window as any).kakao.maps.CustomOverlay({
+              content: `
+                <div style="
+                  background: rgba(30, 41, 59, 0.92);
+                  color: white;
+                  border-radius: 8px;
+                  padding: 7px 11px;
+                  font-size: 12px;
+                  line-height: 1.6;
+                  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+                  white-space: nowrap;
+                  pointer-events: none;
+                  max-width: 360px;
+                  min-width: 200px;
+                  white-space: normal;
+                  word-break: keep-all;
+                ">
+                  <div style="font-size:10px;color:#94a3b8;margin-bottom:2px;">오늘 작업내용</div>
+                  <div style="font-weight:600;font-size:12px;">${truncated}</div>
+                </div>
+              `,
+              position: tbmMarkerPosition,
+              yAnchor: 1.4,
+              xAnchor: -0.1,
+              zIndex: 20
+            })
+          }
+
           // TBM 마커 호버 효과
           const kakao = (window as any).kakao
           kakao.maps.event.addListener(tbmMarker, 'mouseover', () => {
             tbmMarker.setImage(tbmLargeMarkerImage)
             tbmMarker.setZIndex(10)
+            if (tbmTooltip) tbmTooltip.setMap(map)
           })
           kakao.maps.event.addListener(tbmMarker, 'mouseout', () => {
             setTimeout(() => {
               tbmMarker.setImage(tbmNormalMarkerImage)
               tbmMarker.setZIndex(5)
+              if (tbmTooltip) tbmTooltip.setMap(null)
             }, 100)
           })
           kakao.maps.event.addListener(tbmMarker, 'click', () => {

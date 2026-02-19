@@ -14,6 +14,8 @@ interface MapProject {
   managingBranch?: string
   highlightRed?: boolean
   is_active?: boolean | { [key: string]: boolean } // 공사중 여부
+  supervisor_position?: string
+  supervisor_name?: string
 }
 
 interface InspectionData {
@@ -44,7 +46,9 @@ const ClientMapView: React.FC<ClientMapViewProps> = ({ containerRef, heightPx, p
         lng: p.lng,
         managingHq: p.managingHq ?? '',
         managingBranch: p.managingBranch ?? '',
-        isActive: p.is_active || false  // JSONB 객체 또는 boolean 그대로 전달
+        isActive: p.is_active || false,  // JSONB 객체 또는 boolean 그대로 전달
+        supervisorPosition: p.supervisor_position,
+        supervisorName: p.supervisor_name
       }
     })
   ), [projects])
