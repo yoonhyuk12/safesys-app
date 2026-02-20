@@ -701,6 +701,16 @@ export default function ProjectDetailPage() {
                 onClick={() => router.push(`/project/${projectId}/worker-management`)}
               />
 
+              {/* 신규근로자 현장안내 문서철 */}
+              <DocumentFolder
+                title="신규근로자
+현장안내"
+                year={new Date().getFullYear().toString()}
+                isActive={false}
+                projectId={projectId}
+                onClick={() => router.push(`/project/${projectId}/new-worker-orientation`)}
+              />
+
               {/* 자재 수불부 문서철 - 고대 문서 스타일 */}
               <DocumentFolder
                 title="자재

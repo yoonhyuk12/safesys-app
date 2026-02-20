@@ -1717,21 +1717,46 @@ export default function HeadquartersInspectionPage() {
                                             handleEditImage(inspection.action_photo_issue1, inspection.id, 1)
                                           }}
                                         />
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleFileSelect(inspection.id, 1)
-                                          }}
-                                          className="absolute top-1 right-1 bg-blue-500 hover:bg-blue-600 text-white p-1.5 rounded-full shadow-lg"
-                                          title="조치사진 변경"
-                                          disabled={uploadingPhoto === `${inspection.id}-1` || isDeleteMode}
-                                        >
-                                          {uploadingPhoto === `${inspection.id}-1` ? (
-                                            <div className="animate-spin rounded-full h-3 w-3 border border-white border-t-transparent"></div>
-                                          ) : (
-                                            <Edit className="h-3 w-3" />
-                                          )}
-                                        </button>
+                                        <div className="absolute top-1 right-1 flex gap-1">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              setDeleteConfirmCallback(() => async () => {
+                                                try {
+                                                  const { error } = await supabase
+                                                    .from('headquarters_inspections')
+                                                    .update({ action_photo_issue1: null, issue1_status: 'pending' })
+                                                    .eq('id', inspection.id)
+                                                  if (error) throw new Error(error.message)
+                                                  loadInspections()
+                                                } catch (err: any) {
+                                                  alert(`삭제 실패: ${err.message}`)
+                                                }
+                                              })
+                                              setShowDeleteConfirm(true)
+                                            }}
+                                            className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-lg"
+                                            title="조치사진 삭제"
+                                            disabled={isDeleteMode}
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </button>
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation()
+                                              handleFileSelect(inspection.id, 1)
+                                            }}
+                                            className="bg-blue-500 hover:bg-blue-600 text-white p-1.5 rounded-full shadow-lg"
+                                            title="조치사진 변경"
+                                            disabled={uploadingPhoto === `${inspection.id}-1` || isDeleteMode}
+                                          >
+                                            {uploadingPhoto === `${inspection.id}-1` ? (
+                                              <div className="animate-spin rounded-full h-3 w-3 border border-white border-t-transparent"></div>
+                                            ) : (
+                                              <Edit className="h-3 w-3" />
+                                            )}
+                                          </button>
+                                        </div>
                                       </div>
                                     )
                                   ) : (
@@ -1882,21 +1907,46 @@ export default function HeadquartersInspectionPage() {
                                               handleEditImage(inspection.action_photo_issue2, inspection.id, 2)
                                             }}
                                           />
-                                          <button
-                                            onClick={(e) => {
-                                              e.stopPropagation()
-                                              handleFileSelect(inspection.id, 2)
-                                            }}
-                                            className="absolute top-1 right-1 bg-blue-500 hover:bg-blue-600 text-white p-1.5 rounded-full shadow-lg"
-                                            title="조치사진 변경"
-                                            disabled={uploadingPhoto === `${inspection.id}-2` || isDeleteMode}
-                                          >
-                                            {uploadingPhoto === `${inspection.id}-2` ? (
-                                              <div className="animate-spin rounded-full h-3 w-3 border border-white border-t-transparent"></div>
-                                            ) : (
-                                              <Edit className="h-3 w-3" />
-                                            )}
-                                          </button>
+                                          <div className="absolute top-1 right-1 flex gap-1">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                setDeleteConfirmCallback(() => async () => {
+                                                  try {
+                                                    const { error } = await supabase
+                                                      .from('headquarters_inspections')
+                                                      .update({ action_photo_issue2: null, issue2_status: 'pending' })
+                                                      .eq('id', inspection.id)
+                                                    if (error) throw new Error(error.message)
+                                                    loadInspections()
+                                                  } catch (err: any) {
+                                                    alert(`삭제 실패: ${err.message}`)
+                                                  }
+                                                })
+                                                setShowDeleteConfirm(true)
+                                              }}
+                                              className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-lg"
+                                              title="조치사진 삭제"
+                                              disabled={isDeleteMode}
+                                            >
+                                              <Trash2 className="h-3 w-3" />
+                                            </button>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation()
+                                                handleFileSelect(inspection.id, 2)
+                                              }}
+                                              className="bg-blue-500 hover:bg-blue-600 text-white p-1.5 rounded-full shadow-lg"
+                                              title="조치사진 변경"
+                                              disabled={uploadingPhoto === `${inspection.id}-2` || isDeleteMode}
+                                            >
+                                              {uploadingPhoto === `${inspection.id}-2` ? (
+                                                <div className="animate-spin rounded-full h-3 w-3 border border-white border-t-transparent"></div>
+                                              ) : (
+                                                <Edit className="h-3 w-3" />
+                                              )}
+                                            </button>
+                                          </div>
                                         </div>
                                       )
                                     ) : (
