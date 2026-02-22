@@ -64,7 +64,8 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
   // 지사 안전점검과 본부 안전점검 문서철의 특별한 색상 정의
   const isManagerInspection = title === '︵지사︶ 안전점검'
   const isHeadquartersInspection = title === '︵본부︶ 안전점검'
-  const isSpecialInspection = isManagerInspection || isHeadquartersInspection
+  const isSafetyInspectionLedger = title.includes('안전점검') && title.includes('관리대장')
+  const isSpecialInspection = isManagerInspection || isHeadquartersInspection || isSafetyInspectionLedger
   // TBM안전활동 점검표만 분홍색으로 표시 (일일안전교육 TBM일지는 제외)
   const isTBMInspectionFolder = title.includes('TBM안전활동') || title.includes('TBM 안전활동')
   const isDisabled = (title === '폭염대비점검' || title.includes('TBM')) && !isProjectActive

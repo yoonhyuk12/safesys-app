@@ -75,7 +75,7 @@ export default function ProjectDetailPage() {
         throw new Error('프로젝트를 찾을 수 없습니다.')
       }
 
-      setProject(data)
+      setProject(data as any)
 
       // 본부 불시점검 미조치 건수 조회
       const { data: hqInspections } = await supabase
@@ -84,7 +84,7 @@ export default function ProjectDetailPage() {
         .eq('project_id', projectId)
 
       if (hqInspections) {
-        const pendingCount = hqInspections.filter(ins => {
+        const pendingCount = (hqInspections as any[]).filter((ins: any) => {
           const hasIssue2 = Boolean((ins.issue_content2 && ins.issue_content2.trim()) || ins.site_photo_issue2)
           const issue1Done = Boolean(ins.action_photo_issue1) || ins.issue1_status === 'completed'
           const issue2Done = !hasIssue2 ? true : (Boolean(ins.action_photo_issue2) || ins.issue2_status === 'completed')
@@ -94,15 +94,15 @@ export default function ProjectDetailPage() {
       }
 
       // 프로젝트 생성인의 프로필 정보 조회
-      if (data.created_by) {
+      if ((data as any).created_by) {
         const { data: profileData, error: profileError } = await supabase
           .from('user_profiles')
           .select('*')
-          .eq('id', data.created_by)
+          .eq('id', (data as any).created_by)
           .single()
 
         if (!profileError && profileData) {
-          setCreatorProfile(profileData)
+          setCreatorProfile(profileData as any)
         }
       }
     } catch (err: any) {
@@ -747,6 +747,18 @@ export default function ProjectDetailPage() {
                 badgeCount={hqPendingCount}
               />
 
+              {/* 안전점검 관리대장 문서철 */}
+              <DocumentFolder
+                title="안전점검
+관리대장
+︵해빙기, 우기,
+종합, 특별︶"
+                year={new Date().getFullYear().toString()}
+                isActive={false}
+                projectId={projectId}
+                onClick={() => router.push(`/project/${projectId}/safety-inspection-ledger`)}
+              />
+
               {/* TBM안전활동 점검표(감독) 문서철 */}
               <DocumentFolder
                 title="TBM안전활동
@@ -789,19 +801,6 @@ export default function ProjectDetailPage() {
                 projectId={projectId}
                 isPending={true}
                 onClick={() => router.push(`/project/${projectId}/ptw`)}
-              />
-
-              {/* 안전점검 관리대장 문서철 */}
-              <DocumentFolder
-                title="안전점검
-관리대장
-︵해빙기, 우기,
-종합, 특별︶"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                isPending={true}
-                onClick={() => router.push(`/project/${projectId}/safety-inspection-ledger`)}
               />
 
               {/* 일일안전점검 문서철 */}

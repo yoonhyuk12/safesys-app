@@ -103,7 +103,7 @@ export interface HeatWaveCheck {
 export async function createProject(data: CreateProjectData): Promise<{ success: boolean; error?: string; project?: Project }> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
       return { success: false, error: '로그인이 필요합니다.' }
     }
@@ -132,7 +132,7 @@ export async function createProject(data: CreateProjectData): Promise<{ success:
 export async function getUserProjects(): Promise<{ success: boolean; projects?: Project[]; error?: string }> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
       return { success: false, error: '로그인이 필요합니다.' }
     }
@@ -285,18 +285,18 @@ export async function getHeatWaveChecksByUserBranch(
 
     // 선택된 본부/지사에 따라 프로젝트 필터링
     let filteredProjects = projectsResult.projects
-    
+
     if (selectedHq) {
       filteredProjects = filteredProjects.filter(project => project.managing_hq === selectedHq)
     }
-    
+
     if (selectedBranch !== undefined) {
       if (selectedBranch === '') {
         // "전체 지사" 선택: 특정 본부가 선택된 경우에만 해당 본부 산하 지사로 제한
         if (selectedHq) {
           const { BRANCH_OPTIONS } = await import('./constants')
           const branchOptions = BRANCH_OPTIONS[selectedHq] || []
-          filteredProjects = filteredProjects.filter(project => 
+          filteredProjects = filteredProjects.filter(project =>
             project.managing_branch && branchOptions.includes(project.managing_branch)
           )
         }
@@ -338,7 +338,7 @@ export async function getHeatWaveChecksByUserBranch(
       // 해당 날짜의 시작과 끝 시간 설정
       const startDateTime = `${selectedDate}T00:00:00`
       const endDateTime = `${selectedDate}T23:59:59`
-      
+
       if (DEBUG_LOGS) console.log(`날짜 필터링 (check_time 기준): ${selectedDate} -> ${startDateTime} ~ ${endDateTime}`)
       query = query.gte('check_time', startDateTime).lte('check_time', endDateTime)
     }
@@ -352,7 +352,7 @@ export async function getHeatWaveChecksByUserBranch(
 
     // 프로젝트별로 가장 최신 측정 시간 데이터만 필터링
     const latestChecksByProject = new Map<string, any>()
-    
+
     checks?.forEach(check => {
       const existingCheck = latestChecksByProject.get(check.project_id)
       if (!existingCheck || new Date(check.check_time) > new Date(existingCheck.check_time)) {
@@ -387,7 +387,7 @@ export async function getHeatWaveChecksByUserBranch(
 export async function deleteProject(projectId: string): Promise<{ success: boolean; error?: string }> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
       return { success: false, error: '로그인이 필요합니다.' }
     }
@@ -414,7 +414,7 @@ export async function deleteProject(projectId: string): Promise<{ success: boole
 export async function updateProject(projectId: string, data: CreateProjectData): Promise<{ success: boolean; error?: string; project?: Project }> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    
+
     if (!user) {
       return { success: false, error: '로그인이 필요합니다.' }
     }
@@ -507,20 +507,20 @@ export async function addCoordsToProjects(projects: Project[]): Promise<ProjectW
   for (const project of projects) {
     try {
       console.log(`좌표 변환 시도: ${project.project_name} - ${project.site_address}`)
-      
+
       // 주소에서 괄호 부분 제거 (예: "인천광역시 부평구 무네미로 478 (구산동)" -> "인천광역시 부평구 무네미로 478")
       const cleanAddress = project.site_address.replace(/\s*\([^)]*\)\s*/g, '').trim()
       console.log(`정리된 주소: ${cleanAddress}`)
-      
+
       // V-world API를 통해 주소를 좌표로 변환
       const response = await fetch(`/api/geocoding?address=${encodeURIComponent(cleanAddress)}`)
-      
+
       console.log(`API 응답 상태: ${response.status}`)
-      
+
       if (response.ok) {
         const data = await response.json()
         console.log(`API 응답 데이터:`, data)
-        
+
         if (data.success && data.coords) {
           projectsWithCoords.push({
             ...project,
@@ -645,12 +645,12 @@ export async function getManagerInspectionsByUserBranch(
     // 분기별 날짜 범위 계산
     let startDate: string | null = null
     let endDate: string | null = null
-    
+
     if (quarterYear) {
       const [year, quarter] = quarterYear.split('Q')
       const yearNum = parseInt(year)
       const quarterNum = parseInt(quarter)
-      
+
       switch (quarterNum) {
         case 1:
           startDate = `${yearNum}-01-01`
@@ -774,12 +774,12 @@ export async function getHeadquartersInspectionsByUserBranch(
     // 분기별 날짜 범위 계산
     let startDate: string | null = null
     let endDate: string | null = null
-    
+
     if (quarterYear) {
       const [year, quarter] = quarterYear.split('Q')
       const yearNum = parseInt(year)
       const quarterNum = parseInt(quarter)
-      
+
       switch (quarterNum) {
         case 1:
           startDate = `${yearNum}-01-01`
@@ -859,7 +859,7 @@ export async function getHeadquartersInspectionsByUserBranch(
         code: error.code,
         error: error
       })
-      
+
       // 네트워크 에러인 경우 더 명확한 메시지 제공
       const errorMessage = error.message || '본부 불시점검 데이터를 불러오는데 실패했습니다.'
       return { success: false, error: errorMessage }
@@ -903,12 +903,12 @@ export async function getHeadquartersInspectionsByUserBranch(
       stack: error?.stack,
       error: error
     })
-    
+
     // 네트워크 에러인 경우
     if (error?.message?.includes('QUIC') || error?.message?.includes('network') || error?.name === 'NetworkError') {
       return { success: false, error: '네트워크 연결 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' }
     }
-    
+
     return { success: false, error: error?.message || '본부 불시점검 데이터를 불러오는데 실패했습니다.' }
   }
 }
@@ -1192,13 +1192,13 @@ export async function getWorkerCountsByUserBranch(
 
     // 프로젝트별 근로자 수 및 분류 계산
     const statsMap = new Map<string, { total: number; elderly: number; foreigner: number }>()
-    ;(workers || []).forEach((w: any) => {
-      const existing = statsMap.get(w.project_id) || { total: 0, elderly: 0, foreigner: 0 }
-      existing.total += 1
-      if (isElderly(w.birth_date)) existing.elderly += 1
-      if (w.is_foreigner) existing.foreigner += 1
-      statsMap.set(w.project_id, existing)
-    })
+      ; (workers || []).forEach((w: any) => {
+        const existing = statsMap.get(w.project_id) || { total: 0, elderly: 0, foreigner: 0 }
+        existing.total += 1
+        if (isElderly(w.birth_date)) existing.elderly += 1
+        if (w.is_foreigner) existing.foreigner += 1
+        statsMap.set(w.project_id, existing)
+      })
 
     const workerCounts: WorkerCountByProject[] = activeProjects.map(p => {
       const stats = statsMap.get(p.id) || { total: 0, elderly: 0, foreigner: 0 }
@@ -1222,6 +1222,363 @@ export async function getWorkerCountsByUserBranch(
   }
 }
 
+// 정기안전점검 현황 타입
+export interface SafetyInspectionCountByProject {
+  project_id: string
+  project_name: string
+  managing_hq: string
+  managing_branch: string
+  inspection_count: number
+  thawing_count: number   // 해빙기
+  rainy_count: number     // 우기
+  comprehensive_count: number // 종합
+  special_count: number   // 특별
+}
+
+// 발주청 사용자가 볼 수 있는 정기안전점검 현황 조회
+export async function getSafetyInspectionCountsByUserBranch(
+  userProfile: UserProfile,
+  selectedHq?: string,
+  selectedBranch?: string,
+  selectedYear?: number
+): Promise<{ success: boolean; inspectionCounts?: SafetyInspectionCountByProject[]; error?: string }> {
+  try {
+    if (DEBUG_LOGS) console.log('정기안전점검 현황 조회 시작:', { selectedHq, selectedBranch })
+
+    // 1. 프로젝트 목록 조회
+    let projectQuery = supabase
+      .from('projects')
+      .select('id, project_name, managing_hq, managing_branch, is_active')
+
+    // 발주청 사용자의 권한에 따른 필터링
+    if (userProfile.role === '발주청') {
+      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+        if (DEBUG_LOGS) console.log('✅ 본사 조직 사용자: 전사 정기안전점검 현황 조회')
+      } else {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) {
+      projectQuery = projectQuery.eq('managing_hq', selectedHq)
+    }
+    if (selectedBranch) {
+      projectQuery = projectQuery.eq('managing_branch', selectedBranch)
+    }
+
+    const { data: projects, error: projectError } = await projectQuery
+
+    if (projectError) {
+      console.error('프로젝트 조회 오류:', projectError)
+      return { success: false, error: projectError.message }
+    }
+
+    if (!projects || projects.length === 0) {
+      return { success: true, inspectionCounts: [] }
+    }
+
+    // 준공 프로젝트 제외
+    const isCompleted = (p: any): boolean => {
+      if (p.is_active === undefined || p.is_active === null) return false
+      if (typeof p.is_active === 'boolean') return !p.is_active
+      if (typeof p.is_active === 'object') return p.is_active.completed === true
+      return false
+    }
+    const activeProjects = projects.filter(p => !isCompleted(p))
+
+    if (activeProjects.length === 0) {
+      return { success: true, inspectionCounts: [] }
+    }
+
+    // 2. safety_inspections 테이블에서 프로젝트별 점검 건수 집계
+    const projectIds = activeProjects.map(p => p.id)
+    let inspQuery = supabase
+      .from('safety_inspections')
+      .select('project_id, inspection_type')
+      .in('project_id', projectIds)
+
+    // 연도 필터링
+    if (selectedYear) {
+      inspQuery = inspQuery
+        .gte('inspection_date', `${selectedYear}-01-01`)
+        .lte('inspection_date', `${selectedYear}-12-31`)
+    }
+
+    const { data: inspections, error: inspError } = await inspQuery
+
+    if (inspError) {
+      console.error('정기안전점검 조회 오류:', inspError)
+      return { success: false, error: inspError.message }
+    }
+
+    // 프로젝트별 점검 건수 및 유형별 카운트
+    const statsMap = new Map<string, { total: number; thawing: number; rainy: number; comprehensive: number; special: number }>()
+      ; (inspections || []).forEach((ins: any) => {
+        const existing = statsMap.get(ins.project_id) || { total: 0, thawing: 0, rainy: 0, comprehensive: 0, special: 0 }
+        existing.total += 1
+        const type = (ins.inspection_type || '').trim()
+        if (type === '해빙기') existing.thawing += 1
+        else if (type === '우기') existing.rainy += 1
+        else if (type === '종합') existing.comprehensive += 1
+        else if (type === '특별') existing.special += 1
+        statsMap.set(ins.project_id, existing)
+      })
+
+    const inspectionCounts: SafetyInspectionCountByProject[] = activeProjects.map(p => {
+      const stats = statsMap.get(p.id) || { total: 0, thawing: 0, rainy: 0, comprehensive: 0, special: 0 }
+      return {
+        project_id: p.id,
+        project_name: p.project_name,
+        managing_hq: p.managing_hq || '',
+        managing_branch: p.managing_branch || '',
+        inspection_count: stats.total,
+        thawing_count: stats.thawing,
+        rainy_count: stats.rainy,
+        comprehensive_count: stats.comprehensive,
+        special_count: stats.special,
+      }
+    })
+
+    if (DEBUG_LOGS) console.log(`정기안전점검 조회 완료: ${inspectionCounts.length}개 프로젝트, 총 ${inspectionCounts.reduce((s, c) => s + c.inspection_count, 0)}건`)
+    return { success: true, inspectionCounts }
+
+  } catch (error: any) {
+    console.error('정기안전점검 현황 조회 실패:', error)
+    return { success: false, error: error.message || '정기안전점검 현황을 불러오는데 실패했습니다.' }
+  }
+}
+
+// 정기안전점검 상세 데이터 조회 (엑셀 다운로드용)
+export interface SafetyInspectionDetailForExcel {
+  inspection_id: string
+  project_id: string
+  project_name: string
+  managing_hq: string
+  managing_branch: string
+  project_category: string
+  district_name: string
+  inspection_date: string
+  inspection_type: string
+  supervisor_name: string | null
+  results: {
+    findings: string
+    action_items: string
+    photo_url: string | null
+    after_photo_url: string | null
+    sort_order: number
+  }[]
+}
+
+export async function getSafetyInspectionDetailsForExcel(
+  userProfile: UserProfile,
+  selectedHq?: string,
+  selectedBranch?: string,
+  inspectionType?: string
+): Promise<{ success: boolean; data?: SafetyInspectionDetailForExcel[]; error?: string }> {
+  try {
+    // 1. 프로젝트 목록 조회
+    let projectQuery = supabase
+      .from('projects')
+      .select('id, project_name, managing_hq, managing_branch, project_category, is_active')
+
+    if (userProfile.role === '발주청') {
+      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+        // 본사: 전사 조회
+      } else {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) projectQuery = projectQuery.eq('managing_hq', selectedHq)
+    if (selectedBranch) projectQuery = projectQuery.eq('managing_branch', selectedBranch)
+
+    const { data: projects, error: projectError } = await projectQuery
+    if (projectError) return { success: false, error: projectError.message }
+    if (!projects || projects.length === 0) return { success: true, data: [] }
+
+    // 준공 제외
+    const isComp = (p: any): boolean => {
+      if (p.is_active === undefined || p.is_active === null) return false
+      if (typeof p.is_active === 'boolean') return !p.is_active
+      if (typeof p.is_active === 'object') return p.is_active.completed === true
+      return false
+    }
+    const activeProjects = projects.filter(p => !isComp(p))
+    if (activeProjects.length === 0) return { success: true, data: [] }
+
+    const projectIds = activeProjects.map(p => p.id)
+    const projectMap = new Map(activeProjects.map(p => [p.id, p]))
+
+    // 2. 점검 목록 조회
+    let inspQuery = supabase
+      .from('safety_inspections')
+      .select('id, project_id, inspection_date, inspection_type, district_name, supervisor_name')
+      .in('project_id', projectIds)
+    if (inspectionType) inspQuery = inspQuery.eq('inspection_type', inspectionType)
+    const { data: inspections, error: inspError } = await inspQuery
+      .order('inspection_date', { ascending: true })
+
+    if (inspError) return { success: false, error: inspError.message }
+    if (!inspections || inspections.length === 0) return { success: true, data: [] }
+
+    // 3. 점검 결과 조회
+    const inspectionIds = inspections.map(i => i.id)
+    const { data: results, error: resError } = await supabase
+      .from('safety_inspection_results')
+      .select('inspection_id, findings, action_items, photo_url, after_photo_url, sort_order')
+      .in('inspection_id', inspectionIds)
+      .order('sort_order', { ascending: true })
+
+    if (resError) return { success: false, error: resError.message }
+
+    // 점검별 결과 그룹핑
+    const resultsMap = new Map<string, typeof results>()
+      ; (results || []).forEach(r => {
+        const arr = resultsMap.get(r.inspection_id) || []
+        arr.push(r)
+        resultsMap.set(r.inspection_id, arr)
+      })
+
+    // 4. 데이터 조합
+    const data: SafetyInspectionDetailForExcel[] = inspections.map(ins => {
+      const proj = projectMap.get(ins.project_id)
+      return {
+        inspection_id: ins.id,
+        project_id: ins.project_id,
+        project_name: proj?.project_name || '',
+        managing_hq: proj?.managing_hq || '',
+        managing_branch: proj?.managing_branch || '',
+        project_category: (proj as any)?.project_category || '',
+        district_name: ins.district_name || '',
+        inspection_date: ins.inspection_date || '',
+        inspection_type: ins.inspection_type || '',
+        supervisor_name: ins.supervisor_name || null,
+        results: (resultsMap.get(ins.id) || []).map(r => ({
+          findings: r.findings || '',
+          action_items: r.action_items || '',
+          photo_url: r.photo_url || null,
+          after_photo_url: r.after_photo_url || null,
+          sort_order: r.sort_order || 0,
+        })),
+      }
+    })
+
+    return { success: true, data }
+  } catch (error: any) {
+    console.error('정기안전점검 상세 조회 실패:', error)
+    return { success: false, error: error.message || '데이터 조회 실패' }
+  }
+}
+
+// 전경사진 HWPX 다운로드용 데이터 조회
+export interface SafetyInspectionPhotoForHwpx {
+  inspection_id: string
+  project_name: string
+  district_name: string
+  inspection_date: string
+  supervisor_name: string | null
+  photo_url: string | null
+}
+
+export async function getSafetyInspectionPhotosForHwpx(
+  userProfile: UserProfile,
+  selectedHq?: string,
+  selectedBranch?: string,
+  inspectionType?: string
+): Promise<{ success: boolean; data?: SafetyInspectionPhotoForHwpx[]; error?: string }> {
+  try {
+    let projectQuery = supabase
+      .from('projects')
+      .select('id, project_name, managing_hq, managing_branch, is_active')
+
+    if (userProfile.role === '발주청') {
+      if (!(userProfile.hq_division === '본사' && userProfile.branch_division === '본사')) {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) projectQuery = projectQuery.eq('managing_hq', selectedHq)
+    if (selectedBranch) projectQuery = projectQuery.eq('managing_branch', selectedBranch)
+
+    const { data: projects, error: projectError } = await projectQuery
+    if (projectError) return { success: false, error: projectError.message }
+    if (!projects || projects.length === 0) return { success: true, data: [] }
+
+    const isComp = (p: any): boolean => {
+      if (p.is_active === undefined || p.is_active === null) return false
+      if (typeof p.is_active === 'boolean') return !p.is_active
+      if (typeof p.is_active === 'object') return p.is_active.completed === true
+      return false
+    }
+    const activeProjects = projects.filter(p => !isComp(p))
+    if (activeProjects.length === 0) return { success: true, data: [] }
+
+    const projectIds = activeProjects.map(p => p.id)
+    const projectMap = new Map(activeProjects.map(p => [p.id, p]))
+
+    let inspQuery2 = supabase
+      .from('safety_inspections')
+      .select('id, project_id, inspection_date, district_name, supervisor_name')
+      .in('project_id', projectIds)
+    if (inspectionType) inspQuery2 = inspQuery2.eq('inspection_type', inspectionType)
+    const { data: inspections, error: inspError } = await inspQuery2
+      .order('inspection_date', { ascending: true })
+
+    if (inspError) return { success: false, error: inspError.message }
+    if (!inspections || inspections.length === 0) return { success: true, data: [] }
+
+    const inspectionIds = inspections.map(i => i.id)
+
+    const { data: photos, error: photoError } = await supabase
+      .from('safety_inspection_photos')
+      .select('inspection_id, photo_url, sort_order')
+      .in('inspection_id', inspectionIds)
+      .eq('photo_type', 'site_before')
+      .order('sort_order', { ascending: true })
+
+    if (photoError) return { success: false, error: photoError.message }
+
+    const photoMap = new Map<string, string>()
+      ; (photos || []).forEach(p => {
+        if (!photoMap.has(p.inspection_id)) {
+          photoMap.set(p.inspection_id, p.photo_url)
+        }
+      })
+
+    const data: SafetyInspectionPhotoForHwpx[] = inspections.map(ins => {
+      const proj = projectMap.get(ins.project_id)
+      return {
+        inspection_id: ins.id,
+        project_name: proj?.project_name || '',
+        district_name: ins.district_name || '',
+        inspection_date: ins.inspection_date || '',
+        supervisor_name: ins.supervisor_name || null,
+        photo_url: photoMap.get(ins.id) || null,
+      }
+    })
+
+    return { success: true, data }
+  } catch (error: any) {
+    console.error('전경사진 조회 실패:', error)
+    return { success: false, error: error.message || '데이터 조회 실패' }
+  }
+}
+
 // 발주청 사용자가 볼 수 있는 안전서류 점검 현황 조회
 export async function getSafeDocumentInspectionsByUserBranch(
   userProfile: UserProfile,
@@ -1235,12 +1592,12 @@ export async function getSafeDocumentInspectionsByUserBranch(
     // 분기별 날짜 범위 계산
     let startDate: string | null = null
     let endDate: string | null = null
-    
+
     if (quarterYear) {
       const [year, quarter] = quarterYear.split('Q')
       const yearNum = parseInt(year)
       const quarterNum = parseInt(quarter)
-      
+
       switch (quarterNum) {
         case 1:
           startDate = `${yearNum}-01-01`
@@ -1427,9 +1784,9 @@ export async function getMaterialCountsByUserBranch(
 
     // 프로젝트별 건수 집계
     const countMap = new Map<string, number>()
-    ;(materials || []).forEach(m => {
-      countMap.set(m.project_id, (countMap.get(m.project_id) || 0) + 1)
-    })
+      ; (materials || []).forEach(m => {
+        countMap.set(m.project_id, (countMap.get(m.project_id) || 0) + 1)
+      })
 
     const materialCounts: MaterialCountByProject[] = activeProjects.map(p => ({
       project_id: p.id,

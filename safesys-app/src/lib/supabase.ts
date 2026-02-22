@@ -1,9 +1,12 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Database = any
 
 // Supabase 클라이언트 (lazy 초기화 - 빌드 시 환경변수 없어도 에러 방지)
-let _supabase: ReturnType<typeof createClient> | null = null
+let _supabase: SupabaseClient<Database> | null = null
 
-function getSupabaseClient() {
+function getSupabaseClient(): SupabaseClient<Database> {
   if (!_supabase) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -11,7 +14,7 @@ function getSupabaseClient() {
     if (!url) throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_URL')
     if (!key) throw new Error('Missing env.NEXT_PUBLIC_SUPABASE_ANON_KEY')
 
-    _supabase = createClient(url, key, {
+    _supabase = createClient<Database>(url, key, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
@@ -23,7 +26,7 @@ function getSupabaseClient() {
 }
 
 // 기존 코드와 호환성 유지를 위한 Proxy 패턴
-export const supabase = new Proxy({} as ReturnType<typeof createClient>, {
+export const supabase = new Proxy({} as SupabaseClient<Database>, {
   get(_target, prop) {
     return (getSupabaseClient() as any)[prop]
   }

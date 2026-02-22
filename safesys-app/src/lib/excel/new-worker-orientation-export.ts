@@ -32,7 +32,7 @@ interface OrientationRecord {
   manager_signature: string
 }
 
-const thin: ExcelJS.Border = { style: 'thin' }
+const thin: ExcelJS.Border = { style: 'thin', color: { argb: 'FF000000' } }
 const allBorders: Partial<ExcelJS.Borders> = {
   top: thin,
   bottom: thin,
@@ -85,7 +85,7 @@ export async function downloadNewWorkerOrientationExcel(
     { width: 12 }, // B
     { width: 14 }, // C
     { width: 12 }, // D
-    { width: 6 },  // E - 구분
+    { width: 8 },  // E - 구분
     { width: 14 }, // F
     { width: 14 }, // G
     { width: 12 }, // H
@@ -122,6 +122,10 @@ export async function downloadNewWorkerOrientationExcel(
   refCell.font = { size: 10, color: { argb: 'FF666666' } }
   refCell.alignment = { horizontal: 'left', vertical: 'middle' }
   ws.getRow(row).height = HEADER_HEIGHT
+  row++
+
+  // ===== 빈 행 =====
+  ws.getRow(row).height = 33
   row++
 
   // ===== 제목 =====
@@ -214,13 +218,13 @@ export async function downloadNewWorkerOrientationExcel(
   ws.getCell(`E${row}`).value = '직종'
   ws.mergeCells(`G${row}:H${row}`)
   ws.getCell(`G${row}`).value = '성명'
-  ;['A', 'C', 'E', 'G'].forEach((col) => {
-    const cell = ws.getCell(`${col}${row}`)
-    cell.font = { bold: true, size: 10 }
-    cell.fill = headerFill
-    cell.border = allBorders
-    cell.alignment = { horizontal: 'center', vertical: 'middle' }
-  })
+    ;['A', 'C', 'E', 'G'].forEach((col) => {
+      const cell = ws.getCell(`${col}${row}`)
+      cell.font = { bold: true, size: 10 }
+      cell.fill = headerFill
+      cell.border = allBorders
+      cell.alignment = { horizontal: 'center', vertical: 'middle' }
+    })
   ws.getCell(`B${row}`).border = allBorders
   ws.getCell(`D${row}`).border = allBorders
   ws.getCell(`F${row}`).border = allBorders

@@ -63,6 +63,7 @@ const emptyFormData = (opts?: { location?: string; mentorDefaults?: MentorEntry 
   ] as MentorSignature[],
   manager_name: opts?.mentorDefaults?.name || '',
   manager_signature: '',
+  remarks: '',
 })
 
 export default function NewWorkerOrientationPage() {
@@ -79,8 +80,8 @@ export default function NewWorkerOrientationPage() {
   const getFormDefaults = () => ({
     location: project
       ? (project.site_address_detail
-          ? `${project.site_address} ${project.site_address_detail}`
-          : project.site_address || '')
+        ? `${project.site_address} ${project.site_address_detail}`
+        : project.site_address || '')
       : '',
     mentorDefaults: {
       affiliation: projectOwner?.company_name || '',
@@ -112,13 +113,13 @@ export default function NewWorkerOrientationPage() {
         .eq('id', projectId)
         .single()
       if (data) {
-        setProject(data)
+        setProject(data as any)
         // 프로젝트 소유자 프로필 조회
-        if (data.created_by) {
+        if ((data as any).created_by) {
           const { data: ownerProfile } = await supabase
             .from('user_profiles')
             .select('company_name, position, full_name')
-            .eq('id', data.created_by)
+            .eq('id', (data as any).created_by)
             .single()
           if (ownerProfile) setProjectOwner(ownerProfile)
         }
@@ -131,7 +132,7 @@ export default function NewWorkerOrientationPage() {
   const loadRecords = useCallback(async () => {
     if (!projectId) return
     setLoading(true)
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('new_worker_orientations')
       .select('*')
       .eq('project_id', projectId)
@@ -178,6 +179,7 @@ export default function NewWorkerOrientationPage() {
       mentor_signatures: mentorSigs,
       manager_name: record.manager_name || '',
       manager_signature: record.manager_signature || '',
+      remarks: record.remarks || '',
     })
     setEditingRecordId(record.id)
     setShowAddForm(true)
@@ -211,17 +213,18 @@ export default function NewWorkerOrientationPage() {
         mentor_signatures: formData.mentor_signatures,
         manager_name: formData.manager_name,
         manager_signature: formData.manager_signature,
+        remarks: formData.remarks,
         updated_at: new Date().toISOString(),
       }
 
       if (editingRecordId) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('new_worker_orientations')
           .update(dataToSave)
           .eq('id', editingRecordId)
         if (error) throw error
       } else {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('new_worker_orientations')
           .insert([dataToSave])
         if (error) throw error
@@ -240,7 +243,7 @@ export default function NewWorkerOrientationPage() {
   // 삭제
   const handleDelete = async (id: string) => {
     if (!confirm('정말 삭제하시겠습니까?')) return
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('new_worker_orientations')
       .delete()
       .eq('id', id)
@@ -311,21 +314,24 @@ export default function NewWorkerOrientationPage() {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl lg:max-w-none mx-auto px-4 sm:px-6 lg:px-4">
           <div className="flex items-center h-16">
-              <button
-                onClick={handleBack}
-                className="mr-4 p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </button>
-              <h1 className="text-xl font-bold text-gray-900">신규근로자 현장안내</h1>
+            <button
+              onClick={handleBack}
+              className="mr-4 p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">
+              {project?.project_name || '신규근로자 현장안내'}
+            </h1>
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto py-4 px-4">
+      <main className="max-w-4xl mx-auto py-4 px-2 sm:px-4">
         {/* 새로 작성 버튼 */}
         {!showAddForm && (
-          <div className="flex justify-end mb-3">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-lg font-bold text-white">신규근로자 현장안내 일지</h2>
             <button
               onClick={() => {
                 setFormData(emptyFormData(getFormDefaults()))
@@ -344,7 +350,7 @@ export default function NewWorkerOrientationPage() {
         {showAddForm && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-4 overflow-hidden">
             <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between">
-              <h2 className="font-semibold text-lg">
+              <h2 className="font-semibold text-base sm:text-lg">
                 {editingRecordId ? '현장안내 일지 수정' : '신규근로자 현장안내(1시간 둘러보기) 일지'}
               </h2>
               <button onClick={resetForm} className="text-white hover:text-blue-200">
@@ -352,7 +358,7 @@ export default function NewWorkerOrientationPage() {
               </button>
             </div>
 
-            <div className="p-4 space-y-4">
+            <div className="p-3 sm:p-4 space-y-4">
               {/* 기본 정보 */}
               <div className="border border-gray-300 rounded-lg overflow-hidden">
                 {/* 날짜 */}
@@ -381,36 +387,40 @@ export default function NewWorkerOrientationPage() {
                 </div>
 
                 {/* 시간 + 장소 */}
-                <div className="flex items-center border-b border-gray-300">
-                  <div className="bg-gray-100 px-3 py-2 font-semibold text-sm min-w-[80px] border-r border-gray-300">
-                    시 간
+                <div className="flex flex-col sm:flex-row border-b border-gray-300">
+                  <div className="flex items-center border-b sm:border-b-0 border-gray-300">
+                    <div className="bg-gray-100 px-3 py-2 font-semibold text-sm min-w-[80px] border-r border-gray-300">
+                      시 간
+                    </div>
+                    <div className="flex items-center gap-1 px-3 py-2 flex-1 sm:border-r border-gray-300">
+                      <input
+                        type="time"
+                        value={formData.start_time}
+                        onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
+                        className="border border-gray-300 rounded px-2 py-1 text-sm w-[110px]"
+                      />
+                      <span className="text-gray-500">~</span>
+                      <input
+                        type="time"
+                        value={formData.end_time}
+                        onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
+                        className="border border-gray-300 rounded px-2 py-1 text-sm w-[110px]"
+                      />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1 px-3 py-2 flex-1 border-r border-gray-300">
-                    <input
-                      type="time"
-                      value={formData.start_time}
-                      onChange={(e) => setFormData({ ...formData, start_time: e.target.value })}
-                      className="border border-gray-300 rounded px-2 py-1 text-sm w-[110px]"
-                    />
-                    <span className="text-gray-500">~</span>
-                    <input
-                      type="time"
-                      value={formData.end_time}
-                      onChange={(e) => setFormData({ ...formData, end_time: e.target.value })}
-                      className="border border-gray-300 rounded px-2 py-1 text-sm w-[110px]"
-                    />
-                  </div>
-                  <div className="bg-gray-100 px-3 py-2 font-semibold text-sm min-w-[60px] border-r border-gray-300">
-                    장 소
-                  </div>
-                  <div className="flex-1 px-3 py-2">
-                    <input
-                      type="text"
-                      value={formData.location}
-                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                      placeholder="현장안내 장소"
-                      className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
-                    />
+                  <div className="flex items-center">
+                    <div className="bg-gray-100 px-3 py-2 font-semibold text-sm min-w-[80px] sm:min-w-[60px] border-r border-gray-300">
+                      장 소
+                    </div>
+                    <div className="flex-1 px-3 py-2">
+                      <input
+                        type="text"
+                        value={formData.location}
+                        onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                        placeholder="현장안내 장소"
+                        className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -421,11 +431,11 @@ export default function NewWorkerOrientationPage() {
                   <Users className="h-4 w-4" />
                   신규근로자(멘티)
                 </div>
-                <div className="grid grid-cols-2 gap-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-0">
                   {formData.workers.map((worker, index) => (
                     <div
                       key={index}
-                      className={`flex items-center border-b border-gray-300 ${index % 2 === 0 ? 'border-r border-gray-300' : ''}`}
+                      className={`flex items-center border-b border-gray-300 ${index % 2 === 0 ? 'sm:border-r border-gray-300' : ''}`}
                     >
                       <input
                         type="text"
@@ -480,8 +490,8 @@ export default function NewWorkerOrientationPage() {
                   현장안내자(멘토)
                 </div>
                 {formData.mentors.map((mentor, index) => (
-                  <div key={index} className="flex items-center border-b border-gray-300">
-                    <div className="flex-1 flex items-center">
+                  <div key={index} className="flex flex-col sm:flex-row border-b border-gray-300">
+                    <div className="flex-1 flex items-center border-b sm:border-b-0 border-gray-200">
                       <span className="text-sm text-gray-500 px-2 min-w-[40px]">소속:</span>
                       <input
                         type="text"
@@ -494,7 +504,7 @@ export default function NewWorkerOrientationPage() {
                         className="flex-1 px-2 py-2 text-sm border-r border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-400"
                       />
                     </div>
-                    <div className="flex-1 flex items-center">
+                    <div className="flex-1 flex items-center border-b sm:border-b-0 border-gray-200">
                       <span className="text-sm text-gray-500 px-2 min-w-[40px]">직책:</span>
                       <input
                         type="text"
@@ -623,19 +633,18 @@ export default function NewWorkerOrientationPage() {
                         현장안내자 {index + 1}
                       </span>
                       <span className="text-sm text-gray-600 w-20">{sig.name || '(이름없음)'}</span>
-                      <button
-                        type="button"
-                        onClick={() => openSignatureModal({ type: 'mentor', index })}
-                        className={`px-3 py-1 text-sm rounded border ${
-                          sig.signature
-                            ? 'border-green-400 bg-green-50 text-green-700'
-                            : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
-                        }`}
-                      >
-                        {sig.signature ? '서명완료 ✓' : '서명하기'}
-                      </button>
-                      {sig.signature && (
-                        <img src={sig.signature} alt="서명" className="h-8 border rounded" />
+                      {sig.signature ? (
+                        <button type="button" onClick={() => openSignatureModal({ type: 'mentor', index })}>
+                          <img src={sig.signature} alt="서명" className="h-8 border rounded cursor-pointer hover:opacity-80" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openSignatureModal({ type: 'mentor', index })}
+                          className="px-3 py-1 text-sm rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                        >
+                          서명
+                        </button>
                       )}
                     </div>
                   ))}
@@ -650,23 +659,23 @@ export default function NewWorkerOrientationPage() {
                       placeholder="성명"
                       className="border border-gray-300 rounded px-2 py-1 text-sm w-24"
                     />
-                    <button
-                      type="button"
-                      onClick={() => openSignatureModal({ type: 'manager' })}
-                      className={`px-3 py-1 text-sm rounded border ${
-                        formData.manager_signature
-                          ? 'border-green-400 bg-green-50 text-green-700'
-                          : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      {formData.manager_signature ? '서명완료 ✓' : '서명하기'}
-                    </button>
-                    {formData.manager_signature && (
-                      <img src={formData.manager_signature} alt="서명" className="h-8 border rounded" />
+                    {formData.manager_signature ? (
+                      <button type="button" onClick={() => openSignatureModal({ type: 'manager' })}>
+                        <img src={formData.manager_signature} alt="서명" className="h-8 border rounded cursor-pointer hover:opacity-80" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openSignatureModal({ type: 'manager' })}
+                        className="px-3 py-1 text-sm rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                      >
+                        서명
+                      </button>
                     )}
                   </div>
                 </div>
               </div>
+
 
               {/* 저장/취소 버튼 */}
               <div className="flex justify-end gap-2 pt-2">
@@ -710,65 +719,78 @@ export default function NewWorkerOrientationPage() {
             <p className="text-gray-500 mb-1">작성된 기록이 없습니다.</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {records.map((record) => {
-              const filledWorkers = (record.workers || []).filter(
-                (w: WorkerEntry) => w.name && w.name.trim() !== ''
-              )
-              return (
-                <div
-                  key={record.id}
-                  className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={() => handleEdit(record)}
-                >
-                  <div className="px-4 py-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-semibold text-gray-900">
-                            {record.orientation_date} ({getDayOfWeek(record.orientation_date)})
-                          </span>
-                          {record.start_time && record.end_time && (
-                            <span className="text-sm text-gray-500">
-                              {record.start_time} ~ {record.end_time}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
-                          {record.location && (
-                            <span>장소: {record.location}</span>
-                          )}
-                          <span>
-                            근로자: {filledWorkers.length}명
-                          </span>
-                          {(record.mentors || []).filter((m: MentorEntry) => m.name).length > 0 && (
-                            <span>
-                              안내자: {(record.mentors || []).filter((m: MentorEntry) => m.name).map((m: MentorEntry) => m.name).join(', ')}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => handleExcelDownload(record)}
-                          className="p-2 text-green-600 hover:bg-green-50 rounded-md"
-                          title="엑셀 다운로드"
+          <div>
+            <div className="bg-white rounded-lg shadow-sm border border-gray-200 text-sm">
+              <div className="overflow-x-auto">
+                <table className="min-w-[700px] w-full divide-y divide-gray-200 text-center">
+                  <thead className="bg-[#EBF1F5] text-gray-800 border-b border-gray-200">
+                    <tr>
+                      <th className="px-2 py-3 font-semibold whitespace-nowrap">일자/시간</th>
+                      <th className="px-2 py-3 font-semibold whitespace-nowrap">장소</th>
+                      <th className="px-2 py-3 font-semibold whitespace-nowrap">근로자</th>
+                      <th className="px-2 py-3 font-semibold whitespace-nowrap">안내자</th>
+                      <th className="px-2 py-3 font-semibold whitespace-nowrap w-16">삭제</th>
+                      <th className="px-2 py-3 font-semibold whitespace-nowrap w-16">출력</th>
+                      <th className="px-2 py-3 font-semibold whitespace-nowrap">비고</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 bg-white">
+                    {records.map((record) => {
+                      const filledWorkers = (record.workers || []).filter(
+                        (w: WorkerEntry) => w.name && w.name.trim() !== ''
+                      )
+                      const filledMentors = (record.mentors || []).filter((m: MentorEntry) => m.name)
+                      return (
+                        <tr
+                          key={record.id}
+                          className="cursor-pointer hover:bg-gray-50 transition-colors"
+                          onClick={() => handleEdit(record)}
                         >
-                          <Download className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(record.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-md"
-                          title="삭제"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+                          <td className="px-2 py-2 whitespace-nowrap text-gray-900 border-r border-gray-100">
+                            <div className="font-medium">
+                              {record.orientation_date} ({getDayOfWeek(record.orientation_date)})
+                            </div>
+                            {record.start_time && record.end_time && (
+                              <div className="text-gray-500 text-xs mt-0.5">
+                                {record.start_time} ~ {record.end_time}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-gray-700 border-r border-gray-100">{record.location || '-'}</td>
+                          <td className="px-2 py-2 whitespace-nowrap text-gray-700 border-r border-gray-100">
+                            {filledWorkers.length}명
+                          </td>
+                          <td className="px-2 py-2 text-gray-700 border-r border-gray-100">
+                            {filledMentors.length > 0 ? filledMentors.map(m => m.name).join(', ') : '-'}
+                          </td>
+                          <td className="px-2 py-2 whitespace-nowrap border-r border-gray-100" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => handleDelete(record.id)}
+                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-md mx-auto flex"
+                              title="삭제"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+                          <td className="px-2 py-2 whitespace-nowrap border-r border-gray-100" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => handleExcelDownload(record)}
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-md mx-auto flex"
+                              title="엑셀 다운로드"
+                            >
+                              <Download className="h-4 w-4" />
+                            </button>
+                          </td>
+                          <td className="px-2 py-2 text-gray-600 max-w-[150px] truncate" title={record.remarks || ''}>
+                            {record.remarks || '-'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
       </main>
