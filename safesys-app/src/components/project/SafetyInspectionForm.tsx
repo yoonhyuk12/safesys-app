@@ -44,6 +44,34 @@ const PHOTO_TYPE_LABELS: Record<string, string> = {
     good_example: '수범사례'
 }
 
+const THAW_SEASON_ITEMS = [
+    { category: '가. 안전관리 5대 핵심항목 이행 여부', item: '1. 작업 전 근로자 대상 TBM 실시', action: '해당없음' },
+    { category: '가. 안전관리 5대 핵심항목 이행 여부', item: '2. 신규근로자 작업 전 현장 둘러보기', action: '해당없음' },
+    { category: '가. 안전관리 5대 핵심항목 이행 여부', item: '3. 건설기계 주변 접근금지', action: '해당없음' },
+    { category: '가. 안전관리 5대 핵심항목 이행 여부', item: '4. 개인보호구 착용', action: '해당없음' },
+    { category: '가. 안전관리 5대 핵심항목 이행 여부', item: '5. 안전보건표지의 설치·부착', action: '해당없음' },
+    { category: '나. 중점사항', item: '1. 위험성평가 활동 적정성', action: '해당없음' },
+    { category: '나. 중점사항', item: '2. 작업계획서 작성 적정성', action: '해당없음' },
+    { category: '나. 중점사항', item: '3. 현장 주변의 공중을 위한 안전조치 적정성', action: '해당없음' },
+    { category: '나. 중점사항', item: '4. 근로자 이동통로 등 안전시설 설치 여부', action: '해당없음' },
+    { category: '다. 흙막이지보공 및 거푸집동바리', item: '1. 흙막이 지보공 이상유무', action: '해당없음' },
+    { category: '다. 흙막이지보공 및 거푸집동바리', item: '2. 배면공동 충진 및 토사유출 방지 조치', action: '해당없음' },
+    { category: '다. 흙막이지보공 및 거푸집동바리', item: '3. 계측관리 실시 여부', action: '해당없음' },
+    { category: '다. 흙막이지보공 및 거푸집동바리', item: '4. 표면수 유입방지 조치', action: '해당없음' },
+    { category: '다. 흙막이지보공 및 거푸집동바리', item: '5. 흙막이 판 설치', action: '해당없음' },
+    { category: '다. 흙막이지보공 및 거푸집동바리', item: '6. 비계 또는 거푸집동바리 등 가시설의 설치상태 이상 유무', action: '해당없음' },
+    { category: '다. 흙막이지보공 및 거푸집동바리', item: '7. 설계도서의 검토', action: '해당없음' },
+    { category: '라. 굴착면 및 지반', item: '1. 굴착면 기울기 준수여부', action: '해당없음' },
+    { category: '라. 굴착면 및 지반', item: '2. 굴착면 지반상태의 적정성', action: '해당없음' },
+    { category: '라. 굴착면 및 지반', item: '3. 굴착면 주변 안전조치', action: '해당없음' },
+    { category: '라. 굴착면 및 지반', item: '4. 침하·균열·변형 여부', action: '해당없음' },
+    { category: '라. 굴착면 및 지반', item: '5. 차량 및 건설기계 등의 전도 전락방지 조치', action: '해당없음' },
+    { category: '마. 주변시설', item: '1. 공사용 가설도로 상태의 적정성', action: '해당없음' },
+    { category: '마. 주변시설', item: '2. 지하매설물 보호조치의 적정성', action: '해당없음' },
+    { category: '마. 주변시설', item: '3. 주변지반에 대한 이상유무', action: '해당없음' },
+    { category: '마. 주변시설', item: '4. 지하매설물 조사', action: '해당없음' }
+]
+
 export default function SafetyInspectionForm({ projectId, project, editingId, onClose, onSaved }: Props) {
     const { user } = useAuth()
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -79,6 +107,9 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
     const [inspectorOpinion, setInspectorOpinion] = useState('')
     const [goodExampleContent, setGoodExampleContent] = useState('')
 
+    // 추가 점검 항목
+    const [additionalItems, setAdditionalItems] = useState<{ category: string; item: string; action: string }[]>([])
+
     // 서명
     const [signatures, setSignatures] = useState<any[]>([
         { role: '현장대리인', position: '', name: '', dataUrl: '' },
@@ -101,6 +132,13 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
         document.addEventListener('click', handler)
         return () => document.removeEventListener('click', handler)
     }, [photoMenuOpen])
+
+    // 해빙기 추가 점검 항목 초기화
+    useEffect(() => {
+        if (!editingId && inspectionType === '해빙기' && additionalItems.length === 0) {
+            setAdditionalItems(JSON.parse(JSON.stringify(THAW_SEASON_ITEMS)))
+        }
+    }, [inspectionType, editingId])
 
     // 프로젝트 정보 자동 불러오기
     useEffect(() => {
@@ -207,6 +245,12 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
         setSupervisorName(inspection.supervisor_name || '')
         setInspectorOpinion(inspection.inspector_opinion || '')
         setGoodExampleContent(inspection.good_example_content || '')
+
+        if (inspection.additional_items && Array.isArray(inspection.additional_items)) {
+            setAdditionalItems(inspection.additional_items)
+        } else if (inspection.inspection_type === '해빙기') {
+            setAdditionalItems(JSON.parse(JSON.stringify(THAW_SEASON_ITEMS)))
+        }
 
         if (inspection.signatures && Array.isArray(inspection.signatures) && inspection.signatures.length > 0) {
             setSignatures(inspection.signatures)
@@ -416,6 +460,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                 supervisor_name: supervisorName || null,
                 inspector_opinion: inspectorOpinion || null,
                 good_example_content: goodExampleContent || null,
+                additional_items: inspectionType === '해빙기' ? additionalItems : null,
                 signatures: signatures,
                 created_by: user.id,
                 updated_at: new Date().toISOString()
@@ -585,7 +630,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
 
                 {/* 스텝 인디케이터 */}
                 <div className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-50 border-b">
-                    {['점검개요', '점검결과 및 사진', '점검자 의견 및 서명'].map((label, i) => (
+                    {['점검개요', '점검결과 및 사진', '점검자 의견 및 서명', ...(inspectionType === '해빙기' ? ['추가 점검 항목'] : [])].map((label, i) => (
                         <button
                             key={i}
                             onClick={() => setStep(i + 1)}
@@ -1111,6 +1156,127 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                             </div>
                         </div>
                     )}
+
+                    {/* Step 4: 추가 점검 항목 (해빙기 등) */}
+                    {step === 4 && inspectionType === '해빙기' && (
+                        <div className="space-y-6">
+                            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 md:p-5">
+                                <h3 className="text-[15px] font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                    <span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">4</span>
+                                    추가 점검 항목
+                                </h3>
+                                {/* Mobile View (Card Layout) */}
+                                <div className="block md:hidden space-y-4">
+                                    {Object.entries(additionalItems.reduce((acc, current, idx) => {
+                                        if (!acc[current.category]) acc[current.category] = [];
+                                        acc[current.category].push({ ...current, originalIndex: idx });
+                                        return acc;
+                                    }, {} as Record<string, any[]>)).map(([category, items]) => (
+                                        <div key={category} className="space-y-3">
+                                            {/* Category Header */}
+                                            <div className="bg-blue-50 text-blue-800 font-semibold text-sm px-3 py-2 rounded-lg border border-blue-100 mt-2">
+                                                {category}
+                                            </div>
+                                            {items.map((item) => (
+                                                <div key={item.originalIndex} className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col gap-2">
+                                                    <div>
+                                                        <span className="block text-[11px] font-semibold text-gray-500 mb-0.5">점검항목</span>
+                                                        <span className="text-sm text-gray-800 font-medium leading-snug break-keep">{item.item}</span>
+                                                    </div>
+                                                    <div className="pt-2 border-t border-gray-100">
+                                                        <span className="block mb-1 text-[11px] font-semibold text-gray-500">조치내용</span>
+                                                        <input
+                                                            type="text"
+                                                            value={item.action}
+                                                            onChange={(e) => {
+                                                                const newItems = [...additionalItems];
+                                                                newItems[item.originalIndex].action = e.target.value;
+                                                                setAdditionalItems(newItems);
+                                                            }}
+                                                            onFocus={(e) => {
+                                                                if (e.target.value === '해당없음') {
+                                                                    const newItems = [...additionalItems];
+                                                                    newItems[item.originalIndex].action = '';
+                                                                    setAdditionalItems(newItems);
+                                                                }
+                                                            }}
+                                                            onBlur={(e) => {
+                                                                if (e.target.value.trim() === '') {
+                                                                    const newItems = [...additionalItems];
+                                                                    newItems[item.originalIndex].action = '해당없음';
+                                                                    setAdditionalItems(newItems);
+                                                                }
+                                                            }}
+                                                            className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none transition-colors"
+                                                            placeholder="지적시 또는 발견시 조치내용 입력"
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Desktop View (Table Layout) */}
+                                <div className="hidden md:block overflow-x-auto bg-white border border-gray-200 rounded-lg">
+                                    <table className="w-full text-sm text-center border-collapse min-w-[600px]">
+                                        <thead>
+                                            <tr className="bg-gray-100 text-gray-700">
+                                                <th className="py-2.5 px-4 font-semibold border border-gray-200 w-[20%]">구분</th>
+                                                <th className="py-2.5 px-4 font-semibold border border-gray-200 w-[50%]">점검항목</th>
+                                                <th className="py-2.5 px-4 font-semibold border border-gray-200 w-[30%]">조치내용</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {Object.entries(additionalItems.reduce((acc, current, idx) => {
+                                                if (!acc[current.category]) acc[current.category] = [];
+                                                acc[current.category].push({ ...current, originalIndex: idx });
+                                                return acc;
+                                            }, {} as Record<string, any[]>)).map(([category, items]) => (
+                                                items.map((item, i) => (
+                                                    <tr key={item.originalIndex} className="hover:bg-gray-50/50">
+                                                        {i === 0 && (
+                                                            <td rowSpan={items.length} className="py-2 px-4 border border-gray-200 text-left font-semibold text-gray-800 align-middle bg-gray-50/70 border-b-gray-300 break-keep">
+                                                                {category}
+                                                            </td>
+                                                        )}
+                                                        <td className="py-2 px-4 border border-gray-200 text-left text-gray-700 break-keep leading-snug">{item.item}</td>
+                                                        <td className="py-1.5 px-2 border border-gray-200">
+                                                            <input
+                                                                type="text"
+                                                                value={item.action}
+                                                                onChange={(e) => {
+                                                                    const newItems = [...additionalItems];
+                                                                    newItems[item.originalIndex].action = e.target.value;
+                                                                    setAdditionalItems(newItems);
+                                                                }}
+                                                                onFocus={(e) => {
+                                                                    if (e.target.value === '해당없음') {
+                                                                        const newItems = [...additionalItems];
+                                                                        newItems[item.originalIndex].action = '';
+                                                                        setAdditionalItems(newItems);
+                                                                    }
+                                                                }}
+                                                                onBlur={(e) => {
+                                                                    if (e.target.value.trim() === '') {
+                                                                        const newItems = [...additionalItems];
+                                                                        newItems[item.originalIndex].action = '해당없음';
+                                                                        setAdditionalItems(newItems);
+                                                                    }
+                                                                }}
+                                                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none"
+                                                                placeholder="지적시 입력"
+                                                            />
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* 하단 버튼 */}
@@ -1127,7 +1293,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                         <button onClick={onClose} title="취소" className="flex items-center justify-center w-10 h-10 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                             <X className="h-5 w-5" />
                         </button>
-                        {step < 3 ? (
+                        {step < (inspectionType === '해빙기' ? 4 : 3) ? (
                             <button onClick={() => setStep(step + 1)}
                                 className="px-6 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm">
                                 다음 단계 →
