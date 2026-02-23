@@ -222,11 +222,15 @@ export default function SafetyInspectionLedgerPage() {
         if (storageError) console.warn('Storage delete warning:', storageError)
       }
 
-      const { error: dbError } = await (supabase.from('safety_inspection_results') as any)
+      const { data: dbData, error: dbError } = await (supabase.from('safety_inspection_results') as any)
         .update({ after_photo_url: null })
         .eq('id', resultId)
+        .select()
 
       if (dbError) throw dbError
+      if (!dbData || dbData.length === 0) {
+        throw new Error('권한이 없거나 수정할 대상을 찾지 못했습니다. (DB 적용 안됨)')
+      }
 
       await loadInspections()
     } catch (err: any) {
@@ -429,11 +433,11 @@ export default function SafetyInspectionLedgerPage() {
                                           </button>
                                           {photoMenuOpen === `after-${r.id}` && (
                                             <div className="absolute right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[110px] z-20">
-                                              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingImage({ url: r.after_photo_url!, resultId: r.id }); setPhotoMenuOpen(null) }}
+                                              <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setEditingImage({ url: r.after_photo_url!, resultId: r.id }); setPhotoMenuOpen(null) }}
                                                 className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-100 transition-colors">
                                                 <Crop className="h-3.5 w-3.5" /> 크롭/회전
                                               </button>
-                                              <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); removeAfterPhoto(r.id, r.after_photo_url!); setPhotoMenuOpen(null) }}
+                                              <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); removeAfterPhoto(r.id, r.after_photo_url!); setPhotoMenuOpen(null) }}
                                                 className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
                                                 <Trash2 className="h-3.5 w-3.5" /> 삭제
                                               </button>
