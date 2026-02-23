@@ -1365,6 +1365,7 @@ export interface SafetyInspectionDetailForExcel {
   inspection_date: string
   inspection_type: string
   supervisor_name: string | null
+  additional_items: { category: string; item: string; action: string }[] | null
   results: {
     findings: string
     action_items: string
@@ -1422,7 +1423,7 @@ export async function getSafetyInspectionDetailsForExcel(
     // 2. 점검 목록 조회
     let inspQuery = supabase
       .from('safety_inspections')
-      .select('id, project_id, inspection_date, inspection_type, district_name, supervisor_name')
+      .select('id, project_id, inspection_date, inspection_type, district_name, supervisor_name, additional_items')
       .in('project_id', projectIds)
     if (inspectionType) inspQuery = inspQuery.eq('inspection_type', inspectionType)
     const { data: inspections, error: inspError } = await inspQuery
@@ -1463,6 +1464,7 @@ export async function getSafetyInspectionDetailsForExcel(
         inspection_date: ins.inspection_date || '',
         inspection_type: ins.inspection_type || '',
         supervisor_name: ins.supervisor_name || null,
+        additional_items: (ins as any).additional_items || null,
         results: (resultsMap.get(ins.id) || []).map(r => ({
           findings: r.findings || '',
           action_items: r.action_items || '',

@@ -26,6 +26,20 @@ const COLUMNS = [
   { header: '프로젝트명', key: 'projectName', width: 30 },
   { header: '지구명', key: 'districtName', width: 20 },
   { header: '점검일', key: 'inspectionDate', width: 14 },
+  { header: '가① 지적사항', key: 'core1Finding', width: 25 },
+  { header: '가① 조치사항', key: 'core1Action', width: 25 },
+  { header: '가② 지적사항', key: 'core2Finding', width: 25 },
+  { header: '가② 조치사항', key: 'core2Action', width: 25 },
+  { header: '가③ 지적사항', key: 'core3Finding', width: 25 },
+  { header: '가③ 조치사항', key: 'core3Action', width: 25 },
+  { header: '나 지적사항', key: 'naFinding', width: 25 },
+  { header: '나 조치사항', key: 'naAction', width: 25 },
+  { header: '다 지적사항', key: 'daFinding', width: 25 },
+  { header: '다 조치사항', key: 'daAction', width: 25 },
+  { header: '라 지적사항', key: 'raFinding', width: 25 },
+  { header: '라 조치사항', key: 'raAction', width: 25 },
+  { header: '마 지적사항', key: 'maFinding', width: 25 },
+  { header: '마 조치사항', key: 'maAction', width: 25 },
   { header: '지적사항1', key: 'finding1', width: 25 },
   { header: '조치사항1', key: 'action1', width: 25 },
   { header: '지적사항2', key: 'finding2', width: 25 },
@@ -46,6 +60,13 @@ function formatDate(dateStr: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+function getAdditionalFinding(it: { item: string; action: string } | undefined): string {
+  return (it && it.action && it.action !== '해당없음') ? it.item : ''
+}
+function getAdditionalAction(it: { item: string; action: string } | undefined): string {
+  return (it && it.action && it.action !== '해당없음') ? it.action : ''
+}
+
 function buildRow(item: SafetyInspectionDetailForExcel) {
   const results = item.results.sort((a, b) => a.sort_order - b.sort_order)
 
@@ -54,6 +75,14 @@ function buildRow(item: SafetyInspectionDetailForExcel) {
   const doneCount = results.filter(r => r.after_photo_url && r.after_photo_url.trim() !== '').length
   const inProgressCount = totalResults - doneCount
 
+  // 추가 점검 항목 (해빙기)
+  const addItems = item.additional_items || []
+  const coreItems = addItems.filter(i => i.category === '가. 안전관리 5대 핵심항목 이행 여부' && i.action && i.action !== '해당없음')
+  const naItem = addItems.find(i => i.category === '나. 중점사항' && i.action && i.action !== '해당없음')
+  const daItem = addItems.find(i => i.category === '다. 흙막이지보공 및 거푸집동바리' && i.action && i.action !== '해당없음')
+  const raItem = addItems.find(i => i.category === '라. 굴착면 및 지반' && i.action && i.action !== '해당없음')
+  const maItem = addItems.find(i => i.category === '마. 주변시설' && i.action && i.action !== '해당없음')
+
   return {
     hq: item.managing_hq,
     branch: item.managing_branch,
@@ -61,6 +90,20 @@ function buildRow(item: SafetyInspectionDetailForExcel) {
     projectName: item.project_name,
     districtName: item.district_name,
     inspectionDate: formatDate(item.inspection_date),
+    core1Finding: getAdditionalFinding(coreItems[0]),
+    core1Action: getAdditionalAction(coreItems[0]),
+    core2Finding: getAdditionalFinding(coreItems[1]),
+    core2Action: getAdditionalAction(coreItems[1]),
+    core3Finding: getAdditionalFinding(coreItems[2]),
+    core3Action: getAdditionalAction(coreItems[2]),
+    naFinding: getAdditionalFinding(naItem),
+    naAction: getAdditionalAction(naItem),
+    daFinding: getAdditionalFinding(daItem),
+    daAction: getAdditionalAction(daItem),
+    raFinding: getAdditionalFinding(raItem),
+    raAction: getAdditionalAction(raItem),
+    maFinding: getAdditionalFinding(maItem),
+    maAction: getAdditionalAction(maItem),
     finding1: results[0]?.findings || '',
     action1: results[0]?.action_items || '',
     finding2: results[1]?.findings || '',
@@ -91,8 +134,8 @@ function applyDataStyle(row: ExcelJS.Row) {
     cell.font = { size: 10, name: '맑은 고딕' }
     cell.alignment = { vertical: 'middle', wrapText: true }
     // 숫자/날짜 관련 컬럼은 가운데 정렬
-    if (colNumber >= 6 && colNumber <= 6) cell.alignment = { horizontal: 'center', vertical: 'middle' }
-    if (colNumber >= 13 && colNumber <= 16) cell.alignment = { horizontal: 'center', vertical: 'middle' }
+    if (colNumber === 6) cell.alignment = { horizontal: 'center', vertical: 'middle' }
+    if (colNumber >= 27 && colNumber <= 30) cell.alignment = { horizontal: 'center', vertical: 'middle' }
   })
 }
 
@@ -138,14 +181,39 @@ export function downloadSafetyInspectionLedgerExcel(
 
     const sheetName = hq.length > 31 ? hq.slice(0, 31) : hq
     const worksheet = workbook.addWorksheet(sheetName)
-    worksheet.columns = COLUMNS.map(c => ({ ...c }))
+    worksheet.columns = COLUMNS.map(c => ({ key: c.key, width: c.width }))
 
-    // 헤더 행
-    const headerRow = worksheet.getRow(1)
-    COLUMNS.forEach((col, idx) => {
-      headerRow.getCell(idx + 1).value = col.header
-    })
+    // 1행: 카테고리 그룹 헤더
+    const catRow = worksheet.getRow(1)
+    // 좌측 비그룹 컬럼 (1-6) — 세로 병합 예정이므로 여기에 값 설정
+    ;[1, 2, 3, 4, 5, 6].forEach(c => { catRow.getCell(c).value = COLUMNS[c - 1].header })
+    // 가~마 카테고리 그룹 헤더
+    catRow.getCell(7).value = '가. 안전관리 5대 핵심항목 이행 여부'
+    catRow.getCell(13).value = '나. 중점사항'
+    catRow.getCell(15).value = '다. 흙막이지보공 및 거푸집동바리'
+    catRow.getCell(17).value = '라. 굴착면 및 지반'
+    catRow.getCell(19).value = '마. 주변시설'
+    // 우측 비그룹 컬럼 (21-31) — 세로 병합 예정
+    for (let c = 21; c <= 31; c++) { catRow.getCell(c).value = COLUMNS[c - 1].header }
+    applyHeaderStyle(catRow)
+    catRow.height = 32
+
+    // 2행: 가~마 그룹 내 개별 컬럼 헤더
+    const headerRow = worksheet.getRow(2)
+    for (let c = 7; c <= 20; c++) { headerRow.getCell(c).value = COLUMNS[c - 1].header }
     applyHeaderStyle(headerRow)
+
+    // 셀 병합
+    // 좌측 비그룹 세로 병합 (1행~2행)
+    ;[1, 2, 3, 4, 5, 6].forEach(c => worksheet.mergeCells(1, c, 2, c))
+    // 우측 비그룹 세로 병합 (1행~2행)
+    for (let c = 21; c <= 31; c++) worksheet.mergeCells(1, c, 2, c)
+    // 카테고리 가로 병합 (1행)
+    worksheet.mergeCells(1, 7, 1, 12)   // 가: 6컬럼
+    worksheet.mergeCells(1, 13, 1, 14)  // 나: 2컬럼
+    worksheet.mergeCells(1, 15, 1, 16)  // 다: 2컬럼
+    worksheet.mergeCells(1, 17, 1, 18)  // 라: 2컬럼
+    worksheet.mergeCells(1, 19, 1, 20)  // 마: 2컬럼
 
     // 지사별 정렬
     const branchOrder = BRANCH_OPTIONS[hq] || []
@@ -208,6 +276,8 @@ export function downloadSafetyInspectionLedgerExcel(
       projectName: '',
       districtName: '',
       inspectionDate: '',
+      core1Finding: '', core1Action: '', core2Finding: '', core2Action: '', core3Finding: '', core3Action: '',
+      naFinding: '', naAction: '', daFinding: '', daAction: '', raFinding: '', raAction: '', maFinding: '', maAction: '',
       finding1: '', action1: '', finding2: '', action2: '', finding3: '', action3: '',
       resultTotal: totalResultCount > 0 ? `${totalResultCount}건` : '',
       actionDone: totalDoneCount > 0 ? `${totalDoneCount}건` : '',

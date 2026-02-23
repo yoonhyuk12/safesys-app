@@ -109,6 +109,10 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
 
     // 추가 점검 항목
     const [additionalItems, setAdditionalItems] = useState<{ category: string; item: string; action: string }[]>([])
+    // 5대 핵심항목 선택 슬롯 3개
+    const [coreItemSlots, setCoreItemSlots] = useState<(number | null)[]>([null, null, null])
+    // 단일 선택 항목 (나/다/라/마 - 카테고리별 1개)
+    const [selectedSingleItems, setSelectedSingleItems] = useState<Map<string, number>>(new Map())
 
     // 서명
     const [signatures, setSignatures] = useState<any[]>([
@@ -248,8 +252,22 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
 
         if (inspection.additional_items && Array.isArray(inspection.additional_items)) {
             setAdditionalItems(inspection.additional_items)
+            const slots: (number | null)[] = [null, null, null]
+            let slotIdx = 0
+            const singleSelected = new Map<string, number>()
+            inspection.additional_items.forEach((item: any, idx: number) => {
+                if (item.category === '가. 안전관리 5대 핵심항목 이행 여부') {
+                    if (item.action && item.action !== '해당없음' && slotIdx < 3) slots[slotIdx++] = idx
+                } else if (item.action && item.action !== '해당없음' && !singleSelected.has(item.category)) {
+                    singleSelected.set(item.category, idx)
+                }
+            })
+            setCoreItemSlots(slots)
+            setSelectedSingleItems(singleSelected)
         } else if (inspection.inspection_type === '해빙기') {
             setAdditionalItems(JSON.parse(JSON.stringify(THAW_SEASON_ITEMS)))
+            setCoreItemSlots([null, null, null])
+            setSelectedSingleItems(new Map())
         }
 
         if (inspection.signatures && Array.isArray(inspection.signatures) && inspection.signatures.length > 0) {
@@ -306,6 +324,28 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
         const updated = [...results]
             ; (updated[index] as any)[field] = value
         setResults(updated)
+    }
+
+    const setCoreSlot = (slotIndex: number, itemIdx: number | null) => {
+        const prevIdx = coreItemSlots[slotIndex]
+        const newItems = [...additionalItems]
+        if (prevIdx !== null) newItems[prevIdx].action = '해당없음'
+        if (itemIdx !== null && newItems[itemIdx].action === '해당없음') newItems[itemIdx].action = ''
+        setAdditionalItems(newItems)
+        setCoreItemSlots(prev => { const next = [...prev]; next[slotIndex] = itemIdx; return next })
+    }
+
+    const selectSingleItem = (category: string, idx: number | null) => {
+        const prevIdx = selectedSingleItems.get(category)
+        const newItems = [...additionalItems]
+        if (prevIdx !== undefined) newItems[prevIdx].action = '해당없음'
+        if (idx !== null && newItems[idx].action === '해당없음') newItems[idx].action = ''
+        setAdditionalItems(newItems)
+        setSelectedSingleItems(prev => {
+            const next = new Map(prev)
+            idx === null ? next.delete(category) : next.set(category, idx)
+            return next
+        })
     }
 
     const handleResultPhotoUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1171,50 +1211,133 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                         if (!acc[current.category]) acc[current.category] = [];
                                         acc[current.category].push({ ...current, originalIndex: idx });
                                         return acc;
-                                    }, {} as Record<string, any[]>)).map(([category, items]) => (
-                                        <div key={category} className="space-y-3">
-                                            {/* Category Header */}
-                                            <div className="bg-blue-50 text-blue-800 font-semibold text-sm px-3 py-2 rounded-lg border border-blue-100 mt-2">
-                                                {category}
-                                            </div>
-                                            {items.map((item) => (
-                                                <div key={item.originalIndex} className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col gap-2">
-                                                    <div>
-                                                        <span className="block text-[11px] font-semibold text-gray-500 mb-0.5">점검항목</span>
-                                                        <span className="text-sm text-gray-800 font-medium leading-snug break-keep">{item.item}</span>
+                                    }, {} as Record<string, any[]>)).map(([category, items]) => {
+                                        const isCoreCategory = category === '가. 안전관리 5대 핵심항목 이행 여부'
+                                        if (!isCoreCategory) {
+                                            const selectedIdx = selectedSingleItems.get(category)
+                                            const selectedItem = selectedIdx !== undefined ? items.find((i: any) => i.originalIndex === selectedIdx) : null
+                                            return (
+                                                <div key={category} className="space-y-3">
+                                                    <div className="bg-blue-50 text-blue-800 font-semibold text-sm px-3 py-2 rounded-lg border border-blue-100 mt-2 flex items-center justify-between">
+                                                        <span>{category}</span>
+                                                        {selectedItem && (
+                                                            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-blue-600 text-white">선택됨</span>
+                                                        )}
                                                     </div>
-                                                    <div className="pt-2 border-t border-gray-100">
-                                                        <span className="block mb-1 text-[11px] font-semibold text-gray-500">조치내용</span>
-                                                        <input
-                                                            type="text"
-                                                            value={item.action}
-                                                            onChange={(e) => {
-                                                                const newItems = [...additionalItems];
-                                                                newItems[item.originalIndex].action = e.target.value;
-                                                                setAdditionalItems(newItems);
-                                                            }}
-                                                            onFocus={(e) => {
-                                                                if (e.target.value === '해당없음') {
-                                                                    const newItems = [...additionalItems];
-                                                                    newItems[item.originalIndex].action = '';
-                                                                    setAdditionalItems(newItems);
-                                                                }
-                                                            }}
-                                                            onBlur={(e) => {
-                                                                if (e.target.value.trim() === '') {
-                                                                    const newItems = [...additionalItems];
-                                                                    newItems[item.originalIndex].action = '해당없음';
-                                                                    setAdditionalItems(newItems);
-                                                                }
-                                                            }}
-                                                            className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none transition-colors"
-                                                            placeholder="지적시 또는 발견시 조치내용 입력"
-                                                        />
+                                                    <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col gap-3">
+                                                        <div>
+                                                            <span className="block text-[11px] font-semibold text-gray-500 mb-1">점검항목 선택</span>
+                                                            <select
+                                                                value={selectedIdx !== undefined ? String(selectedIdx) : ''}
+                                                                onChange={(e) => selectSingleItem(category, e.target.value === '' ? null : Number(e.target.value))}
+                                                                className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none"
+                                                            >
+                                                                <option value="">항목 선택...</option>
+                                                                {items.map((item: any) => (
+                                                                    <option key={item.originalIndex} value={String(item.originalIndex)}>{item.item}</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                        {selectedItem && (
+                                                            <div className="border-t border-gray-100 pt-2">
+                                                                <span className="block mb-1 text-[11px] font-semibold text-gray-500">조치내용</span>
+                                                                <input
+                                                                    type="text"
+                                                                    value={selectedItem.action}
+                                                                    onChange={(e) => {
+                                                                        const newItems = [...additionalItems];
+                                                                        newItems[selectedItem.originalIndex].action = e.target.value;
+                                                                        setAdditionalItems(newItems);
+                                                                    }}
+                                                                    onFocus={(e) => {
+                                                                        if (e.target.value === '해당없음') {
+                                                                            const newItems = [...additionalItems];
+                                                                            newItems[selectedItem.originalIndex].action = '';
+                                                                            setAdditionalItems(newItems);
+                                                                        }
+                                                                    }}
+                                                                    onBlur={(e) => {
+                                                                        if (e.target.value.trim() === '') {
+                                                                            const newItems = [...additionalItems];
+                                                                            newItems[selectedItem.originalIndex].action = '해당없음';
+                                                                            setAdditionalItems(newItems);
+                                                                        }
+                                                                    }}
+                                                                    className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none transition-colors"
+                                                                    placeholder="지적시 또는 발견시 조치내용 입력"
+                                                                />
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    ))}
+                                            )
+                                        }
+                                        const filledCount = coreItemSlots.filter(v => v !== null).length
+                                        return (
+                                            <div key={category} className="space-y-3">
+                                                <div className="bg-blue-50 text-blue-800 font-semibold text-sm px-3 py-2 rounded-lg border border-blue-100 mt-2 flex items-center justify-between">
+                                                    <span>{category}</span>
+                                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${filledCount === 3 ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                                                        {filledCount}/3 선택
+                                                    </span>
+                                                </div>
+                                                {[0, 1, 2].map(slotIndex => {
+                                                    const selectedIdx = coreItemSlots[slotIndex]
+                                                    const selectedItem = selectedIdx !== null ? items.find((i: any) => i.originalIndex === selectedIdx) : null
+                                                    const usedIndices = coreItemSlots.filter((v, s) => v !== null && s !== slotIndex) as number[]
+                                                    return (
+                                                        <div key={slotIndex} className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col gap-3">
+                                                            <div>
+                                                                <span className="block text-[11px] font-semibold text-gray-500 mb-1">선택 {slotIndex + 1}</span>
+                                                                <select
+                                                                    value={selectedIdx !== null ? String(selectedIdx) : ''}
+                                                                    onChange={(e) => setCoreSlot(slotIndex, e.target.value === '' ? null : Number(e.target.value))}
+                                                                    className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none"
+                                                                >
+                                                                    <option value="">항목 선택...</option>
+                                                                    {items.map((item: any) => (
+                                                                        <option key={item.originalIndex} value={String(item.originalIndex)} disabled={usedIndices.includes(item.originalIndex)}>
+                                                                            {item.item}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </div>
+                                                            {selectedItem && (
+                                                                <div className="border-t border-gray-100 pt-2">
+                                                                    <span className="block mb-1 text-[11px] font-semibold text-gray-500">조치내용</span>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={selectedItem.action}
+                                                                        onChange={(e) => {
+                                                                            const newItems = [...additionalItems];
+                                                                            newItems[selectedItem.originalIndex].action = e.target.value;
+                                                                            setAdditionalItems(newItems);
+                                                                        }}
+                                                                        onFocus={(e) => {
+                                                                            if (e.target.value === '해당없음') {
+                                                                                const newItems = [...additionalItems];
+                                                                                newItems[selectedItem.originalIndex].action = '';
+                                                                                setAdditionalItems(newItems);
+                                                                            }
+                                                                        }}
+                                                                        onBlur={(e) => {
+                                                                            if (e.target.value.trim() === '') {
+                                                                                const newItems = [...additionalItems];
+                                                                                newItems[selectedItem.originalIndex].action = '해당없음';
+                                                                                setAdditionalItems(newItems);
+                                                                            }
+                                                                        }}
+                                                                        className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none transition-colors"
+                                                                        placeholder="지적시 또는 발견시 조치내용 입력"
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        )
+                                    })}
                                 </div>
 
                                 {/* Desktop View (Table Layout) */}
@@ -1232,45 +1355,126 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                                 if (!acc[current.category]) acc[current.category] = [];
                                                 acc[current.category].push({ ...current, originalIndex: idx });
                                                 return acc;
-                                            }, {} as Record<string, any[]>)).map(([category, items]) => (
-                                                items.map((item, i) => (
-                                                    <tr key={item.originalIndex} className="hover:bg-gray-50/50">
-                                                        {i === 0 && (
-                                                            <td rowSpan={items.length} className="py-2 px-4 border border-gray-200 text-left font-semibold text-gray-800 align-middle bg-gray-50/70 border-b-gray-300 break-keep">
+                                            }, {} as Record<string, any[]>)).map(([category, items]) => {
+                                                const isCoreCategory = category === '가. 안전관리 5대 핵심항목 이행 여부'
+                                                if (!isCoreCategory) {
+                                                    const selectedIdx = selectedSingleItems.get(category)
+                                                    const selectedItem = selectedIdx !== undefined ? items.find((i: any) => i.originalIndex === selectedIdx) : null
+                                                    return (
+                                                        <tr key={`cat-${category}`} className="hover:bg-gray-50/50">
+                                                            <td className="py-2 px-4 border border-gray-200 text-left font-semibold text-gray-800 align-middle bg-gray-50/70 break-keep w-[20%]">
                                                                 {category}
                                                             </td>
-                                                        )}
-                                                        <td className="py-2 px-4 border border-gray-200 text-left text-gray-700 break-keep leading-snug">{item.item}</td>
-                                                        <td className="py-1.5 px-2 border border-gray-200">
-                                                            <input
-                                                                type="text"
-                                                                value={item.action}
-                                                                onChange={(e) => {
-                                                                    const newItems = [...additionalItems];
-                                                                    newItems[item.originalIndex].action = e.target.value;
-                                                                    setAdditionalItems(newItems);
-                                                                }}
-                                                                onFocus={(e) => {
-                                                                    if (e.target.value === '해당없음') {
-                                                                        const newItems = [...additionalItems];
-                                                                        newItems[item.originalIndex].action = '';
-                                                                        setAdditionalItems(newItems);
-                                                                    }
-                                                                }}
-                                                                onBlur={(e) => {
-                                                                    if (e.target.value.trim() === '') {
-                                                                        const newItems = [...additionalItems];
-                                                                        newItems[item.originalIndex].action = '해당없음';
-                                                                        setAdditionalItems(newItems);
-                                                                    }
-                                                                }}
-                                                                className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none"
-                                                                placeholder="지적시 입력"
-                                                            />
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            ))}
+                                                            <td className="py-2 px-3 border border-gray-200 w-[50%]">
+                                                                <select
+                                                                    value={selectedIdx !== undefined ? String(selectedIdx) : ''}
+                                                                    onChange={(e) => selectSingleItem(category, e.target.value === '' ? null : Number(e.target.value))}
+                                                                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none"
+                                                                >
+                                                                    <option value="">항목 선택...</option>
+                                                                    {items.map((item: any) => (
+                                                                        <option key={item.originalIndex} value={String(item.originalIndex)}>{item.item}</option>
+                                                                    ))}
+                                                                </select>
+                                                            </td>
+                                                            <td className="py-1.5 px-2 border border-gray-200 w-[30%]">
+                                                                {selectedItem ? (
+                                                                    <input
+                                                                        type="text"
+                                                                        value={selectedItem.action}
+                                                                        onChange={(e) => {
+                                                                            const newItems = [...additionalItems];
+                                                                            newItems[selectedItem.originalIndex].action = e.target.value;
+                                                                            setAdditionalItems(newItems);
+                                                                        }}
+                                                                        onFocus={(e) => {
+                                                                            if (e.target.value === '해당없음') {
+                                                                                const newItems = [...additionalItems];
+                                                                                newItems[selectedItem.originalIndex].action = '';
+                                                                                setAdditionalItems(newItems);
+                                                                            }
+                                                                        }}
+                                                                        onBlur={(e) => {
+                                                                            if (e.target.value.trim() === '') {
+                                                                                const newItems = [...additionalItems];
+                                                                                newItems[selectedItem.originalIndex].action = '해당없음';
+                                                                                setAdditionalItems(newItems);
+                                                                            }
+                                                                        }}
+                                                                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none"
+                                                                        placeholder="조치내용 입력"
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-sm text-gray-400 italic">항목 선택 후 입력</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                }
+                                                const filledCount = coreItemSlots.filter(v => v !== null).length
+                                                return [0, 1, 2].map(slotIndex => {
+                                                    const selectedIdx = coreItemSlots[slotIndex]
+                                                    const selectedItem = selectedIdx !== null ? items.find((i: any) => i.originalIndex === selectedIdx) : null
+                                                    const usedIndices = coreItemSlots.filter((v, s) => v !== null && s !== slotIndex) as number[]
+                                                    return (
+                                                        <tr key={`core-slot-${slotIndex}`} className="hover:bg-gray-50/50">
+                                                            {slotIndex === 0 && (
+                                                                <td rowSpan={3} className="py-2 px-4 border border-gray-200 text-left font-semibold text-gray-800 align-middle bg-gray-50/70 break-keep">
+                                                                    {category}
+                                                                    <div className={`mt-1.5 text-xs font-medium px-2 py-0.5 rounded-full inline-block ${filledCount === 3 ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'}`}>
+                                                                        {filledCount}/3 선택
+                                                                    </div>
+                                                                </td>
+                                                            )}
+                                                            <td className="py-2 px-3 border border-gray-200">
+                                                                <select
+                                                                    value={selectedIdx !== null ? String(selectedIdx) : ''}
+                                                                    onChange={(e) => setCoreSlot(slotIndex, e.target.value === '' ? null : Number(e.target.value))}
+                                                                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none"
+                                                                >
+                                                                    <option value="">항목 선택...</option>
+                                                                    {items.map((item: any) => (
+                                                                        <option key={item.originalIndex} value={String(item.originalIndex)} disabled={usedIndices.includes(item.originalIndex)}>
+                                                                            {item.item}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            </td>
+                                                            <td className="py-1.5 px-2 border border-gray-200">
+                                                                {selectedItem ? (
+                                                                    <input
+                                                                        type="text"
+                                                                        value={selectedItem.action}
+                                                                        onChange={(e) => {
+                                                                            const newItems = [...additionalItems];
+                                                                            newItems[selectedItem.originalIndex].action = e.target.value;
+                                                                            setAdditionalItems(newItems);
+                                                                        }}
+                                                                        onFocus={(e) => {
+                                                                            if (e.target.value === '해당없음') {
+                                                                                const newItems = [...additionalItems];
+                                                                                newItems[selectedItem.originalIndex].action = '';
+                                                                                setAdditionalItems(newItems);
+                                                                            }
+                                                                        }}
+                                                                        onBlur={(e) => {
+                                                                            if (e.target.value.trim() === '') {
+                                                                                const newItems = [...additionalItems];
+                                                                                newItems[selectedItem.originalIndex].action = '해당없음';
+                                                                                setAdditionalItems(newItems);
+                                                                            }
+                                                                        }}
+                                                                        className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none"
+                                                                        placeholder="조치내용 입력"
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-sm text-gray-400 italic">항목 선택 후 입력</span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    )
+                                                })
+                                            })}
                                         </tbody>
                                     </table>
                                 </div>

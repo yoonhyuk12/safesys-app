@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Plus, Trash2, Eye, FileText, FileSpreadsheet, Upload, Image as ImageIcon, Edit2, MoreVertical, Crop } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -65,6 +65,7 @@ export default function SafetyInspectionLedgerPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const projectId = params.id as string
 
   const [project, setProject] = useState<Project | null>(null)
@@ -118,7 +119,14 @@ export default function SafetyInspectionLedgerPage() {
     }
   }, [user, projectId, loadProject, loadInspections])
 
-  const handleBack = () => router.push(`/project/${projectId}`)
+  const handleBack = () => {
+    const returnUrl = searchParams.get('returnUrl')
+    if (returnUrl) {
+      router.push(returnUrl)
+    } else {
+      router.push(`/project/${projectId}`)
+    }
+  }
 
   const handleDelete = async (id: string) => {
     try {
