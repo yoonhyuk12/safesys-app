@@ -11,16 +11,16 @@ import PWAInstallButton from '../common/PWAInstallButton'
 // 방패 아이콘 컴포넌트
 const ShieldIcon = () => (
   <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M24 4L6 12V22C6 32.5 12.5 42.26 24 44C35.5 42.26 42 32.5 42 22V12L24 4Z" 
-          fill="#2563eb" 
-          stroke="#1d4ed8" 
-          strokeWidth="2"/>
-    <path d="M16 24L22 30L32 18" 
-          stroke="#ffffff" 
-          strokeWidth="3" 
-          strokeLinecap="round" 
-          strokeLinejoin="round" 
-          fill="none"/>
+    <path d="M24 4L6 12V22C6 32.5 12.5 42.26 24 44C35.5 42.26 42 32.5 42 22V12L24 4Z"
+      fill="#2563eb"
+      stroke="#1d4ed8"
+      strokeWidth="2" />
+    <path d="M16 24L22 30L32 18"
+      stroke="#ffffff"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      fill="none" />
   </svg>
 )
 
@@ -72,8 +72,8 @@ const LoginForm: React.FC = () => {
     const savedEmail = localStorage.getItem('rememberedEmail')
     const savedPassword = localStorage.getItem('rememberedPassword')
     if (savedEmail) {
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         email: savedEmail,
         password: savedPassword || ''
       }))
@@ -90,7 +90,7 @@ const LoginForm: React.FC = () => {
       // 실제 Supabase 로그인 사용 (이메일은 소문자로 변환)
       const lowerEmail = formData.email.toLowerCase()
       await signIn(lowerEmail, formData.password)
-      
+
       // 로그인 성공 시 로그인 정보 저장/삭제 처리
       if (rememberMe) {
         localStorage.setItem('rememberedEmail', lowerEmail)
@@ -99,7 +99,7 @@ const LoginForm: React.FC = () => {
         localStorage.removeItem('rememberedEmail')
         localStorage.removeItem('rememberedPassword')
       }
-      
+
       router.push('/')
     } catch (err: any) {
       setError(err.message || '로그인에 실패했습니다.')
@@ -129,7 +129,7 @@ const LoginForm: React.FC = () => {
           >
             <Share2 className="h-5 w-5" />
           </button>
-          
+
           {/* PWA 설치 버튼 */}
           <PWAInstallButton />
           {/* 헤더 */}
@@ -146,7 +146,7 @@ const LoginForm: React.FC = () => {
               계정에 로그인하세요
             </p>
           </div>
-          
+
           {/* 로그인 폼 */}
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-4">
@@ -171,7 +171,7 @@ const LoginForm: React.FC = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                   비밀번호
@@ -282,23 +282,26 @@ const LoginForm: React.FC = () => {
               >
                 계정이 없으신가요? 회원가입
               </button>
-              <p className="mt-3 text-xs text-gray-500">
-                문의 : 윤혁 차장(<a href="tel:01026765472" className="underline font-semibold text-gray-700">010-2676-5472</a>)
-              </p>
+              <div className="mt-3 text-xs text-gray-500 flex justify-center text-left">
+                <div className="inline-block">
+                  <p>문의 : 경기 윤혁 차장(<a href="tel:01026765472" className="underline font-semibold text-gray-700">010-2676-5472</a>)</p>
+                  <p className="pl-9 text-[11px]">충남 임원일 차장(<a href="tel:01047581293" className="underline font-semibold text-gray-700">010-4758-1293</a>)</p>
+                </div>
+              </div>
             </div>
           </form>
         </div>
 
         {/* 아이디 찾기 모달 */}
-        <FindIdModal 
-          isOpen={showFindIdModal} 
-          onClose={() => setShowFindIdModal(false)} 
+        <FindIdModal
+          isOpen={showFindIdModal}
+          onClose={() => setShowFindIdModal(false)}
         />
 
         {/* 비밀번호 찾기 모달 */}
-        <FindPasswordModal 
-          isOpen={showFindPasswordModal} 
-          onClose={() => setShowFindPasswordModal(false)} 
+        <FindPasswordModal
+          isOpen={showFindPasswordModal}
+          onClose={() => setShowFindPasswordModal(false)}
         />
       </div>
     </div>

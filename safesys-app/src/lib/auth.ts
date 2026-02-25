@@ -80,7 +80,7 @@ export const signIn = async (email: string, password: string) => {
       if (error.message.includes('Invalid login credentials')) {
         throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.')
       } else if (error.message.includes('Email not confirmed')) {
-        throw new Error('이메일 인증을 먼저 해주시기 바랍니다. 가입 시 입력한 이메일의 받은편지함을 확인해주세요. (꼭 스팸메일함 확인해주세요) 문의 : 3급 윤혁(010-2676-5472)')
+        throw new Error('이메일 인증을 먼저 해주시기 바랍니다. 가입 시 입력한 이메일의 받은편지함을 확인해주세요. (꼭 스팸메일함 확인해주세요)\n문의 : 경기 윤혁 차장(010-2676-5472) / 충남 임원일 차장(010-4758-1293)')
       } else if (error.message.includes('Too many requests')) {
         throw new Error('너무 많은 로그인 시도입니다. 잠시 후 다시 시도해주세요.')
       } else {
