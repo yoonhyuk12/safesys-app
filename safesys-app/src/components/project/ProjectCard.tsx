@@ -30,6 +30,7 @@ interface ProjectCardProps {
   isDragging?: boolean
   isDragOver?: boolean
   hqPendingCount?: number // 본부 불시점검 미조치 건수
+  safetyPendingCount?: number // 안전점검 관리대장 미조치 건수
 }
 
 const ProjectCard: React.FC<ProjectCardProps> = ({
@@ -54,7 +55,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   onDrop,
   isDragging = false,
   isDragOver = false,
-  hqPendingCount
+  hqPendingCount,
+  safetyPendingCount
 }) => {
   // showQuarters가 명시되지 않으면 canEditQuarters 값 사용 (기존 동작 유지)
   const shouldShowQuarters = showQuarters !== undefined ? showQuarters : canEditQuarters
@@ -108,7 +110,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
       e.stopPropagation()
       return
     }
-    
+
     // 롱 프레스로 인한 클릭이면 무시
     if (isLongPressRef.current) {
       e.preventDefault()
@@ -116,7 +118,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
       isLongPressRef.current = false
       return
     }
-    
+
     console.log('카드 클릭됨:', project.project_name)
     console.log('클릭 이벤트:', e.target)
     if (onClick) {
@@ -131,22 +133,22 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   const handleMouseDown = (e: React.MouseEvent) => {
     // 항상 이벤트 전파 방지 (외부 클릭 감지 방지)
     e.stopPropagation()
-    
+
     // 편집 모드에서는 롱 프레스 타이머를 시작하지 않음 (드래그만 허용)
     if (isEditMode) {
       console.log('편집 모드: 드래그 시작 가능')
       return
     }
-    
+
     console.log('마우스 다운:', project.project_name)
     longPressTriggeredRef.current = false
-    
+
     // 마우스 다운 시간 기록
     mouseDownTimeRef.current = Date.now()
     isLongPressRef.current = false
-    
+
     console.log('롱 프레스 타이머 시작 (5초)')
-    
+
     // 타이머 시작
     longPressTimerRef.current = setTimeout(() => {
       console.log('롱 프레스 완료! 편집 모드 진입')
@@ -163,7 +165,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
   const handleMouseUp = (e: React.MouseEvent) => {
     console.log('마우스 업:', project.project_name)
-    
+
     // 타이머 취소
     if (longPressTimerRef.current) {
       const pressDuration = mouseDownTimeRef.current ? Date.now() - mouseDownTimeRef.current : 0
@@ -171,7 +173,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
       clearTimeout(longPressTimerRef.current)
       longPressTimerRef.current = null
     }
-    
+
     // 마우스를 떼는 시점에 시간 차이 계산
     if (mouseDownTimeRef.current !== null) {
       const pressDuration = Date.now() - mouseDownTimeRef.current
@@ -208,14 +210,14 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   const handleTouchStart = (e: React.TouchEvent) => {
     // 항상 이벤트 전파 방지 (외부 클릭 감지 방지)
     e.stopPropagation()
-    
+
     if (isEditMode) return
-    
+
     // 터치 시작 시간 기록
     mouseDownTimeRef.current = Date.now()
     isLongPressRef.current = false
     longPressTriggeredRef.current = false
-    
+
     // 타이머 시작
     longPressTimerRef.current = setTimeout(() => {
       // 5초 이상 누르고 있으면 롱 프레스로 인식
@@ -234,7 +236,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
       clearTimeout(longPressTimerRef.current)
       longPressTimerRef.current = null
     }
-    
+
     // 터치를 떼는 시점에 시간 차이 계산
     if (mouseDownTimeRef.current !== null) {
       const pressDuration = Date.now() - mouseDownTimeRef.current
@@ -404,12 +406,12 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   const handleStatusToggle = async (e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation()
     const newStatus = e.target.checked
-    
+
     try {
       // Supabase에서 현재 세션 토큰 가져오기
       const { supabase } = await import('@/lib/supabase')
       const { data: { session } } = await supabase.auth.getSession()
-      
+
       if (!session?.access_token) {
         throw new Error('인증 토큰이 없습니다.')
       }
@@ -417,7 +419,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
       // API 호출로 데이터베이스 업데이트 (상대 경로 사용)
       const apiUrl = `/api/projects/${project.id}/status`
       console.log('API 호출 URL:', apiUrl)
-      
+
       const response = await fetch(apiUrl, {
         method: 'PATCH',
         headers: {
@@ -434,7 +436,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
       }
 
       const result = await response.json()
-      
+
       if (result.success) {
         setIsActive(newStatus)
         if (onStatusChange) {
@@ -482,18 +484,14 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
   return (
     <div
-      className={`group bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 p-3 relative ${
-        isEditMode ? 'cursor-move' : 'cursor-pointer'
-      } ${
-        isEditMode ? 'animate-shake' : ''
-      } ${
+      className={`group bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 p-3 relative ${isEditMode ? 'cursor-move' : 'cursor-pointer'
+        } ${isEditMode ? 'animate-shake' : ''
+        } ${
         // 모바일 편집모드에서 카드 위 스크롤 방지 (터치 드래그로 순서 이동)
         isEditMode ? 'touch-none select-none' : ''
-      } ${
-        isDragging ? 'opacity-50' : ''
-      } ${
-        isDragOver ? 'ring-2 ring-blue-500 ring-offset-2' : ''
-      }`}
+        } ${isDragging ? 'opacity-50' : ''
+        } ${isDragOver ? 'ring-2 ring-blue-500 ring-offset-2' : ''
+        }`}
       data-edit-mode={isEditMode}
       data-project-card="true"
       data-project-id={project.id}
@@ -576,10 +574,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         </div>
       )}
 
-      {/* 본부 불시점검 미조치 뱃지 */}
-      {hqPendingCount != null && hqPendingCount > 0 && (
-        <div className="absolute -top-2 -right-2 z-20 flex items-center justify-center min-w-6 h-6 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full shadow-lg border-2 border-white">
-          {hqPendingCount}
+      {/* 미조치 합산 뱃지 (본부 불시점검 + 안전점검 관리대장) */}
+      {((hqPendingCount || 0) + (safetyPendingCount || 0)) > 0 && (
+        <div className="absolute -top-2 -right-2 z-20 flex items-center justify-center min-w-6 h-6 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full shadow-lg border-2 border-white" title="미조치 항목 (본부 불시점검 + 안전점검 관리대장)">
+          {(hqPendingCount || 0) + (safetyPendingCount || 0)}
         </div>
       )}
 
@@ -634,7 +632,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
             )}
           </div>
         </div>
-        
+
         {/* 기본 주소 */}
         {project.site_address && (
           <div className="flex items-start text-xs text-gray-500 mt-1 mb-6">
@@ -661,73 +659,73 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         )}
         {/* 분기/준공 5분할 세그먼트 */}
         {shouldShowQuarters && !isEditMode && (
-        <div 
-          className="inline-flex items-center gap-2 select-none" 
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => {
-            // 롱 프레스를 위해 이벤트 전파 허용
-            e.stopPropagation()
-            handleMouseDown(e as any)
-          }}
-          onMouseUp={(e) => {
-            e.stopPropagation()
-            handleMouseUp(e as any)
-          }}
-        >
-          <div className="inline-flex items-center">
-            <button
-              type="button"
-              title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
-              className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border ${segmentClass(q1Active, isDisabled)} rounded-l-md`}
-              onClick={(e) => handleQuarterClick(e, 'q1_active')}
-            >
-              <span className="[@media(min-width:1413px)]:hidden">1Q</span>
-              <span className="hidden [@media(min-width:1413px)]:inline">1분기</span>
-            </button>
-            <button
-              type="button"
-              title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
-              className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q2Active, isDisabled)}`}
-              onClick={(e) => handleQuarterClick(e, 'q2_active')}
-            >
-              <span className="[@media(min-width:1413px)]:hidden">2Q</span>
-              <span className="hidden [@media(min-width:1413px)]:inline">2분기</span>
-            </button>
-            <button
-              type="button"
-              title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
-              className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q3Active, isDisabled)}`}
-              onClick={(e) => handleQuarterClick(e, 'q3_active')}
-            >
-              <span className="[@media(min-width:1413px)]:hidden">3Q</span>
-              <span className="hidden [@media(min-width:1413px)]:inline">3분기</span>
-            </button>
-            <button
-              type="button"
-              title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
-              className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q4Active, isDisabled)}`}
-              onClick={(e) => handleQuarterClick(e, 'q4_active')}
-            >
-              <span className="[@media(min-width:1413px)]:hidden">4Q</span>
-              <span className="hidden [@media(min-width:1413px)]:inline">4분기</span>
-            </button>
-            <button
-              type="button"
-              title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
-              className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(completed, isDisabled)} rounded-r-md`}
-              onClick={(e) => handleQuarterClick(e, 'completed')}
-            >
-              <span className="[@media(min-width:1413px)]:hidden">준</span>
-              <span className="hidden [@media(min-width:1413px)]:inline">준공</span>
-            </button>
+          <div
+            className="inline-flex items-center gap-2 select-none"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => {
+              // 롱 프레스를 위해 이벤트 전파 허용
+              e.stopPropagation()
+              handleMouseDown(e as any)
+            }}
+            onMouseUp={(e) => {
+              e.stopPropagation()
+              handleMouseUp(e as any)
+            }}
+          >
+            <div className="inline-flex items-center">
+              <button
+                type="button"
+                title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
+                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border ${segmentClass(q1Active, isDisabled)} rounded-l-md`}
+                onClick={(e) => handleQuarterClick(e, 'q1_active')}
+              >
+                <span className="[@media(min-width:1413px)]:hidden">1Q</span>
+                <span className="hidden [@media(min-width:1413px)]:inline">1분기</span>
+              </button>
+              <button
+                type="button"
+                title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
+                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q2Active, isDisabled)}`}
+                onClick={(e) => handleQuarterClick(e, 'q2_active')}
+              >
+                <span className="[@media(min-width:1413px)]:hidden">2Q</span>
+                <span className="hidden [@media(min-width:1413px)]:inline">2분기</span>
+              </button>
+              <button
+                type="button"
+                title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
+                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q3Active, isDisabled)}`}
+                onClick={(e) => handleQuarterClick(e, 'q3_active')}
+              >
+                <span className="[@media(min-width:1413px)]:hidden">3Q</span>
+                <span className="hidden [@media(min-width:1413px)]:inline">3분기</span>
+              </button>
+              <button
+                type="button"
+                title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
+                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q4Active, isDisabled)}`}
+                onClick={(e) => handleQuarterClick(e, 'q4_active')}
+              >
+                <span className="[@media(min-width:1413px)]:hidden">4Q</span>
+                <span className="hidden [@media(min-width:1413px)]:inline">4분기</span>
+              </button>
+              <button
+                type="button"
+                title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
+                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(completed, isDisabled)} rounded-r-md`}
+                onClick={(e) => handleQuarterClick(e, 'completed')}
+              >
+                <span className="[@media(min-width:1413px)]:hidden">준</span>
+                <span className="hidden [@media(min-width:1413px)]:inline">준공</span>
+              </button>
+            </div>
+            {/* 최근 변경 일자 표시 (활성화 상태일 때만) */}
+            {!isDisabled && updateInfo && (
+              <span className={`text-[10px] whitespace-nowrap ${updateInfo.colorClass}`}>
+                {updateInfo.relativeTime}
+              </span>
+            )}
           </div>
-          {/* 최근 변경 일자 표시 (활성화 상태일 때만) */}
-          {!isDisabled && updateInfo && (
-            <span className={`text-[10px] whitespace-nowrap ${updateInfo.colorClass}`}>
-              {updateInfo.relativeTime}
-            </span>
-          )}
-        </div>
         )}
 
         {/* 액션 메뉴 */}
@@ -739,7 +737,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
             >
               <MoreVertical className="h-4 w-4 text-gray-500" />
             </button>
-            
+
             {isMenuOpen && (
               <div className="absolute right-0 bottom-full mb-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-20">
                 {onEdit && (

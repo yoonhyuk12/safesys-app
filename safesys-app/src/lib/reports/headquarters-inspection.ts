@@ -45,26 +45,20 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
         table { border-collapse: collapse; }
         table td, table th { vertical-align: middle; padding: 0; }
         td, th { position: relative; }
-        .cell { display: flex; align-items: center; height: 100%; min-height: 36px; padding: 3px 10px 8px; }
+        .cell { display: flex; align-items: center; height: 100%; min-height: 18px; padding: 1px 4px; font-size: 10px; }
         .cell.center { justify-content: center; }
         .pre { white-space: pre-wrap; }
-        .num { display:inline-block; width: 1.2em; margin-right: 4px; }
+        .num { display:inline-block; width: 1.2em; margin-right: 3px; }
         .txt { display:inline; word-break: break-word; }
-        .important-badge { display: inline-block; background: #dc2626; color: white; padding: 2px 6px; font-weight: bold; margin-right: 4px; font-size: 11px; vertical-align: middle; }
-        /* 본문 행 기본 높이: 50px 고정 + 좌측 패딩 보정 */
-        .chk-table tbody tr td { height: 50px; }
-        .chk-table tbody tr .cell { min-height: 0; padding: 3px 10px; }
-        /* 행 높이 고정: 1,2,8행(전체) → 30px
-           tbody 기준으로 8행(전체)은 6번째(tr): 섹션1 헤더(1) + 항목5개(2~6)
-        */
+        .important-badge { display: inline-block; background: #dc2626; color: white; padding: 1px 5px; font-weight: bold; margin-right: 4px; font-size: 10px; vertical-align: middle; }
+        .chk-table tbody tr td { height: 26px; }
+        .chk-table tbody tr .cell { min-height: 0; padding: 1px 4px; }
         .chk-table thead tr:nth-child(1) th,
-        .chk-table thead tr:nth-child(2) th,
-        .chk-table tbody tr:nth-child(6) td { height: 30px; }
+        .chk-table thead tr:nth-child(2) th { height: 24px; }
         .chk-table thead tr:nth-child(1) .cell,
-        .chk-table thead tr:nth-child(2) .cell,
-        .chk-table tbody tr:nth-child(6) .cell { min-height: 0; padding: 6px 10px; }
+        .chk-table thead tr:nth-child(2) .cell { min-height: 0; padding: 2px 4px; }
       </style>
-      <div style="text-align:center; margin-bottom: 8mm;">
+      <div style="text-align:center; margin-bottom: 6mm;">
         <div style="font-size:18px; font-weight:bold; text-decoration: underline;">[${branchName ? branchName + ' ' : ''}${projectName}]</div>
         <div style="font-size:18px; font-weight:bold; margin-top:3px; text-decoration: underline;">${getQuarterLabel(ins.inspection_date)} 특별 및 불시점검 결과</div>
       </div>
@@ -72,16 +66,16 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
         <thead>
           <tr>
             <th rowspan="2" style="border:0.5px solid #000; background:#f2f2f2; width:30%;">
-              <div class="cell center" style="flex-direction:column; line-height:1.2; min-height:33px; padding:6px 10px;">
+              <div class="cell center" style="flex-direction:column; line-height:1.2; min-height:26px; padding:4px 8px;">
                 점 검 항 목<br/>
-                <span style="font-size:10px; font-weight:normal;">[3대 유형(부딪힘, 물체에맞음, 추락)]</span>
+                <span style="font-size:9px; font-weight:normal;">[3대 유형(부딪힘, 물체에맞음, 추락)]</span>
               </div>
             </th>
             <th colspan="2" style="border:0.5px solid #000; background:#f2f2f2; width:10%;">
-              <div class="cell center" style="min-height:33px; padding:6px 10px;">이행여부</div>
+              <div class="cell center" style="min-height:26px; padding:4px 8px;">이행여부</div>
             </th>
             <th rowspan="2" style="border:0.5px solid #000; background:#f2f2f2; width:60%;">
-              <div class="cell center" style="min-height:33px; padding:6px 10px;">점검 결과</div>
+              <div class="cell center" style="min-height:26px; padding:4px 8px;">점검 결과</div>
             </th>
           </tr>
           <tr>
@@ -90,45 +84,50 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
           </tr>
         </thead>
         <tbody>
-          <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:8mm; padding:6px 10px; vertical-align:middle; line-height:1.4;"><span class="important-badge" style="display:inline-block; vertical-align:middle;">중요</span><span style="display:inline-block; vertical-align:middle;"> (부딪힘, 물체에맞음) 굴착기 등 사용 작업</span></td></tr>
-          ${(ins.critical_items||[]).map((it:any,idx:number)=>`
+          <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:10mm; padding:2px 4px; vertical-align:middle; line-height:1.3; font-size:10px;"><span class="important-badge" style="display:inline-block; vertical-align:middle;">중요</span><span style="display:inline-block; vertical-align:middle;"> (부딪힘, 물체에맞음) 굴착기 등 사용 작업</span></td></tr>
+          ${(ins.critical_items || []).map((it: any, idx: number) => `
             <tr>
-              <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell"><span class="num">${(['➊','➋','➌','➍','➎','➏','➐','➑','➒','➓'][idx] || (idx+1))}</span><span class="txt">${it.title||''}</span></div></td>
-              <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status,'yes')}</div></td>
-              <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status,'no')}</div></td>
-              <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell pre">${it.remarks||''}</div></td>
+              <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell"><span class="num">${(['➊', '➋', '➌', '➍', '➎', '➏', '➐', '➑', '➒', '➓'][idx] || (idx + 1))}</span><span class="txt">${it.title || ''}</span></div></td>
+              <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status, 'yes')}</div></td>
+              <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status, 'no')}</div></td>
+              <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell pre">${it.remarks || ''}</div></td>
             </tr>
           `).join('')}
-          <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:8mm; padding:6px 10px; vertical-align:middle; line-height:1.4;"><span class="important-badge" style="display:inline-block; vertical-align:middle;">중요</span><span style="display:inline-block; vertical-align:middle;"> (추락) 가설구조물, 고소작업 등</span></td></tr>
-          ${(ins.caution_items||[]).map((it:any,idx:number)=>`
+          <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:10mm; padding:2px 4px; vertical-align:middle; line-height:1.3; font-size:10px;"><span class="important-badge" style="display:inline-block; vertical-align:middle;">중요</span><span style="display:inline-block; vertical-align:middle;"> (추락) 가설구조물, 고소작업 등</span></td></tr>
+          ${(ins.caution_items || []).map((it: any, idx: number) => `
             <tr>
-              <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell"><span class="num">${(['➊','➋','➌','➍','➎','➏','➐','➑','➒','➓'][idx] || (idx+1))}</span><span class="txt">${it.title||''}</span></div></td>
-              <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status,'yes')}</div></td>
-              <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status,'no')}</div></td>
-              <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell pre">${it.remarks||''}</div></td>
+              <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell"><span class="num">${(['➊', '➋', '➌', '➍', '➎', '➏', '➐', '➑', '➒', '➓'][idx] || (idx + 1))}</span><span class="txt">${it.title || ''}</span></div></td>
+              <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status, 'yes')}</div></td>
+              <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status, 'no')}</div></td>
+              <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell pre">${it.remarks || ''}</div></td>
             </tr>
           `).join('')}
           ${(() => {
-            const others = ins.other_items||[]
-            const titles = ['재해예방기술지도 지적사항 이행 확인','VAR 매뉴얼 작동성 확인','취약근로자 안전관리 확인','법적이행사항 확인']
-            return others.map((it:any,idx:number)=>`
+        const defaultTitles = ['법적이행사항 확인', 'VAR 매뉴얼 작동성 확인', '취약근로자 안전관리 확인', '재해예방기술지도 지적사항 이행 확인', '안전보건표지 설치', 'TBM 실시 확인', '기타 현장 안전관리에 관한 사항 (산업안전보건 기준에 관한 규칙 등)']
+        const rawOthers = ins.other_items || []
+        const existingMap = new Map(rawOthers.map((it: any) => [it.title, it]))
+        const others = defaultTitles.map((title: string) => {
+          if (existingMap.has(title)) return existingMap.get(title)
+          return { title, status: '', remarks: '' }
+        })
+        return others.map((it: any, idx: number) => `
               <tr>
-                <td style="border:0.5px solid #000;"><div class="cell">${titles[idx]||it.title||`기타항목 ${idx+1}`} </div></td>
-                <td style="border:0.5px solid #000;"><div class="cell center">${yesNo(it.status,'yes')}</div></td>
-                <td style="border:0.5px solid #000;"><div class="cell center">${yesNo(it.status,'no')}</div></td>
-                <td style="border:0.5px solid #000;"><div class="cell pre">${it.remarks||''}</div></td>
+                <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell">${it.title || `기타항목 ${idx + 1}`} </div></td>
+                <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status, 'yes')}</div></td>
+                <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status, 'no')}</div></td>
+                <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell pre">${it.remarks || ''}</div></td>
               </tr>
             `).join('')
-          })()}
+      })()}
         </tbody>
       </table>
       <div style="font-size:9px; color:#555; margin-top:8px;">※ 점검표는 항목 변경 될 수 있음(변경 시 분기 시작 전 알림 예정)</div>
       <div style="text-align: right; margin-top: 30px;">
         <div style="font-size: 13px; margin-bottom: 15px;">
           ${ins.inspection_date ? (() => {
-            const d = new Date(ins.inspection_date);
-            return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
-          })() : new Date().getFullYear() + '. &nbsp;&nbsp;. &nbsp;&nbsp;.'}
+        const d = new Date(ins.inspection_date);
+        return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
+      })() : new Date().getFullYear() + '. &nbsp;&nbsp;. &nbsp;&nbsp;.'}
         </div>
         <div style="display: flex; justify-content: flex-end; align-items: center; gap: 15px; font-size: 13px;">
           <span>점검자</span>
@@ -143,7 +142,7 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
     page1.style.position = 'absolute'
     page1.style.left = '-9999px'
     document.body.appendChild(page1)
-    await new Promise(r=>setTimeout(r,300))
+    await new Promise(r => setTimeout(r, 300))
     const canvas1 = await html2canvas(page1, {
       scale: 1.9,
       useCORS: true,
@@ -233,7 +232,7 @@ export async function generateHeadquartersInspectionReport(params: HeadquartersI
     page2.style.position = 'absolute'
     page2.style.left = '-9999px'
     document.body.appendChild(page2)
-    await new Promise(r=>setTimeout(r,300))
+    await new Promise(r => setTimeout(r, 300))
     const canvas2 = await html2canvas(page2, {
       scale: 1.9,
       useCORS: true,
@@ -257,7 +256,7 @@ export interface HeadquartersInspectionReportGroup {
 }
 
 // 여러 프로젝트/지사의 점검 결과를 하나의 PDF로 병합 생성
-export type HeadquartersReportOptions = { 
+export type HeadquartersReportOptions = {
   signal?: AbortSignal
   onProgress?: (current: number, total: number) => void
 }
@@ -304,22 +303,20 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
           table { border-collapse: collapse; }
           table td, table th { vertical-align: middle; padding: 0; }
           td, th { position: relative; }
-          .cell { display: flex; align-items: center; height: 100%; min-height: 36px; padding: 3px 10px 8px; }
+          .cell { display: flex; align-items: center; height: 100%; min-height: 18px; padding: 1px 4px; font-size: 10px; }
           .cell.center { justify-content: center; }
           .pre { white-space: pre-wrap; }
-          .num { display:inline-block; width: 1.2em; margin-right: 4px; }
+          .num { display:inline-block; width: 1.2em; margin-right: 3px; }
           .txt { display:inline; word-break: break-word; }
-          .important-badge { display: inline-block; background: #dc2626; color: white; padding: 2px 6px; font-weight: bold; margin-right: 4px; font-size: 11px; vertical-align: middle; }
-          .chk-table tbody tr td { height: 50px; }
-          .chk-table tbody tr .cell { min-height: 0; padding: 3px 10px; }
+          .important-badge { display: inline-block; background: #dc2626; color: white; padding: 1px 5px; font-weight: bold; margin-right: 4px; font-size: 10px; vertical-align: middle; }
+          .chk-table tbody tr td { height: 26px; }
+          .chk-table tbody tr .cell { min-height: 0; padding: 1px 4px; }
           .chk-table thead tr:nth-child(1) th,
-          .chk-table thead tr:nth-child(2) th,
-          .chk-table tbody tr:nth-child(6) td { height: 30px; }
+          .chk-table thead tr:nth-child(2) th { height: 24px; }
           .chk-table thead tr:nth-child(1) .cell,
-          .chk-table thead tr:nth-child(2) .cell,
-          .chk-table tbody tr:nth-child(6) .cell { min-height: 0; padding: 6px 10px; }
+          .chk-table thead tr:nth-child(2) .cell { min-height: 0; padding: 2px 4px; }
         </style>
-        <div style="text-align:center; margin-bottom: 8mm;">
+        <div style="text-align:center; margin-bottom: 6mm;">
           <div style="font-size:18px; font-weight:bold; text-decoration: underline;">[${resolvedBranchName ? resolvedBranchName + ' ' : ''}${projectName}]</div>
           <div style="font-size:18px; font-weight:bold; margin-top:3px; text-decoration: underline;">${getQuarterLabel(ins.inspection_date)} 특별 및 불시점검 결과</div>
         </div>
@@ -327,16 +324,16 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
           <thead>
             <tr>
               <th rowspan="2" style="border:0.5px solid #000; background:#f2f2f2; width:30%;">
-                <div class="cell center" style="flex-direction:column; line-height:1.2; min-height:33px; padding:6px 10px;">
+                <div class="cell center" style="flex-direction:column; line-height:1.2; min-height:26px; padding:4px 8px;">
                   점 검 항 목<br/>
-                  <span style="font-size:10px; font-weight:normal;">[3대 유형(부딪힘, 물체에맞음, 추락)]</span>
+                  <span style="font-size:9px; font-weight:normal;">[3대 유형(부딪힘, 물체에맞음, 추락)]</span>
                 </div>
               </th>
               <th colspan="2" style="border:0.5px solid #000; background:#f2f2f2; width:10%;">
-                <div class="cell center" style="min-height:33px; padding:6px 10px;">이행여부</div>
+                <div class="cell center" style="min-height:26px; padding:4px 8px;">이행여부</div>
               </th>
               <th rowspan="2" style="border:0.5px solid #000; background:#f2f2f2; width:60%;">
-                <div class="cell center" style="min-height:33px; padding:6px 10px;">점검 결과</div>
+                <div class="cell center" style="min-height:26px; padding:4px 8px;">점검 결과</div>
               </th>
             </tr>
             <tr>
@@ -345,45 +342,50 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
             </tr>
           </thead>
           <tbody>
-            <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:8mm; padding:6px 10px; vertical-align:middle; line-height:1.4;"><span class="important-badge" style="display:inline-block; vertical-align:middle;">중요</span><span style="display:inline-block; vertical-align:middle;"> (부딪힘, 물체에맞음) 굴착기 등 사용 작업</span></td></tr>
-            ${(ins.critical_items||[]).map((it:any,idx:number)=>`
+            <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:10mm; padding:2px 4px; vertical-align:middle; line-height:1.3; font-size:10px;"><span class="important-badge" style="display:inline-block; vertical-align:middle;">중요</span><span style="display:inline-block; vertical-align:middle;"> (부딪힘, 물체에맞음) 굴착기 등 사용 작업</span></td></tr>
+            ${(ins.critical_items || []).map((it: any, idx: number) => `
               <tr>
-                <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell"><span class="num">${(['➊','➋','➌','➍','➎','➏','➐','➑','➒','➓'][idx] || (idx+1))}</span><span class="txt">${it.title||''}</span></div></td>
-                <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status,'yes')}</div></td>
-                <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status,'no')}</div></td>
-                <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell pre">${it.remarks||''}</div></td>
+                <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell"><span class="num">${(['➊', '➋', '➌', '➍', '➎', '➏', '➐', '➑', '➒', '➓'][idx] || (idx + 1))}</span><span class="txt">${it.title || ''}</span></div></td>
+                <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status, 'yes')}</div></td>
+                <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status, 'no')}</div></td>
+                <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell pre">${it.remarks || ''}</div></td>
               </tr>
             `).join('')}
-            <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:8mm; padding:6px 10px; vertical-align:middle; line-height:1.4;"><span class="important-badge" style="display:inline-block; vertical-align:middle;">중요</span><span style="display:inline-block; vertical-align:middle;"> (추락) 가설구조물, 고소작업 등</span></td></tr>
-            ${(ins.caution_items||[]).map((it:any,idx:number)=>`
+            <tr><td colspan="4" style="border:0.5px solid #000; background:#ffedd5; font-weight:bold; height:10mm; padding:2px 4px; vertical-align:middle; line-height:1.3; font-size:10px;"><span class="important-badge" style="display:inline-block; vertical-align:middle;">중요</span><span style="display:inline-block; vertical-align:middle;"> (추락) 가설구조물, 고소작업 등</span></td></tr>
+            ${(ins.caution_items || []).map((it: any, idx: number) => `
               <tr>
-                <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell"><span class="num">${(['➊','➋','➌','➍','➎','➏','➐','➑','➒','➓'][idx] || (idx+1))}</span><span class="txt">${it.title||''}</span></div></td>
-                <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status,'yes')}</div></td>
-                <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status,'no')}</div></td>
-                <td style="border:0.5px solid #000; height:${(230/(2 + (ins.critical_items?.length||0) + (ins.caution_items?.length||0) + (ins.other_items?.length||0))).toFixed(2)}mm;"><div class="cell pre">${it.remarks||''}</div></td>
+                <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell"><span class="num">${(['➊', '➋', '➌', '➍', '➎', '➏', '➐', '➑', '➒', '➓'][idx] || (idx + 1))}</span><span class="txt">${it.title || ''}</span></div></td>
+                <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status, 'yes')}</div></td>
+                <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status, 'no')}</div></td>
+                <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell pre">${it.remarks || ''}</div></td>
               </tr>
             `).join('')}
             ${(() => {
-              const others = ins.other_items||[]
-              const titles = ['재해예방기술지도 지적사항 이행 확인','VAR 매뉴얼 작동성 확인','취약근로자 안전관리 확인','법적이행사항 확인']
-              return others.map((it:any,idx:number)=>`
+          const defaultTitles = ['법적이행사항 확인', 'VAR 매뉴얼 작동성 확인', '취약근로자 안전관리 확인', '재해예방기술지도 지적사항 이행 확인', '안전보건표지 설치', 'TBM 실시 확인', '기타 현장 안전관리에 관한 사항 (산업안전보건 기준에 관한 규칙 등)']
+          const rawOthers = ins.other_items || []
+          const existingMap = new Map(rawOthers.map((it: any) => [it.title, it]))
+          const others = defaultTitles.map((title: string) => {
+            if (existingMap.has(title)) return existingMap.get(title)
+            return { title, status: '', remarks: '' }
+          })
+          return others.map((it: any, idx: number) => `
                 <tr>
-                  <td style="border:0.5px solid #000;"><div class="cell">${titles[idx]||it.title||`기타항목 ${idx+1}`} </div></td>
-                  <td style="border:0.5px solid #000;"><div class="cell center">${yesNo(it.status,'yes')}</div></td>
-                  <td style="border:0.5px solid #000;"><div class="cell center">${yesNo(it.status,'no')}</div></td>
-                  <td style="border:0.5px solid #000;"><div class="cell pre">${it.remarks||''}</div></td>
+                  <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell">${it.title || `기타항목 ${idx + 1}`} </div></td>
+                  <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status, 'yes')}</div></td>
+                  <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell center">${yesNo(it.status, 'no')}</div></td>
+                  <td style="border:0.5px solid #000; height:${(190 / (2 + (ins.critical_items?.length || 0) + (ins.caution_items?.length || 0) + 7)).toFixed(2)}mm;"><div class="cell pre">${it.remarks || ''}</div></td>
                 </tr>
               `).join('')
-            })()}
+        })()}
           </tbody>
         </table>
         <div style="font-size:9px; color:#555; margin-top:8px;">※ 점검표는 항목 변경 될 수 있음(변경 시 분기 시작 전 알림 예정)</div>
         <div style="text-align: right; margin-top: 30px;">
           <div style="font-size: 13px; margin-bottom: 15px;">
             ${ins.inspection_date ? (() => {
-              const d = new Date(ins.inspection_date);
-              return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
-            })() : new Date().getFullYear() + '. &nbsp;&nbsp;. &nbsp;&nbsp;.'}
+          const d = new Date(ins.inspection_date);
+          return `${d.getFullYear()}. ${d.getMonth() + 1}. ${d.getDate()}.`;
+        })() : new Date().getFullYear() + '. &nbsp;&nbsp;. &nbsp;&nbsp;.'}
           </div>
           <div style="display: flex; justify-content: flex-end; align-items: center; gap: 15px; font-size: 13px;">
             <span>점검자</span>
@@ -398,7 +400,7 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
       page1.style.position = 'absolute'
       page1.style.left = '-9999px'
       document.body.appendChild(page1)
-      await new Promise(r=>setTimeout(r,300))
+      await new Promise(r => setTimeout(r, 300))
       ensureNotCancelled(signal)
       const canvas1 = await html2canvas(page1, {
         scale: 1.9,
@@ -486,7 +488,7 @@ export async function generateHeadquartersInspectionReportBulk(groups: Headquart
       page2.style.position = 'absolute'
       page2.style.left = '-9999px'
       document.body.appendChild(page2)
-      await new Promise(r=>setTimeout(r,300))
+      await new Promise(r => setTimeout(r, 300))
       ensureNotCancelled(signal)
       const canvas2 = await html2canvas(page2, {
         scale: 1.9,

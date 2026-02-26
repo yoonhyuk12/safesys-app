@@ -57,6 +57,7 @@ const Dashboard: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([])
   const [projectsWithCoords, setProjectsWithCoords] = useState<ProjectWithCoords[]>([])
   const [hqPendingCounts, setHqPendingCounts] = useState<Record<string, number>>({})
+  const [safetyPendingCounts, setSafetyPendingCounts] = useState<Record<string, number>>({})
   const [heatWaveChecks, setHeatWaveChecks] = useState<HeatWaveCheck[]>([])
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const now = new Date()
@@ -1245,6 +1246,24 @@ const Dashboard: React.FC = () => {
           })
           setHqPendingCounts(counts)
         }
+
+        // 안전점검 미조치 건수 조회 (내 프로젝트 + 공유받은 프로젝트)
+        const { data: safetyInspections } = await (supabase as any)
+          .from('safety_inspections')
+          .select('project_id, id, safety_inspection_results(id, after_photo_url)')
+          .in('project_id', projectIds)
+
+        if (safetyInspections) {
+          const sCounts: Record<string, number> = {}
+          safetyInspections.forEach((ins: any) => {
+            const results = ins.safety_inspection_results || []
+            const pending = results.filter((r: any) => !r.after_photo_url || r.after_photo_url.trim() === '').length
+            if (pending > 0) {
+              sCounts[ins.project_id] = (sCounts[ins.project_id] || 0) + pending
+            }
+          })
+          setSafetyPendingCounts(sCounts)
+        }
       }
     } catch (err: any) {
       console.error('프로젝트 로드 실패:', err)
@@ -1292,6 +1311,24 @@ const Dashboard: React.FC = () => {
               }
             })
             setHqPendingCounts(counts)
+          }
+
+          // 안전점검 미조치 건수 조회
+          const { data: safetyInspections } = await (supabase as any)
+            .from('safety_inspections')
+            .select('project_id, id, safety_inspection_results(id, after_photo_url)')
+            .in('project_id', projectIds)
+
+          if (safetyInspections) {
+            const sCounts: Record<string, number> = {}
+            safetyInspections.forEach((ins: any) => {
+              const results = ins.safety_inspection_results || []
+              const pending = results.filter((r: any) => !r.after_photo_url || r.after_photo_url.trim() === '').length
+              if (pending > 0) {
+                sCounts[ins.project_id] = (sCounts[ins.project_id] || 0) + pending
+              }
+            })
+            setSafetyPendingCounts(sCounts)
           }
         }
 
@@ -3401,9 +3438,9 @@ const Dashboard: React.FC = () => {
                                     onDragOver={(e) => handleProjectDragOver(e, project.id, displayItems)}
                                     onDragEnd={() => void handleProjectDragEnd(displayItems)}
                                     onDrop={(e) => handleProjectDrop(e, project.id, displayItems)}
-                                    isDragging={draggedProjectId === project.id}
                                     isDragOver={dragOverProjectId === project.id}
                                     hqPendingCount={hqPendingCounts[project.id]}
+                                    safetyPendingCount={safetyPendingCounts[project.id]}
                                   />
                                 ))}
                               </div>
@@ -3529,9 +3566,9 @@ const Dashboard: React.FC = () => {
                                     onDragOver={(e) => handleProjectDragOver(e, project.id, displayItems)}
                                     onDragEnd={() => void handleProjectDragEnd(displayItems)}
                                     onDrop={(e) => handleProjectDrop(e, project.id, displayItems)}
-                                    isDragging={draggedProjectId === project.id}
                                     isDragOver={dragOverProjectId === project.id}
                                     hqPendingCount={hqPendingCounts[project.id]}
+                                    safetyPendingCount={safetyPendingCounts[project.id]}
                                   />
                                 ))}
                               </div>
@@ -3676,6 +3713,7 @@ const Dashboard: React.FC = () => {
                                       isDragging={draggedProjectId === project.id}
                                       isDragOver={dragOverProjectId === project.id}
                                       hqPendingCount={hqPendingCounts[project.id]}
+                                      safetyPendingCount={safetyPendingCounts[project.id]}
                                     />
                                   ))}
                                 </div>
@@ -3730,6 +3768,7 @@ const Dashboard: React.FC = () => {
                         isDragging={draggedProjectId === project.id}
                         isDragOver={dragOverProjectId === project.id}
                         hqPendingCount={hqPendingCounts[project.id]}
+                        safetyPendingCount={safetyPendingCounts[project.id]}
                       />
                     ))}
                   </div>
@@ -3762,6 +3801,7 @@ const Dashboard: React.FC = () => {
       onProjectShare={handleProjectShare}
       onProjectIsActiveJsonChange={handleProjectIsActiveJsonChange}
       hqPendingCounts={hqPendingCounts}
+      safetyPendingCounts={safetyPendingCounts}
     />
   )
 

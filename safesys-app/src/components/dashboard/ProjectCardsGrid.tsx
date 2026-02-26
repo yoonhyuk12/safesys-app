@@ -15,6 +15,7 @@ interface ProjectCardsGridProps {
   onProjectHandover: (project: Project) => void
   onProjectIsActiveJsonChange: (project: Project, json: { q1: boolean; q2: boolean; q3: boolean; q4: boolean; completed: boolean }) => void
   hqPendingCounts?: Record<string, number>
+  safetyPendingCounts?: Record<string, number>
 }
 
 const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
@@ -27,7 +28,8 @@ const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
   onProjectStatusChange,
   onProjectHandover,
   onProjectIsActiveJsonChange,
-  hqPendingCounts
+  hqPendingCounts,
+  safetyPendingCounts
 }) => {
   const [isEditMode, setIsEditMode] = useState(false)
   const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null)
@@ -127,7 +129,7 @@ const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
   // 드롭 처리
   const handleDrop = useCallback(async (e: React.DragEvent, targetProjectId: string) => {
     if (!isEditMode || !draggedProjectId || draggedProjectId === targetProjectId) return
-    
+
     e.preventDefault()
     setDragOverProjectId(null)
 
@@ -145,11 +147,11 @@ const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
     // display_order 업데이트 (같은 지사 내에서만)
     const managingBranch = draggedProject.managing_branch
     const sameBranchProjects = newProjects.filter(p => p.managing_branch === managingBranch)
-    
+
     try {
       const { supabase } = await import('@/lib/supabase')
       const { data: { session } } = await supabase.auth.getSession()
-      
+
       if (!session?.access_token) {
         throw new Error('인증 토큰이 없습니다.')
       }
@@ -158,7 +160,7 @@ const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
       const updatePromises = sameBranchProjects.map(async (project, index) => {
         const newOrder = index + 1
         console.log(`프로젝트 ${project.project_name}의 display_order를 ${newOrder}로 업데이트 중...`)
-        
+
         const response = await fetch(`/api/projects/${project.id}/order`, {
           method: 'PATCH',
           headers: {
@@ -303,6 +305,7 @@ const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
           isDragging={draggedProjectId === project.id}
           isDragOver={dragOverProjectId === project.id}
           hqPendingCount={hqPendingCounts?.[project.id]}
+          safetyPendingCount={safetyPendingCounts?.[project.id]}
         />
       ))}
     </div>

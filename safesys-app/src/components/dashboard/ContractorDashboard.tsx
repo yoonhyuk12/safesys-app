@@ -24,6 +24,7 @@ interface ContractorDashboardProps {
   onProjectShare?: (project: Project) => void
   onProjectIsActiveJsonChange: (project: Project, json: { q1: boolean; q2: boolean; q3: boolean; q4: boolean; completed: boolean }) => void
   hqPendingCounts?: Record<string, number>
+  safetyPendingCounts?: Record<string, number>
 }
 
 const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
@@ -43,7 +44,8 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
   onProjectHandover,
   onProjectShare,
   onProjectIsActiveJsonChange,
-  hqPendingCounts
+  hqPendingCounts,
+  safetyPendingCounts
 }) => {
   if (loading) {
     return (
@@ -127,6 +129,7 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
                 canEditQuarters={canEditQuartersForProject ? canEditQuartersForProject(project) : false}
                 onIsActiveChange={onProjectIsActiveJsonChange}
                 hqPendingCount={hqPendingCounts?.[project.id]}
+                safetyPendingCount={safetyPendingCounts?.[project.id]}
               />
             ))}
           </div>
@@ -161,6 +164,7 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
                 onIsActiveChange={onProjectIsActiveJsonChange}
                 onStatusChange={onProjectStatusChange}
                 hqPendingCount={hqPendingCounts?.[project.id]}
+                safetyPendingCount={safetyPendingCounts?.[project.id]}
               />
             ))}
           </div>

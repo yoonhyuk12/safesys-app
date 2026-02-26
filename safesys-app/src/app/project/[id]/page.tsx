@@ -34,6 +34,7 @@ export default function ProjectDetailPage() {
   const [supervisorPhoneModal, setSupervisorPhoneModal] = useState<{ isOpen: boolean; phone: string; name: string; title: string }>({ isOpen: false, phone: '', name: '', title: '' })
   const [phoneCopied, setPhoneCopied] = useState(false)
   const [hqPendingCount, setHqPendingCount] = useState(0)
+  const [safetyLedgerPendingCount, setSafetyLedgerPendingCount] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -91,6 +92,20 @@ export default function ProjectDetailPage() {
           return !(issue1Done && issue2Done)
         }).length
         setHqPendingCount(pendingCount)
+      }
+
+      // 안전점검 관리대장 조치 후 사진 미등록 건수 조회
+      const { data: safetyInspections } = await supabase
+        .from('safety_inspections')
+        .select('id, safety_inspection_results(id, after_photo_url)')
+        .eq('project_id', projectId)
+
+      if (safetyInspections) {
+        const pendingPhotoCount = (safetyInspections as any[]).reduce((count: number, ins: any) => {
+          const results = ins.safety_inspection_results || []
+          return count + results.filter((r: any) => !r.after_photo_url || r.after_photo_url.trim() === '').length
+        }, 0)
+        setSafetyLedgerPendingCount(pendingPhotoCount)
       }
 
       // 프로젝트 생성인의 프로필 정보 조회
@@ -757,6 +772,7 @@ export default function ProjectDetailPage() {
                 isActive={false}
                 projectId={projectId}
                 onClick={() => router.push(`/project/${projectId}/safety-inspection-ledger`)}
+                badgeCount={safetyLedgerPendingCount}
               />
 
               {/* TBM안전활동 점검표(감독) 문서철 */}

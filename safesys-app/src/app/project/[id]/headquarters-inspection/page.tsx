@@ -19,6 +19,30 @@ interface ExtendedProject extends Project {
   }
 }
 
+// 기타 항목 기본 정의 (순서 및 제목)
+const DEFAULT_OTHER_ITEMS = [
+  '법적이행사항 확인',
+  'VAR 매뉴얼 작동성 확인',
+  '취약근로자 안전관리 확인',
+  '재해예방기술지도 지적사항 이행 확인',
+  '안전보건표지 설치',
+  'TBM 실시 확인',
+  '기타 현장 안전관리에 관한 사항 (산업안전보건 기준에 관한 규칙 등)'
+]
+
+// DB에서 로드한 other_items에 부족한 항목을 채워주는 함수
+function normalizeOtherItems(items: { title: string; status: 'good' | 'bad' | ''; remarks: string }[]): { title: string; status: 'good' | 'bad' | ''; remarks: string }[] {
+  if (!items || items.length === 0) {
+    return DEFAULT_OTHER_ITEMS.map(title => ({ title, status: 'good' as const, remarks: '특이사항 없음' }))
+  }
+  // 기존 항목을 title로 매핑
+  const existingMap = new Map(items.map(it => [it.title, it]))
+  return DEFAULT_OTHER_ITEMS.map(title => {
+    if (existingMap.has(title)) return existingMap.get(title)!
+    return { title, status: 'good' as const, remarks: '특이사항 없음' }
+  })
+}
+
 interface ChecklistItem {
   title: string
   status: 'good' | 'bad' | ''
@@ -100,10 +124,13 @@ export default function HeadquartersInspectionPage() {
     ],
     // 기타 항목들
     other_items: [
-      { title: '재해예방기술지도 지적사항 이행 확인', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' },
+      { title: '법적이행사항 확인', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' },
       { title: 'VAR 매뉴얼 작동성 확인', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' },
       { title: '취약근로자 안전관리 확인', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' },
-      { title: '법적이행사항 확인', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' }
+      { title: '재해예방기술지도 지적사항 이행 확인', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' },
+      { title: '안전보건표지 설치', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' },
+      { title: 'TBM 실시 확인', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' },
+      { title: '기타 현장 안전관리에 관한 사항 (산업안전보건 기준에 관한 규칙 등)', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' }
     ]
   })
   
@@ -112,7 +139,7 @@ export default function HeadquartersInspectionPage() {
   const [activeTab, setActiveTab] = useState<'critical' | 'caution' | 'other'>('critical') // 탭 상태
   const [expandedCriticalItems, setExpandedCriticalItems] = useState<boolean[]>([true, true, true, true, true])
   const [expandedCautionItems, setExpandedCautionItems] = useState<boolean[]>([true, true, true]) // 3개 항목 모두 펼침
-  const [expandedOtherItems, setExpandedOtherItems] = useState<boolean[]>([true, true, true, true]) // 4개 항목 모두 펼침
+  const [expandedOtherItems, setExpandedOtherItems] = useState<boolean[]>([true, true, true, true, true, true, true]) // 7개 항목 모두 펼침
   
   // 파일 참조
   const sitePhotoOverviewRef = useRef<HTMLInputElement>(null)
@@ -969,7 +996,7 @@ export default function HeadquartersInspectionPage() {
         issue_content2: inspection.issue_content2 || '',
         critical_items: inspection.critical_items || [],
         caution_items: inspection.caution_items || [],
-        other_items: inspection.other_items || []
+        other_items: normalizeOtherItems(inspection.other_items || [])
       })
 
       setIsEditMode(true)
@@ -1096,10 +1123,13 @@ export default function HeadquartersInspectionPage() {
           { title: '고소작업, 개구부 등 안전조치', status: 'good', remarks: '특이사항 없음' }
         ],
         other_items: [
-          { title: '재해예방기술지도 지적사항 이행 확인', status: 'good', remarks: '특이사항 없음' },
+          { title: '법적이행사항 확인', status: 'good', remarks: '특이사항 없음' },
           { title: 'VAR 매뉴얼 작동성 확인', status: 'good', remarks: '특이사항 없음' },
           { title: '취약근로자 안전관리 확인', status: 'good', remarks: '특이사항 없음' },
-          { title: '법적이행사항 확인', status: 'good', remarks: '특이사항 없음' }
+          { title: '재해예방기술지도 지적사항 이행 확인', status: 'good', remarks: '특이사항 없음' },
+          { title: '안전보건표지 설치', status: 'good', remarks: '특이사항 없음' },
+          { title: 'TBM 실시 확인', status: 'good', remarks: '특이사항 없음' },
+          { title: '기타 현장 안전관리에 관한 사항 (산업안전보건 기준에 관한 규칙 등)', status: 'good', remarks: '특이사항 없음' }
         ]
       })
 
@@ -1221,10 +1251,13 @@ export default function HeadquartersInspectionPage() {
           { title: '고소작업, 개구부 등 안전조치', status: 'good', remarks: '특이사항 없음' }
         ],
         other_items: [
-          { title: '재해예방기술지도 지적사항 이행 확인', status: 'good', remarks: '특이사항 없음' },
+          { title: '법적이행사항 확인', status: 'good', remarks: '특이사항 없음' },
           { title: 'VAR 매뉴얼 작동성 확인', status: 'good', remarks: '특이사항 없음' },
           { title: '취약근로자 안전관리 확인', status: 'good', remarks: '특이사항 없음' },
-          { title: '법적이행사항 확인', status: 'good', remarks: '특이사항 없음' }
+          { title: '재해예방기술지도 지적사항 이행 확인', status: 'good', remarks: '특이사항 없음' },
+          { title: '안전보건표지 설치', status: 'good', remarks: '특이사항 없음' },
+          { title: 'TBM 실시 확인', status: 'good', remarks: '특이사항 없음' },
+          { title: '기타 현장 안전관리에 관한 사항 (산업안전보건 기준에 관한 규칙 등)', status: 'good', remarks: '특이사항 없음' }
         ]
       })
 
@@ -1558,10 +1591,13 @@ export default function HeadquartersInspectionPage() {
                                 { title: '고소작업, 개구부 등 안전조치', status: 'good', remarks: '특이사항 없음' }
                               ],
                               other_items: [
-                                { title: '재해예방기술지도 지적사항 이행 확인', status: 'good', remarks: '특이사항 없음' },
+                                { title: '법적이행사항 확인', status: 'good', remarks: '특이사항 없음' },
                                 { title: 'VAR 매뉴얼 작동성 확인', status: 'good', remarks: '특이사항 없음' },
                                 { title: '취약근로자 안전관리 확인', status: 'good', remarks: '특이사항 없음' },
-                                { title: '법적이행사항 확인', status: 'good', remarks: '특이사항 없음' }
+                                { title: '재해예방기술지도 지적사항 이행 확인', status: 'good', remarks: '특이사항 없음' },
+                                { title: '안전보건표지 설치', status: 'good', remarks: '특이사항 없음' },
+                                { title: 'TBM 실시 확인', status: 'good', remarks: '특이사항 없음' },
+                                { title: '기타 현장 안전관리에 관한 사항 (산업안전보건 기준에 관한 규칙 등)', status: 'good', remarks: '특이사항 없음' }
                               ]
                             })
                             setIsEditMode(false)
@@ -2855,13 +2891,19 @@ export default function HeadquartersInspectionPage() {
                                   // Note 내용을 각 항목별로 정의
                                   let noteContent = '';
                                   if (index === 0) {
-                                    noteContent = '· 재해예방기술지도 지적사항 조치결과 확인';
+                                    noteContent = '· 안전관리 법적 이행사항 25가지 항목 모니터링 결과의 적정성 확인';
                                   } else if (index === 1) {
                                     noteContent = '· 위험성평가(관리자, 근로자참여하여 위험요인 발굴)\n· 위험성 전달(TBM을 통해 위험요인과 대책을 공유)\n· 실행여부 확인(일일안전점검 일지를 통해 이행확인)';
                                   } else if (index === 2) {
                                     noteContent = '· 신규채용된 일용근로자, 고혈압환자, 외국인 근로자\n· 건강상태 확인, 고위험작업 배제, 외국인 근로자 안전표지 부착';
                                   } else if (index === 3) {
-                                    noteContent = '· 안전관리 법적 이행사항 25가지 항목 모니터링 결과의 적정성 확인';
+                                    noteContent = '· 재해예방기술지도 지적사항 조치결과 확인';
+                                  } else if (index === 4) {
+                                    noteContent = '· 안전보건표지(안전포스터 등) 작업현장 내외부 설치여부';
+                                  } else if (index === 5) {
+                                    noteContent = '· 작업 전 작업계획서 교육, 사고사례 공유 등';
+                                  } else if (index === 6) {
+                                    noteContent = '· 개인 보호구 착용 확인 등';
                                   }
                                   
                                   return (
