@@ -40,12 +40,24 @@ const COLUMNS = [
   { header: '라 조치사항', key: 'raAction', width: 25 },
   { header: '마 지적사항', key: 'maFinding', width: 25 },
   { header: '마 조치사항', key: 'maAction', width: 25 },
-  { header: '지적사항1', key: 'finding1', width: 25 },
-  { header: '조치사항1', key: 'action1', width: 25 },
-  { header: '지적사항2', key: 'finding2', width: 25 },
-  { header: '조치사항2', key: 'action2', width: 25 },
-  { header: '지적사항3', key: 'finding3', width: 25 },
-  { header: '조치사항3', key: 'action3', width: 25 },
+  { header: '바 지적사항', key: 'baFinding', width: 25 },
+  { header: '바 조치사항', key: 'baAction', width: 25 },
+  { header: '사 지적사항', key: 'saFinding', width: 25 },
+  { header: '사 조치사항', key: 'saAction', width: 25 },
+  { header: '아 지적사항', key: 'ahFinding', width: 25 },
+  { header: '아 조치사항', key: 'ahAction', width: 25 },
+  { header: '지적사항1', key: 'safetyFinding1', width: 25 },
+  { header: '조치사항1', key: 'safetyAction1', width: 25 },
+  { header: '지적사항2', key: 'safetyFinding2', width: 25 },
+  { header: '조치사항2', key: 'safetyAction2', width: 25 },
+  { header: '지적사항3', key: 'safetyFinding3', width: 25 },
+  { header: '조치사항3', key: 'safetyAction3', width: 25 },
+  { header: '지적사항1', key: 'otherFinding1', width: 25 },
+  { header: '조치사항1', key: 'otherAction1', width: 25 },
+  { header: '지적사항2', key: 'otherFinding2', width: 25 },
+  { header: '조치사항2', key: 'otherAction2', width: 25 },
+  { header: '지적사항3', key: 'otherFinding3', width: 25 },
+  { header: '조치사항3', key: 'otherAction3', width: 25 },
   { header: '조치결과(소계)', key: 'resultTotal', width: 14 },
   { header: '조치완료', key: 'actionDone', width: 10 },
   { header: '조치중', key: 'actionInProgress', width: 10 },
@@ -70,6 +82,9 @@ function getAdditionalAction(it: { item: string; action: string } | undefined): 
 function buildRow(item: SafetyInspectionDetailForExcel) {
   const results = item.results.sort((a, b) => a.sort_order - b.sort_order)
 
+  const safetyResults = results.filter(r => r.field_item === '안전')
+  const otherResults = results.filter(r => r.field_item !== '안전')
+
   // 조치 완료/조치중 카운트
   const totalResults = results.length
   const doneCount = results.filter(r => r.after_photo_url && r.after_photo_url.trim() !== '').length
@@ -82,6 +97,9 @@ function buildRow(item: SafetyInspectionDetailForExcel) {
   const daItem = addItems.find(i => i.category === '다. 흙막이지보공 및 거푸집동바리' && i.action && i.action !== '해당없음')
   const raItem = addItems.find(i => i.category === '라. 굴착면 및 지반' && i.action && i.action !== '해당없음')
   const maItem = addItems.find(i => i.category === '마. 주변시설' && i.action && i.action !== '해당없음')
+  const baItem = addItems.find(i => i.category === '바. (품질) 중점품질관리대상 공종 지정 및 관리여부' && i.action && i.action !== '해당없음')
+  const saItem = addItems.find(i => i.category === '사. (품질)품질시험장비 검교정' && i.action && i.action !== '해당없음')
+  const ahItem = addItems.find(i => i.category === '아. (품질)가설기자재 품질관리비 반영 및 반입 전 성능확인 검사 여부' && i.action && i.action !== '해당없음')
 
   return {
     hq: item.managing_hq,
@@ -104,12 +122,27 @@ function buildRow(item: SafetyInspectionDetailForExcel) {
     raAction: getAdditionalAction(raItem),
     maFinding: getAdditionalFinding(maItem),
     maAction: getAdditionalAction(maItem),
-    finding1: results[0]?.findings || '',
-    action1: results[0]?.action_items || '',
-    finding2: results[1]?.findings || '',
-    action2: results[1]?.action_items || '',
-    finding3: results[2]?.findings || '',
-    action3: results[2]?.action_items || '',
+    baFinding: getAdditionalFinding(baItem),
+    baAction: getAdditionalAction(baItem),
+    saFinding: getAdditionalFinding(saItem),
+    saAction: getAdditionalAction(saItem),
+    ahFinding: getAdditionalFinding(ahItem),
+    ahAction: getAdditionalAction(ahItem),
+
+    safetyFinding1: safetyResults[0]?.findings || '',
+    safetyAction1: safetyResults[0]?.action_items || '',
+    safetyFinding2: safetyResults[1]?.findings || '',
+    safetyAction2: safetyResults[1]?.action_items || '',
+    safetyFinding3: safetyResults[2]?.findings || '',
+    safetyAction3: safetyResults[2]?.action_items || '',
+
+    otherFinding1: otherResults[0]?.findings || '',
+    otherAction1: otherResults[0]?.action_items || '',
+    otherFinding2: otherResults[1]?.findings || '',
+    otherAction2: otherResults[1]?.action_items || '',
+    otherFinding3: otherResults[2]?.findings || '',
+    otherAction3: otherResults[2]?.action_items || '',
+
     resultTotal: totalResults > 0 ? `${totalResults}건` : '',
     actionDone: doneCount > 0 ? `${doneCount}건` : '',
     actionInProgress: inProgressCount > 0 ? `${inProgressCount}건` : '',
@@ -135,7 +168,7 @@ function applyDataStyle(row: ExcelJS.Row) {
     cell.alignment = { vertical: 'middle', wrapText: true }
     // 숫자/날짜 관련 컬럼은 가운데 정렬
     if (colNumber === 6) cell.alignment = { horizontal: 'center', vertical: 'middle' }
-    if (colNumber >= 27 && colNumber <= 30) cell.alignment = { horizontal: 'center', vertical: 'middle' }
+    if (colNumber >= 39 && colNumber <= 42) cell.alignment = { horizontal: 'center', vertical: 'middle' }
   })
 }
 
@@ -169,7 +202,7 @@ export function downloadSafetyInspectionLedgerExcel(
   })
 
   // HEADQUARTERS_OPTIONS 순서대로 시트 생성
-  const hqOrder = [...HEADQUARTERS_OPTIONS]
+  const hqOrder: string[] = [...HEADQUARTERS_OPTIONS]
   // HEADQUARTERS_OPTIONS에 없는 본부도 포함
   hqGroups.forEach((_, hq) => {
     if (!hqOrder.includes(hq)) hqOrder.push(hq)
@@ -185,38 +218,51 @@ export function downloadSafetyInspectionLedgerExcel(
 
     // 1행: 카테고리 그룹 헤더
     const catRow = worksheet.getRow(1)
-    // 좌측 비그룹 컬럼 (1-6) — 세로 병합 예정이므로 여기에 값 설정
-    ;[1, 2, 3, 4, 5, 6].forEach(c => { catRow.getCell(c).value = COLUMNS[c - 1].header })
+      // 좌측 비그룹 컬럼 (1-6) — 세로 병합 예정이므로 여기에 값 설정
+      ;[1, 2, 3, 4, 5, 6].forEach(c => { catRow.getCell(c).value = COLUMNS[c - 1].header })
     // 가~마 카테고리 그룹 헤더
     catRow.getCell(7).value = '가. 안전관리 5대 핵심항목 이행 여부'
     catRow.getCell(13).value = '나. 중점사항'
     catRow.getCell(15).value = '다. 흙막이지보공 및 거푸집동바리'
     catRow.getCell(17).value = '라. 굴착면 및 지반'
     catRow.getCell(19).value = '마. 주변시설'
-    // 우측 비그룹 컬럼 (21-31) — 세로 병합 예정
-    for (let c = 21; c <= 31; c++) { catRow.getCell(c).value = COLUMNS[c - 1].header }
+    catRow.getCell(21).value = '바. (품질) 중점품질관리대상 공종 지정 및 관리여부'
+    catRow.getCell(23).value = '사. (품질)품질시험장비 검교정'
+    catRow.getCell(25).value = '아. (품질)가설기자재 품질관리비 반영 및 반입 전 성능확인 검사 여부'
+
+    catRow.getCell(27).value = '(안전분야)'
+    catRow.getCell(33).value = '(품질, 환경, 기타)'
+
+    // 우측 비그룹 컬럼 (39-43) — 세로 병합 예정
+    for (let c = 39; c <= 43; c++) { catRow.getCell(c).value = COLUMNS[c - 1].header }
     applyHeaderStyle(catRow)
     catRow.height = 32
 
-    // 2행: 가~마 그룹 내 개별 컬럼 헤더
+    // 2행: 가~아 그룹 및 안전/기타 내 개별 컬럼 헤더
     const headerRow = worksheet.getRow(2)
-    for (let c = 7; c <= 20; c++) { headerRow.getCell(c).value = COLUMNS[c - 1].header }
+    for (let c = 7; c <= 38; c++) { headerRow.getCell(c).value = COLUMNS[c - 1].header }
     applyHeaderStyle(headerRow)
 
-    // 셀 병합
-    // 좌측 비그룹 세로 병합 (1행~2행)
-    ;[1, 2, 3, 4, 5, 6].forEach(c => worksheet.mergeCells(1, c, 2, c))
+      // 셀 병합
+      // 좌측 비그룹 세로 병합 (1행~2행)
+      ;[1, 2, 3, 4, 5, 6].forEach(c => worksheet.mergeCells(1, c, 2, c))
     // 우측 비그룹 세로 병합 (1행~2행)
-    for (let c = 21; c <= 31; c++) worksheet.mergeCells(1, c, 2, c)
+    for (let c = 39; c <= 43; c++) worksheet.mergeCells(1, c, 2, c)
     // 카테고리 가로 병합 (1행)
     worksheet.mergeCells(1, 7, 1, 12)   // 가: 6컬럼
     worksheet.mergeCells(1, 13, 1, 14)  // 나: 2컬럼
     worksheet.mergeCells(1, 15, 1, 16)  // 다: 2컬럼
     worksheet.mergeCells(1, 17, 1, 18)  // 라: 2컬럼
     worksheet.mergeCells(1, 19, 1, 20)  // 마: 2컬럼
+    worksheet.mergeCells(1, 21, 1, 22)  // 바: 2컬럼
+    worksheet.mergeCells(1, 23, 1, 24)  // 사: 2컬럼
+    worksheet.mergeCells(1, 25, 1, 26)  // 아: 2컬럼
+
+    worksheet.mergeCells(1, 27, 1, 32)  // 안전분야 (6컬럼)
+    worksheet.mergeCells(1, 33, 1, 38)  // 품질/환경/기타 분야 (6컬럼)
 
     // 지사별 정렬
-    const branchOrder = BRANCH_OPTIONS[hq] || []
+    const branchOrder = BRANCH_OPTIONS[hq as keyof typeof BRANCH_OPTIONS] || []
     items.sort((a, b) => {
       const aIdx = branchOrder.indexOf(a.managing_branch)
       const bIdx = branchOrder.indexOf(b.managing_branch)
@@ -278,7 +324,9 @@ export function downloadSafetyInspectionLedgerExcel(
       inspectionDate: '',
       core1Finding: '', core1Action: '', core2Finding: '', core2Action: '', core3Finding: '', core3Action: '',
       naFinding: '', naAction: '', daFinding: '', daAction: '', raFinding: '', raAction: '', maFinding: '', maAction: '',
-      finding1: '', action1: '', finding2: '', action2: '', finding3: '', action3: '',
+      baFinding: '', baAction: '', saFinding: '', saAction: '', ahFinding: '', ahAction: '',
+      safetyFinding1: '', safetyAction1: '', safetyFinding2: '', safetyAction2: '', safetyFinding3: '', safetyAction3: '',
+      otherFinding1: '', otherAction1: '', otherFinding2: '', otherAction2: '', otherFinding3: '', otherAction3: '',
       resultTotal: totalResultCount > 0 ? `${totalResultCount}건` : '',
       actionDone: totalDoneCount > 0 ? `${totalDoneCount}건` : '',
       actionInProgress: totalInProgressCount > 0 ? `${totalInProgressCount}건` : '',

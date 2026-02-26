@@ -1367,6 +1367,7 @@ export interface SafetyInspectionDetailForExcel {
   supervisor_name: string | null
   additional_items: { category: string; item: string; action: string }[] | null
   results: {
+    field_item: string
     findings: string
     action_items: string
     photo_url: string | null
@@ -1436,7 +1437,7 @@ export async function getSafetyInspectionDetailsForExcel(
     const inspectionIds = inspections.map(i => i.id)
     const { data: results, error: resError } = await supabase
       .from('safety_inspection_results')
-      .select('inspection_id, findings, action_items, photo_url, after_photo_url, sort_order')
+      .select('inspection_id, field_item, findings, action_items, photo_url, after_photo_url, sort_order')
       .in('inspection_id', inspectionIds)
       .order('sort_order', { ascending: true })
 
@@ -1466,6 +1467,7 @@ export async function getSafetyInspectionDetailsForExcel(
         supervisor_name: ins.supervisor_name || null,
         additional_items: (ins as any).additional_items || null,
         results: (resultsMap.get(ins.id) || []).map(r => ({
+          field_item: r.field_item || '안전',
           findings: r.findings || '',
           action_items: r.action_items || '',
           photo_url: r.photo_url || null,

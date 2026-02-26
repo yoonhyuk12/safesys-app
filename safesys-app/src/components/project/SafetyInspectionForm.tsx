@@ -69,7 +69,16 @@ const THAW_SEASON_ITEMS = [
     { category: '마. 주변시설', item: '1. 공사용 가설도로 상태의 적정성', action: '해당없음' },
     { category: '마. 주변시설', item: '2. 지하매설물 보호조치의 적정성', action: '해당없음' },
     { category: '마. 주변시설', item: '3. 주변지반에 대한 이상유무', action: '해당없음' },
-    { category: '마. 주변시설', item: '4. 지하매설물 조사', action: '해당없음' }
+    { category: '마. 주변시설', item: '4. 지하매설물 조사', action: '해당없음' },
+    { category: '바. (품질) 중점품질관리대상 공종 지정 및 관리여부', item: '1. 중점 품질관리 대상공종 미지정', action: '해당없음' },
+    { category: '바. (품질) 중점품질관리대상 공종 지정 및 관리여부', item: '2. 중점 품질관리 대상의 관리 미실시', action: '해당없음' },
+    { category: '바. (품질) 중점품질관리대상 공종 지정 및 관리여부', item: '3. 기타', action: '해당없음' },
+    { category: '사. (품질)품질시험장비 검교정', item: '1. 규정된 주기에 따른 검교정 미실시', action: '해당없음' },
+    { category: '사. (품질)품질시험장비 검교정', item: '2. 교정성적서 미발급', action: '해당없음' },
+    { category: '사. (품질)품질시험장비 검교정', item: '3. 기타', action: '해당없음' },
+    { category: '아. (품질)가설기자재 품질관리비 반영 및 반입 전 성능확인 검사 여부', item: '1. 자재 반입 전 시험성적서, 안전인증서, 품질인증서 미검토', action: '해당없음' },
+    { category: '아. (품질)가설기자재 품질관리비 반영 및 반입 전 성능확인 검사 여부', item: '2. 성능확인 미실시', action: '해당없음' },
+    { category: '아. (품질)가설기자재 품질관리비 반영 및 반입 전 성능확인 검사 여부', item: '3. 기타', action: '해당없음' }
 ]
 
 export default function SafetyInspectionForm({ projectId, project, editingId, onClose, onSaved }: Props) {
@@ -251,11 +260,21 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
         setGoodExampleContent(inspection.good_example_content || '')
 
         if (inspection.additional_items && Array.isArray(inspection.additional_items)) {
-            setAdditionalItems(inspection.additional_items)
+            let loadedItems = inspection.additional_items
+
+            if (inspection.inspection_type === '해빙기') {
+                const existingCategories = new Set(loadedItems.map((item: any) => item.category))
+                const missingItems = THAW_SEASON_ITEMS.filter(item => !existingCategories.has(item.category))
+                if (missingItems.length > 0) {
+                    loadedItems = [...loadedItems, ...JSON.parse(JSON.stringify(missingItems))]
+                }
+            }
+
+            setAdditionalItems(loadedItems)
             const slots: (number | null)[] = [null, null, null]
             let slotIdx = 0
             const singleSelected = new Map<string, number>()
-            inspection.additional_items.forEach((item: any, idx: number) => {
+            loadedItems.forEach((item: any, idx: number) => {
                 if (item.category === '가. 안전관리 5대 핵심항목 이행 여부') {
                     if (item.action && item.action !== '해당없음' && slotIdx < 3) slots[slotIdx++] = idx
                 } else if (item.action && item.action !== '해당없음' && !singleSelected.has(item.category)) {
@@ -835,6 +854,20 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                 {renderPhotoGroup('site_before', '점검 전경')}
                             </div>
 
+                            {/* 점검표 PDF 링크 */}
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <a href="https://drive.google.com/file/d/1NxRogH08nc_eWHj3Uzc3I5mfnIXt1aSb/view?usp=drive_link" target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-medium hover:bg-red-100 transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z" /></svg>
+                                    점검표 (안전분야)
+                                </a>
+                                <a href="https://drive.google.com/file/d/1tP6gbOJIGofamg_8y1GKDLQln2UWrMG5/view?usp=drive_link" target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm font-medium hover:bg-green-100 transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z" /></svg>
+                                    점검표 (품질·환경분야)
+                                </a>
+                            </div>
+
                             {/* 2. 지적사항 및 수범사례 영역 */}
                             <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
                                 <div className="flex items-center justify-between mb-4">
@@ -1204,6 +1237,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                 <h3 className="text-[15px] font-bold text-gray-800 mb-4 flex items-center gap-2">
                                     <span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">4</span>
                                     추가 점검 항목
+                                    <span className="text-sm font-normal text-gray-500 ml-2">(미 해당시 공란 가능)</span>
                                 </h3>
                                 {/* Mobile View (Card Layout) */}
                                 <div className="block md:hidden space-y-4">

@@ -2377,8 +2377,7 @@ const Dashboard: React.FC = () => {
                     }`}
                 >
                   <Activity className={`h-4 w-4 lg:h-4 lg:w-4 ${windowSize.width <= 1365 ? 'mr-0' : 'mr-1 lg:mr-2'}`} />
-                  <span style={{ display: windowSize.width <= 1365 ? 'none' : windowSize.width >= 1590 ? 'inline' : 'none' }}>TBM현황</span>
-                  <span style={{ display: windowSize.width <= 1365 ? 'none' : windowSize.width < 1590 ? 'inline' : 'none' }}>TBM</span>
+                  <span style={{ display: windowSize.width <= 1365 ? 'none' : 'inline' }}>TBM</span>
                 </button>
                 <button
                   onClick={() => {
@@ -2397,8 +2396,7 @@ const Dashboard: React.FC = () => {
                     }`}
                 >
                   <MapIcon className={`h-4 w-4 lg:h-4 lg:w-4 ${windowSize.width <= 1365 ? 'mr-0' : 'mr-1 lg:mr-2'}`} />
-                  <span style={{ display: windowSize.width <= 1365 ? 'none' : windowSize.width >= 1590 ? 'inline' : 'none' }}>지도보기</span>
-                  <span style={{ display: windowSize.width <= 1365 ? 'none' : windowSize.width < 1590 ? 'inline' : 'none' }}>지도</span>
+                  <span style={{ display: windowSize.width <= 1365 ? 'none' : 'inline' }}>지도</span>
                 </button>
                 <button
                   onClick={() => {
@@ -2410,8 +2408,7 @@ const Dashboard: React.FC = () => {
                     }`}
                 >
                   <List className={`h-4 w-4 lg:h-4 lg:w-4 ${windowSize.width <= 1365 ? 'mr-0' : 'mr-1 lg:mr-2'}`} />
-                  <span style={{ display: windowSize.width <= 1365 ? 'none' : windowSize.width >= 1590 ? 'inline' : 'none' }}>목록보기</span>
-                  <span style={{ display: windowSize.width <= 1365 ? 'none' : windowSize.width < 1590 ? 'inline' : 'none' }}>목록</span>
+                  <span style={{ display: windowSize.width <= 1365 ? 'none' : 'inline' }}>목록</span>
                 </button>
                 <button
                   onClick={() => {
@@ -2423,8 +2420,7 @@ const Dashboard: React.FC = () => {
                     }`}
                 >
                   <Shield className={`h-4 w-4 lg:h-4 lg:w-4 ${windowSize.width <= 1365 ? 'mr-0' : 'mr-1 lg:mr-2'}`} />
-                  <span style={{ display: windowSize.width <= 1365 ? 'none' : windowSize.width >= 1590 ? 'inline' : 'none' }}>안전현황</span>
-                  <span style={{ display: windowSize.width <= 1365 ? 'none' : windowSize.width < 1590 ? 'inline' : 'none' }}>안전</span>
+                  <span style={{ display: windowSize.width <= 1365 ? 'none' : 'inline' }}>안전</span>
                 </button>
                 <button
                   onClick={() => {
@@ -2437,8 +2433,7 @@ const Dashboard: React.FC = () => {
                     }`}
                 >
                   <Briefcase className={`h-4 w-4 lg:h-4 lg:w-4 ${windowSize.width <= 1365 ? 'mr-0' : 'mr-1 lg:mr-2'}`} />
-                  <span style={{ display: windowSize.width <= 1365 ? 'none' : windowSize.width >= 1590 ? 'inline' : 'none' }}>사업현황</span>
-                  <span style={{ display: windowSize.width <= 1365 ? 'none' : windowSize.width < 1590 ? 'inline' : 'none' }}>사업</span>
+                  <span style={{ display: windowSize.width <= 1365 ? 'none' : 'inline' }}>사업</span>
                 </button>
               </div>
             </div>
