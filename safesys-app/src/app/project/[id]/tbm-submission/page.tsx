@@ -3,11 +3,12 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Calendar, ChevronLeft, ChevronRight, ExternalLink, X, Download, Trash2, Printer } from 'lucide-react'
+import { ArrowLeft, Plus, Calendar, ChevronLeft, ChevronRight, ExternalLink, X, Download, Trash2, Printer, QrCode } from 'lucide-react'
 import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import TBMSubmissionModal from '@/components/project/TBMSubmissionModal'
+import { QRCodeSVG } from 'qrcode.react'
 import { generateTBMSubmissionReport, generateTBMSubmissionBulkReport, TBMSubmissionFormData } from '@/lib/reports/tbm-submission-report'
 import { downloadTBMSubmissionExcel, downloadTBMSubmissionBulkExcel } from '@/lib/excel/tbm-submission-export'
 
@@ -47,6 +48,8 @@ export default function TBMSubmissionPage() {
   const [selectedPrintDates, setSelectedPrintDates] = useState<string[]>([])
   const [bulkDownloadingFormat, setBulkDownloadingFormat] = useState<'pdf' | 'excel' | null>(null)
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null)
+  const [editingSubmission, setEditingSubmission] = useState<TBMSubmission | null>(null)
+  const [qrSubmission, setQrSubmission] = useState<TBMSubmission | null>(null)
 
   useEffect(() => {
     // 모달이 열려 있을 때는 데이터 새로고침 방지 (입력 내용 유지)
@@ -243,11 +246,18 @@ export default function TBMSubmissionPage() {
   }
 
   const handleNewSubmission = () => {
+    setEditingSubmission(null)
+    setIsModalOpen(true)
+  }
+
+  const handleEditSubmission = (submission: TBMSubmission) => {
+    setEditingSubmission(submission)
     setIsModalOpen(true)
   }
 
   const handleModalClose = () => {
     setIsModalOpen(false)
+    setEditingSubmission(null)
     // 모달이 닫힐 때 제출 목록 새로고침
     loadSubmissions()
   }
@@ -512,11 +522,10 @@ export default function TBMSubmissionPage() {
                   </button>
                   <button
                     onClick={togglePrintMode}
-                    className={`p-2 rounded-lg transition-colors ${
-                      isPrintMode
-                        ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                        : 'hover:bg-gray-100 text-gray-700'
-                    }`}
+                    className={`p-2 rounded-lg transition-colors ${isPrintMode
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                      : 'hover:bg-gray-100 text-gray-700'
+                      }`}
                     title={isPrintMode ? '프린터 모드 종료' : '프린터 모드'}
                   >
                     <Printer className="h-5 w-5" />
@@ -538,9 +547,8 @@ export default function TBMSubmissionPage() {
                 {['일', '월', '화', '수', '목', '금', '토'].map((day, index) => (
                   <div
                     key={day}
-                    className={`text-center font-semibold py-2 ${
-                      index === 0 ? 'text-red-500' : index === 6 ? 'text-blue-500' : 'text-gray-700'
-                    }`}
+                    className={`text-center font-semibold py-2 ${index === 0 ? 'text-red-500' : index === 6 ? 'text-blue-500' : 'text-gray-700'
+                      }`}
                   >
                     {day}
                   </div>
@@ -657,147 +665,161 @@ export default function TBMSubmissionPage() {
             ) : selectedDate ? (
               <div className="bg-white rounded-lg shadow p-6">
                 {selectedDate && (
-                <div className="mt-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="text-sm font-medium text-gray-700">
-                      선택한 날짜
-                    </h4>
-                    <button
-                      onClick={() => {
-                        setSelectedDate(null)
-                        setSelectedDateSubmissions([])
-                      }}
-                      className="p-1 hover:bg-gray-100 rounded transition-colors"
-                    >
-                      <X className="h-4 w-4 text-gray-500" />
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg mb-4">
-                    <Calendar className="h-4 w-4" />
-                    {selectedDate}
-                  </div>
-
-                  {/* 제출 목록 */}
-                  {selectedDateSubmissions.length > 0 ? (
-                    <div className="space-y-3">
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-2">
                       <h4 className="text-sm font-medium text-gray-700">
-                        제출 기록 ({selectedDateSubmissions.length}건)
+                        선택한 날짜
                       </h4>
-                      {selectedDateSubmissions.map((submission) => {
-                        // 제출 시간 포맷팅 함수 (시:분만 표시)
-                        const formatSubmittedAt = (submittedAt: string | null | undefined) => {
-                          if (!submittedAt) return ''
-                          try {
-                            const date = new Date(submittedAt)
-                            const hours = String(date.getHours()).padStart(2, '0')
-                            const minutes = String(date.getMinutes()).padStart(2, '0')
-                            return `${hours}:${minutes}`
-                          } catch {
-                            return ''
-                          }
-                        }
+                      <button
+                        onClick={() => {
+                          setSelectedDate(null)
+                          setSelectedDateSubmissions([])
+                        }}
+                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      >
+                        <X className="h-4 w-4 text-gray-500" />
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg mb-4">
+                      <Calendar className="h-4 w-4" />
+                      {selectedDate}
+                    </div>
 
-                        return (
-                          <div
-                            key={submission.id}
-                            className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                          >
-                            <div className="flex items-start gap-3">
-                              {/* 교육 사진 썸네일 */}
-                              {(submission as any).education_photo_url ? (
-                                <a
-                                  href={(submission as any).education_photo_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex-shrink-0"
-                                >
-                                  <img
-                                    src={(submission as any).education_photo_url}
-                                    alt="교육 사진"
-                                    className="w-16 h-16 object-cover rounded-lg border border-gray-200"
-                                  />
-                                </a>
-                              ) : (
-                                <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
-                                  <span className="text-[10px] text-gray-400">사진없음</span>
-                                </div>
-                              )}
-                              {/* 정보 및 버튼 */}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <div className="text-sm font-medium text-gray-900">
-                                      {submission.reporter_name || '미입력'}
-                                    </div>
-                                    {submission.submitted_at && (
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        제출: {formatSubmittedAt(submission.submitted_at)}
-                                      </div>
-                                    )}
+                    {/* 제출 목록 */}
+                    {selectedDateSubmissions.length > 0 ? (
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-gray-700">
+                          제출 기록 ({selectedDateSubmissions.length}건)
+                        </h4>
+                        {selectedDateSubmissions.map((submission) => {
+                          // 제출 시간 포맷팅 함수 (시:분만 표시)
+                          const formatSubmittedAt = (submittedAt: string | null | undefined) => {
+                            if (!submittedAt) return ''
+                            try {
+                              const date = new Date(submittedAt)
+                              const hours = String(date.getHours()).padStart(2, '0')
+                              const minutes = String(date.getMinutes()).padStart(2, '0')
+                              return `${hours}:${minutes}`
+                            } catch {
+                              return ''
+                            }
+                          }
+
+                          return (
+                            <div
+                              key={submission.id}
+                              className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors cursor-pointer"
+                              onClick={() => handleEditSubmission(submission)}
+                            >
+                              <div className="flex items-start gap-3">
+                                {/* 교육 사진 썸네일 */}
+                                {(submission as any).education_photo_url ? (
+                                  <a
+                                    href={(submission as any).education_photo_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-shrink-0"
+                                  >
+                                    <img
+                                      src={(submission as any).education_photo_url}
+                                      alt="교육 사진"
+                                      className="w-16 h-16 object-cover rounded-lg border border-gray-200"
+                                    />
+                                  </a>
+                                ) : (
+                                  <div className="w-16 h-16 flex-shrink-0 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                                    <span className="text-[10px] text-gray-400">사진없음</span>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <button
-                                      onClick={() => handleDeleteSubmission(submission)}
-                                      disabled={deletingId === submission.id}
-                                      className="p-2.5 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-red-200 bg-red-50"
-                                      title="삭제"
-                                    >
-                                      {deletingId === submission.id ? (
-                                        <div className="h-5 w-5 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
-                                      ) : (
-                                        <Trash2 className="h-5 w-5 text-red-600" />
+                                )}
+                                {/* 정보 및 버튼 */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {submission.reporter_name || '미입력'}
+                                      </div>
+                                      {submission.submitted_at && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                          제출: {formatSubmittedAt(submission.submitted_at)}
+                                        </div>
                                       )}
-                                    </button>
-                                    <div className="relative">
+                                    </div>
+                                    <div className="flex items-center gap-2">
                                       <button
-                                        onClick={() => setDownloadMenuId(downloadMenuId === submission.id ? null : submission.id)}
-                                        disabled={downloadingId === submission.id}
-                                        className="p-2.5 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-blue-200 bg-blue-50"
-                                        title="보고서 다운로드"
+                                        onClick={(e) => { e.stopPropagation(); setQrSubmission(submission) }}
+                                        className="p-2.5 hover:bg-purple-100 rounded-lg transition-colors border border-purple-200 bg-purple-50"
+                                        title="QR 코드"
                                       >
-                                        {downloadingId === submission.id ? (
-                                          <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                                        <QrCode className="h-5 w-5 text-purple-600" />
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          handleDeleteSubmission(submission)
+                                        }}
+                                        disabled={deletingId === submission.id}
+                                        className="p-2.5 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-red-200 bg-red-50"
+                                        title="삭제"
+                                      >
+                                        {deletingId === submission.id ? (
+                                          <div className="h-5 w-5 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
                                         ) : (
-                                          <Download className="h-5 w-5 text-blue-600" />
+                                          <Trash2 className="h-5 w-5 text-red-600" />
                                         )}
                                       </button>
-                                      {downloadMenuId === submission.id && (
-                                        <>
-                                          <div className="fixed inset-0 z-10" onClick={() => setDownloadMenuId(null)} />
-                                          <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[140px]">
-                                            <button
-                                              onClick={() => handleDownloadReport(submission, 'pdf')}
-                                              className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 rounded-t-lg flex items-center gap-2 text-gray-700"
-                                            >
-                                              <span className="text-red-500 font-bold text-xs">PDF</span>
-                                              PDF 다운로드
-                                            </button>
-                                            <button
-                                              onClick={() => handleDownloadReport(submission, 'excel')}
-                                              className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 rounded-b-lg flex items-center gap-2 text-gray-700 border-t border-gray-100"
-                                            >
-                                              <span className="text-green-600 font-bold text-xs">XLS</span>
-                                              엑셀 다운로드
-                                            </button>
-                                          </div>
-                                        </>
-                                      )}
+                                      <div className="relative">
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            setDownloadMenuId(downloadMenuId === submission.id ? null : submission.id)
+                                          }}
+                                          disabled={downloadingId === submission.id}
+                                          className="p-2.5 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-blue-200 bg-blue-50"
+                                          title="보고서 다운로드"
+                                        >
+                                          {downloadingId === submission.id ? (
+                                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                                          ) : (
+                                            <Download className="h-5 w-5 text-blue-600" />
+                                          )}
+                                        </button>
+                                        {downloadMenuId === submission.id && (
+                                          <>
+                                            <div className="fixed inset-0 z-10" onClick={() => setDownloadMenuId(null)} />
+                                            <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[140px]">
+                                              <button
+                                                onClick={() => handleDownloadReport(submission, 'pdf')}
+                                                className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 rounded-t-lg flex items-center gap-2 text-gray-700"
+                                              >
+                                                <span className="text-red-500 font-bold text-xs">PDF</span>
+                                                PDF 다운로드
+                                              </button>
+                                              <button
+                                                onClick={() => handleDownloadReport(submission, 'excel')}
+                                                className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 rounded-b-lg flex items-center gap-2 text-gray-700 border-t border-gray-100"
+                                              >
+                                                <span className="text-green-600 font-bold text-xs">XLS</span>
+                                                엑셀 다운로드
+                                              </button>
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg">
-                      해당 날짜에 제출 기록이 없습니다.
-                    </div>
-                  )}
-                </div>
-              )}
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg">
+                        해당 날짜에 제출 기록이 없습니다.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <div className="bg-white rounded-lg shadow p-6 flex items-center justify-center min-h-[200px]">
@@ -833,6 +855,48 @@ export default function TBMSubmissionPage() {
         </div>
       )}
 
+      {/* QR 코드 모달 */}
+      {qrSubmission && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+          onClick={() => setQrSubmission(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setQrSubmission(null)}
+              className="absolute top-3 right-3 p-1.5 hover:bg-gray-100 rounded-full"
+            >
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+
+            {/* QR 코드 */}
+            <div className="flex flex-col items-center gap-4">
+              <h3 className="text-lg font-bold text-gray-900">TBM QR 코드</h3>
+              <div className="bg-white p-4 rounded-xl border-2 border-gray-100">
+                <QRCodeSVG
+                  value={`${window.location.origin}/tbm-view/${qrSubmission.id}`}
+                  size={280}
+                  level="M"
+                />
+              </div>
+              <div className="text-center space-y-1">
+                <p className="text-sm font-medium text-gray-900">{qrSubmission.project_name}</p>
+                <p className="text-xs text-gray-500">
+                  {qrSubmission.meeting_date} | {qrSubmission.reporter_name || '미입력'}
+                </p>
+              </div>
+              <p className="text-xs text-gray-400 text-center">
+                QR을 스캔하면 작업내용을 확인할 수 있습니다
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TBM 제출 모달 */}
       {project && userProfile && (
         <TBMSubmissionModal
@@ -846,6 +910,7 @@ export default function TBMSubmissionPage() {
           userEmail={userProfile.email}
           selectedDate={selectedDate || undefined}
           onSuccess={handleSubmissionSuccess}
+          editingSubmission={editingSubmission}
         />
       )}
     </div>
