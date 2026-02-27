@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
 import {
   Shield, AlertTriangle, Wrench, FileText,
-  Clock, Users, Truck, AlertOctagon
+  Clock, Users, Truck, AlertOctagon, Loader2, X
 } from 'lucide-react'
 
 interface TBMViewData {
@@ -31,12 +31,37 @@ interface TBMViewData {
   risk_work_type?: string
 }
 
+const languageOptions = [
+  { value: 'ko', label: '🇰🇷 한국어 (Korean)' },
+  { value: 'en', label: '🇺🇸 English (영어)' },
+  { value: 'ja', label: '🇯🇵 日本語 (일본어)' },
+  { value: 'zh-cn', label: '🇨🇳 中文简体 (중국어 간체)' },
+  { value: 'zh-tw', label: '🇹🇼 中文繁體 (중국어 번체)' },
+  { value: 'vi', label: '🇻🇳 Tiếng Việt (베트남어)' },
+  { value: 'th', label: '🇹🇭 ภาษาไทย (태국어)' },
+  { value: 'id', label: '🇮🇩 Bahasa Indonesia (인도네시아어)' },
+  { value: 'tl', label: '🇵🇭 Tagalog (필리핀어)' },
+  { value: 'my', label: '🇲🇲 မြန်မာ (미얀마어)' },
+  { value: 'km', label: '🇰🇭 ភាសាខ្មែរ (캄보디아어)' },
+  { value: 'ne', label: '🇳🇵 नेपाली (네팔어)' },
+  { value: 'uz', label: "🇺🇿 O'zbek (우즈베키스탄어)" },
+]
+
 export default function TBMViewPage() {
   const params = useParams()
   const id = params.id as string
   const [data, setData] = useState<TBMViewData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // TTS 상태
+  const [selectedLanguage, setSelectedLanguage] = useState('ko')
+  const [ttsLoading, setTtsLoading] = useState(false)
+  const [showTtsModal, setShowTtsModal] = useState(false)
+  const [translatedText, setTranslatedText] = useState('')
+  const [isReading, setIsReading] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     async function fetchData() {
@@ -56,6 +81,91 @@ export default function TBMViewPage() {
     }
     if (id) fetchData()
   }, [id])
+
+  const collectReadingContent = (d: TBMViewData) => {
+    const contents: string[] = []
+    if (d.potential_risk_1) contents.push(`첫 번째 잠재위험요인: ${d.potential_risk_1}`)
+    if (d.solution_1) contents.push(`첫 번째 대책: ${d.solution_1}`)
+    if (d.potential_risk_2) contents.push(`두 번째 잠재위험요인: ${d.potential_risk_2}`)
+    if (d.solution_2) contents.push(`두 번째 대책: ${d.solution_2}`)
+    if (d.potential_risk_3) contents.push(`세 번째 잠재위험요인: ${d.potential_risk_3}`)
+    if (d.solution_3) contents.push(`세 번째 대책: ${d.solution_3}`)
+    if (d.main_risk_selection) contents.push(`중점위험요인: ${d.main_risk_selection}`)
+    if (d.main_risk_solution) contents.push(`중점위험요인 대책: ${d.main_risk_solution}`)
+    if (d.risk_factor_1) contents.push(`첫 번째 유해위험요소: ${d.risk_factor_1}`)
+    if (d.risk_factor_2) contents.push(`두 번째 유해위험요소: ${d.risk_factor_2}`)
+    if (d.risk_factor_3) contents.push(`세 번째 유해위험요소: ${d.risk_factor_3}`)
+    return contents
+  }
+
+  const base64ToBlob = (base64: string, mimeType: string): Blob => {
+    const byteCharacters = atob(base64)
+    const byteNumbers = new Array(byteCharacters.length)
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i)
+    }
+    const byteArray = new Uint8Array(byteNumbers)
+    return new Blob([byteArray], { type: mimeType })
+  }
+
+  const handleTTSRead = async () => {
+    if (!data) return
+    const contents = collectReadingContent(data)
+    if (contents.length === 0) {
+      alert('읽을 내용이 없습니다.')
+      return
+    }
+    setTtsLoading(true)
+    setShowTtsModal(true)
+    try {
+      const originalText = contents.join('. ')
+      const response = await fetch('/api/ai/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: originalText, language: selectedLanguage })
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error || 'TTS 생성 중 오류가 발생했습니다.')
+      if (result.success) {
+        setTranslatedText(result.translatedText)
+        const audioBlob = base64ToBlob(result.audio, 'audio/mp3')
+        const audioUrl = URL.createObjectURL(audioBlob)
+        if (audioRef.current) {
+          audioRef.current.pause()
+          URL.revokeObjectURL(audioRef.current.src)
+        }
+        audioRef.current = new Audio(audioUrl)
+        audioRef.current.onplay = () => setIsReading(true)
+        audioRef.current.onended = () => { setIsReading(false); setIsPaused(false) }
+        audioRef.current.onerror = () => { setIsReading(false); setIsPaused(false) }
+        await audioRef.current.play()
+      }
+    } catch (err: any) {
+      alert(`음성 읽기 중 오류가 발생했습니다: ${err.message || '알 수 없는 오류'}`)
+      setShowTtsModal(false)
+    } finally {
+      setTtsLoading(false)
+    }
+  }
+
+  const stopTTS = () => {
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0 }
+    setIsReading(false)
+    setIsPaused(false)
+  }
+
+  const togglePauseTTS = () => {
+    if (!audioRef.current) return
+    if (isPaused) { audioRef.current.play(); setIsPaused(false) }
+    else { audioRef.current.pause(); setIsPaused(true) }
+  }
+
+  const closeTtsModal = () => {
+    stopTTS()
+    if (audioRef.current) { URL.revokeObjectURL(audioRef.current.src); audioRef.current = null }
+    setShowTtsModal(false)
+    setTranslatedText('')
+  }
 
   if (loading) {
     return (
@@ -84,6 +194,7 @@ export default function TBMViewPage() {
 
   const hasRisks = data.potential_risk_1 || data.potential_risk_2 || data.potential_risk_3
   const hasRiskFactors = data.risk_factor_1 || data.risk_factor_2 || data.risk_factor_3
+  const hasTTSContent = hasRisks || data.main_risk_selection || data.main_risk_solution || hasRiskFactors
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -93,7 +204,7 @@ export default function TBMViewPage() {
           <Shield className="h-7 w-7 flex-shrink-0" />
           <div>
             <p className="text-xs font-medium text-blue-200 uppercase tracking-wide">SafeSys</p>
-            <h1 className="text-lg font-bold leading-tight">TBM 안전교육 내용</h1>
+            <h1 className="text-lg font-bold leading-tight">AI TBM 안전교육 내용</h1>
           </div>
         </div>
       </div>
@@ -252,12 +363,123 @@ export default function TBMViewPage() {
           </div>
         )}
 
+        {/* 외국인 근로자 지원 - TTS 음성 읽기 */}
+        {hasTTSContent && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-700">🌏 외국인 근로자 지원 (음성 읽기)</h2>
+              <span className="text-xs text-gray-400">powered by OpenAI TTS</span>
+            </div>
+            <div className="px-4 py-4">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {languageOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleTTSRead}
+                  disabled={ttsLoading || isReading}
+                  className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {ttsLoading ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" />번역 중...</>
+                  ) : isReading ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" />읽는 중...</>
+                  ) : (
+                    '🔊 읽어주기'
+                  )}
+                </button>
+                {isReading && (
+                  <button
+                    type="button"
+                    onClick={stopTTS}
+                    className="px-4 py-2 text-sm text-white bg-red-500 rounded-md hover:bg-red-600"
+                  >
+                    ⏹️ 정지
+                  </button>
+                )}
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                외국인 근로자를 위해 위험요인과 대책을 선택한 언어로 번역하여 음성으로 읽어줍니다.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* 푸터 */}
         <div className="bg-green-600 rounded-xl px-4 py-5 text-center text-white">
           <p className="text-base font-bold">안전한 하루 되세요!</p>
           <p className="mt-1 text-xs text-green-200">SafeSys 안전관리시스템</p>
         </div>
       </div>
+
+      {/* TTS 음성 읽기 모달 */}
+      {showTtsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden">
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-800">🎵 음성 읽기</h3>
+              <button onClick={closeTtsModal} className="p-1 hover:bg-gray-100 rounded-full">
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[50vh]">
+              <div className="mb-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">
+                  🌏 선택된 언어: {languageOptions.find(l => l.value === selectedLanguage)?.label}
+                </h4>
+              </div>
+              {ttsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                  <span className="ml-2 text-gray-600">번역 중...</span>
+                </div>
+              ) : (
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h5 className="text-sm font-medium text-gray-700 mb-2">📝 읽기 내용</h5>
+                  <div className="text-sm text-gray-600 space-y-2 whitespace-pre-wrap">
+                    {translatedText.split('. ').map((sentence, idx) => (
+                      sentence.trim() && (
+                        <div key={idx} className="flex items-start gap-2 p-2 bg-white rounded border border-gray-100">
+                          <span className="text-blue-500">•</span>
+                          <span>{sentence.trim()}</span>
+                        </div>
+                      )
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-200 flex gap-2 justify-center">
+              <button
+                onClick={togglePauseTTS}
+                disabled={!isReading && !isPaused}
+                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isPaused ? '▶️ 재생' : '⏸️ 일시정지'}
+              </button>
+              <button
+                onClick={stopTTS}
+                className="px-4 py-2 text-sm text-white bg-red-500 rounded-md hover:bg-red-600"
+              >
+                ⏹️ 정지
+              </button>
+              <button
+                onClick={closeTtsModal}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -18,6 +18,7 @@ interface TBMSubmissionModalProps {
   userEmail?: string
   selectedDate?: string
   onSuccess?: () => void
+  editingSubmission?: any
 }
 
 interface FormData {
@@ -141,7 +142,8 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
   projectCategory,
   userEmail,
   selectedDate,
-  onSuccess
+  onSuccess,
+  editingSubmission
 }) => {
   const { userProfile } = useAuth()
   const [loading, setLoading] = useState(false)
@@ -195,13 +197,77 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      // 프로젝트 정보로 기본값 설정
-      setFormData(prev => ({
-        ...prev,
-        educationDate: selectedDate || new Date().toISOString().split('T')[0]
-      }))
+      if (editingSubmission) {
+        setFormData({
+          todayWork: editingSubmission.today_work || '',
+          noWorkCheck: editingSubmission.today_work === '작업없음',
+          baseAddress: editingSubmission.address || '',
+          detailAddress: editingSubmission.detail_address || '',
+          personnelInput: editingSubmission.personnel_count || '',
+          newWorkerCount: editingSubmission.new_worker_count?.toString() || '',
+          equipmentInput: editingSubmission.equipment_input || '',
+          riskWorkType: editingSubmission.risk_work_type || '',
+          cctvUsage: editingSubmission.cctv_usage || '',
+          educationDate: editingSubmission.education_date || selectedDate || new Date().toISOString().split('T')[0],
+          educationStartTime: editingSubmission.education_start_time || '07:00',
+          educationEndTime: editingSubmission.education_end_time || '07:20',
+          educationPhoto: null,
+          potentialRisk1: editingSubmission.potential_risk_1 || '',
+          solution1: editingSubmission.solution_1 || '',
+          potentialRisk2: editingSubmission.potential_risk_2 || '',
+          solution2: editingSubmission.solution_2 || '',
+          potentialRisk3: editingSubmission.potential_risk_3 || '',
+          solution3: editingSubmission.solution_3 || '',
+          mainRiskSelection: editingSubmission.main_risk_selection || '',
+          mainRiskSolution: editingSubmission.main_risk_solution || '',
+          riskFactor1: editingSubmission.risk_factor_1 || '',
+          riskFactor2: editingSubmission.risk_factor_2 || '',
+          riskFactor3: editingSubmission.risk_factor_3 || '',
+          otherRemarks: editingSubmission.other_remarks || '- 위험성평가 내용 전달',
+          name: editingSubmission.reporter_name || '',
+          contact: editingSubmission.reporter_contact || '',
+          signature: '',
+          latitude: editingSubmission.latitude?.toString() || '',
+          longitude: editingSubmission.longitude?.toString() || ''
+        })
+      } else {
+        // 프로젝트 정보로 기본값 설정
+        setFormData(prev => ({
+          ...prev,
+          educationDate: selectedDate || new Date().toISOString().split('T')[0],
+          todayWork: '',
+          noWorkCheck: false,
+          baseAddress: '',
+          detailAddress: '',
+          personnelInput: '',
+          newWorkerCount: '',
+          equipmentInput: '',
+          riskWorkType: '',
+          cctvUsage: '',
+          educationStartTime: '07:00',
+          educationEndTime: '07:20',
+          educationPhoto: null,
+          potentialRisk1: '',
+          solution1: '',
+          potentialRisk2: '',
+          solution2: '',
+          potentialRisk3: '',
+          solution3: '',
+          mainRiskSelection: '',
+          mainRiskSolution: '',
+          riskFactor1: '',
+          riskFactor2: '',
+          riskFactor3: '',
+          otherRemarks: '- 위험성평가 내용 전달',
+          name: '',
+          contact: '',
+          signature: '',
+          latitude: '',
+          longitude: ''
+        }))
+      }
     }
-  }, [isOpen, selectedDate])
+  }, [isOpen, selectedDate, editingSubmission])
 
   // 서명 완료 후 자동 제출 처리
   useEffect(() => {
@@ -344,7 +410,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
     const safeBaseName = sanitizeStorageBaseName(fileName)
     const randomToken = Math.random().toString(36).substring(2, 8)
     const filePath = `${folder}/${Date.now()}_${randomToken}_${safeBaseName}.${fileExt}`
-    
+
     const { data, error } = await supabase.storage
       .from('tbm-photos')
       .upload(filePath, file, {
@@ -741,12 +807,12 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         return
       }
 
-      if (!formData.educationPhoto) {
+      if (!formData.educationPhoto && !editingSubmission?.education_photo_url) {
         alert('교육 사진 1개를 첨부해주세요.')
         return
       }
 
-      if (!formData.signature) {
+      if (!formData.signature && !editingSubmission?.signature_url) {
         setPendingSubmit(true)
         setShowSignaturePad(true)
         return
@@ -770,8 +836,8 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       setLoading(true)
 
       // 이미지와 서명을 Storage에 업로드
-      let educationPhotoUrl = null
-      let signatureUrl = null
+      let educationPhotoUrl = editingSubmission?.education_photo_url || null
+      let signatureUrl = editingSubmission?.signature_url || null
 
       if (formData.educationPhoto && !formData.noWorkCheck) {
         try {
@@ -815,54 +881,66 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       const endMinutes = parseInt(endTime[0]) * 60 + parseInt(endTime[1])
       const duration = endMinutes - startMinutes
 
+      // 다운로드 시 생성할 데이터 공통
+      const submitData: any = {
+        project_id: projectId,
+        reporter_email: userEmail || '',
+        headquarters: managingHq,
+        branch: managingBranch,
+        project_name: projectName,
+        project_type: projectCategory || '',
+        construction_company: userProfile?.company_name || '',
+        today_work: formData.todayWork,
+        address: formData.baseAddress,
+        detail_address: formData.detailAddress,
+        personnel_count: formData.personnelInput,
+        new_worker_count: formData.newWorkerCount ? parseInt(formData.newWorkerCount) : null,
+        equipment_input: formData.equipmentInput,
+        risk_work_type: formData.riskWorkType,
+        cctv_usage: formData.cctvUsage,
+        meeting_date: formData.educationDate,
+        education_date: formData.educationDate,
+        education_start_time: formData.educationStartTime,
+        education_end_time: formData.educationEndTime,
+        education_duration: duration,
+        education_photo_url: educationPhotoUrl,
+        potential_risk_1: formData.potentialRisk1,
+        solution_1: formData.solution1,
+        potential_risk_2: formData.potentialRisk2,
+        solution_2: formData.solution2,
+        potential_risk_3: formData.potentialRisk3,
+        solution_3: formData.solution3,
+        main_risk_selection: formData.mainRiskSelection,
+        main_risk_solution: formData.mainRiskSolution,
+        risk_factor_1: formData.riskFactor1,
+        risk_factor_2: formData.riskFactor2,
+        risk_factor_3: formData.riskFactor3,
+        other_remarks: formData.otherRemarks,
+        reporter_name: formData.name,
+        reporter_contact: formData.contact,
+        signature_url: signatureUrl,
+        latitude: formData.latitude || null,
+        longitude: formData.longitude || null
+      }
+
+      if (!editingSubmission) {
+        submitData.submitted_at = new Date().toISOString()
+      }
+
       // Supabase에 저장
-      const { data, error } = await supabase
-        .from('tbm_submissions')
-        .insert([
-          {
-            project_id: projectId,
-            reporter_email: userEmail || '',
-            headquarters: managingHq,
-            branch: managingBranch,
-            project_name: projectName,
-            project_type: projectCategory || '',
-            construction_company: userProfile?.company_name || '',
-            today_work: formData.todayWork,
-            address: formData.baseAddress,
-            detail_address: formData.detailAddress,
-            personnel_count: formData.personnelInput,
-            new_worker_count: formData.newWorkerCount ? parseInt(formData.newWorkerCount) : null,
-            equipment_input: formData.equipmentInput,
-            risk_work_type: formData.riskWorkType,
-            cctv_usage: formData.cctvUsage,
-            meeting_date: formData.educationDate,
-            education_date: formData.educationDate,
-            education_start_time: formData.educationStartTime,
-            education_end_time: formData.educationEndTime,
-            education_duration: duration,
-            education_photo_url: educationPhotoUrl,
-            potential_risk_1: formData.potentialRisk1,
-            solution_1: formData.solution1,
-            potential_risk_2: formData.potentialRisk2,
-            solution_2: formData.solution2,
-            potential_risk_3: formData.potentialRisk3,
-            solution_3: formData.solution3,
-            main_risk_selection: formData.mainRiskSelection,
-            main_risk_solution: formData.mainRiskSolution,
-            risk_factor_1: formData.riskFactor1,
-            risk_factor_2: formData.riskFactor2,
-            risk_factor_3: formData.riskFactor3,
-            other_remarks: formData.otherRemarks,
-            reporter_name: formData.name,
-            reporter_contact: formData.contact,
-            signature_url: signatureUrl,
-            latitude: formData.latitude || null,
-            longitude: formData.longitude || null,
-            submitted_at: new Date().toISOString()
-          }
-        ])
-        .select()
-        .single()
+      let submitOperation
+      if (editingSubmission) {
+        submitOperation = supabase
+          .from('tbm_submissions')
+          .update(submitData)
+          .eq('id', editingSubmission.id)
+      } else {
+        submitOperation = supabase
+          .from('tbm_submissions')
+          .insert([submitData])
+      }
+
+      const { data, error } = await submitOperation.select().single()
 
       if (error) {
         console.error('제출 오류:', error)
@@ -871,48 +949,49 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
 
       // 텔레그램 알림 발송 (발주청)
       try {
-        // 프로젝트의 텔레그램 ID 조회
-        const { data: projectData } = await supabase
-          .from('projects')
-          .select('client_telegram_id')
-          .eq('id', projectId)
-          .single()
+        if (!editingSubmission) {
+          // 프로젝트의 텔레그램 ID 조회
+          const { data: projectData } = await supabase
+            .from('projects')
+            .select('client_telegram_id')
+            .eq('id', projectId)
+            .single()
 
-        if (projectData?.client_telegram_id) {
-          // 텔레그램 메시지 구성
-          const telegramMessage = `📋 <b>TBM 일일안전교육 제출</b>\n\n` +
-            `🏗️ <b>현장:</b> ${projectName}\n` +
-            `📅 <b>교육일자:</b> ${formData.educationDate}\n` +
-            `⏰ <b>교육시간:</b> ${formData.educationStartTime} ~ ${formData.educationEndTime}\n\n` +
-            `📝 <b>금일작업:</b>\n${formData.todayWork}\n\n` +
-            `📖 <b>교육내용:</b>\n${formData.otherRemarks || '(미입력)'}\n\n` +
-            `👷 <b>투입인원:</b>\n${formData.personnelInput || '(미입력)'}\n\n` +
-            `🚜 <b>투입장비:</b>\n${formData.equipmentInput || '(미입력)'}\n\n` +
-            `👤 <b>작성자:</b> ${formData.name}\n` +
-            `📞 <b>연락처:</b> ${formData.contact}` +
-            (educationPhotoUrl ? `\n\n📷 교육사진이 첨부되었습니다.` : '')
+          if (projectData?.client_telegram_id) {
+            // 텔레그램 메시지 구성
+            const telegramMessage = `📋 <b>TBM 일일안전교육 제출</b>\n\n` +
+              `🏗️ <b>현장:</b> ${projectName}\n` +
+              `📅 <b>교육일자:</b> ${formData.educationDate}\n` +
+              `⏰ <b>교육시간:</b> ${formData.educationStartTime} ~ ${formData.educationEndTime}\n\n` +
+              `📝 <b>금일작업:</b>\n${formData.todayWork}\n\n` +
+              `📖 <b>교육내용:</b>\n${formData.otherRemarks || '(미입력)'}\n\n` +
+              `👷 <b>투입인원:</b>\n${formData.personnelInput || '(미입력)'}\n\n` +
+              `🚜 <b>투입장비:</b>\n${formData.equipmentInput || '(미입력)'}\n\n` +
+              `👤 <b>작성자:</b> ${formData.name}\n` +
+              `📞 <b>연락처:</b> ${formData.contact}` +
+              (educationPhotoUrl ? `\n\n📷 교육사진이 첨부되었습니다.` : '')
 
-          await fetch('/api/telegram', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'direct',
-              chatId: projectData.client_telegram_id,
-              message: telegramMessage
-            })
-          })
-
-          // 교육 사진이 있으면 사진도 발송
-          if (educationPhotoUrl) {
-            await fetch('/api/telegram/photo', {
+            await fetch('/api/telegram', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
+                type: 'direct',
                 chatId: projectData.client_telegram_id,
-                photoUrl: educationPhotoUrl,
-                caption: `${projectName} - ${formData.educationDate} TBM 교육사진`
+                message: telegramMessage
               })
             })
+
+            if (educationPhotoUrl) {
+              await fetch('/api/telegram/photo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  chatId: projectData.client_telegram_id,
+                  photoUrl: educationPhotoUrl,
+                  caption: `${projectName} - ${formData.educationDate} TBM 교육사진`
+                })
+              })
+            }
           }
         }
       } catch (telegramError) {
@@ -944,7 +1023,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                 {projectName}
               </h2>
               <span className="bg-blue-600 text-white px-2 py-1 rounded-md text-sm md:text-lg font-semibold whitespace-nowrap self-start md:self-auto">
-                TBM제출
+                {editingSubmission ? 'TBM수정' : 'TBM제출'}
               </span>
             </div>
             <button
@@ -1508,12 +1587,12 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    제출 중...
+                    {editingSubmission ? '수정 중...' : '제출 중...'}
                   </>
                 ) : (
                   <>
                     <Save className="h-4 w-4" />
-                    제출
+                    {editingSubmission ? '수정' : '제출'}
                   </>
                 )}
               </button>
@@ -1523,19 +1602,21 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       </div>
 
       {/* 서명 패드 모달 */}
-      {showSignaturePad && (
-        <SignaturePad
-          onSave={(signature) => {
-            handleInputChange('signature', signature)
-            setShowSignaturePad(false)
-            // useEffect에서 pendingSubmit과 signature를 감지하여 자동 제출 처리
-          }}
-          onCancel={() => {
-            setShowSignaturePad(false)
-            setPendingSubmit(false)
-          }}
-        />
-      )}
+      {
+        showSignaturePad && (
+          <SignaturePad
+            onSave={(signature) => {
+              handleInputChange('signature', signature)
+              setShowSignaturePad(false)
+              // useEffect에서 pendingSubmit과 signature를 감지하여 자동 제출 처리
+            }}
+            onCancel={() => {
+              setShowSignaturePad(false)
+              setPendingSubmit(false)
+            }}
+          />
+        )
+      }
 
       {/* 주소 검색 모달 */}
       <VworldMapAddressModal
@@ -1552,69 +1633,71 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       />
 
       {/* TTS 음성 읽기 모달 */}
-      {showTtsModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden">
-            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-800">🎵 음성 읽기</h3>
-              <button
-                onClick={closeTtsModal}
-                className="p-1 hover:bg-gray-100 rounded-full"
-              >
-                <X className="h-5 w-5 text-gray-500" />
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto max-h-[50vh]">
-              <div className="mb-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">
-                  🌏 선택된 언어: {languageOptions.find(l => l.value === selectedLanguage)?.label}
-                </h4>
+      {
+        showTtsModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[80vh] overflow-hidden">
+              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-800">🎵 음성 읽기</h3>
+                <button
+                  onClick={closeTtsModal}
+                  className="p-1 hover:bg-gray-100 rounded-full"
+                >
+                  <X className="h-5 w-5 text-gray-500" />
+                </button>
               </div>
-              {ttsLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                  <span className="ml-2 text-gray-600">번역 중...</span>
+              <div className="p-4 overflow-y-auto max-h-[50vh]">
+                <div className="mb-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    🌏 선택된 언어: {languageOptions.find(l => l.value === selectedLanguage)?.label}
+                  </h4>
                 </div>
-              ) : (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h5 className="text-sm font-medium text-gray-700 mb-2">📝 읽기 내용</h5>
-                  <div className="text-sm text-gray-600 space-y-2 whitespace-pre-wrap">
-                    {translatedText.split('. ').map((sentence, idx) => (
-                      sentence.trim() && (
-                        <div key={idx} className="flex items-start gap-2 p-2 bg-white rounded border border-gray-100">
-                          <span className="text-blue-500">•</span>
-                          <span>{sentence.trim()}</span>
-                        </div>
-                      )
-                    ))}
+                {ttsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+                    <span className="ml-2 text-gray-600">번역 중...</span>
                   </div>
-                </div>
-              )}
-            </div>
-            <div className="p-4 border-t border-gray-200 flex gap-2 justify-center">
-              <button
-                onClick={togglePauseTTS}
-                disabled={!isReading && !isPaused}
-                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isPaused ? '▶️ 재생' : '⏸️ 일시정지'}
-              </button>
-              <button
-                onClick={stopTTS}
-                className="px-4 py-2 text-sm text-white bg-red-500 rounded-md hover:bg-red-600"
-              >
-                ⏹️ 정지
-              </button>
-              <button
-                onClick={closeTtsModal}
-                className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
-              >
-                닫기
-              </button>
+                ) : (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h5 className="text-sm font-medium text-gray-700 mb-2">📝 읽기 내용</h5>
+                    <div className="text-sm text-gray-600 space-y-2 whitespace-pre-wrap">
+                      {translatedText.split('. ').map((sentence, idx) => (
+                        sentence.trim() && (
+                          <div key={idx} className="flex items-start gap-2 p-2 bg-white rounded border border-gray-100">
+                            <span className="text-blue-500">•</span>
+                            <span>{sentence.trim()}</span>
+                          </div>
+                        )
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="p-4 border-t border-gray-200 flex gap-2 justify-center">
+                <button
+                  onClick={togglePauseTTS}
+                  disabled={!isReading && !isPaused}
+                  className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isPaused ? '▶️ 재생' : '⏸️ 일시정지'}
+                </button>
+                <button
+                  onClick={stopTTS}
+                  className="px-4 py-2 text-sm text-white bg-red-500 rounded-md hover:bg-red-600"
+                >
+                  ⏹️ 정지
+                </button>
+                <button
+                  onClick={closeTtsModal}
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
+                >
+                  닫기
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
     </>
   )
 }

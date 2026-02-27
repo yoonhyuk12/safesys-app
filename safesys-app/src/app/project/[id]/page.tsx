@@ -660,10 +660,10 @@ export default function ProjectDetailPage() {
                 isProjectActive={project.is_active !== false}
               />
 
-              {/* 일일안전교육(TBM일지) 문서철 */}
+              {/* 일일안전교육(AI TBM일지) 문서철 */}
               <DocumentFolder
                 title="일일안전교육
-︵TBM일지︶"
+︵AI TBM일지︶"
                 year={new Date().getFullYear().toString()}
                 isActive={false}
                 projectId={projectId}
@@ -775,9 +775,9 @@ export default function ProjectDetailPage() {
                 badgeCount={safetyLedgerPendingCount}
               />
 
-              {/* TBM안전활동 점검표(감독) 문서철 */}
+              {/* AI TBM안전활동 점검표(감독) 문서철 */}
               <DocumentFolder
-                title="TBM안전활동
+                title="AI TBM안전활동
 점검표︵감독︶"
                 year={new Date().getFullYear().toString()}
                 isActive={false}

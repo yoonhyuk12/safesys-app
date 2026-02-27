@@ -488,7 +488,7 @@ export default function TBMSubmissionPage() {
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">일일안전교육(TBM일지)</h1>
+                <h1 className="text-xl font-bold text-gray-900">일일안전교육(AI TBM일지)</h1>
                 <p className="text-sm text-gray-500 mt-1">{project.project_name}</p>
               </div>
             </div>
@@ -875,7 +875,7 @@ export default function TBMSubmissionPage() {
 
             {/* QR 코드 */}
             <div className="flex flex-col items-center gap-4">
-              <h3 className="text-lg font-bold text-gray-900">TBM QR 코드</h3>
+              <h3 className="text-lg font-bold text-gray-900">AI TBM QR 코드</h3>
               <div className="bg-white p-4 rounded-xl border-2 border-gray-100">
                 <QRCodeSVG
                   value={`${window.location.origin}/tbm-view/${qrSubmission.id}`}
