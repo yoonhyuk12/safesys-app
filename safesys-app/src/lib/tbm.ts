@@ -74,6 +74,7 @@ export async function getTBMRecords(
         .from('tbm_submissions')
         .select('*')
         .eq('meeting_date', date)
+        .eq('status', 'submitted')          // 최종 제출만 조회
         .not('today_work', 'is', null)
         .neq('today_work', '작업없음')
 
@@ -184,6 +185,7 @@ export async function getTBMStats(
         .from('tbm_submissions')
         .select('headquarters, branch, project_name, new_worker_count, personnel_count')
         .eq('meeting_date', date)
+        .eq('status', 'submitted')          // 최종 제출만 통계
         .not('today_work', 'is', null)
         .neq('today_work', '작업없음')
 

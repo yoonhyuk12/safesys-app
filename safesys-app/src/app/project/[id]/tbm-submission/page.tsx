@@ -24,6 +24,7 @@ interface TBMSubmission {
   reporter_name?: string
   reporter_contact?: string
   submitted_at?: string
+  status?: 'draft' | 'submitted'   // 임시저장 상태 구분
   [key: string]: any
 }
 
@@ -50,6 +51,11 @@ export default function TBMSubmissionPage() {
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null)
   const [editingSubmission, setEditingSubmission] = useState<TBMSubmission | null>(null)
   const [qrSubmission, setQrSubmission] = useState<TBMSubmission | null>(null)
+  const [showUpdateNotice, setShowUpdateNotice] = useState(true)
+
+  const handleCloseUpdateNotice = () => {
+    setShowUpdateNotice(false)
+  }
 
   useEffect(() => {
     // 모달이 열려 있을 때는 데이터 새로고침 방지 (입력 내용 유지)
@@ -192,16 +198,22 @@ export default function TBMSubmissionPage() {
     return days
   }
 
-  const getSubmissionCountForDate = (day: number) => {
+  const getSubmissionInfoForDate = (day: number) => {
     const dateStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-    return submissions.filter(sub => sub.meeting_date?.startsWith(dateStr)).length
+    const dateSubs = submissions.filter(sub => sub.meeting_date?.startsWith(dateStr))
+    const draftCount = dateSubs.filter(sub => sub.status === 'draft').length
+    const submittedCount = dateSubs.filter(sub => sub.status !== 'draft').length
+    return { draftCount, submittedCount, total: dateSubs.length }
   }
 
   const sanitizeFileNamePart = (value: string) => value.replace(/[\\/:*?"<>|]/g, '_').trim()
 
   const getSubmissionsForDates = (dates: string[]) => {
     return submissions
-      .filter(submission => dates.some(date => submission.meeting_date?.startsWith(date)))
+      .filter(submission =>
+        dates.some(date => submission.meeting_date?.startsWith(date)) &&
+        submission.status !== 'draft'  // 임시저장 제외
+      )
       .sort((a, b) => {
         const dateCompare = (a.meeting_date || '').localeCompare(b.meeting_date || '')
         if (dateCompare !== 0) return dateCompare
@@ -225,8 +237,8 @@ export default function TBMSubmissionPage() {
     const dateStr = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 
     if (isPrintMode) {
-      const submissionCount = submissions.filter(submission => submission.meeting_date?.startsWith(dateStr)).length
-      if (submissionCount === 0) return
+      const totalCount = submissions.filter(submission => submission.meeting_date?.startsWith(dateStr)).length
+      if (totalCount === 0) return
 
       setSelectedPrintDates(prev =>
         prev.includes(dateStr)
@@ -560,7 +572,7 @@ export default function TBMSubmissionPage() {
                     return <div key={`empty-${index}`} className="aspect-square" />
                   }
 
-                  const submissionCount = getSubmissionCountForDate(day)
+                  const { draftCount, submittedCount, total } = getSubmissionInfoForDate(day)
                   const isToday =
                     new Date().getDate() === day &&
                     new Date().getMonth() === currentMonth.getMonth() &&
@@ -575,21 +587,27 @@ export default function TBMSubmissionPage() {
                     <button
                       key={day}
                       onClick={() => handleDateClick(day)}
-                      disabled={isPrintMode && submissionCount === 0}
+                      disabled={isPrintMode && total === 0}
                       className={`
                         aspect-square p-2 rounded-lg border transition-all disabled:cursor-not-allowed disabled:opacity-45
                         ${isPrintSelected ? 'border-amber-600 bg-amber-100 ring-2 ring-amber-500' : ''}
                         ${!isPrintSelected && isSelected ? 'border-blue-600 bg-blue-100 ring-2 ring-blue-500' : ''}
                         ${!isPrintSelected && !isSelected && isToday ? 'border-blue-500 bg-blue-50' : ''}
                         ${!isPrintSelected && !isSelected && !isToday ? 'border-gray-200 hover:border-gray-300' : ''}
-                        ${!isPrintSelected && !isSelected && submissionCount > 0 ? 'bg-green-50' : ''}
-                        ${!isPrintSelected && !isSelected && submissionCount === 0 ? 'hover:bg-gray-50' : ''}
+                        ${!isPrintSelected && !isSelected && submittedCount > 0 ? 'bg-green-50' : ''}
+                        ${!isPrintSelected && !isSelected && submittedCount === 0 && draftCount > 0 ? 'bg-purple-50/60' : ''}
+                        ${!isPrintSelected && !isSelected && total === 0 ? 'hover:bg-gray-50' : ''}
                       `}
                     >
                       <div className={`text-sm font-medium ${isPrintSelected ? 'text-amber-900 font-bold' : isSelected ? 'text-blue-900 font-bold' : ''}`}>{day}</div>
-                      {submissionCount > 0 && (
+                      {submittedCount > 0 && (
                         <div className={`text-xs mt-1 ${isPrintSelected ? 'text-amber-700 font-semibold' : isSelected ? 'text-blue-700 font-semibold' : 'text-green-600'}`}>
-                          {submissionCount}건
+                          {submittedCount}건
+                        </div>
+                      )}
+                      {draftCount > 0 && (
+                        <div className="text-xs text-purple-600">
+                          {draftCount}건(임시)
                         </div>
                       )}
                     </button>
@@ -735,8 +753,13 @@ export default function TBMSubmissionPage() {
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-start justify-between">
                                     <div className="flex-1">
-                                      <div className="text-sm font-medium text-gray-900">
-                                        {submission.reporter_name || '미입력'}
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-gray-900">
+                                          {submission.reporter_name || '미입력'}
+                                        </span>
+                                        {submission.status === 'draft' && (
+                                          <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-medium">임시</span>
+                                        )}
                                       </div>
                                       {submission.submitted_at && (
                                         <div className="text-xs text-gray-500 mt-1">
@@ -745,13 +768,15 @@ export default function TBMSubmissionPage() {
                                       )}
                                     </div>
                                     <div className="flex items-center gap-2">
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); setQrSubmission(submission) }}
-                                        className="p-2.5 hover:bg-purple-100 rounded-lg transition-colors border border-purple-200 bg-purple-50"
-                                        title="QR 코드"
-                                      >
-                                        <QrCode className="h-5 w-5 text-purple-600" />
-                                      </button>
+                                      {submission.status !== 'draft' && (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setQrSubmission(submission) }}
+                                          className="p-2.5 hover:bg-purple-100 rounded-lg transition-colors border border-purple-200 bg-purple-50"
+                                          title="QR 코드"
+                                        >
+                                          <QrCode className="h-5 w-5 text-purple-600" />
+                                        </button>
+                                      )}
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation()
@@ -767,6 +792,7 @@ export default function TBMSubmissionPage() {
                                           <Trash2 className="h-5 w-5 text-red-600" />
                                         )}
                                       </button>
+                                      {submission.status !== 'draft' && (
                                       <div className="relative">
                                         <button
                                           onClick={(e) => {
@@ -805,6 +831,7 @@ export default function TBMSubmissionPage() {
                                           </>
                                         )}
                                       </div>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
@@ -897,6 +924,36 @@ export default function TBMSubmissionPage() {
         </div>
       )}
 
+      {/* 업데이트 안내 모달 */}
+      {showUpdateNotice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={handleCloseUpdateNotice}>
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col items-center gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-purple-100">
+              <span className="text-2xl">📋</span>
+            </div>
+            <div className="text-center">
+              <p className="text-xs font-semibold text-purple-600 uppercase tracking-widest mb-1">업데이트 안내</p>
+              <p className="text-base font-bold text-gray-900 leading-snug">
+                &ldquo;임시저장&rdquo;을 통해<br />TBM 교육을 미리 준비하세요!
+              </p>
+            </div>
+            <p className="text-sm text-gray-500 text-center leading-relaxed">
+              사무실에서 작업내용·교육내용을 미리 입력하고,<br />
+              현장에서 사진·서명만 추가하여 제출하세요.
+            </p>
+            <button
+              onClick={handleCloseUpdateNotice}
+              className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl transition-colors"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* TBM 제출 모달 */}
       {project && userProfile && (
         <TBMSubmissionModal
@@ -911,6 +968,7 @@ export default function TBMSubmissionPage() {
           selectedDate={selectedDate || undefined}
           onSuccess={handleSubmissionSuccess}
           editingSubmission={editingSubmission}
+          onDraftSave={handleSubmissionSuccess}
         />
       )}
     </div>

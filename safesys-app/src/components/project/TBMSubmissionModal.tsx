@@ -19,6 +19,7 @@ interface TBMSubmissionModalProps {
   selectedDate?: string
   onSuccess?: () => void
   editingSubmission?: any
+  onDraftSave?: () => void   // 임시저장 완료 콜백
 }
 
 interface FormData {
@@ -143,7 +144,8 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
   userEmail,
   selectedDate,
   onSuccess,
-  editingSubmission
+  editingSubmission,
+  onDraftSave
 }) => {
   const { userProfile } = useAuth()
   const [loading, setLoading] = useState(false)
@@ -784,6 +786,134 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
     alert('모든 입력 내용이 삭제되었습니다.')
   }
 
+  const handleDraftSave = async () => {
+    // 임시저장: 최소 검증만 수행
+    if (!userEmail) {
+      alert('사용자 이메일 정보를 찾을 수 없습니다.')
+      return
+    }
+    if (!managingHq || !managingBranch) {
+      alert('프로젝트 본부/지사 정보를 찾을 수 없습니다.')
+      return
+    }
+    // educationDate만 필수 (캘린더 표시를 위해)
+    if (!formData.educationDate) {
+      alert('교육 일자를 선택해주세요.')
+      return
+    }
+
+    try {
+      setLoading(true)
+
+      // 사진이 있으면 업로드, 없으면 기존 URL 유지 또는 null
+      let educationPhotoUrl = editingSubmission?.education_photo_url || null
+      let signatureUrl = editingSubmission?.signature_url || null
+
+      if (formData.educationPhoto && !formData.noWorkCheck) {
+        try {
+          const compressedFile = await compressImage(formData.educationPhoto, 1200, 0.75)
+          educationPhotoUrl = await uploadToStorage(compressedFile, 'education', formData.educationPhoto.name)
+        } catch (error) {
+          console.warn('이미지 압축 실패, 원본 사용:', error)
+          educationPhotoUrl = await uploadToStorage(formData.educationPhoto, 'education', formData.educationPhoto.name)
+        }
+      }
+
+      if (formData.signature && !formData.noWorkCheck) {
+        const base64Data = formData.signature.split(',')[1] || formData.signature
+        const byteCharacters = atob(base64Data)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const signatureBlob = new Blob([byteArray], { type: 'image/png' })
+        signatureUrl = await uploadToStorage(signatureBlob, 'signatures', 'signature.png')
+      }
+
+      // 교육 시간 계산
+      const startTime = formData.educationStartTime.split(':')
+      const endTime = formData.educationEndTime.split(':')
+      const startMinutes = parseInt(startTime[0]) * 60 + parseInt(startTime[1])
+      const endMinutes = parseInt(endTime[0]) * 60 + parseInt(endTime[1])
+      const duration = endMinutes - startMinutes
+
+      const submitData: any = {
+        project_id: projectId,
+        reporter_email: userEmail || '',
+        headquarters: managingHq,
+        branch: managingBranch,
+        project_name: projectName,
+        project_type: projectCategory || '',
+        construction_company: userProfile?.company_name || '',
+        today_work: formData.todayWork,
+        address: formData.baseAddress,
+        detail_address: formData.detailAddress,
+        personnel_count: formData.personnelInput,
+        new_worker_count: formData.newWorkerCount ? parseInt(formData.newWorkerCount) : null,
+        equipment_input: formData.equipmentInput,
+        risk_work_type: formData.riskWorkType,
+        cctv_usage: formData.cctvUsage,
+        meeting_date: formData.educationDate,
+        education_date: formData.educationDate,
+        education_start_time: formData.educationStartTime,
+        education_end_time: formData.educationEndTime,
+        education_duration: duration,
+        education_photo_url: educationPhotoUrl,
+        potential_risk_1: formData.potentialRisk1,
+        solution_1: formData.solution1,
+        potential_risk_2: formData.potentialRisk2,
+        solution_2: formData.solution2,
+        potential_risk_3: formData.potentialRisk3,
+        solution_3: formData.solution3,
+        main_risk_selection: formData.mainRiskSelection,
+        main_risk_solution: formData.mainRiskSolution,
+        risk_factor_1: formData.riskFactor1,
+        risk_factor_2: formData.riskFactor2,
+        risk_factor_3: formData.riskFactor3,
+        other_remarks: formData.otherRemarks,
+        reporter_name: formData.name,
+        reporter_contact: formData.contact,
+        signature_url: signatureUrl,
+        latitude: formData.latitude || null,
+        longitude: formData.longitude || null,
+        status: 'draft'  // ★ 핵심: 임시저장 상태
+      }
+
+      let submitOperation
+      if (editingSubmission) {
+        submitOperation = supabase
+          .from('tbm_submissions')
+          .update(submitData)
+          .eq('id', editingSubmission.id)
+      } else {
+        submitData.submitted_at = new Date().toISOString()
+        submitOperation = supabase
+          .from('tbm_submissions')
+          .insert([submitData])
+      }
+
+      const { error } = await submitOperation.select().single()
+
+      if (error) {
+        console.error('임시저장 오류:', error)
+        throw new Error(error.message)
+      }
+
+      // 텔레그램 알림 전송하지 않음 (드래프트이므로)
+
+      alert('임시저장되었습니다.')
+      onDraftSave?.()
+      onSuccess?.()
+      onClose()
+    } catch (error: any) {
+      console.error('임시저장 오류:', error)
+      alert(`임시저장 중 오류가 발생했습니다: ${error.message}`)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSubmit = async () => {
     // 유효성 검사
     if (!userEmail) {
@@ -920,7 +1050,8 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         reporter_contact: formData.contact,
         signature_url: signatureUrl,
         latitude: formData.latitude || null,
-        longitude: formData.longitude || null
+        longitude: formData.longitude || null,
+        status: 'submitted'  // 최종 제출 상태 (드래프트에서 전환 시에도 적용)
       }
 
       if (!editingSubmission) {
@@ -1022,8 +1153,8 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
               <h2 className="text-sm md:text-xl font-bold text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis tracking-tighter md:tracking-normal leading-tight">
                 {projectName}
               </h2>
-              <span className="bg-blue-600 text-white px-2 py-1 rounded-md text-sm md:text-lg font-semibold whitespace-nowrap self-start md:self-auto">
-                {editingSubmission ? 'TBM수정' : 'TBM제출'}
+              <span className={`${editingSubmission?.status === 'draft' ? 'bg-purple-600' : 'bg-blue-600'} text-white px-2 py-1 rounded-md text-sm md:text-lg font-semibold whitespace-nowrap self-start md:self-auto`}>
+                {editingSubmission?.status === 'draft' ? '임시저장 수정' : editingSubmission ? 'TBM수정' : 'TBM제출'}
               </span>
             </div>
             <button
@@ -1580,6 +1711,23 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                 취소
               </button>
               <button
+                onClick={handleDraftSave}
+                disabled={loading}
+                className="px-4 py-2 text-sm text-purple-700 bg-purple-50 border border-purple-300 rounded-md hover:bg-purple-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    임시저장 중...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    임시저장
+                  </>
+                )}
+              </button>
+              <button
                 onClick={handleSubmit}
                 disabled={loading}
                 className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
@@ -1587,12 +1735,12 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    {editingSubmission ? '수정 중...' : '제출 중...'}
+                    {editingSubmission && editingSubmission.status !== 'draft' ? '수정 중...' : '제출 중...'}
                   </>
                 ) : (
                   <>
                     <Save className="h-4 w-4" />
-                    {editingSubmission ? '수정' : '제출'}
+                    {editingSubmission && editingSubmission.status !== 'draft' ? '수정' : '제출'}
                   </>
                 )}
               </button>

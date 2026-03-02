@@ -37,7 +37,7 @@ export async function GET(
 
   const { data, error } = await supabaseAdmin
     .from('tbm_submissions')
-    .select(PUBLIC_FIELDS)
+    .select(PUBLIC_FIELDS + ',status')
     .eq('id', id)
     .single()
 
@@ -48,5 +48,18 @@ export async function GET(
     )
   }
 
-  return NextResponse.json(data)
+  const record = data as any
+
+  // 임시저장 상태인 경우 접근 차단
+  if (record.status === 'draft') {
+    return NextResponse.json(
+      { error: '아직 제출되지 않은 TBM입니다.' },
+      { status: 403 }
+    )
+  }
+
+  // status 필드는 응답에서 제거
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { status: _status, ...publicData } = record
+  return NextResponse.json(publicData)
 }
