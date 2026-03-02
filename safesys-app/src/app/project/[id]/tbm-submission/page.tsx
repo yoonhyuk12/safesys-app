@@ -903,13 +903,22 @@ export default function TBMSubmissionPage() {
             {/* QR 코드 */}
             <div className="flex flex-col items-center gap-4">
               <h3 className="text-lg font-bold text-gray-900">AI TBM QR 코드</h3>
-              <div className="bg-white p-4 rounded-xl border-2 border-gray-100">
+              <a
+                href={`/tbm-view/${qrSubmission.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block bg-white p-4 rounded-xl border-2 border-gray-100 hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group"
+                title="클릭하여 내용 보기"
+              >
                 <QRCodeSVG
                   value={`${window.location.origin}/tbm-view/${qrSubmission.id}`}
                   size={280}
                   level="M"
                 />
-              </div>
+                <p className="text-xs text-purple-500 text-center mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  클릭하여 내용 보기
+                </p>
+              </a>
               <div className="text-center space-y-1">
                 <p className="text-sm font-medium text-gray-900">{qrSubmission.project_name}</p>
                 <p className="text-xs text-gray-500">
@@ -917,7 +926,7 @@ export default function TBMSubmissionPage() {
                 </p>
               </div>
               <p className="text-xs text-gray-400 text-center">
-                QR을 스캔하면 작업내용을 확인할 수 있습니다
+                QR을 스캔하거나 클릭하면 작업내용을 확인할 수 있습니다
               </p>
             </div>
           </div>
