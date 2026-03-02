@@ -737,6 +737,7 @@ export default function TBMSubmissionPage() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex-shrink-0"
+                                    onClick={(e) => e.stopPropagation()}
                                   >
                                     <img
                                       src={(submission as any).education_photo_url}
@@ -814,14 +815,14 @@ export default function TBMSubmissionPage() {
                                             <div className="fixed inset-0 z-10" onClick={() => setDownloadMenuId(null)} />
                                             <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[140px]">
                                               <button
-                                                onClick={() => handleDownloadReport(submission, 'pdf')}
+                                                onClick={(e) => { e.stopPropagation(); handleDownloadReport(submission, 'pdf') }}
                                                 className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 rounded-t-lg flex items-center gap-2 text-gray-700"
                                               >
                                                 <span className="text-red-500 font-bold text-xs">PDF</span>
                                                 PDF 다운로드
                                               </button>
                                               <button
-                                                onClick={() => handleDownloadReport(submission, 'excel')}
+                                                onClick={(e) => { e.stopPropagation(); handleDownloadReport(submission, 'excel') }}
                                                 className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 rounded-b-lg flex items-center gap-2 text-gray-700 border-t border-gray-100"
                                               >
                                                 <span className="text-green-600 font-bold text-xs">XLS</span>
