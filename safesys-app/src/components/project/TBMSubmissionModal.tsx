@@ -548,6 +548,14 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       return
     }
 
+    // 사용자 클릭 동기 컨텍스트에서 Audio 객체 미리 생성 (브라우저 autoplay 잠금 해제)
+    if (audioRef.current) {
+      audioRef.current.pause()
+      URL.revokeObjectURL(audioRef.current.src)
+    }
+    const audio = new Audio()
+    audioRef.current = audio
+
     setTtsLoading(true)
     setShowTtsModal(true)
 
@@ -580,26 +588,23 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         const audioBlob = base64ToBlob(result.audio, 'audio/mp3')
         const audioUrl = URL.createObjectURL(audioBlob)
 
-        // 기존 오디오 정리
-        if (audioRef.current) {
-          audioRef.current.pause()
-          URL.revokeObjectURL(audioRef.current.src)
-        }
-
-        // 새 오디오 생성 및 재생
-        audioRef.current = new Audio(audioUrl)
-        audioRef.current.onplay = () => setIsReading(true)
-        audioRef.current.onended = () => {
+        audio.src = audioUrl
+        audio.onplay = () => setIsReading(true)
+        audio.onended = () => {
           setIsReading(false)
           setIsPaused(false)
         }
-        audioRef.current.onerror = () => {
+        audio.onerror = () => {
           console.error('오디오 재생 오류')
           setIsReading(false)
           setIsPaused(false)
         }
 
-        await audioRef.current.play()
+        try {
+          await audio.play()
+        } catch {
+          // 자동 재생 실패 시 모달 유지 - 사용자가 재생 버튼으로 직접 재생 가능
+        }
       }
     } catch (error: any) {
       console.error('TTS 오류:', error)
@@ -635,9 +640,10 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
   const togglePauseTTS = () => {
     if (!audioRef.current) return
 
-    if (isPaused) {
+    if (isPaused || !isReading) {
       audioRef.current.play()
-      setIsPaused(false)
+        .then(() => { setIsReading(true); setIsPaused(false) })
+        .catch(() => alert('음성을 재생할 수 없습니다. 브라우저 설정을 확인해주세요.'))
     } else {
       audioRef.current.pause()
       setIsPaused(true)

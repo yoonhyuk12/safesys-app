@@ -115,6 +115,15 @@ export default function TBMViewPage() {
       alert('읽을 내용이 없습니다.')
       return
     }
+
+    // 사용자 클릭 동기 컨텍스트에서 Audio 객체 미리 생성 (브라우저 autoplay 잠금 해제)
+    if (audioRef.current) {
+      audioRef.current.pause()
+      URL.revokeObjectURL(audioRef.current.src)
+    }
+    const audio = new Audio()
+    audioRef.current = audio
+
     setTtsLoading(true)
     setShowTtsModal(true)
     try {
@@ -130,15 +139,15 @@ export default function TBMViewPage() {
         setTranslatedText(result.translatedText)
         const audioBlob = base64ToBlob(result.audio, 'audio/mp3')
         const audioUrl = URL.createObjectURL(audioBlob)
-        if (audioRef.current) {
-          audioRef.current.pause()
-          URL.revokeObjectURL(audioRef.current.src)
+        audio.src = audioUrl
+        audio.onplay = () => setIsReading(true)
+        audio.onended = () => { setIsReading(false); setIsPaused(false) }
+        audio.onerror = () => { setIsReading(false); setIsPaused(false) }
+        try {
+          await audio.play()
+        } catch {
+          // 자동 재생 실패 시 모달 유지 - 사용자가 재생 버튼으로 직접 재생 가능
         }
-        audioRef.current = new Audio(audioUrl)
-        audioRef.current.onplay = () => setIsReading(true)
-        audioRef.current.onended = () => { setIsReading(false); setIsPaused(false) }
-        audioRef.current.onerror = () => { setIsReading(false); setIsPaused(false) }
-        await audioRef.current.play()
       }
     } catch (err: any) {
       alert(`음성 읽기 중 오류가 발생했습니다: ${err.message || '알 수 없는 오류'}`)
@@ -156,8 +165,14 @@ export default function TBMViewPage() {
 
   const togglePauseTTS = () => {
     if (!audioRef.current) return
-    if (isPaused) { audioRef.current.play(); setIsPaused(false) }
-    else { audioRef.current.pause(); setIsPaused(true) }
+    if (isPaused || !isReading) {
+      audioRef.current.play()
+        .then(() => { setIsReading(true); setIsPaused(false) })
+        .catch(() => alert('음성을 재생할 수 없습니다. 브라우저 설정을 확인해주세요.'))
+    } else {
+      audioRef.current.pause()
+      setIsPaused(true)
+    }
   }
 
   const closeTtsModal = () => {
