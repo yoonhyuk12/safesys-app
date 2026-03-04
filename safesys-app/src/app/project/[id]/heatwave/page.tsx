@@ -353,7 +353,45 @@ export default function HeatWaveCheckPage() {
       uploadSummary.push(`서명: ${signatureUrl ? '업로드 완료' : '업로드 실패 (데이터만 저장됨)'}`)
       
       alert(`점검이 성공적으로 저장되었습니다!\n\n${uploadSummary.join('\n')}`)
-      
+
+      // 텔레그램 알림 발송 (발주청)
+      try {
+        const { data: projectTgData } = await supabase
+          .from('projects')
+          .select('client_telegram_id')
+          .eq('id', projectId)
+          .single()
+
+        if (projectTgData?.client_telegram_id) {
+          const telegramMessage =
+            `🌡️ <b>폭염대비점검 결과 알림</b>\n\n` +
+            `🏗️ <b>현장:</b> ${project?.project_name}\n` +
+            `📅 <b>측정일시:</b> ${data.measureDateTime.replace('T', ' ')}\n` +
+            `👤 <b>점검자:</b> ${data.inspectorName}\n` +
+            `🌡️ <b>체감온도:</b> ${data.temperature}℃\n\n` +
+            `📋 <b>점검항목:</b>\n` +
+            `💧 음용수 공급: ${data.water === 'O' ? '✅' : '❌'}\n` +
+            `🌬️ 통풍: ${data.wind === 'O' ? '✅' : '❌'}\n` +
+            `⏸️ 휴식시간: ${data.rest === 'O' ? '✅' : '❌'}\n` +
+            `❄️ 냉방장치: ${data.cooling === 'O' ? '✅' : '❌'}\n` +
+            `🚑 응급조치: ${data.emergency === 'O' ? '✅' : '❌'}\n` +
+            `⏰ 근무시간 조정: ${data.workTime === 'O' ? '✅' : '❌'}` +
+            `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+
+          await fetch('/api/telegram', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'direct',
+              chatId: projectTgData.client_telegram_id,
+              message: telegramMessage
+            })
+          })
+        }
+      } catch (telegramError) {
+        console.error('텔레그램 발송 오류:', telegramError)
+      }
+
       // 저장 후 점검 기록 다시 로드
       await loadHeatwaveChecks()
       

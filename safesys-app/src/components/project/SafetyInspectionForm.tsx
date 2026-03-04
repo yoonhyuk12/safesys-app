@@ -616,6 +616,46 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                     .eq('id', p.id as string)
             }
 
+            // 텔레그램 알림 발송 (발주청) - 신규 등록 시에만
+            if (!editingId) {
+                try {
+                    const { data: projectTgData } = await supabase
+                        .from('projects')
+                        .select('client_telegram_id')
+                        .eq('id', projectId)
+                        .single()
+
+                    if (projectTgData?.client_telegram_id) {
+                        const findingsItems = results
+                            .filter(r => r.findings && r.findings.trim() !== '')
+                            .map(r => `- ${r.field_item}: ${r.findings}`)
+
+                        const telegramMessage =
+                            `📝 <b>정기안전점검 결과 알림</b>\n\n` +
+                            `🏗️ <b>현장:</b> ${project?.project_name}\n` +
+                            `📅 <b>점검일자:</b> ${inspectionDate}\n` +
+                            `📋 <b>점검유형:</b> ${inspectionType}\n` +
+                            `👤 <b>점검자:</b> ${derivedInspectionTeam || '(미입력)'}\n\n` +
+                            (findingsItems.length > 0
+                                ? `⚠️ <b>지적사항:</b>\n${findingsItems.join('\n')}`
+                                : `✅ 지적사항 없음`) +
+                            `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+
+                        await fetch('/api/telegram', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                type: 'direct',
+                                chatId: projectTgData.client_telegram_id,
+                                message: telegramMessage
+                            })
+                        })
+                    }
+                } catch (telegramError) {
+                    console.error('텔레그램 발송 오류:', telegramError)
+                }
+            }
+
             onSaved()
         } catch (err) {
             console.error('저장 실패:', err)

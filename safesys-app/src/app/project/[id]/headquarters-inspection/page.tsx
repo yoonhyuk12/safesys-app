@@ -1221,8 +1221,41 @@ export default function HeadquartersInspectionPage() {
         }
 
         alert('본부 불시점검이 성공적으로 저장되었습니다!')
+
+        // 텔레그램 알림 발송 (발주청) - 신규 등록 시에만
+        try {
+          const { data: projectTgData } = await supabase
+            .from('projects')
+            .select('client_telegram_id')
+            .eq('id', projectId)
+            .single()
+
+          if (projectTgData?.client_telegram_id) {
+            const telegramMessage =
+              `🔍 <b>본부불시점검 결과 알림</b>\n\n` +
+              `🏗️ <b>현장:</b> ${project?.project_name}\n` +
+              `📅 <b>점검일자:</b> ${newRecord.inspection_date}\n` +
+              `👤 <b>점검자:</b> ${newRecord.inspector_name}\n\n` +
+              `📝 <b>지적사항:</b>\n` +
+              `1. ${newRecord.issue_content1}` +
+              (newRecord.issue_content2 ? `\n2. ${newRecord.issue_content2}` : '') +
+              `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+
+            await fetch('/api/telegram', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'direct',
+                chatId: projectTgData.client_telegram_id,
+                message: telegramMessage
+              })
+            })
+          }
+        } catch (telegramError) {
+          console.error('텔레그램 발송 오류:', telegramError)
+        }
       }
-      
+
       // 폼 초기화
       setShowAddForm(false)
       setIsEditMode(false)

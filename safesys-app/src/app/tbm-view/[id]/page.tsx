@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
+import html2canvas from 'html2canvas'
 import {
   Shield, AlertTriangle, Wrench, FileText,
-  Clock, Users, Truck, AlertOctagon, Loader2, X
+  Clock, Users, Truck, AlertOctagon, Loader2, X, Download
 } from 'lucide-react'
 
 interface TBMViewData {
@@ -62,6 +63,81 @@ export default function TBMViewPage() {
   const [isReading, setIsReading] = useState(false)
   const [isPaused, setIsPaused] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const pageRef = useRef<HTMLDivElement>(null)
+  const [saving, setSaving] = useState(false)
+
+  const handleSaveAsImage = useCallback(async () => {
+    if (!pageRef.current || saving) return
+    setSaving(true)
+    try {
+      // Tailwind CSS 4의 oklch 색상을 html2canvas가 지원하지 않으므로
+      // 캡처 전에 모든 oklch 색상을 rgb로 변환
+      const container = pageRef.current
+      const elements = container.querySelectorAll('*')
+      const originalStyles: { el: Element; prop: string; value: string }[] = []
+      const propsToCheck = [
+        'color', 'background-color', 'border-color',
+        'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+        'outline-color', 'text-decoration-color', 'box-shadow',
+      ]
+
+      const convertOklch = (el: Element) => {
+        const computed = window.getComputedStyle(el)
+        for (const prop of propsToCheck) {
+          const val = computed.getPropertyValue(prop)
+          if (val && val.includes('oklch')) {
+            // getComputedStyle가 oklch를 반환하는 경우 canvas로 변환
+            const canvas2 = document.createElement('canvas')
+            canvas2.width = 1
+            canvas2.height = 1
+            const ctx = canvas2.getContext('2d')
+            if (ctx) {
+              ctx.fillStyle = val
+              ctx.fillRect(0, 0, 1, 1)
+              const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
+              const rgbVal = a < 255 ? `rgba(${r},${g},${b},${(a / 255).toFixed(3)})` : `rgb(${r},${g},${b})`
+              originalStyles.push({ el, prop, value: (el as HTMLElement).style.getPropertyValue(prop) })
+              ;(el as HTMLElement).style.setProperty(prop, rgbVal)
+            }
+          }
+        }
+      }
+
+      convertOklch(container)
+      elements.forEach(convertOklch)
+
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#f9fafb',
+        foreignObjectRendering: false,
+        removeContainer: true,
+        ignoreElements: (element) => {
+          return element.hasAttribute('data-html2canvas-ignore')
+        },
+      })
+
+      // 원래 스타일 복원
+      for (const { el, prop, value } of originalStyles) {
+        if (value) {
+          ;(el as HTMLElement).style.setProperty(prop, value)
+        } else {
+          ;(el as HTMLElement).style.removeProperty(prop)
+        }
+      }
+
+      const link = document.createElement('a')
+      link.download = `TBM_${data?.project_name || 'safety'}_${data?.meeting_date || 'report'}.png`
+      link.href = canvas.toDataURL('image/png')
+      link.click()
+    } catch (err) {
+      console.error('html2canvas error:', err)
+      alert('이미지 저장에 실패했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }, [saving, data])
 
   useEffect(() => {
     async function fetchData() {
@@ -212,7 +288,7 @@ export default function TBMViewPage() {
   const hasTTSContent = hasRisks || data.main_risk_selection || data.main_risk_solution || hasRiskFactors
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div ref={pageRef} className="min-h-screen bg-gray-50">
       {/* 헤더 */}
       <div className="bg-blue-600 text-white px-4 py-5">
         <div className="max-w-lg mx-auto flex items-center gap-3">
@@ -428,9 +504,24 @@ export default function TBMViewPage() {
         )}
 
         {/* 푸터 */}
-        <div className="bg-green-600 rounded-xl px-4 py-5 text-center text-white">
-          <p className="text-base font-bold">안전한 하루 되세요!</p>
-          <p className="mt-1 text-xs text-green-200">SafeSys 안전관리시스템</p>
+        <div className="flex gap-2" data-html2canvas-ignore>
+          <button
+            onClick={handleSaveAsImage}
+            disabled={saving}
+            className="flex-1 bg-green-600 rounded-xl px-4 py-5 flex flex-col items-center justify-center text-center text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+          >
+            <Download className="h-5 w-5 mb-1" />
+            <p className="text-base font-bold">{saving ? '저장 중...' : '이미지로 저장하기'}</p>
+          </button>
+          <a
+            href="https://open.kakao.com/o/gLKhuBfi"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 bg-yellow-400 rounded-xl px-4 py-5 flex flex-col items-center justify-center text-center hover:bg-yellow-500 transition-colors"
+          >
+            <p className="text-base font-bold text-gray-900">안전보건 위험신고</p>
+            <p className="mt-1 text-xs text-gray-700">콜센터 오픈챗팅방 참여</p>
+          </a>
         </div>
       </div>
 

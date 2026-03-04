@@ -1106,7 +1106,8 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
               `🚜 <b>투입장비:</b>\n${formData.equipmentInput || '(미입력)'}\n\n` +
               `👤 <b>작성자:</b> ${formData.name}\n` +
               `📞 <b>연락처:</b> ${formData.contact}` +
-              (educationPhotoUrl ? `\n\n📷 교육사진이 첨부되었습니다.` : '')
+              (educationPhotoUrl ? `\n\n📷 교육사진이 첨부되었습니다.` : '') +
+              `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
 
             await fetch('/api/telegram', {
               method: 'POST',
