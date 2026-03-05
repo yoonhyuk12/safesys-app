@@ -38,12 +38,26 @@ interface AggStats {
   projectCount: number
   inspectionCount: number
   thawingCount: number
+  thawingUnresolved: number
+  thawingUnsigned: number
   rainyCount: number
+  rainyUnresolved: number
+  rainyUnsigned: number
   comprehensiveCount: number
+  comprehensiveUnresolved: number
+  comprehensiveUnsigned: number
   specialCount: number
+  specialUnresolved: number
+  specialUnsigned: number
 }
 
-const emptyStats = (): AggStats => ({ projectCount: 0, inspectionCount: 0, thawingCount: 0, rainyCount: 0, comprehensiveCount: 0, specialCount: 0 })
+const emptyStats = (): AggStats => ({
+  projectCount: 0, inspectionCount: 0,
+  thawingCount: 0, thawingUnresolved: 0, thawingUnsigned: 0,
+  rainyCount: 0, rainyUnresolved: 0, rainyUnsigned: 0,
+  comprehensiveCount: 0, comprehensiveUnresolved: 0, comprehensiveUnsigned: 0,
+  specialCount: 0, specialUnresolved: 0, specialUnsigned: 0
+})
 
 const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
   loading,
@@ -197,14 +211,8 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
   const activeProjects = useMemo(() => projects.filter(p => !isCompleted(p)), [projects])
 
   const inspectionStatsMap = useMemo(() => {
-    const map = new Map<string, { inspection_count: number; thawing_count: number; rainy_count: number; comprehensive_count: number; special_count: number }>()
-    inspectionCounts.forEach(ic => map.set(ic.project_id, {
-      inspection_count: ic.inspection_count,
-      thawing_count: ic.thawing_count,
-      rainy_count: ic.rainy_count,
-      comprehensive_count: ic.comprehensive_count,
-      special_count: ic.special_count,
-    }))
+    const map = new Map<string, any>()
+    inspectionCounts.forEach(ic => map.set(ic.project_id, ic))
     return map
   }, [inspectionCounts])
 
@@ -213,9 +221,17 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
     inspectionCounts.forEach(ic => {
       s.inspectionCount += ic.inspection_count
       s.thawingCount += ic.thawing_count
+      s.thawingUnresolved += ic.thawing_unresolved || 0
+      s.thawingUnsigned += ic.thawing_unsigned || 0
       s.rainyCount += ic.rainy_count
+      s.rainyUnresolved += ic.rainy_unresolved || 0
+      s.rainyUnsigned += ic.rainy_unsigned || 0
       s.comprehensiveCount += ic.comprehensive_count
+      s.comprehensiveUnresolved += ic.comprehensive_unresolved || 0
+      s.comprehensiveUnsigned += ic.comprehensive_unsigned || 0
       s.specialCount += ic.special_count
+      s.specialUnresolved += ic.special_unresolved || 0
+      s.specialUnsigned += ic.special_unsigned || 0
     })
     return s
   }, [inspectionCounts])
@@ -230,9 +246,17 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
       existing.projectCount += 1
       existing.inspectionCount += is?.inspection_count || 0
       existing.thawingCount += is?.thawing_count || 0
+      existing.thawingUnresolved += is?.thawing_unresolved || 0
+      existing.thawingUnsigned += is?.thawing_unsigned || 0
       existing.rainyCount += is?.rainy_count || 0
+      existing.rainyUnresolved += is?.rainy_unresolved || 0
+      existing.rainyUnsigned += is?.rainy_unsigned || 0
       existing.comprehensiveCount += is?.comprehensive_count || 0
+      existing.comprehensiveUnresolved += is?.comprehensive_unresolved || 0
+      existing.comprehensiveUnsigned += is?.comprehensive_unsigned || 0
       existing.specialCount += is?.special_count || 0
+      existing.specialUnresolved += is?.special_unresolved || 0
+      existing.specialUnsigned += is?.special_unsigned || 0
       stats.set(hq, existing)
     })
     return stats
@@ -252,9 +276,17 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
         existing.projectCount += 1
         existing.inspectionCount += is?.inspection_count || 0
         existing.thawingCount += is?.thawing_count || 0
+        existing.thawingUnresolved += is?.thawing_unresolved || 0
+        existing.thawingUnsigned += is?.thawing_unsigned || 0
         existing.rainyCount += is?.rainy_count || 0
+        existing.rainyUnresolved += is?.rainy_unresolved || 0
+        existing.rainyUnsigned += is?.rainy_unsigned || 0
         existing.comprehensiveCount += is?.comprehensive_count || 0
+        existing.comprehensiveUnresolved += is?.comprehensive_unresolved || 0
+        existing.comprehensiveUnsigned += is?.comprehensive_unsigned || 0
         existing.specialCount += is?.special_count || 0
+        existing.specialUnresolved += is?.special_unresolved || 0
+        existing.specialUnsigned += is?.special_unsigned || 0
         stats.set(branch, existing)
       })
     return stats
@@ -271,9 +303,17 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
           project_name: p.project_name,
           inspection_count: is?.inspection_count || 0,
           thawing_count: is?.thawing_count || 0,
+          thawing_unresolved: is?.thawing_unresolved || 0,
+          thawing_unsigned: is?.thawing_unsigned || 0,
           rainy_count: is?.rainy_count || 0,
+          rainy_unresolved: is?.rainy_unresolved || 0,
+          rainy_unsigned: is?.rainy_unsigned || 0,
           comprehensive_count: is?.comprehensive_count || 0,
+          comprehensive_unresolved: is?.comprehensive_unresolved || 0,
+          comprehensive_unsigned: is?.comprehensive_unsigned || 0,
           special_count: is?.special_count || 0,
+          special_unresolved: is?.special_unresolved || 0,
+          special_unsigned: is?.special_unsigned || 0,
         }
       })
       .sort((a, b) => b.inspection_count - a.inspection_count)
@@ -345,90 +385,79 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
   const renderTableHeader = (firstColName: string, showProjectCount = true) => (
     <thead className="bg-gray-50 border-b border-gray-200">
       <tr>
-        <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{firstColName}</th>
+        <th rowSpan={2} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider align-middle border-r border-gray-200">{firstColName}</th>
         {showProjectCount && (
-          <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트수</th>
+          <th rowSpan={2} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider align-middle border-r border-gray-200">프로젝트수</th>
         )}
-        <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">점검건수</th>
-        <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">해빙기</th>
-        <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">우기</th>
-        <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">종합</th>
-        <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">특별</th>
-        <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
+        <th rowSpan={2} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider align-middle border-r-2 border-gray-300">총 점검</th>
+        <th colSpan={3} className="px-3 py-2 text-center text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">해빙기</th>
+        <th colSpan={3} className="px-3 py-2 text-center text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">우기</th>
+        <th colSpan={3} className="px-3 py-2 text-center text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">종합</th>
+        <th colSpan={3} className="px-3 py-2 text-center text-xs font-medium text-gray-500 border-b border-gray-200">특별</th>
+      </tr>
+      <tr>
+        <th className="px-2 py-2 text-center text-[11px] font-medium text-sky-700 bg-sky-50/50">점검</th>
+        <th className="px-2 py-2 text-center text-[11px] font-medium text-red-700 bg-red-50/50">미조치</th>
+        <th className="px-2 py-2 text-center text-[11px] font-medium text-amber-700 bg-amber-50/50 border-r-2 border-gray-300">미서명</th>
+        <th className="px-2 py-2 text-center text-[11px] font-medium text-sky-700 bg-sky-50/50">점검</th>
+        <th className="px-2 py-2 text-center text-[11px] font-medium text-red-700 bg-red-50/50">미조치</th>
+        <th className="px-2 py-2 text-center text-[11px] font-medium text-amber-700 bg-amber-50/50 border-r-2 border-gray-300">미서명</th>
+        <th className="px-2 py-2 text-center text-[11px] font-medium text-sky-700 bg-sky-50/50">점검</th>
+        <th className="px-2 py-2 text-center text-[11px] font-medium text-red-700 bg-red-50/50">미조치</th>
+        <th className="px-2 py-2 text-center text-[11px] font-medium text-amber-700 bg-amber-50/50 border-r-2 border-gray-300">미서명</th>
+        <th className="px-2 py-2 text-center text-[11px] font-medium text-sky-700 bg-sky-50/50">점검</th>
+        <th className="px-2 py-2 text-center text-[11px] font-medium text-red-700 bg-red-50/50">미조치</th>
+        <th className="px-2 py-2 text-center text-[11px] font-medium text-amber-700 bg-amber-50/50">미서명</th>
       </tr>
     </thead>
   )
 
   const renderSubtotalRow = (subtotal: AggStats, showProjectCount = true) => (
     <tr className="bg-teal-50/70 font-semibold border-b-2 border-teal-200">
-      <td className="px-3 py-2 text-sm text-center text-teal-800">소계</td>
+      <td className="px-3 py-2 text-sm text-center text-teal-800 border-r border-teal-100">소계</td>
       {showProjectCount && (
-        <td className="px-3 py-2 text-sm text-center text-teal-800">{subtotal.projectCount}개</td>
+        <td className="px-3 py-2 text-sm text-center text-teal-800 border-r border-teal-100">{subtotal.projectCount}개</td>
       )}
-      <td className="px-3 py-2 text-sm text-center text-teal-800">{subtotal.inspectionCount > 0 ? `${subtotal.inspectionCount.toLocaleString()}건` : '-'}</td>
-      <td className="px-3 py-2 text-sm text-center text-teal-800">{subtotal.thawingCount > 0 ? `${subtotal.thawingCount.toLocaleString()}건` : '-'}</td>
-      <td className="px-3 py-2 text-sm text-center text-teal-800">{subtotal.rainyCount > 0 ? `${subtotal.rainyCount.toLocaleString()}건` : '-'}</td>
-      <td className="px-3 py-2 text-sm text-center text-teal-800">{subtotal.comprehensiveCount > 0 ? `${subtotal.comprehensiveCount.toLocaleString()}건` : '-'}</td>
-      <td className="px-3 py-2 text-sm text-center text-teal-800">{subtotal.specialCount > 0 ? `${subtotal.specialCount.toLocaleString()}건` : '-'}</td>
-      <td className="px-3 py-2 text-sm text-center text-gray-400">-</td>
+      <td className="px-3 py-2 text-sm text-center text-teal-800 border-r-2 border-teal-200">{subtotal.inspectionCount > 0 ? `${subtotal.inspectionCount.toLocaleString()}건` : '-'}</td>
+      <td className="px-2 py-2 text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.thawingCount > 0 ? subtotal.thawingCount : '-'}</td>
+      <td className="px-2 py-2 text-sm text-center text-red-600 bg-red-50/30">{subtotal.thawingUnresolved > 0 ? subtotal.thawingUnresolved : '-'}</td>
+      <td className="px-2 py-2 text-sm text-center text-amber-600 bg-amber-50/30 border-r-2 border-teal-200">{subtotal.thawingUnsigned > 0 ? subtotal.thawingUnsigned : '-'}</td>
+      <td className="px-2 py-2 text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.rainyCount > 0 ? subtotal.rainyCount : '-'}</td>
+      <td className="px-2 py-2 text-sm text-center text-red-600 bg-red-50/30">{subtotal.rainyUnresolved > 0 ? subtotal.rainyUnresolved : '-'}</td>
+      <td className="px-2 py-2 text-sm text-center text-amber-600 bg-amber-50/30 border-r-2 border-teal-200">{subtotal.rainyUnsigned > 0 ? subtotal.rainyUnsigned : '-'}</td>
+      <td className="px-2 py-2 text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.comprehensiveCount > 0 ? subtotal.comprehensiveCount : '-'}</td>
+      <td className="px-2 py-2 text-sm text-center text-red-600 bg-red-50/30">{subtotal.comprehensiveUnresolved > 0 ? subtotal.comprehensiveUnresolved : '-'}</td>
+      <td className="px-2 py-2 text-sm text-center text-amber-600 bg-amber-50/30 border-r-2 border-teal-200">{subtotal.comprehensiveUnsigned > 0 ? subtotal.comprehensiveUnsigned : '-'}</td>
+      <td className="px-2 py-2 text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.specialCount > 0 ? subtotal.specialCount : '-'}</td>
+      <td className="px-2 py-2 text-sm text-center text-red-600 bg-red-50/30">{subtotal.specialUnresolved > 0 ? subtotal.specialUnresolved : '-'}</td>
+      <td className="px-2 py-2 text-sm text-center text-amber-600 bg-amber-50/30">{subtotal.specialUnsigned > 0 ? subtotal.specialUnsigned : '-'}</td>
     </tr>
   )
 
   const renderStatsCells = (stats: AggStats, showProjectCount = true) => (
     <>
       {showProjectCount && (
-        <td className="px-3 py-3 text-sm text-center">
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-            {stats.projectCount}개
-          </span>
+        <td className="px-3 py-3 text-sm text-center border-r border-gray-100">
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">{stats.projectCount}개</span>
         </td>
       )}
-      <td className="px-3 py-3 text-sm text-center">
+      <td className="px-3 py-3 text-sm text-center border-r-2 border-gray-300">
         {stats.inspectionCount > 0 ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
-            {stats.inspectionCount.toLocaleString()}건
-          </span>
-        ) : (
-          <span className="text-gray-400">-</span>
-        )}
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold text-teal-700">{stats.inspectionCount.toLocaleString()}건</span>
+        ) : <span className="text-gray-300">-</span>}
       </td>
-      <td className="px-3 py-3 text-sm text-center">
-        {stats.thawingCount > 0 ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-800">
-            {stats.thawingCount.toLocaleString()}건
-          </span>
-        ) : (
-          <span className="text-gray-400">-</span>
-        )}
-      </td>
-      <td className="px-3 py-3 text-sm text-center">
-        {stats.rainyCount > 0 ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-            {stats.rainyCount.toLocaleString()}건
-          </span>
-        ) : (
-          <span className="text-gray-400">-</span>
-        )}
-      </td>
-      <td className="px-3 py-3 text-sm text-center">
-        {stats.comprehensiveCount > 0 ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-            {stats.comprehensiveCount.toLocaleString()}건
-          </span>
-        ) : (
-          <span className="text-gray-400">-</span>
-        )}
-      </td>
-      <td className="px-3 py-3 text-sm text-center">
-        {stats.specialCount > 0 ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-            {stats.specialCount.toLocaleString()}건
-          </span>
-        ) : (
-          <span className="text-gray-400">-</span>
-        )}
-      </td>
-      <td className="px-3 py-3 text-sm text-center text-gray-400">-</td>
+      <td className="px-2 py-3 text-sm text-center">{stats.thawingCount > 0 ? <span className="text-gray-900 font-medium">{stats.thawingCount}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-2 py-3 text-sm text-center">{stats.thawingUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.thawingUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-2 py-3 text-sm text-center border-r-2 border-gray-300">{stats.thawingUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.thawingUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-2 py-3 text-sm text-center">{stats.rainyCount > 0 ? <span className="text-gray-900 font-medium">{stats.rainyCount}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-2 py-3 text-sm text-center">{stats.rainyUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.rainyUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-2 py-3 text-sm text-center border-r-2 border-gray-300">{stats.rainyUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.rainyUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-2 py-3 text-sm text-center">{stats.comprehensiveCount > 0 ? <span className="text-gray-900 font-medium">{stats.comprehensiveCount}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-2 py-3 text-sm text-center">{stats.comprehensiveUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.comprehensiveUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-2 py-3 text-sm text-center border-r-2 border-gray-300">{stats.comprehensiveUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.comprehensiveUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-2 py-3 text-sm text-center">{stats.specialCount > 0 ? <span className="text-gray-900 font-medium">{stats.specialCount}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-2 py-3 text-sm text-center">{stats.specialUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.specialUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-2 py-3 text-sm text-center">{stats.specialUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.specialUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
     </>
   )
 
@@ -528,7 +557,13 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
               <tbody className="divide-y divide-gray-200">
                 {renderSubtotalRow((() => {
                   const s = emptyStats()
-                  Array.from(hqStats.values()).forEach(v => { s.projectCount += v.projectCount; s.inspectionCount += v.inspectionCount; s.thawingCount += v.thawingCount; s.rainyCount += v.rainyCount; s.comprehensiveCount += v.comprehensiveCount; s.specialCount += v.specialCount })
+                  Array.from(hqStats.values()).forEach(v => {
+                    s.projectCount += v.projectCount; s.inspectionCount += v.inspectionCount;
+                    s.thawingCount += v.thawingCount; s.thawingUnresolved += v.thawingUnresolved; s.thawingUnsigned += v.thawingUnsigned;
+                    s.rainyCount += v.rainyCount; s.rainyUnresolved += v.rainyUnresolved; s.rainyUnsigned += v.rainyUnsigned;
+                    s.comprehensiveCount += v.comprehensiveCount; s.comprehensiveUnresolved += v.comprehensiveUnresolved; s.comprehensiveUnsigned += v.comprehensiveUnsigned;
+                    s.specialCount += v.specialCount; s.specialUnresolved += v.specialUnresolved; s.specialUnsigned += v.specialUnsigned;
+                  })
                   return s
                 })())}
                 {Array.from(hqStats.entries())
@@ -619,9 +654,17 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
                   projectCount: acc.projectCount + curr.projectCount,
                   inspectionCount: acc.inspectionCount + curr.inspectionCount,
                   thawingCount: acc.thawingCount + curr.thawingCount,
+                  thawingUnresolved: acc.thawingUnresolved + curr.thawingUnresolved,
+                  thawingUnsigned: acc.thawingUnsigned + curr.thawingUnsigned,
                   rainyCount: acc.rainyCount + curr.rainyCount,
+                  rainyUnresolved: acc.rainyUnresolved + curr.rainyUnresolved,
+                  rainyUnsigned: acc.rainyUnsigned + curr.rainyUnsigned,
                   comprehensiveCount: acc.comprehensiveCount + curr.comprehensiveCount,
-                  specialCount: acc.specialCount + curr.specialCount
+                  comprehensiveUnresolved: acc.comprehensiveUnresolved + curr.comprehensiveUnresolved,
+                  comprehensiveUnsigned: acc.comprehensiveUnsigned + curr.comprehensiveUnsigned,
+                  specialCount: acc.specialCount + curr.specialCount,
+                  specialUnresolved: acc.specialUnresolved + curr.specialUnresolved,
+                  specialUnsigned: acc.specialUnsigned + curr.specialUnsigned
                 }), emptyStats()))}
                 {Array.from(branchStats.entries()).map(([branch, stats]) => (
                   <tr key={branch} onClick={() => handleBranchClick(branch)} className="hover:bg-teal-50/50 cursor-pointer transition-colors">
@@ -709,9 +752,17 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
                   projectCount: 0,
                   inspectionCount: acc.inspectionCount + curr.inspection_count,
                   thawingCount: acc.thawingCount + curr.thawing_count,
+                  thawingUnresolved: acc.thawingUnresolved + curr.thawing_unresolved,
+                  thawingUnsigned: acc.thawingUnsigned + curr.thawing_unsigned,
                   rainyCount: acc.rainyCount + curr.rainy_count,
+                  rainyUnresolved: acc.rainyUnresolved + curr.rainy_unresolved,
+                  rainyUnsigned: acc.rainyUnsigned + curr.rainy_unsigned,
                   comprehensiveCount: acc.comprehensiveCount + curr.comprehensive_count,
-                  specialCount: acc.specialCount + curr.special_count
+                  comprehensiveUnresolved: acc.comprehensiveUnresolved + curr.comprehensive_unresolved,
+                  comprehensiveUnsigned: acc.comprehensiveUnsigned + curr.comprehensive_unsigned,
+                  specialCount: acc.specialCount + curr.special_count,
+                  specialUnresolved: acc.specialUnresolved + curr.special_unresolved,
+                  specialUnsigned: acc.specialUnsigned + curr.special_unsigned
                 }), emptyStats()), false)}
                 {projectList.map(p => (
                   <tr key={p.project_id} onClick={() => onRowClickProject(p.project_id)} className="hover:bg-teal-50/50 cursor-pointer transition-colors">
@@ -725,9 +776,17 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
                       projectCount: 0,
                       inspectionCount: p.inspection_count,
                       thawingCount: p.thawing_count,
+                      thawingUnresolved: p.thawing_unresolved,
+                      thawingUnsigned: p.thawing_unsigned,
                       rainyCount: p.rainy_count,
+                      rainyUnresolved: p.rainy_unresolved,
+                      rainyUnsigned: p.rainy_unsigned,
                       comprehensiveCount: p.comprehensive_count,
+                      comprehensiveUnresolved: p.comprehensive_unresolved,
+                      comprehensiveUnsigned: p.comprehensive_unsigned,
                       specialCount: p.special_count,
+                      specialUnresolved: p.special_unresolved,
+                      specialUnsigned: p.special_unsigned,
                     }, false)}
                   </tr>
                 ))}

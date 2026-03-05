@@ -617,19 +617,26 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
               {project.managing_hq} • {project.managing_branch}
             </span>
           </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            {/* CCTV 표시 */}
-            {project.cctv_rtsp_url && (
-              <div className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white border-2 border-white shadow-sm" title="CCTV 있음">
-                <Video className="h-3 w-3" />
-              </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {(project.supervisor_position || project.supervisor_name) && (
+              <span className="text-gray-500 font-medium whitespace-nowrap">
+                {[project.supervisor_position, project.supervisor_name].filter(Boolean).join(' ')}
+              </span>
             )}
-            {/* 재해예방기술지도 대상 마킹 */}
-            {project.disaster_prevention_target && (
-              <div className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold border-2 border-white shadow-sm">
-                재
-              </div>
-            )}
+            <div className="flex items-center gap-1">
+              {/* CCTV 표시 */}
+              {project.cctv_rtsp_url && (
+                <div className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white border-2 border-white shadow-sm" title="CCTV 있음">
+                  <Video className="h-3 w-3" />
+                </div>
+              )}
+              {/* 재해예방기술지도 대상 마킹 */}
+              {project.disaster_prevention_target && (
+                <div className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-500 text-white text-[10px] font-bold border-2 border-white shadow-sm">
+                  재
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

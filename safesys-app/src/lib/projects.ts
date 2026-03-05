@@ -1229,10 +1229,22 @@ export interface SafetyInspectionCountByProject {
   managing_hq: string
   managing_branch: string
   inspection_count: number
-  thawing_count: number   // 해빙기
-  rainy_count: number     // 우기
-  comprehensive_count: number // 종합
-  special_count: number   // 특별
+
+  thawing_count: number   // 해빙기 점검
+  thawing_unresolved: number // 해빙기 미조치
+  thawing_unsigned: number   // 해빙기 미서명
+
+  rainy_count: number     // 우기 점검
+  rainy_unresolved: number   // 우기 미조치
+  rainy_unsigned: number     // 우기 미서명
+
+  comprehensive_count: number // 종합 점검
+  comprehensive_unresolved: number // 종합 미조치
+  comprehensive_unsigned: number   // 종합 미서명
+
+  special_count: number   // 특별 점검
+  special_unresolved: number // 특별 미조치
+  special_unsigned: number   // 특별 미서명
 }
 
 // 발주청 사용자가 볼 수 있는 정기안전점검 현황 조회
@@ -1299,7 +1311,12 @@ export async function getSafetyInspectionCountsByUserBranch(
     const projectIds = activeProjects.map(p => p.id)
     let inspQuery = supabase
       .from('safety_inspections')
-      .select('project_id, inspection_type')
+      .select(`
+        project_id, 
+        inspection_type, 
+        signatures,
+        safety_inspection_results (findings, action_items, photo_url)
+      `)
       .in('project_id', projectIds)
 
     // 연도 필터링
@@ -1317,30 +1334,83 @@ export async function getSafetyInspectionCountsByUserBranch(
     }
 
     // 프로젝트별 점검 건수 및 유형별 카운트
-    const statsMap = new Map<string, { total: number; thawing: number; rainy: number; comprehensive: number; special: number }>()
+    const statsMap = new Map<string, any>()
       ; (inspections || []).forEach((ins: any) => {
-        const existing = statsMap.get(ins.project_id) || { total: 0, thawing: 0, rainy: 0, comprehensive: 0, special: 0 }
+        const existing = statsMap.get(ins.project_id) || {
+          total: 0,
+          thawing: { total: 0, unresolved: 0, unsigned: 0 },
+          rainy: { total: 0, unresolved: 0, unsigned: 0 },
+          comprehensive: { total: 0, unresolved: 0, unsigned: 0 },
+          special: { total: 0, unresolved: 0, unsigned: 0 }
+        }
         existing.total += 1
         const type = (ins.inspection_type || '').trim()
-        if (type === '해빙기') existing.thawing += 1
-        else if (type === '우기') existing.rainy += 1
-        else if (type === '종합') existing.comprehensive += 1
-        else if (type === '특별') existing.special += 1
+
+        // 미조치 판단: findings가 있는데 사진(photo_url)이 등록되지 않은 항목이 1개라도 있으면 미조치
+        let isUnresolved = false
+        if (ins.safety_inspection_results && Array.isArray(ins.safety_inspection_results)) {
+          isUnresolved = ins.safety_inspection_results.some((r: any) =>
+            r.findings && r.findings.trim() !== '' && (!r.photo_url || r.photo_url.trim() === '')
+          )
+        }
+
+        // 미서명 판단: signatures 중 이름/직급이 있는데 서명(dataUrl)이 없는 항목이 1개라도 있으면 미서명
+        // 또는 signatures 배열 자체가 없거나 모두 비어있으면 미서명 처리
+        let isUnsigned = true
+        if (ins.signatures && Array.isArray(ins.signatures) && ins.signatures.length > 0) {
+          const requiredRoles = ins.signatures.filter((s: any) => s.name || s.position || s.dataUrl)
+          if (requiredRoles.length > 0) {
+            isUnsigned = requiredRoles.some((s: any) => !s.dataUrl)
+          }
+        }
+
+        if (type === '해빙기') {
+          existing.thawing.total += 1
+          if (isUnresolved) existing.thawing.unresolved += 1
+          if (isUnsigned) existing.thawing.unsigned += 1
+        } else if (type === '우기') {
+          existing.rainy.total += 1
+          if (isUnresolved) existing.rainy.unresolved += 1
+          if (isUnsigned) existing.rainy.unsigned += 1
+        } else if (type === '종합') {
+          existing.comprehensive.total += 1
+          if (isUnresolved) existing.comprehensive.unresolved += 1
+          if (isUnsigned) existing.comprehensive.unsigned += 1
+        } else if (type === '특별') {
+          existing.special.total += 1
+          if (isUnresolved) existing.special.unresolved += 1
+          if (isUnsigned) existing.special.unsigned += 1
+        }
+
         statsMap.set(ins.project_id, existing)
       })
 
     const inspectionCounts: SafetyInspectionCountByProject[] = activeProjects.map(p => {
-      const stats = statsMap.get(p.id) || { total: 0, thawing: 0, rainy: 0, comprehensive: 0, special: 0 }
+      const stats = statsMap.get(p.id) || {
+        total: 0,
+        thawing: { total: 0, unresolved: 0, unsigned: 0 },
+        rainy: { total: 0, unresolved: 0, unsigned: 0 },
+        comprehensive: { total: 0, unresolved: 0, unsigned: 0 },
+        special: { total: 0, unresolved: 0, unsigned: 0 }
+      }
       return {
         project_id: p.id,
         project_name: p.project_name,
         managing_hq: p.managing_hq || '',
         managing_branch: p.managing_branch || '',
         inspection_count: stats.total,
-        thawing_count: stats.thawing,
-        rainy_count: stats.rainy,
-        comprehensive_count: stats.comprehensive,
-        special_count: stats.special,
+        thawing_count: stats.thawing.total,
+        thawing_unresolved: stats.thawing.unresolved,
+        thawing_unsigned: stats.thawing.unsigned,
+        rainy_count: stats.rainy.total,
+        rainy_unresolved: stats.rainy.unresolved,
+        rainy_unsigned: stats.rainy.unsigned,
+        comprehensive_count: stats.comprehensive.total,
+        comprehensive_unresolved: stats.comprehensive.unresolved,
+        comprehensive_unsigned: stats.comprehensive.unsigned,
+        special_count: stats.special.total,
+        special_unresolved: stats.special.unresolved,
+        special_unsigned: stats.special.unsigned,
       }
     })
 
