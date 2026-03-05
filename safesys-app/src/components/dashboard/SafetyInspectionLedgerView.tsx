@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useMemo, useEffect, useRef } from 'react'
-import { ArrowLeft, ClipboardCheck, Building, FileSpreadsheet, Loader2, FileText, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
+import { ArrowLeft, ClipboardCheck, Building, FileSpreadsheet, Loader2, FileText, ChevronLeft, ChevronRight, Filter, Image as ImageIcon, PenTool, X } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import type { Project, SafetyInspectionCountByProject } from '@/lib/projects'
 import { getSafetyInspectionDetailsForExcel, getSafetyInspectionPhotosForHwpx } from '@/lib/projects'
@@ -385,79 +385,95 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
   const renderTableHeader = (firstColName: string, showProjectCount = true) => (
     <thead className="bg-gray-50 border-b border-gray-200">
       <tr>
-        <th rowSpan={2} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider align-middle border-r border-gray-200">{firstColName}</th>
+        <th rowSpan={2} className="px-2 sm:px-3 py-1.5 sm:py-3 text-center text-[11px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider align-middle border-r border-gray-200 min-w-[105px] max-w-[105px] sm:min-w-0 sm:max-w-none">{firstColName}</th>
         {showProjectCount && (
-          <th rowSpan={2} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider align-middle border-r border-gray-200">프로젝트수</th>
+          <th rowSpan={2} className="px-1.5 sm:px-3 py-1.5 sm:py-3 text-center text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider align-middle border-r border-gray-200">지구</th>
         )}
-        <th rowSpan={2} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider align-middle border-r-2 border-gray-300">총 점검</th>
-        <th colSpan={3} className="px-3 py-2 text-center text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">해빙기</th>
-        <th colSpan={3} className="px-3 py-2 text-center text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">우기</th>
-        <th colSpan={3} className="px-3 py-2 text-center text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">종합</th>
-        <th colSpan={3} className="px-3 py-2 text-center text-xs font-medium text-gray-500 border-b border-gray-200">특별</th>
+        <th rowSpan={2} className="px-1.5 sm:px-3 py-1.5 sm:py-3 text-center text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider align-middle border-r-2 border-gray-300">총</th>
+        <th colSpan={3} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">해빙기</th>
+        <th colSpan={3} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">우기</th>
+        <th colSpan={3} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">종합</th>
+        <th colSpan={3} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200">특별</th>
       </tr>
       <tr>
-        <th className="px-2 py-2 text-center text-[11px] font-medium text-sky-700 bg-sky-50/50">점검</th>
-        <th className="px-2 py-2 text-center text-[11px] font-medium text-red-700 bg-red-50/50">미조치</th>
-        <th className="px-2 py-2 text-center text-[11px] font-medium text-amber-700 bg-amber-50/50 border-r-2 border-gray-300">미서명</th>
-        <th className="px-2 py-2 text-center text-[11px] font-medium text-sky-700 bg-sky-50/50">점검</th>
-        <th className="px-2 py-2 text-center text-[11px] font-medium text-red-700 bg-red-50/50">미조치</th>
-        <th className="px-2 py-2 text-center text-[11px] font-medium text-amber-700 bg-amber-50/50 border-r-2 border-gray-300">미서명</th>
-        <th className="px-2 py-2 text-center text-[11px] font-medium text-sky-700 bg-sky-50/50">점검</th>
-        <th className="px-2 py-2 text-center text-[11px] font-medium text-red-700 bg-red-50/50">미조치</th>
-        <th className="px-2 py-2 text-center text-[11px] font-medium text-amber-700 bg-amber-50/50 border-r-2 border-gray-300">미서명</th>
-        <th className="px-2 py-2 text-center text-[11px] font-medium text-sky-700 bg-sky-50/50">점검</th>
-        <th className="px-2 py-2 text-center text-[11px] font-medium text-red-700 bg-red-50/50">미조치</th>
-        <th className="px-2 py-2 text-center text-[11px] font-medium text-amber-700 bg-amber-50/50">미서명</th>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-sky-700 bg-sky-50/50">건</th>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-red-700 bg-red-50/50" title="미조치">
+          <div className="flex justify-center"><div className="relative"><ImageIcon className="h-3 sm:h-3.5 w-3 sm:w-3.5" /><X className="h-2.5 sm:h-3 w-2.5 sm:w-3 absolute -bottom-1 -right-1 text-red-500 scale-110 stroke-[3]" /></div></div>
+        </th>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-amber-700 bg-amber-50/50 border-r-2 border-gray-300" title="미서명">
+          <div className="flex justify-center"><div className="relative"><PenTool className="h-3 sm:h-3.5 w-3 sm:w-3.5" /><X className="h-2.5 sm:h-3 w-2.5 sm:w-3 absolute -bottom-1 -right-1 text-red-500 scale-110 stroke-[3]" /></div></div>
+        </th>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-sky-700 bg-sky-50/50">건</th>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-red-700 bg-red-50/50" title="미조치">
+          <div className="flex justify-center"><div className="relative"><ImageIcon className="h-3 sm:h-3.5 w-3 sm:w-3.5" /><X className="h-2.5 sm:h-3 w-2.5 sm:w-3 absolute -bottom-1 -right-1 text-red-500 scale-110 stroke-[3]" /></div></div>
+        </th>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-amber-700 bg-amber-50/50 border-r-2 border-gray-300" title="미서명">
+          <div className="flex justify-center"><div className="relative"><PenTool className="h-3 sm:h-3.5 w-3 sm:w-3.5" /><X className="h-2.5 sm:h-3 w-2.5 sm:w-3 absolute -bottom-1 -right-1 text-red-500 scale-110 stroke-[3]" /></div></div>
+        </th>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-sky-700 bg-sky-50/50">건</th>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-red-700 bg-red-50/50" title="미조치">
+          <div className="flex justify-center"><div className="relative"><ImageIcon className="h-3 sm:h-3.5 w-3 sm:w-3.5" /><X className="h-2.5 sm:h-3 w-2.5 sm:w-3 absolute -bottom-1 -right-1 text-red-500 scale-110 stroke-[3]" /></div></div>
+        </th>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-amber-700 bg-amber-50/50 border-r-2 border-gray-300" title="미서명">
+          <div className="flex justify-center"><div className="relative"><PenTool className="h-3 sm:h-3.5 w-3 sm:w-3.5" /><X className="h-2.5 sm:h-3 w-2.5 sm:w-3 absolute -bottom-1 -right-1 text-red-500 scale-110 stroke-[3]" /></div></div>
+        </th>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-sky-700 bg-sky-50/50">건</th>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-red-700 bg-red-50/50" title="미조치">
+          <div className="flex justify-center"><div className="relative"><ImageIcon className="h-3 sm:h-3.5 w-3 sm:w-3.5" /><X className="h-2.5 sm:h-3 w-2.5 sm:w-3 absolute -bottom-1 -right-1 text-red-500 scale-110 stroke-[3]" /></div></div>
+        </th>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-amber-700 bg-amber-50/50">
+          <div className="flex justify-center" title="미서명"><div className="relative"><PenTool className="h-3 sm:h-3.5 w-3 sm:w-3.5" /><X className="h-2.5 sm:h-3 w-2.5 sm:w-3 absolute -bottom-1 -right-1 text-red-500 scale-110 stroke-[3]" /></div></div>
+        </th>
       </tr>
     </thead>
   )
 
   const renderSubtotalRow = (subtotal: AggStats, showProjectCount = true) => (
     <tr className="bg-teal-50/70 font-semibold border-b-2 border-teal-200">
-      <td className="px-3 py-2 text-sm text-center text-teal-800 border-r border-teal-100">소계</td>
+      <td className="px-1 sm:px-3 py-1.5 sm:py-2 text-[11px] sm:text-sm text-center text-teal-800 border-r border-teal-100">소계</td>
       {showProjectCount && (
-        <td className="px-3 py-2 text-sm text-center text-teal-800 border-r border-teal-100">{subtotal.projectCount}개</td>
+        <td className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-teal-800 border-r border-teal-100">{subtotal.projectCount}</td>
       )}
-      <td className="px-3 py-2 text-sm text-center text-teal-800 border-r-2 border-teal-200">{subtotal.inspectionCount > 0 ? `${subtotal.inspectionCount.toLocaleString()}건` : '-'}</td>
-      <td className="px-2 py-2 text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.thawingCount > 0 ? subtotal.thawingCount : '-'}</td>
-      <td className="px-2 py-2 text-sm text-center text-red-600 bg-red-50/30">{subtotal.thawingUnresolved > 0 ? subtotal.thawingUnresolved : '-'}</td>
-      <td className="px-2 py-2 text-sm text-center text-amber-600 bg-amber-50/30 border-r-2 border-teal-200">{subtotal.thawingUnsigned > 0 ? subtotal.thawingUnsigned : '-'}</td>
-      <td className="px-2 py-2 text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.rainyCount > 0 ? subtotal.rainyCount : '-'}</td>
-      <td className="px-2 py-2 text-sm text-center text-red-600 bg-red-50/30">{subtotal.rainyUnresolved > 0 ? subtotal.rainyUnresolved : '-'}</td>
-      <td className="px-2 py-2 text-sm text-center text-amber-600 bg-amber-50/30 border-r-2 border-teal-200">{subtotal.rainyUnsigned > 0 ? subtotal.rainyUnsigned : '-'}</td>
-      <td className="px-2 py-2 text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.comprehensiveCount > 0 ? subtotal.comprehensiveCount : '-'}</td>
-      <td className="px-2 py-2 text-sm text-center text-red-600 bg-red-50/30">{subtotal.comprehensiveUnresolved > 0 ? subtotal.comprehensiveUnresolved : '-'}</td>
-      <td className="px-2 py-2 text-sm text-center text-amber-600 bg-amber-50/30 border-r-2 border-teal-200">{subtotal.comprehensiveUnsigned > 0 ? subtotal.comprehensiveUnsigned : '-'}</td>
-      <td className="px-2 py-2 text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.specialCount > 0 ? subtotal.specialCount : '-'}</td>
-      <td className="px-2 py-2 text-sm text-center text-red-600 bg-red-50/30">{subtotal.specialUnresolved > 0 ? subtotal.specialUnresolved : '-'}</td>
-      <td className="px-2 py-2 text-sm text-center text-amber-600 bg-amber-50/30">{subtotal.specialUnsigned > 0 ? subtotal.specialUnsigned : '-'}</td>
+      <td className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-teal-800 border-r-2 border-teal-200">{subtotal.inspectionCount > 0 ? subtotal.inspectionCount.toLocaleString() : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.thawingCount > 0 ? subtotal.thawingCount : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-red-600 bg-red-50/30">{subtotal.thawingUnresolved > 0 ? subtotal.thawingUnresolved : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-amber-600 bg-amber-50/30 border-r-2 border-teal-200">{subtotal.thawingUnsigned > 0 ? subtotal.thawingUnsigned : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.rainyCount > 0 ? subtotal.rainyCount : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-red-600 bg-red-50/30">{subtotal.rainyUnresolved > 0 ? subtotal.rainyUnresolved : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-amber-600 bg-amber-50/30 border-r-2 border-teal-200">{subtotal.rainyUnsigned > 0 ? subtotal.rainyUnsigned : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.comprehensiveCount > 0 ? subtotal.comprehensiveCount : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-red-600 bg-red-50/30">{subtotal.comprehensiveUnresolved > 0 ? subtotal.comprehensiveUnresolved : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-amber-600 bg-amber-50/30 border-r-2 border-teal-200">{subtotal.comprehensiveUnsigned > 0 ? subtotal.comprehensiveUnsigned : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.specialCount > 0 ? subtotal.specialCount : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-red-600 bg-red-50/30">{subtotal.specialUnresolved > 0 ? subtotal.specialUnresolved : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-amber-600 bg-amber-50/30">{subtotal.specialUnsigned > 0 ? subtotal.specialUnsigned : '-'}</td>
     </tr>
   )
 
   const renderStatsCells = (stats: AggStats, showProjectCount = true) => (
     <>
       {showProjectCount && (
-        <td className="px-3 py-3 text-sm text-center border-r border-gray-100">
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">{stats.projectCount}개</span>
+        <td className="px-1.5 sm:px-3 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center border-r border-gray-100">
+          <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs font-medium bg-gray-100 text-gray-800">{stats.projectCount}</span>
         </td>
       )}
-      <td className="px-3 py-3 text-sm text-center border-r-2 border-gray-300">
+      <td className="px-1.5 sm:px-3 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center border-r-2 border-gray-300">
         {stats.inspectionCount > 0 ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold text-teal-700">{stats.inspectionCount.toLocaleString()}건</span>
+          <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-xs font-bold text-teal-700">{stats.inspectionCount.toLocaleString()}</span>
         ) : <span className="text-gray-300">-</span>}
       </td>
-      <td className="px-2 py-3 text-sm text-center">{stats.thawingCount > 0 ? <span className="text-gray-900 font-medium">{stats.thawingCount}</span> : <span className="text-gray-300">-</span>}</td>
-      <td className="px-2 py-3 text-sm text-center">{stats.thawingUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.thawingUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
-      <td className="px-2 py-3 text-sm text-center border-r-2 border-gray-300">{stats.thawingUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.thawingUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
-      <td className="px-2 py-3 text-sm text-center">{stats.rainyCount > 0 ? <span className="text-gray-900 font-medium">{stats.rainyCount}</span> : <span className="text-gray-300">-</span>}</td>
-      <td className="px-2 py-3 text-sm text-center">{stats.rainyUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.rainyUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
-      <td className="px-2 py-3 text-sm text-center border-r-2 border-gray-300">{stats.rainyUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.rainyUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
-      <td className="px-2 py-3 text-sm text-center">{stats.comprehensiveCount > 0 ? <span className="text-gray-900 font-medium">{stats.comprehensiveCount}</span> : <span className="text-gray-300">-</span>}</td>
-      <td className="px-2 py-3 text-sm text-center">{stats.comprehensiveUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.comprehensiveUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
-      <td className="px-2 py-3 text-sm text-center border-r-2 border-gray-300">{stats.comprehensiveUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.comprehensiveUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
-      <td className="px-2 py-3 text-sm text-center">{stats.specialCount > 0 ? <span className="text-gray-900 font-medium">{stats.specialCount}</span> : <span className="text-gray-300">-</span>}</td>
-      <td className="px-2 py-3 text-sm text-center">{stats.specialUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.specialUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
-      <td className="px-2 py-3 text-sm text-center">{stats.specialUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.specialUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center">{stats.thawingCount > 0 ? <span className="text-gray-900 font-medium">{stats.thawingCount}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center">{stats.thawingUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.thawingUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center border-r-2 border-gray-300">{stats.thawingUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.thawingUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center">{stats.rainyCount > 0 ? <span className="text-gray-900 font-medium">{stats.rainyCount}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center">{stats.rainyUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.rainyUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center border-r-2 border-gray-300">{stats.rainyUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.rainyUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center">{stats.comprehensiveCount > 0 ? <span className="text-gray-900 font-medium">{stats.comprehensiveCount}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center">{stats.comprehensiveUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.comprehensiveUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center border-r-2 border-gray-300">{stats.comprehensiveUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.comprehensiveUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center">{stats.specialCount > 0 ? <span className="text-gray-900 font-medium">{stats.specialCount}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center">{stats.specialUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.specialUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center">{stats.specialUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.specialUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
     </>
   )
 
@@ -466,25 +482,22 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
       <div className="flex items-center gap-3 mb-4">
         <button
           onClick={handleBack}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="inline-flex items-center justify-center p-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shadow-sm"
           aria-label="뒤로가기"
         >
-          <ArrowLeft className="h-5 w-5 text-gray-600" />
+          <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="flex items-center gap-2">
           <ClipboardCheck className="h-5 w-5 text-teal-600" />
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-white">
             정기안전점검 현황
             {viewLevel === 'branch' && selectedHqForDetail && (
-              <span className="text-sm font-normal text-gray-500 ml-2">- {selectedHqForDetail}</span>
+              <span className="text-sm font-normal text-gray-200 ml-2">- {selectedHqForDetail}</span>
             )}
             {viewLevel === 'project' && selectedBranchForDetail && (
-              <span className="text-sm font-normal text-gray-500 ml-2">- {selectedBranchForDetail}</span>
+              <span className="text-sm font-normal text-gray-200 ml-2">- {selectedBranchForDetail}</span>
             )}
           </h2>
-        </div>
-        <div className="ml-auto text-sm text-gray-500">
-          {selectedYear}년 총 {totalStats.inspectionCount.toLocaleString()}건 점검
         </div>
       </div>
 
@@ -495,7 +508,6 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Building className="h-4 w-4 text-teal-600" />
-                <span className="text-sm font-medium text-teal-800">본부별 정기안전점검 현황</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative">
@@ -539,7 +551,7 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
                   >
                     <ChevronLeft className="h-4 w-4 text-teal-600" />
                   </button>
-                  <span className="text-sm text-teal-600 font-semibold min-w-[50px] text-center">{selectedYear}년</span>
+                  <span className="text-sm text-teal-600 font-semibold min-w-[50px] text-center">{String(selectedYear).slice(2)}년</span>
                   <button
                     onClick={(e) => { e.stopPropagation(); onYearChange(selectedYear + 1) }}
                     className="p-0.5 hover:bg-teal-100 rounded transition-colors"
@@ -570,7 +582,7 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
                   .filter(([, stats]) => stats.projectCount > 0)
                   .map(([hq, stats]) => (
                     <tr key={hq} onClick={() => handleHqClick(hq)} className="hover:bg-teal-50/50 cursor-pointer transition-colors">
-                      <td className="px-3 py-3 text-sm font-medium text-gray-900 text-center">{hq}</td>
+                      <td className="px-2 sm:px-3 py-1.5 sm:py-3 text-[11px] sm:text-sm font-medium text-gray-900 text-center max-w-[105px] truncate sm:max-w-none sm:whitespace-normal" title={hq}>{hq}</td>
                       {renderStatsCells(stats)}
                     </tr>
                   ))}
@@ -590,7 +602,6 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Building className="h-4 w-4 text-teal-600" />
-                <span className="text-sm font-medium text-teal-800">{selectedHqForDetail} - 지사별 정기안전점검 현황</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative">
@@ -634,7 +645,7 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
                   >
                     <ChevronLeft className="h-4 w-4 text-teal-600" />
                   </button>
-                  <span className="text-sm text-teal-600 font-semibold min-w-[50px] text-center">{selectedYear}년</span>
+                  <span className="text-sm text-teal-600 font-semibold min-w-[50px] text-center">{String(selectedYear).slice(2)}년</span>
                   <button
                     onClick={(e) => { e.stopPropagation(); onYearChange(selectedYear + 1) }}
                     className="p-0.5 hover:bg-teal-100 rounded transition-colors"
@@ -668,7 +679,7 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
                 }), emptyStats()))}
                 {Array.from(branchStats.entries()).map(([branch, stats]) => (
                   <tr key={branch} onClick={() => handleBranchClick(branch)} className="hover:bg-teal-50/50 cursor-pointer transition-colors">
-                    <td className="px-3 py-3 text-sm font-medium text-gray-900 text-center">{branch}</td>
+                    <td className="px-2 sm:px-3 py-1.5 sm:py-3 text-[11px] sm:text-sm font-medium text-gray-900 text-center max-w-[105px] truncate sm:max-w-none sm:whitespace-normal" title={branch}>{branch}</td>
                     {renderStatsCells(stats)}
                   </tr>
                 ))}
@@ -688,7 +699,6 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ClipboardCheck className="h-4 w-4 text-teal-600" />
-                <span className="text-sm font-medium text-teal-800">{selectedBranchForDetail} - 프로젝트별 정기안전점검 현황</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative">
@@ -732,7 +742,7 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
                   >
                     <ChevronLeft className="h-4 w-4 text-teal-600" />
                   </button>
-                  <span className="text-sm text-teal-600 font-semibold min-w-[50px] text-center">{selectedYear}년</span>
+                  <span className="text-sm text-teal-600 font-semibold min-w-[50px] text-center">{String(selectedYear).slice(2)}년</span>
                   <button
                     onClick={(e) => { e.stopPropagation(); onYearChange(selectedYear + 1) }}
                     className="p-0.5 hover:bg-teal-100 rounded transition-colors"
@@ -766,10 +776,8 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
                 }), emptyStats()), false)}
                 {projectList.map(p => (
                   <tr key={p.project_id} onClick={() => onRowClickProject(p.project_id)} className="hover:bg-teal-50/50 cursor-pointer transition-colors">
-                    <td className="px-3 py-3 text-sm font-medium text-gray-900 text-center">
-                      <span className="sm:hidden" title={p.project_name}>
-                        {p.project_name.length > 3 ? `${p.project_name.slice(0, 3)}...` : p.project_name}
-                      </span>
+                    <td className="px-2 sm:px-3 py-1.5 sm:py-3 text-[11px] sm:text-sm font-medium text-gray-900 text-center max-w-[105px] truncate sm:max-w-none sm:whitespace-normal" title={p.project_name}>
+                      <span className="sm:hidden">{p.project_name.length > 5 ? p.project_name.slice(0, 5) + '...' : p.project_name}</span>
                       <span className="hidden sm:inline">{p.project_name}</span>
                     </td>
                     {renderStatsCells({

@@ -1,0 +1,661 @@
+﻿import JSZip from 'jszip'
+
+interface InspectionData {
+    id: string
+    inspection_type: string
+    inspection_date: string
+    inspection_team: string | null
+    management_entity: string | null
+    district_name: string | null
+    location_province: string | null
+    location_city: string | null
+    total_budget: number | null
+    construction_start: string | null
+    construction_end_planned: string | null
+    progress_rate: number | null
+    major_work_type: string | null
+    contractor: string | null
+    supervisor_name: string | null
+    inspector_opinion: string | null
+    good_example_content?: string | null
+    signatures?: any[]
+}
+
+interface ResultData {
+    field_item: string
+    findings: string | null
+    action_items: string | null
+    photo_url?: string | null
+    after_photo_url?: string | null
+}
+
+interface PhotoData {
+    photo_type: string
+    photo_url: string
+    description: string | null
+    supervisor_name: string | null
+    photo_date: string | null
+}
+
+// ??? HWPUNIT ?곸닔 ???
+const MM = 283.46
+const A4_W = 59528
+const A4_H = 84186
+const MARGIN_L = Math.round(20 * MM)
+const MARGIN_R = Math.round(20 * MM)
+const MARGIN_T = Math.round(15 * MM)
+const MARGIN_B = Math.round(15 * MM)
+const BODY_W = A4_W - MARGIN_L - MARGIN_R // ??48190
+
+// ??? UTF-8 ?몄퐫???ы띁 ???
+function toUTF8(str: string): Uint8Array {
+    return new TextEncoder().encode(str)
+}
+
+// ??? XML ?댁뒪耳?댄봽 ???
+function esc(s: string | null | undefined): string {
+    if (!s) return ''
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+// ??? ?대?吏 fetch ??base64 ???
+async function fetchImageAsBuffer(url: string): Promise<{ data: Uint8Array; ext: string } | null> {
+    try {
+        const res = await fetch(url)
+        const blob = await res.blob()
+        const buf = await blob.arrayBuffer()
+        const ext = blob.type.includes('png') ? 'png' : 'jpg'
+        return { data: new Uint8Array(buf), ext }
+    } catch {
+        return null
+    }
+}
+
+// ??? ? XML ?앹꽦 ???
+function cell(
+    col: number, row: number, w: number, h: number,
+    text: string, charPrId: number, paraPrId: number,
+    colSpan = 1, rowSpan = 1, borderFillId = 3,
+    vertAlign = 'CENTER'
+): string {
+    return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="${borderFillId}">
+<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="${vertAlign}" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">
+<hp:p id="0" paraPrIDRef="${paraPrId}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+<hp:run charPrIDRef="${charPrId}"><hp:t>${esc(text)}</hp:t></hp:run>
+</hp:p>
+</hp:subList>
+<hp:cellAddr colAddr="${col}" rowAddr="${row}"/>
+<hp:cellSpan colSpan="${colSpan}" rowSpan="${rowSpan}"/>
+<hp:cellSz width="${w}" height="${h}"/>
+<hp:cellMargin left="170" right="170" top="85" bottom="85"/>
+</hp:tc>`
+}
+
+// ??? ?대?吏媛 ?ㅼ뼱媛?? ???
+function imageCell(
+    col: number, row: number, w: number, h: number,
+    binItemId: string, imgW: number, imgH: number,
+    borderFillId = 3
+): string {
+    return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="${borderFillId}">
+<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">
+<hp:p id="0" paraPrIDRef="1" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+<hp:run charPrIDRef="0">
+<hp:pic reverse="0">
+<hp:sz width="${imgW}" height="${imgH}" widthRelTo="ABSOLUTE" heightRelTo="ABSOLUTE"/>
+<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>
+<hp:outMargin left="0" right="0" top="0" bottom="0"/>
+<hp:imgRect x="0" y="0" cx="${imgW}" cy="${imgH}"/>
+<hp:imgClip left="0" right="0" top="0" bottom="0"/>
+<hp:shapeComment>${binItemId}</hp:shapeComment>
+<hc:img binaryItemIDRef="${binItemId}" bright="0" contrast="0" effect="REAL_PIC" bitmapMode="STRETCH"/>
+</hp:pic>
+</hp:run>
+</hp:p>
+</hp:subList>
+<hp:cellAddr colAddr="${col}" rowAddr="${row}"/>
+<hp:cellSpan colSpan="1" rowSpan="1"/>
+<hp:cellSz width="${w}" height="${h}"/>
+<hp:cellMargin left="85" right="85" top="85" bottom="85"/>
+</hp:tc>`
+}
+
+// ??? ?⑥닚 臾몃떒 ???
+function para(text: string, charPrId: number, paraPrId: number, pageBreak = false): string {
+    return `<hp:p id="0" paraPrIDRef="${paraPrId}" styleIDRef="0" pageBreak="${pageBreak ? 1 : 0}" columnBreak="0" merged="0">
+<hp:run charPrIDRef="${charPrId}"><hp:t>${esc(text)}</hp:t></hp:run>
+</hp:p>`
+}
+
+// ??? 鍮?臾몃떒 ???
+function emptyPara(paraPrId = 0): string {
+    return `<hp:p id="0" paraPrIDRef="${paraPrId}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+<hp:run charPrIDRef="0"><hp:t></hp:t></hp:run>
+</hp:p>`
+}
+
+// ??? ?뚯씠釉??섑띁 ???
+function table(rows: string, rowCnt: number, colCnt: number, width: number, height: number, borderFillId = 3): string {
+    return `<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+<hp:run charPrIDRef="0">
+<hp:tbl id="0" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${rowCnt}" colCnt="${colCnt}" cellSpacing="0" borderFillIDRef="${borderFillId}" noAdjust="0">
+<hp:sz width="${width}" widthRelTo="ABSOLUTE" height="${height}" heightRelTo="ABSOLUTE" protect="0"/>
+<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>
+<hp:outMargin left="141" right="141" top="141" bottom="141"/>
+<hp:inMargin left="170" right="170" top="85" bottom="85"/>
+${rows}
+</hp:tbl>
+</hp:run>
+</hp:p>`
+}
+
+// ???????????????????????????????????????
+// 硫붿씤 export ?⑥닔
+// ???????????????????????????????????????
+export async function downloadSafetyInspectionHwpx(
+    inspection: InspectionData,
+    results: ResultData[],
+    photos: PhotoData[],
+    project: any
+) {
+    const zip = new JSZip()
+    const images: { id: string; filename: string; data: Uint8Array; ext: string }[] = []
+
+    // ?대?吏 ?섏쭛
+    let imgIdx = 0
+    const collectImage = async (url: string | null | undefined): Promise<string | null> => {
+        if (!url) return null
+        const img = await fetchImageAsBuffer(url)
+        if (!img) return null
+        imgIdx++
+        const filename = `image${imgIdx}.${img.ext}`
+        const id = `image${imgIdx}`
+        images.push({ id, filename, data: img.data, ext: img.ext })
+        return id
+    }
+
+    // ?ъ쭊 ?섏쭛 (?꾧꼍, 吏?곸궗??議곗튂????
+    const siteBeforePhotos = photos.filter(p => p.photo_type === 'site_before')
+    const siteBeforeImgId = siteBeforePhotos.length > 0 ? await collectImage(siteBeforePhotos[0].photo_url) : null
+
+    const resultImages: { beforeId: string | null; afterId: string | null }[] = []
+    for (const r of results) {
+        const beforeId = await collectImage(r.photo_url)
+        const afterId = await collectImage(r.after_photo_url)
+        resultImages.push({ beforeId, afterId })
+    }
+
+    const goodExPhotos = photos.filter(p => p.photo_type === 'good_example')
+    const goodExImgId = goodExPhotos.length > 0 ? await collectImage(goodExPhotos[0].photo_url) : null
+
+    // ???????????????????????????????????
+    // header.xml ?앹꽦
+    // ???????????????????????????????????
+    // charPr: 0=蹂몃Ц10pt, 1=?쒕ぉ16ptBold, 2=?뚯젣紐?2ptBold, 3=?ㅻ뜑10ptBold, 4=?쒕챸10pt, 5=鍮④컙10pt, 6=14ptBoldUnderline
+    // paraPr: 0=醫뚯젙?? 1=媛?대뜲, 2=醫뚯젙??60%, 3=?곗젙??
+    // borderFill: 1=?놁쓬, 2=?꾩껜?ㅼ꽑, 3=?꾩껜?ㅼ꽑+?뚯깋諛곌꼍, 4=?꾩껜?ㅼ꽑+?고쉶??
+    const headerXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<hh:head xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hp10="http://www.hancom.co.kr/hwpml/2016/paragraph" xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:hhs="http://www.hancom.co.kr/hwpml/2011/history" xmlns:hm="http://www.hancom.co.kr/hwpml/2011/master-page" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf/" xmlns:ooxmlchart="http://www.hancom.co.kr/hwpml/2016/ooxmlchart" xmlns:hwpunitchar="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" version="1.4" secCnt="1">
+<hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>
+<hh:refList>
+<hh:fontfaces itemCnt="7">
+<hh:fontface lang="HANGUL" fontCnt="2"><hh:font id="0" face="留묒? 怨좊뵓" type="TTF" isEmbedded="0"><hh:typeInfo familyType="FCAT_GOTHIC" weight="5" proportion="3" contrast="2" strokeVariation="0" armStyle="0" letterform="2" midline="0" xHeight="4"/></hh:font><hh:font id="1" face="HY?ㅻ뱶?쇱씤M" type="TTF" isEmbedded="0"><hh:typeInfo familyType="FCAT_GOTHIC" weight="7" proportion="3" contrast="2" strokeVariation="0" armStyle="0" letterform="2" midline="0" xHeight="4"/></hh:font></hh:fontface>
+<hh:fontface lang="LATIN" fontCnt="2"><hh:font id="0" face="留묒? 怨좊뵓" type="TTF" isEmbedded="0"><hh:typeInfo familyType="FCAT_GOTHIC" weight="5" proportion="3" contrast="2" strokeVariation="0" armStyle="0" letterform="2" midline="0" xHeight="4"/></hh:font><hh:font id="1" face="HY?ㅻ뱶?쇱씤M" type="TTF" isEmbedded="0"><hh:typeInfo familyType="FCAT_GOTHIC" weight="7" proportion="3" contrast="2" strokeVariation="0" armStyle="0" letterform="2" midline="0" xHeight="4"/></hh:font></hh:fontface>
+<hh:fontface lang="HANJA" fontCnt="1"><hh:font id="0" face="留묒? 怨좊뵓" type="TTF" isEmbedded="0"><hh:typeInfo familyType="FCAT_GOTHIC" weight="5" proportion="3" contrast="2" strokeVariation="0" armStyle="0" letterform="2" midline="0" xHeight="4"/></hh:font></hh:fontface>
+<hh:fontface lang="JAPANESE" fontCnt="1"><hh:font id="0" face="留묒? 怨좊뵓" type="TTF" isEmbedded="0"><hh:typeInfo familyType="FCAT_GOTHIC" weight="5" proportion="3" contrast="2" strokeVariation="0" armStyle="0" letterform="2" midline="0" xHeight="4"/></hh:font></hh:fontface>
+<hh:fontface lang="OTHER" fontCnt="1"><hh:font id="0" face="留묒? 怨좊뵓" type="TTF" isEmbedded="0"><hh:typeInfo familyType="FCAT_GOTHIC" weight="5" proportion="3" contrast="2" strokeVariation="0" armStyle="0" letterform="2" midline="0" xHeight="4"/></hh:font></hh:fontface>
+<hh:fontface lang="SYMBOL" fontCnt="1"><hh:font id="0" face="留묒? 怨좊뵓" type="TTF" isEmbedded="0"><hh:typeInfo familyType="FCAT_GOTHIC" weight="5" proportion="3" contrast="2" strokeVariation="0" armStyle="0" letterform="2" midline="0" xHeight="4"/></hh:font></hh:fontface>
+<hh:fontface lang="USER" fontCnt="1"><hh:font id="0" face="留묒? 怨좊뵓" type="TTF" isEmbedded="0"><hh:typeInfo familyType="FCAT_GOTHIC" weight="5" proportion="3" contrast="2" strokeVariation="0" armStyle="0" letterform="2" midline="0" xHeight="4"/></hh:font></hh:fontface>
+</hh:fontfaces>
+<hh:borderFills itemCnt="4">
+<hh:borderFill id="1" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0"><hh:slash type="NONE" Crooked="0" isCounter="0"/><hh:backSlash type="NONE" Crooked="0" isCounter="0"/><hh:leftBorder type="NONE" width="0.1 mm" color="#000000"/><hh:rightBorder type="NONE" width="0.1 mm" color="#000000"/><hh:topBorder type="NONE" width="0.1 mm" color="#000000"/><hh:bottomBorder type="NONE" width="0.1 mm" color="#000000"/><hh:diagonal type="SOLID" width="0.1 mm" color="#000000"/></hh:borderFill>
+<hh:borderFill id="2" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0"><hh:slash type="NONE" Crooked="0" isCounter="0"/><hh:backSlash type="NONE" Crooked="0" isCounter="0"/><hh:leftBorder type="SOLID" width="0.12 mm" color="#000000"/><hh:rightBorder type="SOLID" width="0.12 mm" color="#000000"/><hh:topBorder type="SOLID" width="0.12 mm" color="#000000"/><hh:bottomBorder type="SOLID" width="0.12 mm" color="#000000"/><hh:diagonal type="SOLID" width="0.1 mm" color="#000000"/></hh:borderFill>
+<hh:borderFill id="3" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0"><hh:slash type="NONE" Crooked="0" isCounter="0"/><hh:backSlash type="NONE" Crooked="0" isCounter="0"/><hh:leftBorder type="SOLID" width="0.12 mm" color="#000000"/><hh:rightBorder type="SOLID" width="0.12 mm" color="#000000"/><hh:topBorder type="SOLID" width="0.12 mm" color="#000000"/><hh:bottomBorder type="SOLID" width="0.12 mm" color="#000000"/><hh:diagonal type="SOLID" width="0.1 mm" color="#000000"/><hc:fillBrush><hc:winBrush faceColor="#E8E8E8" hatchColor="#000000" alpha="0"/></hc:fillBrush></hh:borderFill>
+<hh:borderFill id="4" threeD="0" shadow="0" centerLine="NONE" breakCellSeparateLine="0"><hh:slash type="NONE" Crooked="0" isCounter="0"/><hh:backSlash type="NONE" Crooked="0" isCounter="0"/><hh:leftBorder type="SOLID" width="0.12 mm" color="#000000"/><hh:rightBorder type="SOLID" width="0.12 mm" color="#000000"/><hh:topBorder type="SOLID" width="0.12 mm" color="#000000"/><hh:bottomBorder type="SOLID" width="0.12 mm" color="#000000"/><hh:diagonal type="SOLID" width="0.1 mm" color="#000000"/><hc:fillBrush><hc:winBrush faceColor="#F5F5F5" hatchColor="#000000" alpha="0"/></hc:fillBrush></hh:borderFill>
+</hh:borderFills>
+<hh:charProperties itemCnt="7">
+<hh:charPr id="0" height="1000" textColor="#000000" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="1"><hh:fontRef hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:underline type="NONE" shape="SOLID" color="#000000"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#B2B2B2" offsetX="10" offsetY="10"/></hh:charPr>
+<hh:charPr id="1" height="1600" textColor="#000000" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="1"><hh:fontRef hangul="1" latin="1" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:bold/><hh:underline type="BOTTOM" shape="SOLID" color="#000000"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#B2B2B2" offsetX="10" offsetY="10"/></hh:charPr>
+<hh:charPr id="2" height="1200" textColor="#000000" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="1"><hh:fontRef hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:bold/><hh:underline type="NONE" shape="SOLID" color="#000000"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#B2B2B2" offsetX="10" offsetY="10"/></hh:charPr>
+<hh:charPr id="3" height="1000" textColor="#000000" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="1"><hh:fontRef hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:bold/><hh:underline type="NONE" shape="SOLID" color="#000000"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#B2B2B2" offsetX="10" offsetY="10"/></hh:charPr>
+<hh:charPr id="4" height="1000" textColor="#000000" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="1"><hh:fontRef hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:underline type="NONE" shape="SOLID" color="#000000"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#B2B2B2" offsetX="10" offsetY="10"/></hh:charPr>
+<hh:charPr id="5" height="1000" textColor="#FF0000" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="1"><hh:fontRef hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:underline type="NONE" shape="SOLID" color="#000000"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#B2B2B2" offsetX="10" offsetY="10"/></hh:charPr>
+<hh:charPr id="6" height="1400" textColor="#000000" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="1"><hh:fontRef hangul="1" latin="1" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:bold/><hh:underline type="BOTTOM" shape="SOLID" color="#000000"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#B2B2B2" offsetX="10" offsetY="10"/></hh:charPr>
+</hh:charProperties>
+<hh:tabProperties itemCnt="1">
+<hh:tabPr id="0" autoTabLeft="0" autoTabRight="0"/>
+</hh:tabProperties>
+<hh:paraProperties itemCnt="4">
+<hh:paraPr id="0"><hh:align horizontal="LEFT" vertical="BASELINE"/><hh:heading type="NONE" idRef="0" level="0"/><hh:lineSpacing type="PERCENT" value="160" unit="HWPUNIT"/></hh:paraPr>
+<hh:paraPr id="1"><hh:align horizontal="CENTER" vertical="BASELINE"/><hh:heading type="NONE" idRef="0" level="0"/><hh:lineSpacing type="PERCENT" value="160" unit="HWPUNIT"/></hh:paraPr>
+<hh:paraPr id="2"><hh:align horizontal="LEFT" vertical="BASELINE"/><hh:heading type="NONE" idRef="0" level="0"/><hh:lineSpacing type="PERCENT" value="130" unit="HWPUNIT"/></hh:paraPr>
+<hh:paraPr id="3"><hh:align horizontal="RIGHT" vertical="BASELINE"/><hh:heading type="NONE" idRef="0" level="0"/><hh:lineSpacing type="PERCENT" value="160" unit="HWPUNIT"/></hh:paraPr>
+</hh:paraProperties>
+<hh:styles itemCnt="1">
+<hh:style id="0" type="PARA" name="諛뷀깢湲" engName="Normal" paraPrIDRef="0" charPrIDRef="0" nextStyleIDRef="0" langId="1042" lockForm="0"/>
+</hh:styles>
+</hh:refList>
+<hh:compatibleDocument targetProgram="HWP201X"/>
+<hh:docOption linkinfo="0" thumbnailopt="1" expressslotopt="1" copyProtect="0"/>
+</hh:head>`
+
+    // ???????????????????????????????????
+    // section0.xml ?앹꽦 (蹂몃Ц)
+    // ???????????????????????????????????
+    const body: string[] = []
+
+    // ?뱀뀡 ?꾨줈?쇳떚 (泥?臾몃떒, ?꾩닔)
+    body.push(`<hp:p id="0" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">
+<hp:run charPrIDRef="0">
+<hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="1" memoShapeIDRef="0" textVerticalWidthHead="0" masterPageCnt="0">
+<hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/>
+<hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/>
+<hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/>
+<hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/>
+<hp:pagePr landscape="WIDELY" width="${A4_W}" height="${A4_H}" gutterType="LEFT_ONLY">
+<hp:margin header="4251" footer="4251" gutter="0" left="${MARGIN_L}" right="${MARGIN_R}" top="${MARGIN_T}" bottom="${MARGIN_B}"/>
+</hp:pagePr>
+<hp:footNotePr>
+<hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/>
+<hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/>
+<hp:noteSpacing betweenNotes="283" belowLine="567" aboveLine="850"/>
+<hp:numbering type="CONTINUOUS" newNum="1"/>
+<hp:placement place="EACH_COLUMN" beneathText="0"/>
+</hp:footNotePr>
+<hp:endNotePr>
+<hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/>
+<hp:noteLine length="14692344" type="SOLID" width="0.12 mm" color="#000000"/>
+<hp:noteSpacing betweenNotes="0" belowLine="567" aboveLine="850"/>
+<hp:numbering type="CONTINUOUS" newNum="1"/>
+<hp:placement place="END_OF_DOCUMENT" beneathText="0"/>
+</hp:endNotePr>
+</hp:secPr>
+</hp:run>
+</hp:p>`)
+
+    // ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??
+    // 1履? 嫄댁꽕?꾩옣 ?먭?移대뱶
+    // ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??
+    // ?쒕ぉ
+    body.push(para('건설현장 점검카드(사업명)', 1, 1))
+    body.push(emptyPara())
+
+    // 1. ?먭?媛쒖슂
+    body.push(para('1. 점검개요', 2, 0))
+
+    const dateStr = inspection.inspection_date ? `'${inspection.inspection_date.substring(2)}` : ''
+    body.push(para(`○ 점검일시 : ${dateStr}`, 0, 0))
+
+    let teamStr = inspection.inspection_team || ''
+    if (inspection.signatures && inspection.signatures.length > 0) {
+        const fromSig = inspection.signatures
+            .filter((s: any) => s.role === '점검자')
+            .map((s: any) => `${s.position} ${s.name}`.trim())
+            .filter((s: string) => s).join(', ')
+        if (fromSig) teamStr = fromSig
+    }
+    body.push(para(`○ 점 검 반 : ${teamStr}`, 0, 0))
+    body.push(para('○ 점검지구 현황', 0, 0))
+
+    // ?먭?吏援??꾪솴 ?뚯씠釉?(2??10??
+    const ROW_H = Math.round(8 * MM)
+    const HDR_H = Math.round(10 * MM)
+    const colW = [
+        Math.round(BODY_W * 0.10), // 愿由ъ＜泥?
+        Math.round(BODY_W * 0.12), // 吏援щ챸
+        Math.round(BODY_W * 0.08), // ??
+        Math.round(BODY_W * 0.08), // ?쒓뎔
+        Math.round(BODY_W * 0.10), // 珥앹궗?낅퉬
+        Math.round(BODY_W * 0.10), // 李⑷났
+        Math.round(BODY_W * 0.10), // 以怨?
+        Math.round(BODY_W * 0.08), // 怨듭젙??
+        Math.round(BODY_W * 0.12), // 二쇱슂怨듭쥌
+        0 // 鍮꾧퀬(?쒓났?? - ?섎㉧吏
+    ]
+    colW[9] = BODY_W - colW.slice(0, 9).reduce((a, b) => a + b, 0)
+
+    const hdrs = ['관리주체', '지구명', '도', '시군', '총공사비\n(백만원)', '착공', '준공\n(예정)', '공정률', '주요공종', '비고\n(시공사)']
+    const vals = [
+        inspection.management_entity || '',
+        inspection.district_name || '',
+        inspection.location_province || '',
+        inspection.location_city || '',
+        inspection.total_budget ? Number(inspection.total_budget).toLocaleString() : '',
+        inspection.construction_start || '',
+        inspection.construction_end_planned || '',
+        inspection.progress_rate ? `${inspection.progress_rate}%` : '',
+        inspection.major_work_type || '',
+        inspection.contractor || ''
+    ]
+
+    let overviewRows = '<hp:tr>'
+    hdrs.forEach((h, i) => { overviewRows += cell(i, 0, colW[i], HDR_H, h, 3, 1, 1, 1, 3) })
+    overviewRows += '</hp:tr><hp:tr>'
+    vals.forEach((v, i) => { overviewRows += cell(i, 1, colW[i], ROW_H, v, 0, 1, 1, 1, 2) })
+    overviewRows += '</hp:tr>'
+
+    body.push(table(overviewRows, 2, 10, BODY_W, HDR_H + ROW_H))
+    body.push(emptyPara())
+
+    // 2. ?먭?寃곌낵
+    body.push(para('2. 점검결과    * 지적사항(또는 수범사례, 현장점검) 증빙사진 첨부', 2, 0))
+
+    const resColW = [
+        Math.round(BODY_W * 0.15),
+        Math.round(BODY_W * 0.425),
+        0
+    ]
+    resColW[2] = BODY_W - resColW[0] - resColW[1]
+    const RES_HDR_H = Math.round(8 * MM)
+    const RES_ROW_H = Math.round(7 * MM)
+
+    const resultList = results.length > 0 ? results : [{ field_item: '', findings: '-', action_items: '-' }]
+    const resRowCount = 1 + Math.max(resultList.length, 4)
+    let resRows = '<hp:tr>'
+    resRows += cell(0, 0, resColW[0], RES_HDR_H, '분야(항목)', 3, 1, 1, 1, 3)
+    resRows += cell(1, 0, resColW[1], RES_HDR_H, '지적사항(수범사례)', 3, 1, 1, 1, 3)
+    resRows += cell(2, 0, resColW[2], RES_HDR_H, '조치할 사항', 3, 1, 1, 1, 3)
+    resRows += '</hp:tr>'
+
+    for (let i = 0; i < Math.max(resultList.length, 4); i++) {
+        const r = resultList[i] || { field_item: '', findings: '', action_items: '' }
+        resRows += '<hp:tr>'
+        resRows += cell(0, i + 1, resColW[0], RES_ROW_H, r.field_item, 0, 1, 1, 1, 2)
+        resRows += cell(1, i + 1, resColW[1], RES_ROW_H, r.findings || '-', 0, 0, 1, 1, 2, 'TOP')
+        resRows += cell(2, i + 1, resColW[2], RES_ROW_H, r.action_items || '-', 0, 0, 1, 1, 2, 'TOP')
+        resRows += '</hp:tr>'
+    }
+
+    const resTotalH = RES_HDR_H + RES_ROW_H * Math.max(resultList.length, 4)
+    body.push(table(resRows, resRowCount, 3, BODY_W, resTotalH))
+    body.push(emptyPara())
+
+    // 3. ?먭????섍껄
+    body.push(para('3. 점검자 의견', 2, 0))
+    body.push(para(`○ ${inspection.inspector_opinion || ''}`, 0, 0))
+    body.push(emptyPara())
+
+    // ?쒕챸
+    const [yyyy, mm, dd] = (inspection.inspection_date || '').split('-')
+    body.push(para(`${yyyy || '    '}년    ${mm || '  '}월    ${dd || '  '}일`, 0, 1))
+    body.push(emptyPara())
+
+    if (inspection.signatures && inspection.signatures.length > 0) {
+        const sigColW = [
+            Math.round(BODY_W * 0.25),
+            Math.round(BODY_W * 0.25),
+            Math.round(BODY_W * 0.25),
+            0
+        ]
+        sigColW[3] = BODY_W - sigColW[0] - sigColW[1] - sigColW[2]
+        const SIG_ROW_H = Math.round(8 * MM)
+
+        let sigRows = ''
+        inspection.signatures.forEach((sig: any, i: number) => {
+            sigRows += '<hp:tr>'
+            sigRows += cell(0, i, sigColW[0], SIG_ROW_H, sig.role, 0, 1, 1, 1, 2)
+            sigRows += cell(1, i, sigColW[1], SIG_ROW_H, sig.position || '', 0, 1, 1, 1, 2)
+            sigRows += cell(2, i, sigColW[2], SIG_ROW_H, sig.name || '', 0, 1, 1, 1, 2)
+            sigRows += cell(3, i, sigColW[3], SIG_ROW_H, '(서명)', 4, 1, 1, 1, 2)
+            sigRows += '</hp:tr>'
+        })
+
+        body.push(table(sigRows, inspection.signatures.length, 4, BODY_W, SIG_ROW_H * inspection.signatures.length))
+    }
+
+    // ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??
+    // 2履? 嫄댁꽕?꾩옣 ?먭??ъ쭊
+    // ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??
+    body.push(para('건설현장 점검사진', 1, 1, true)) // pageBreak
+    body.push(emptyPara())
+
+    // ?꾧꼍?ъ쭊 ?뺣낫 ?뚯씠釉?
+    const photoInfoColW = [Math.round(BODY_W * 0.15), Math.round(BODY_W * 0.35), Math.round(BODY_W * 0.15), 0]
+    photoInfoColW[3] = BODY_W - photoInfoColW[0] - photoInfoColW[1] - photoInfoColW[2]
+    const INFO_ROW_H = Math.round(7 * MM)
+
+    let infoRows = '<hp:tr>'
+    infoRows += cell(0, 0, photoInfoColW[0], INFO_ROW_H, '지구명', 3, 1, 1, 1, 3)
+    infoRows += cell(1, 0, photoInfoColW[1], INFO_ROW_H, inspection.district_name || '', 0, 1, 1, 1, 2)
+    infoRows += cell(2, 0, photoInfoColW[2], INFO_ROW_H, '공사감독원', 3, 1, 1, 1, 3)
+    infoRows += cell(3, 0, photoInfoColW[3], INFO_ROW_H, inspection.supervisor_name || '', 0, 1, 1, 1, 2)
+    infoRows += '</hp:tr><hp:tr>'
+    infoRows += cell(0, 1, photoInfoColW[0], INFO_ROW_H, '일 시', 3, 1, 1, 1, 3)
+    infoRows += cell(1, 1, photoInfoColW[1], INFO_ROW_H, inspection.inspection_date || '', 0, 1, 1, 1, 2)
+    infoRows += cell(2, 1, photoInfoColW[2], INFO_ROW_H, '설 명', 3, 1, 1, 1, 3)
+    infoRows += cell(3, 1, photoInfoColW[3], INFO_ROW_H, '(전경 사진)', 0, 1, 1, 1, 2)
+    infoRows += '</hp:tr>'
+    body.push(table(infoRows, 2, 4, BODY_W, INFO_ROW_H * 2))
+
+    // ?꾧꼍 ?ъ쭊 ?대?吏 ?곸뿭
+    if (siteBeforeImgId) {
+        const IMG_CELL_H = Math.round(80 * MM)
+        let imgRow = '<hp:tr>'
+        imgRow += imageCell(0, 0, BODY_W, IMG_CELL_H, siteBeforeImgId, Math.round(60 * MM), Math.round(45 * MM), 2)
+        imgRow += '</hp:tr>'
+        body.push(table(imgRow, 1, 1, BODY_W, IMG_CELL_H, 2))
+    } else {
+        const EMPTY_H = Math.round(80 * MM)
+        let emptyRow = '<hp:tr>'
+        emptyRow += cell(0, 0, BODY_W, EMPTY_H, '', 0, 1, 1, 1, 2)
+        emptyRow += '</hp:tr>'
+        body.push(table(emptyRow, 1, 1, BODY_W, EMPTY_H, 2))
+    }
+
+    // ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??
+    // 3履?: 吏?곸궗??諛?議곗튂?ы빆 ?ъ쭊?吏
+    // ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??
+    body.push(para('<지적사항 및 조치사항 사진대지>', 6, 1, true))
+    body.push(emptyPara())
+
+    const hasAnyPhoto = results.some(r => (r.photo_url && r.photo_url.trim()) || (r.after_photo_url && r.after_photo_url?.trim()))
+
+    if (hasAnyPhoto) {
+        for (let i = 0; i < results.length; i++) {
+            const r = results[i]
+            const hasBefore = r.photo_url && r.photo_url.trim()
+            const hasAfter = r.after_photo_url && r.after_photo_url.trim()
+
+            if (hasBefore || hasAfter) {
+                if (i > 0) {
+                    body.push(emptyPara())
+                }
+
+                // 議곗튂 ???뺣낫 + ?ъ쭊
+                const beforeDesc = r.findings || r.action_items || ''
+                let bInfoRows = '<hp:tr>'
+                bInfoRows += cell(0, 0, photoInfoColW[0], INFO_ROW_H, '吏援щ챸', 3, 1, 1, 1, 3)
+                bInfoRows += cell(1, 0, photoInfoColW[1], INFO_ROW_H, inspection.district_name || '', 0, 1, 1, 1, 2)
+                bInfoRows += cell(2, 0, photoInfoColW[2], INFO_ROW_H, '공사감독원', 3, 1, 1, 1, 3)
+                bInfoRows += cell(3, 0, photoInfoColW[3], INFO_ROW_H, inspection.supervisor_name || '', 0, 1, 1, 1, 2)
+                bInfoRows += '</hp:tr><hp:tr>'
+                bInfoRows += cell(0, 1, photoInfoColW[0], INFO_ROW_H, '일 시', 3, 1, 1, 1, 3)
+                bInfoRows += cell(1, 1, photoInfoColW[1], INFO_ROW_H, inspection.inspection_date || '', 0, 1, 1, 1, 2)
+                bInfoRows += cell(2, 1, photoInfoColW[2], INFO_ROW_H, '설 명', 3, 1, 1, 1, 3)
+                bInfoRows += cell(3, 1, photoInfoColW[3], INFO_ROW_H, `(조치 전) ${beforeDesc}`, 0, 0, 1, 1, 2, 'TOP')
+                bInfoRows += '</hp:tr>'
+                body.push(table(bInfoRows, 2, 4, BODY_W, INFO_ROW_H * 2))
+
+                const PHOTO_H = Math.round(55 * MM)
+                if (resultImages[i]?.beforeId) {
+                    let pRow = '<hp:tr>'
+                    pRow += imageCell(0, 0, BODY_W, PHOTO_H, resultImages[i].beforeId!, Math.round(50 * MM), Math.round(37 * MM), 2)
+                    pRow += '</hp:tr>'
+                    body.push(table(pRow, 1, 1, BODY_W, PHOTO_H, 2))
+                } else {
+                    let pRow = '<hp:tr>'
+                    pRow += cell(0, 0, BODY_W, PHOTO_H, '', 0, 1, 1, 1, 2)
+                    pRow += '</hp:tr>'
+                    body.push(table(pRow, 1, 1, BODY_W, PHOTO_H, 2))
+                }
+
+                body.push(emptyPara())
+
+                // 議곗튂 ???뺣낫 + ?ъ쭊
+                const afterDesc = r.action_items || r.findings || ''
+                let aInfoRows = '<hp:tr>'
+                aInfoRows += cell(0, 0, photoInfoColW[0], INFO_ROW_H, '지구명', 3, 1, 1, 1, 3)
+                aInfoRows += cell(1, 0, photoInfoColW[1], INFO_ROW_H, inspection.district_name || '', 0, 1, 1, 1, 2)
+                aInfoRows += cell(2, 0, photoInfoColW[2], INFO_ROW_H, '공사감독원', 3, 1, 1, 1, 3)
+                aInfoRows += cell(3, 0, photoInfoColW[3], INFO_ROW_H, inspection.supervisor_name || '', 0, 1, 1, 1, 2)
+                aInfoRows += '</hp:tr><hp:tr>'
+                aInfoRows += cell(0, 1, photoInfoColW[0], INFO_ROW_H, '일 시', 3, 1, 1, 1, 3)
+                aInfoRows += cell(1, 1, photoInfoColW[1], INFO_ROW_H, inspection.inspection_date || '', 0, 1, 1, 1, 2)
+                aInfoRows += cell(2, 1, photoInfoColW[2], INFO_ROW_H, '설 명', 3, 1, 1, 1, 3)
+                aInfoRows += cell(3, 1, photoInfoColW[3], INFO_ROW_H, `(조치 후) ${afterDesc}`, 0, 0, 1, 1, 2, 'TOP')
+                aInfoRows += '</hp:tr>'
+                body.push(table(aInfoRows, 2, 4, BODY_W, INFO_ROW_H * 2))
+
+                if (resultImages[i]?.afterId) {
+                    let pRow = '<hp:tr>'
+                    pRow += imageCell(0, 0, BODY_W, PHOTO_H, resultImages[i].afterId!, Math.round(50 * MM), Math.round(37 * MM), 2)
+                    pRow += '</hp:tr>'
+                    body.push(table(pRow, 1, 1, BODY_W, PHOTO_H, 2))
+                } else {
+                    let pRow = '<hp:tr>'
+                    pRow += cell(0, 0, BODY_W, PHOTO_H, '', 0, 1, 1, 1, 2)
+                    pRow += '</hp:tr>'
+                    body.push(table(pRow, 1, 1, BODY_W, PHOTO_H, 2))
+                }
+            }
+        }
+    } else {
+        // ?ъ쭊 ?놁쓣 ??鍮???
+        const PHOTO_H = Math.round(55 * MM)
+
+        let bInfoRows = '<hp:tr>'
+        bInfoRows += cell(0, 0, photoInfoColW[0], INFO_ROW_H, '吏援щ챸', 3, 1, 1, 1, 3)
+        bInfoRows += cell(1, 0, photoInfoColW[1], INFO_ROW_H, inspection.district_name || '', 0, 1, 1, 1, 2)
+        bInfoRows += cell(2, 0, photoInfoColW[2], INFO_ROW_H, '공사감독원', 3, 1, 1, 1, 3)
+        bInfoRows += cell(3, 0, photoInfoColW[3], INFO_ROW_H, inspection.supervisor_name || '', 0, 1, 1, 1, 2)
+        bInfoRows += '</hp:tr><hp:tr>'
+        bInfoRows += cell(0, 1, photoInfoColW[0], INFO_ROW_H, '일 시', 3, 1, 1, 1, 3)
+        bInfoRows += cell(1, 1, photoInfoColW[1], INFO_ROW_H, inspection.inspection_date || '', 0, 1, 1, 1, 2)
+        bInfoRows += cell(2, 1, photoInfoColW[2], INFO_ROW_H, '설 명', 3, 1, 1, 1, 3)
+        bInfoRows += cell(3, 1, photoInfoColW[3], INFO_ROW_H, '(조치 전)', 0, 1, 1, 1, 2)
+        bInfoRows += '</hp:tr>'
+        body.push(table(bInfoRows, 2, 4, BODY_W, INFO_ROW_H * 2))
+        let emptyTbl = '<hp:tr>'
+        emptyTbl += cell(0, 0, BODY_W, PHOTO_H, '', 0, 1, 1, 1, 2)
+        emptyTbl += '</hp:tr>'
+        body.push(table(emptyTbl, 1, 1, BODY_W, PHOTO_H, 2))
+
+        body.push(emptyPara())
+
+        let aInfoRows = '<hp:tr>'
+        aInfoRows += cell(0, 0, photoInfoColW[0], INFO_ROW_H, '吏援щ챸', 3, 1, 1, 1, 3)
+        aInfoRows += cell(1, 0, photoInfoColW[1], INFO_ROW_H, inspection.district_name || '', 0, 1, 1, 1, 2)
+        aInfoRows += cell(2, 0, photoInfoColW[2], INFO_ROW_H, '공사감독원', 3, 1, 1, 1, 3)
+        aInfoRows += cell(3, 0, photoInfoColW[3], INFO_ROW_H, inspection.supervisor_name || '', 0, 1, 1, 1, 2)
+        aInfoRows += '</hp:tr><hp:tr>'
+        aInfoRows += cell(0, 1, photoInfoColW[0], INFO_ROW_H, '일 시', 3, 1, 1, 1, 3)
+        aInfoRows += cell(1, 1, photoInfoColW[1], INFO_ROW_H, inspection.inspection_date || '', 0, 1, 1, 1, 2)
+        aInfoRows += cell(2, 1, photoInfoColW[2], INFO_ROW_H, '설 명', 3, 1, 1, 1, 3)
+        aInfoRows += cell(3, 1, photoInfoColW[3], INFO_ROW_H, '(조치 후)', 0, 1, 1, 1, 2)
+        aInfoRows += '</hp:tr>'
+        body.push(table(aInfoRows, 2, 4, BODY_W, INFO_ROW_H * 2))
+        let emptyTbl2 = '<hp:tr>'
+        emptyTbl2 += cell(0, 0, BODY_W, PHOTO_H, '', 0, 1, 1, 1, 2)
+        emptyTbl2 += '</hp:tr>'
+        body.push(table(emptyTbl2, 1, 1, BODY_W, PHOTO_H, 2))
+    }
+
+    // ?덈궡 臾멸뎄
+    body.push(emptyPara())
+    body.push(para('지적사항에 대한 조치 전, 조치 후 사진 필수', 5, 1))
+    body.push(para('지적사항이 없는 경우 현장점검사진 첨부', 5, 1))
+
+    // ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??
+    // ?섎쾾?щ? (?덉쓣 ?뚮쭔)
+    // ?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧?먥븧??
+    const goodExContent = (inspection as any).good_example_content || ''
+    if (goodExPhotos.length > 0 || goodExContent.trim()) {
+        body.push(para('<수범사례 사진대지>', 6, 1, true))
+        body.push(emptyPara())
+
+        const geInfoColW = [Math.round(BODY_W * 0.15), 0]
+        geInfoColW[1] = BODY_W - geInfoColW[0]
+
+        let geInfoRows = '<hp:tr>'
+        geInfoRows += cell(0, 0, geInfoColW[0], INFO_ROW_H, '지구명', 3, 1, 1, 1, 3)
+        geInfoRows += cell(1, 0, geInfoColW[1], INFO_ROW_H, inspection.district_name || '', 0, 1, 1, 1, 2)
+        geInfoRows += '</hp:tr><hp:tr>'
+        geInfoRows += cell(0, 1, geInfoColW[0], INFO_ROW_H, '설 명', 3, 1, 1, 1, 3)
+        geInfoRows += cell(1, 1, geInfoColW[1], INFO_ROW_H, goodExContent, 0, 0, 1, 1, 2, 'TOP')
+        geInfoRows += '</hp:tr>'
+        body.push(table(geInfoRows, 2, 2, BODY_W, INFO_ROW_H * 2))
+
+        const GE_PHOTO_H = Math.round(70 * MM)
+        if (goodExImgId) {
+            let pRow = '<hp:tr>'
+            pRow += imageCell(0, 0, BODY_W, GE_PHOTO_H, goodExImgId, Math.round(55 * MM), Math.round(40 * MM), 2)
+            pRow += '</hp:tr>'
+            body.push(table(pRow, 1, 1, BODY_W, GE_PHOTO_H, 2))
+        } else {
+            let pRow = '<hp:tr>'
+            pRow += cell(0, 0, BODY_W, GE_PHOTO_H, '', 0, 1, 1, 1, 2)
+            pRow += '</hp:tr>'
+            body.push(table(pRow, 1, 1, BODY_W, GE_PHOTO_H, 2))
+        }
+    }
+
+    // section0.xml 議곕┰
+    const sectionXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<hs:sec xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hp10="http://www.hancom.co.kr/hwpml/2016/paragraph" xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:hhs="http://www.hancom.co.kr/hwpml/2011/history" xmlns:hm="http://www.hancom.co.kr/hwpml/2011/master-page" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf/" xmlns:ooxmlchart="http://www.hancom.co.kr/hwpml/2016/ooxmlchart" xmlns:hwpunitchar="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+${body.join('\n')}
+</hs:sec>`
+
+    // ???????????????????????????????????
+    // ZIP 議곕┰ (?ㅼ젣 ?쒓??ㅽ뵾??異쒕젰 援ъ“??留욎땄)
+    // 紐⑤뱺 XML? TextEncoder濡?UTF-8 諛붿씠?몃줈 蹂?섑븯?????
+    // ???????????????????????????????????
+    // mimetype (한글 구버전 호환을 위해 vnd 타입 사용)
+    zip.file('mimetype', toUTF8('application/vnd.hancom.hwpx'), { compression: 'STORE' })
+
+    // version.xml (호환성이 높은 구버전 포맷)
+    zip.file('version.xml', toUTF8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<version><releaseVersion major="1" minor="4" build="0" revision="0"/><appVersion text="HWP 2.5.3.0" date="2016-01-19" format="1.4" compatibleVersion="1.4"/></version>`), { compression: 'STORE' })
+
+    // content.hpf 기준 상대경로 호환: Contents/BinData/*
+    for (const img of images) {
+        zip.file(`Contents/BinData/${img.filename}`, img.data)
+    }
+
+    // Contents/header.xml
+    zip.file('Contents/header.xml', toUTF8(headerXml))
+
+    // Contents/section0.xml
+    zip.file('Contents/section0.xml', toUTF8(sectionXml))
+
+    // Preview
+    zip.file('Preview/PrvText.txt', toUTF8(''))
+
+    // settings.xml (최소 설정)
+    zip.file('settings.xml', toUTF8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<config:config-item-set xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" config:name="HWP-Settings"/>`))
+
+    // Contents/content.hpf (manifest)
+    const imgManifest = images.map(img =>
+        `<item id="${img.id}" href="BinData/${img.filename}" media-type="image/${img.ext === 'jpg' ? 'jpeg' : img.ext}" isEmbeded="1"/>`
+    ).join('')
+
+    zip.file('Contents/content.hpf', toUTF8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<package xmlns="http://www.idpf.org/2007/opf/" version="2.0">\n<metadata>\n<dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">안전점검 보고서</dc:title>\n<dc:format xmlns:dc="http://purl.org/dc/elements/1.1/">application/vnd.hancom.hwpx</dc:format>\n<dc:language xmlns:dc="http://purl.org/dc/elements/1.1/">ko-KR</dc:language>\n</metadata>\n<manifest>\n<item id="header" href="header.xml" media-type="application/vnd.hancom.hwpml+xml"/>\n<item id="section0" href="section0.xml" media-type="application/vnd.hancom.hwpml+xml"/>\n${imgManifest}\n</manifest>\n<spine><itemref idref="section0"/></spine>\n</package>`))
+
+    // META-INF/container.xml
+    zip.file('META-INF/container.xml', toUTF8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="Contents/content.hpf" media-type="application/vnd.hancom.hpf+xml"/></rootfiles></container>`))
+
+    // META-INF/manifest.xml
+    zip.file('META-INF/manifest.xml', toUTF8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<manifest xmlns="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"><file-entry full-path="/" media-type="application/vnd.hancom.hwpx"/><file-entry full-path="/Contents/" media-type="application/vnd.hancom.hwpx"/></manifest>`))
+
+    // ?뚯씪 ?앹꽦 諛??ㅼ슫濡쒕뱶
+    const blob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `safety_inspection_${inspection.inspection_type}_${inspection.inspection_date}.hwpx`
+    a.click()
+    URL.revokeObjectURL(url)
+}
+

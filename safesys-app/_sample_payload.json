@@ -1,0 +1,48 @@
+﻿{
+    "inspection":  {
+                       "inspection_date":  "2026-02-21",
+                       "total_budget":  12345,
+                       "construction_start":  "2025-01-01",
+                       "major_work_type":  "earthwork",
+                       "district_name":  "zoneA",
+                       "supervisor_name":  "Hong",
+                       "construction_end_planned":  "2026-12-31",
+                       "inspection_team":  "team1",
+                       "contractor":  "builderA",
+                       "location_province":  "Seoul",
+                       "progress_rate":  35,
+                       "management_entity":  "entityA",
+                       "inspector_opinion":  "No critical issue",
+                       "inspection_type":  "thaw",
+                       "location_city":  "Gangnam"
+                   },
+    "project":  {
+                    "project_name":  "test site"
+                },
+    "photos":  [
+                   {
+                       "photo_url":  "C:\\Users\\EKR\\Documents\\커서AI\\safesys\\safesys-app\\_img_template.png",
+                       "photo_type":  "site_before"
+                   },
+                   {
+                       "photo_url":  "C:\\Users\\EKR\\Documents\\커서AI\\safesys\\safesys-app\\_img_template.png",
+                       "photo_type":  "good_example"
+                   }
+               ],
+    "results":  [
+                    {
+                        "field_item":  "scaffold",
+                        "after_photo_url":  "C:\\Users\\EKR\\Documents\\커서AI\\safesys\\safesys-app\\_img_template.png",
+                        "findings":  "guardrail missing",
+                        "photo_url":  "C:\\Users\\EKR\\Documents\\커서AI\\safesys\\safesys-app\\_img_template.png",
+                        "action_items":  "install guardrail"
+                    },
+                    {
+                        "field_item":  "electrical",
+                        "after_photo_url":  "C:\\Users\\EKR\\Documents\\커서AI\\safesys\\safesys-app\\_img_template.png",
+                        "findings":  "cable arrangement needed",
+                        "photo_url":  "C:\\Users\\EKR\\Documents\\커서AI\\safesys\\safesys-app\\_img_template.png",
+                        "action_items":  "arranged"
+                    }
+                ]
+}

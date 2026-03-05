@@ -268,7 +268,7 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
                 }}
                 className="border border-gray-300 rounded-md px-3 py-1 text-sm bg-white hover:bg-gray-50 transition-colors"
               >
-                {selectedYear}년
+                {String(selectedYear).slice(-2)}년
               </button>
               {/* 분기 선택 */}
               <select
@@ -749,9 +749,9 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto sm:w-auto sticky left-0 z-10 bg-gray-50 sm:static">지사명</th>
-                          <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto sm:w-auto whitespace-nowrap">총 프로젝트 수</th>
-                          <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto sm:w-auto whitespace-nowrap">점검대상 수</th>
-                          <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto sm:w-auto whitespace-nowrap">점검횟수(대상)</th>
+                          <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto sm:w-auto whitespace-nowrap">지구</th>
+                          <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto sm:w-auto whitespace-nowrap">대상</th>
+                          <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto sm:w-auto whitespace-nowrap">점검</th>
                           <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto sm:w-auto whitespace-nowrap">실적인정</th>
                           <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto sm:w-auto whitespace-nowrap">최근점검자</th>
                           <th

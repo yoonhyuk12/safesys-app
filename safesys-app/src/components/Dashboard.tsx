@@ -3205,75 +3205,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 일일안전점검 이행 확인 카드 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-blue-300 hover:bg-blue-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="w-8 h-8 bg-teal-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-teal-200 transition-colors">
-                      <Shield className="h-4 w-4 text-teal-600" />
-                    </div>
-                    <h4 className="text-xs font-medium text-gray-900 mb-1">일일안전점검</h4>
-                    <div className="text-xs text-gray-600">
-                      <div className="text-sm font-semibold text-blue-600 mb-0.5">준비중</div>
-                      <div className="text-xs">이행 확인</div>
-                    </div>
-                  </div>
-                </div>
 
-                {/* 산업안전보건관리비 집행현황 카드 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-blue-300 hover:bg-blue-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-blue-200 transition-colors">
-                      <Building className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <h4 className="text-xs font-medium text-gray-900 mb-1">산업안전보건관리비</h4>
-                    <div className="text-xs text-gray-600">
-                      <div className="text-sm font-semibold text-blue-600 mb-0.5">준비중</div>
-                      <div className="text-xs">집행현황</div>
-                    </div>
-                  </div>
-                </div>
-
-
-                {/* 위험공종허가제 현황 카드 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-blue-300 hover:bg-blue-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-blue-200 transition-colors">
-                      <AlertTriangle className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <h4 className="text-xs font-medium text-gray-900 mb-1">위험공종허가제</h4>
-                    <div className="text-xs text-gray-600">
-                      <div className="text-sm font-semibold text-blue-600 mb-0.5">준비중</div>
-                      <div className="text-xs">현황</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 정기점검 현황 카드 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-blue-300 hover:bg-blue-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-blue-200 transition-colors">
-                      <CheckCircle className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <h4 className="text-xs font-medium text-gray-900 mb-1">정기점검 현황</h4>
-                    <div className="text-xs text-gray-600">
-                      <div className="text-[10px] text-gray-500 mb-0.5">(해빙,우기,종합,특별)</div>
-                      <div className="text-sm font-semibold text-blue-600 mb-0.5">준비중</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 휴일작업 현황 카드 */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-blue-300 hover:bg-blue-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-blue-200 transition-colors">
-                      <Calendar className="h-4 w-4 text-blue-600" />
-                    </div>
-                    <h4 className="text-xs font-medium text-gray-900 mb-1">휴일작업 현황</h4>
-                    <div className="text-xs text-gray-600">
-                      <div className="text-sm font-semibold text-blue-600 mb-0.5">준비중</div>
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
           </div>

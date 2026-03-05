@@ -1,0 +1,21 @@
+
+Row 0:
+<hp:t>지구명</hp:t> <hp:t>{{지구명}}</hp:t> <hp:t>공사감독원</hp:t> <hp:t>{{감독직급}} </hp:t> <hp:t>{{감독명}}</hp:t>
+
+Row 1:
+<hp:t>일  시</hp:t> <hp:t>{{date}}</hp:t> <hp:t>설   명</hp:t> <hp:t> (조치 전) {{지적사항}}</hp:t>
+
+Row 2:
+<hp:t>{{조치전 사진}}</hp:t>
+
+Row 3:
+
+
+Row 4:
+<hp:t>지구명</hp:t> <hp:t>{{지구명}}</hp:t> <hp:t>공사감독원</hp:t> <hp:t>{{감독직급}} </hp:t> <hp:t>{{감독명}}</hp:t>
+
+Row 5:
+<hp:t>일  시</hp:t> <hp:t>{{date}}</hp:t> <hp:t>설   명</hp:t> <hp:t> (조치 후) {{조치할 사항}}</hp:t>
+
+Row 6:
+<hp:t>{{조치후 사진}}</hp:t>
