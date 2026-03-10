@@ -68,6 +68,8 @@ export interface CreateProjectData {
   industrial_law_safety_ledger?: boolean
   disaster_prevention_target?: boolean
   cctv_rtsp_url?: string
+  client_telegram_id?: string | null
+  contractor_telegram_id?: string | null
   // 개인정보 관리책임자
   privacy_manager_name?: string
   privacy_manager_position?: string

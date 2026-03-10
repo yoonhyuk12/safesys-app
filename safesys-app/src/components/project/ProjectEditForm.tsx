@@ -50,7 +50,7 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
   const [error, setError] = useState('')
   const [isOptionalExpanded, setIsOptionalExpanded] = useState(false)
   const [telegramTestLoading, setTelegramTestLoading] = useState<'client' | 'contractor' | null>(null)
-  const [telegramTestResult, setTelegramTestResult] = useState<{type: 'client' | 'contractor', success: boolean, message: string} | null>(null)
+  const [telegramTestResult, setTelegramTestResult] = useState<{ type: 'client' | 'contractor', success: boolean, message: string } | null>(null)
   const [formData, setFormData] = useState<FormData>({
     project_name: project.project_name || '',
     managing_hq: project.managing_hq || '',
@@ -97,7 +97,7 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
   }, [])
 
   // 선택된 본부에 따른 지사 옵션 필터링
-  const filteredBranches = formData.managing_hq 
+  const filteredBranches = formData.managing_hq
     ? BRANCH_OPTIONS[formData.managing_hq] || []
     : []
 
@@ -110,10 +110,10 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
   const formatPhoneNumber = (value: string): string => {
     // 숫자만 추출
     const numbers = value.replace(/[^\d]/g, '')
-    
+
     // 11자리 이상이면 앞 11자리만 사용
     const trimmed = numbers.slice(0, 11)
-    
+
     // 하이픈 자동 삽입
     if (trimmed.length <= 3) {
       return trimmed
@@ -216,14 +216,14 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
     }
   }
 
-  const handleAddressSelect = (address: string, roadAddress: string, coords?: {lat: number, lng: number}) => {
+  const handleAddressSelect = (address: string, roadAddress: string, coords?: { lat: number, lng: number }) => {
     setFormData(prev => ({
       ...prev,
       site_address: roadAddress || address, // 도로명주소 우선, 없으면 지번주소
       latitude: coords?.lat,
       longitude: coords?.lng
     }))
-    
+
     // 좌표 정보 저장 확인
     if (coords) {
       console.log('선택된 주소 좌표 저장:', coords)
@@ -281,8 +281,8 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
         industrial_law_safety_ledger: formData.industrial_law_safety_ledger,
         disaster_prevention_target: formData.disaster_prevention_target,
         cctv_rtsp_url: formData.cctv_rtsp_url?.trim() || undefined,
-        client_telegram_id: formData.client_telegram_id?.trim() || undefined,
-        contractor_telegram_id: formData.contractor_telegram_id?.trim() || undefined,
+        client_telegram_id: formData.client_telegram_id?.trim() || null,
+        contractor_telegram_id: formData.contractor_telegram_id?.trim() || null,
         privacy_manager_name: formData.privacy_manager_name?.trim() || undefined,
         privacy_manager_position: formData.privacy_manager_position?.trim() || undefined,
         privacy_manager_email: formData.privacy_manager_email?.trim() || undefined,
@@ -291,7 +291,7 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
 
       alert('프로젝트가 성공적으로 수정되었습니다!')
       // 저장된 경로로 돌아가기 (스크롤 위치도 복원됨)
-      const returnPath = typeof window !== 'undefined' 
+      const returnPath = typeof window !== 'undefined'
         ? sessionStorage.getItem('dashboard-return-path') || '/'
         : '/'
       router.push(returnPath)
@@ -720,11 +720,10 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
                 </div>
               </div>
               {telegramTestResult && (
-                <div className={`mt-2 p-2 rounded-md text-xs ${
-                  telegramTestResult.success
+                <div className={`mt-2 p-2 rounded-md text-xs ${telegramTestResult.success
                     ? 'bg-green-50 text-green-700 border border-green-200'
                     : 'bg-red-50 text-red-700 border border-red-200'
-                }`}>
+                  }`}>
                   {telegramTestResult.success ? '✅' : '❌'} {telegramTestResult.message}
                 </div>
               )}
