@@ -153,14 +153,46 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
     return quarter
   })
 
-  // 마커 표시/숨김 상태
-  const [showActiveMarkers, setShowActiveMarkers] = useState<boolean>(true)
-  const [showInactiveMarkers, setShowInactiveMarkers] = useState<boolean>(true)
-  const [showUninspectedHQ, setShowUninspectedHQ] = useState<boolean>(false) // 초기값 false
-  const [showUninspectedBranch, setShowUninspectedBranch] = useState<boolean>(false) // 초기값 false
-  const [showTBMMarkers, setShowTBMMarkers] = useState<boolean>(false) // TBM 마커 표시/숨김 (초기값 false)
+  // 마커 표시/숨김 상태 (localStorage로 영속화)
+  const MAP_VISIBILITY_KEY = 'map_layer_visibility'
+  const getStoredVisibility = () => {
+    try {
+      const stored = localStorage.getItem(MAP_VISIBILITY_KEY)
+      if (stored) return JSON.parse(stored)
+    } catch {}
+    return null
+  }
+  const stored = getStoredVisibility()
+  const [showActiveMarkers, setShowActiveMarkersRaw] = useState<boolean>(stored?.showActiveMarkers ?? true)
+  const [showInactiveMarkers, setShowInactiveMarkersRaw] = useState<boolean>(stored?.showInactiveMarkers ?? true)
+  const [showUninspectedHQ, setShowUninspectedHQRaw] = useState<boolean>(stored?.showUninspectedHQ ?? false)
+  const [showUninspectedBranch, setShowUninspectedBranchRaw] = useState<boolean>(stored?.showUninspectedBranch ?? false)
+  const [showTBMMarkers, setShowTBMMarkersRaw] = useState<boolean>(stored?.showTBMMarkers ?? false)
   const [tbmDataLoaded, setTbmDataLoaded] = useState<boolean>(false) // TBM 데이터 로드 여부
-  const [showOfficeMarkers, setShowOfficeMarkers] = useState<boolean>(true) // 청사 마커 표시/숨김 (초기값 true)
+  const [showOfficeMarkers, setShowOfficeMarkersRaw] = useState<boolean>(stored?.showOfficeMarkers ?? true)
+
+  const saveVisibility = (patch: Record<string, boolean>) => {
+    try {
+      const current = getStoredVisibility() ?? {}
+      localStorage.setItem(MAP_VISIBILITY_KEY, JSON.stringify({ ...current, ...patch }))
+    } catch {}
+  }
+
+  const setShowActiveMarkers = (v: boolean) => { setShowActiveMarkersRaw(v); saveVisibility({ showActiveMarkers: v }) }
+  const setShowInactiveMarkers = (v: boolean) => { setShowInactiveMarkersRaw(v); saveVisibility({ showInactiveMarkers: v }) }
+  const setShowUninspectedHQ = (v: boolean) => { setShowUninspectedHQRaw(v); saveVisibility({ showUninspectedHQ: v }) }
+  const setShowUninspectedBranch = (v: boolean) => { setShowUninspectedBranchRaw(v); saveVisibility({ showUninspectedBranch: v }) }
+  const setShowTBMMarkers = (v: boolean) => { setShowTBMMarkersRaw(v); saveVisibility({ showTBMMarkers: v }) }
+  const setShowOfficeMarkers = (v: boolean) => { setShowOfficeMarkersRaw(v); saveVisibility({ showOfficeMarkers: v }) }
+
+  // TBM이 on 상태로 복원된 경우 마운트 시 자동 로드
+  useEffect(() => {
+    if (showTBMMarkers && !tbmDataLoaded && onLoadTBM) {
+      onLoadTBM().then(() => setTbmDataLoaded(true))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [navigationModal, setNavigationModal] = useState<{
     isOpen: boolean
     address: string

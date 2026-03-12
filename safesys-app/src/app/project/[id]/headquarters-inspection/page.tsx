@@ -114,7 +114,7 @@ export default function HeadquartersInspectionPage() {
       { title: '전조등, 후방영상장치 작동상태, 후사경의 설치상태, 운전자 안전띠', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' },
       { title: '작업장소 지형 및 지반상태', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' },
       { title: '출입통제, 작업지휘자, 신호수 배치', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' },
-      { title: '안양작업시 안전조치', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' }
+      { title: '인양작업시 안전조치', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' }
     ],
     // 요주의 항목들
     caution_items: [
@@ -1115,7 +1115,7 @@ export default function HeadquartersInspectionPage() {
           { title: '전조등, 후방영상장치 작동상태, 후사경의 설치상태, 운전자 안전띠', status: 'good', remarks: '특이사항 없음' },
           { title: '작업장소 지형 및 지반상태', status: 'good', remarks: '특이사항 없음' },
           { title: '출입통제, 작업지휘자, 신호수 배치', status: 'good', remarks: '특이사항 없음' },
-          { title: '안양작업시 안전조치', status: 'good', remarks: '특이사항 없음' }
+          { title: '인양작업시 안전조치', status: 'good', remarks: '특이사항 없음' }
         ],
         caution_items: [
           { title: '가설통로 및 작업발판 안전조치', status: 'good', remarks: '특이사항 없음' },
@@ -1276,7 +1276,7 @@ export default function HeadquartersInspectionPage() {
           { title: '전조등, 후방영상장치 작동상태, 후사경의 설치상태, 운전자 안전띠', status: 'good', remarks: '특이사항 없음' },
           { title: '작업장소 지형 및 지반상태', status: 'good', remarks: '특이사항 없음' },
           { title: '출입통제, 작업지휘자, 신호수 배치', status: 'good', remarks: '특이사항 없음' },
-          { title: '안양작업시 안전조치', status: 'good', remarks: '특이사항 없음' }
+          { title: '인양작업시 안전조치', status: 'good', remarks: '특이사항 없음' }
         ],
         caution_items: [
           { title: '가설통로 및 작업발판 안전조치', status: 'good', remarks: '특이사항 없음' },
@@ -1616,7 +1616,7 @@ export default function HeadquartersInspectionPage() {
                                 { title: '전조등, 후방영상장치 작동상태, 후사경의 설치상태, 운전자 안전띠', status: 'good', remarks: '특이사항 없음' },
                                 { title: '작업장소 지형 및 지반상태', status: 'good', remarks: '특이사항 없음' },
                                 { title: '출입통제, 작업지휘자, 신호수 배치', status: 'good', remarks: '특이사항 없음' },
-                                { title: '안양작업시 안전조치', status: 'good', remarks: '특이사항 없음' }
+                                { title: '인양작업시 안전조치', status: 'good', remarks: '특이사항 없음' }
                               ],
                               caution_items: [
                                 { title: '가설통로 및 작업발판 안전조치', status: 'good', remarks: '특이사항 없음' },
