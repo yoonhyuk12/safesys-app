@@ -756,23 +756,13 @@ export default function SafeDocumentsPage() {
                   </div>
                 )}
 
-                {/* 안내 정보 */}
-                <div className="mt-8 bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <h3 className="text-sm font-semibold text-blue-800 mb-2">안전서류 점검 안내</h3>
-                  <ul className="space-y-1 text-blue-700 text-xs">
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="h-3.5 w-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
-                      <span>공사 여건(공사상태, 총공사비, 특수공종)에 따라 체크리스트가 자동 필터링됩니다.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="h-3.5 w-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
-                      <span>점검 결과는 PDF로 저장하거나 구글 시트로 제출할 수 있습니다.</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle className="h-3.5 w-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
-                      <span>작성 중인 내용은 자동으로 저장되어 나중에 이어서 작성할 수 있습니다.</span>
-                    </li>
-                  </ul>
+                {/* 건설공사 안전관리 지침 */}
+                <div className="mt-8 bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-amber-800 mb-2">건설공사 안전관리 지침</p>
+                  <p className="text-sm font-medium text-amber-700 mb-1">제25조(안전교육 내용의 기록·관리)</p>
+                  <p className="text-xs text-amber-700 leading-relaxed">
+                    2) 수급인은 안전교육의 내용을 기록·관리하여야 하고, 정기적으로 감독원에게 제23조 1호에 따른 종류별 안전교육 실적을 보고하여야 하며, 준공 후 안전교육의 결과를 사업부서장에게 서면으로 제출하여야 한다.
+                  </p>
                 </div>
               </div>
             )}
