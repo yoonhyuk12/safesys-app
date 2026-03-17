@@ -159,13 +159,52 @@ export async function downloadTBMSafetyInspectionExcel(
     return false
   }
 
+  // tbm_submissions에서 project_id가 있는 데이터 조회
+  const submissionsByProjectDate = new Map<string, Map<string, { tbm시간: string, 신규인원: number | null, 대수: number | null, 주소: string }>>()
+
+  try {
+    const { data: submissionsWithProjectId, error: submErr } = await supabase
+      .from('tbm_submissions')
+      .select('project_id, meeting_date, education_start_time, new_worker_count, equipment_input, address')
+      .gte('meeting_date', finalStartDate)
+      .lte('meeting_date', finalEndDate)
+      .not('project_id', 'is', null)
+      .neq('today_work', '작업없음')
+
+    if (submErr) {
+      console.error('❌ tbm_submissions project_id 조회 실패:', submErr)
+    } else if (submissionsWithProjectId) {
+      submissionsWithProjectId.forEach((s: any) => {
+        if (!s.project_id || !s.meeting_date) return
+        const dateStr = new Date(s.meeting_date).toISOString().split('T')[0]
+        if (!submissionsByProjectDate.has(s.project_id)) {
+          submissionsByProjectDate.set(s.project_id, new Map())
+        }
+        // 같은 프로젝트/날짜에 여러 제출이 있을 경우 첫 번째만 사용
+        if (!submissionsByProjectDate.get(s.project_id)!.has(dateStr)) {
+          submissionsByProjectDate.get(s.project_id)!.set(dateStr, {
+            tbm시간: s.education_start_time ? s.education_start_time.substring(0, 5) : '',
+            신규인원: s.new_worker_count != null && s.new_worker_count > 0 ? s.new_worker_count : null,
+            대수: s.equipment_input ? extractEquipmentCount(s.equipment_input) : null,
+            주소: s.address || ''
+          })
+        }
+      })
+    }
+    console.log('📥 tbm_submissions project_id 조회 완료:', submissionsWithProjectId?.length, '건')
+  } catch (error) {
+    console.error('❌ tbm_submissions project_id 조회 오류:', error)
+  }
+
   // 프로젝트별 데이터 준비
   const projectDataList: Array<{
     본부명: string
     지사명: string
     지구명: string
     공사감독: string
-    날짜별데이터: Map<string, { 작업여부: string, 입회자: string }>
+    현장주소: string
+    TBM시간: string
+    날짜별데이터: Map<string, { 작업여부: string, 입회자: string, 신규인원: number | null, 대수: number | null }>
     display_order?: number
   }> = []
 
@@ -176,18 +215,37 @@ export async function downloadTBMSafetyInspectionExcel(
     const projectName = project?.project_name || ''
     const district = extractDistrict(projectName)
 
-    const 날짜별데이터 = new Map<string, { 작업여부: string, 입회자: string }>()
+    const projSubmissions = submissionsByProjectDate.get(project.id)
+
+    // 프로젝트의 TBM시간, 현장주소: 기간 내 첫 번째 제출 데이터에서 가져옴
+    let TBM시간 = ''
+    let 현장주소 = ''
+    if (projSubmissions) {
+      for (const date of dateRange) {
+        const sub = projSubmissions.get(date)
+        if (sub) {
+          if (!TBM시간 && sub.tbm시간) TBM시간 = sub.tbm시간
+          if (!현장주소 && sub.주소) 현장주소 = sub.주소
+          if (TBM시간 && 현장주소) break
+        }
+      }
+    }
+
+    const 날짜별데이터 = new Map<string, { 작업여부: string, 입회자: string, 신규인원: number | null, 대수: number | null }>()
 
     dateRange.forEach(date => {
       const inspection = inspectionsByDate.get(date)?.get(project.id)
-      if (inspection) {
-        // 입회자가 있으면 작업여부는 "여"
-        const 입회자 = inspection.is_attended === true ? (inspection.attendee || '') : ''
-        const 작업여부 = 입회자 ? '여' : ''
-        날짜별데이터.set(date, { 작업여부, 입회자 })
-      } else {
-        날짜별데이터.set(date, { 작업여부: '', 입회자: '' })
-      }
+      const submission = projSubmissions?.get(date)
+
+      // 입회자: tbm_safety_inspections에서
+      const 입회자 = inspection?.is_attended === true ? (inspection.attendee || '') : ''
+      // 작업여부: 입회자가 있거나, tbm_submissions에 해당 날짜 제출이 있으면 '여'
+      const 작업여부 = (입회자 || submission) ? '여' : ''
+      // 신규인원/대수: tbm_submissions에서 (project_id 있는 경우)
+      const 신규인원 = submission?.신규인원 ?? null
+      const 대수 = submission?.대수 ?? null
+
+      날짜별데이터.set(date, { 작업여부, 입회자, 신규인원, 대수 })
     })
 
     // 공사감독: "직급 이름" 형식 (예: "3급 윤혁")
@@ -199,6 +257,8 @@ export async function downloadTBMSafetyInspectionExcel(
       지사명: project?.managing_branch || '',
       지구명: district,
       공사감독,
+      현장주소,
+      TBM시간,
       날짜별데이터,
       display_order: project?.display_order
     })
@@ -242,8 +302,8 @@ export async function downloadTBMSafetyInspectionExcel(
   const workbook = new ExcelJS.Workbook()
   const worksheet = workbook.addWorksheet('TBM확인')
 
-  // 1행 헤더 생성 (본부명, 지사명, 지구명, 공사감독, TBM 시간, TBM입회여부, 신규근로자, 건설기계, 비고)
-  const headerRow1: (string | number)[] = ['본부명', '지사명', '지구명', '공사감독', 'TBM 시간', 'TBM입회여부']
+  // 1행 헤더 생성 (본부명, 지사명, 지구명, 공사감독, 현장주소, TBM 시간, TBM입회여부, 신규근로자, 건설기계, 비고)
+  const headerRow1: (string | number)[] = ['본부명', '지사명', '지구명', '공사감독', '현장주소', 'TBM 시간', 'TBM입회여부']
   // TBM입회여부 병합 공간 (날짜당 2컬럼: 작업여부, 입회자)
   for (let i = 0; i < dateRange.length * 2 - 1; i++) {
     headerRow1.push('')
@@ -261,7 +321,7 @@ export async function downloadTBMSafetyInspectionExcel(
   headerRow1.push('비고')
 
   // 2행 헤더 생성 (날짜들, 신규근로자 날짜들, 건설기계 날짜들)
-  const headerRow2: (string | number)[] = ['', '', '', '', '']
+  const headerRow2: (string | number)[] = ['', '', '', '', '', '']
   // TBM입회여부 날짜들 (날짜당 2컬럼)
   dateRange.forEach(date => {
     headerRow2.push(formatDateForHeader(date))
@@ -278,7 +338,7 @@ export async function downloadTBMSafetyInspectionExcel(
   headerRow2.push('')
 
   // 3행 헤더 생성 (작업여부/입회자, 신규인원, 대수)
-  const headerRow3: (string | number)[] = ['', '', '', '', '']
+  const headerRow3: (string | number)[] = ['', '', '', '', '', '']
   // TBM입회여부: 작업여부/입회자
   dateRange.forEach(() => {
     headerRow3.push('작업\n(여/부)')
@@ -300,16 +360,17 @@ export async function downloadTBMSafetyInspectionExcel(
   worksheet.addRow(headerRow3)
 
   // 헤더 행 병합 및 스타일 적용
-  // 1-3행 병합: 본부명, 지사명, 지구명, 공사감독, TBM 시간
+  // 1-3행 병합: 본부명, 지사명, 지구명, 공사감독, 현장주소, TBM 시간
   worksheet.mergeCells(1, 1, 3, 1) // 본부명
   worksheet.mergeCells(1, 2, 3, 2) // 지사명
   worksheet.mergeCells(1, 3, 3, 3) // 지구명
   worksheet.mergeCells(1, 4, 3, 4) // 공사감독
-  worksheet.mergeCells(1, 5, 3, 5) // TBM 시간
+  worksheet.mergeCells(1, 5, 3, 5) // 현장주소
+  worksheet.mergeCells(1, 6, 3, 6) // TBM 시간
 
   // 1행: TBM입회여부 (시작일자부터 종료일자 입회자까지 병합)
-  const tbmStartCol = 6 // TBM 시간 다음, 첫 번째 날짜 컬럼
-  const tbmEndCol = 5 + dateRange.length * 2 // 마지막 날짜의 입회자 컬럼
+  const tbmStartCol = 7 // TBM 시간 다음, 첫 번째 날짜 컬럼
+  const tbmEndCol = 6 + dateRange.length * 2 // 마지막 날짜의 입회자 컬럼
   worksheet.mergeCells(1, tbmStartCol, 1, tbmEndCol) // TBM입회여부
 
   // 1행: 신규근로자 (일자 전체 병합) - 날짜당 1컬럼만
@@ -323,7 +384,7 @@ export async function downloadTBMSafetyInspectionExcel(
   worksheet.mergeCells(1, equipmentStartCol, 1, equipmentEndCol) // 건설기계
 
   // 날짜별 컬럼 병합 (2-3행) - TBM입회여부만 (날짜당 2컬럼)
-  let colIndex = 6 // TBM 시간 다음부터
+  let colIndex = 7 // TBM 시간 다음부터
   dateRange.forEach(() => {
     worksheet.mergeCells(2, colIndex, 2, colIndex + 1) // 날짜 병합
     colIndex += 2
@@ -366,10 +427,10 @@ export async function downloadTBMSafetyInspectionExcel(
       wrapText: true // 줄바꿈 활성화
     }
     // 테두리 추가 - 섹션 구분선은 굵게
-    const isSectionBorder = colNumber === 5 || colNumber === tbmEndCol || colNumber === workerEndCol || colNumber === equipmentEndCol
+    const isSectionBorder = colNumber === 6 || colNumber === tbmEndCol || colNumber === workerEndCol || colNumber === equipmentEndCol
     cell.border = {
       top: { style: 'thin', color: { argb: 'FF000000' } },
-      left: { style: colNumber === 5 || colNumber === tbmEndCol + 1 || colNumber === workerEndCol + 1 || colNumber === equipmentEndCol + 1 ? 'medium' : 'thin', color: { argb: 'FF000000' } },
+      left: { style: colNumber === 6 || colNumber === tbmEndCol + 1 || colNumber === workerEndCol + 1 || colNumber === equipmentEndCol + 1 ? 'medium' : 'thin', color: { argb: 'FF000000' } },
       bottom: { style: 'thin', color: { argb: 'FF000000' } },
       right: { style: isSectionBorder ? 'medium' : 'thin', color: { argb: 'FF000000' } }
     }
@@ -396,10 +457,10 @@ export async function downloadTBMSafetyInspectionExcel(
       }
     }
     // 테두리 추가 - 섹션 구분선은 굵게
-    const isSectionBorder = colNumber === 5 || colNumber === tbmEndCol || colNumber === workerEndCol || colNumber === equipmentEndCol
+    const isSectionBorder = colNumber === 6 || colNumber === tbmEndCol || colNumber === workerEndCol || colNumber === equipmentEndCol
     cell.border = {
       top: { style: 'thin', color: { argb: 'FF000000' } },
-      left: { style: colNumber === 5 || colNumber === tbmEndCol + 1 || colNumber === workerEndCol + 1 || colNumber === equipmentEndCol + 1 ? 'medium' : 'thin', color: { argb: 'FF000000' } },
+      left: { style: colNumber === 6 || colNumber === tbmEndCol + 1 || colNumber === workerEndCol + 1 || colNumber === equipmentEndCol + 1 ? 'medium' : 'thin', color: { argb: 'FF000000' } },
       bottom: { style: 'thin', color: { argb: 'FF000000' } },
       right: { style: isSectionBorder ? 'medium' : 'thin', color: { argb: 'FF000000' } }
     }
@@ -427,10 +488,10 @@ export async function downloadTBMSafetyInspectionExcel(
       wrapText: true // 줄바꿈 활성화
     }
     // 테두리 추가 - 섹션 구분선은 굵게
-    const isSectionBorder = colNumber === 5 || colNumber === tbmEndCol || colNumber === workerEndCol || colNumber === equipmentEndCol
+    const isSectionBorder = colNumber === 6 || colNumber === tbmEndCol || colNumber === workerEndCol || colNumber === equipmentEndCol
     cell.border = {
       top: { style: 'thin', color: { argb: 'FF000000' } },
-      left: { style: colNumber === 5 || colNumber === tbmEndCol + 1 || colNumber === workerEndCol + 1 || colNumber === equipmentEndCol + 1 ? 'medium' : 'thin', color: { argb: 'FF000000' } },
+      left: { style: colNumber === 6 || colNumber === tbmEndCol + 1 || colNumber === workerEndCol + 1 || colNumber === equipmentEndCol + 1 ? 'medium' : 'thin', color: { argb: 'FF000000' } },
       bottom: { style: 'thin', color: { argb: 'FF000000' } },
       right: { style: isSectionBorder ? 'medium' : 'thin', color: { argb: 'FF000000' } }
     }
@@ -469,11 +530,11 @@ export async function downloadTBMSafetyInspectionExcel(
       horizontal: 'center', // 가운데 정렬
       vertical: 'middle'
     }
-    // 섹션 구분선: TBM 시간, TBM입회여부, 신규근로자, 건설기계 사이
-    const isSectionBorder = colNumber === 5 || colNumber === tbmEndCol || colNumber === workerEndCol || colNumber === equipmentEndCol
+    // 섹션 구분선: 현장주소, TBM입회여부, 신규근로자, 건설기계 사이
+    const isSectionBorder = colNumber === 6 || colNumber === tbmEndCol || colNumber === workerEndCol || colNumber === equipmentEndCol
     cell.border = {
       top: { style: 'thin', color: { argb: 'FF000000' } },
-      left: { style: colNumber === 5 || colNumber === tbmEndCol + 1 || colNumber === workerEndCol + 1 || colNumber === equipmentEndCol + 1 ? 'medium' : 'thin', color: { argb: 'FF000000' } },
+      left: { style: colNumber === 6 || colNumber === tbmEndCol + 1 || colNumber === workerEndCol + 1 || colNumber === equipmentEndCol + 1 ? 'medium' : 'thin', color: { argb: 'FF000000' } },
       bottom: { style: 'thin', color: { argb: 'FF000000' } },
       right: { style: isSectionBorder ? 'medium' : 'thin', color: { argb: 'FF000000' } }
     }
@@ -481,33 +542,35 @@ export async function downloadTBMSafetyInspectionExcel(
 
   // 데이터 행 추가 (5행부터)
   const dataStartRow = 5
-  const totalCols = 5 + dateRange.length * 2 + dateRange.length + dateRange.length + 1 // 본부명, 지사명, 지구명, 공사감독, TBM 시간, TBM입회여부(2컬럼), 신규근로자(1컬럼), 건설기계(1컬럼), 비고
+  const totalCols = 6 + dateRange.length * 2 + dateRange.length + dateRange.length + 1 // 본부명, 지사명, 지구명, 공사감독, 현장주소, TBM 시간, TBM입회여부(2컬럼), 신규근로자(1컬럼), 건설기계(1컬럼), 비고
 
   projectDataList.forEach((projectData, index) => {
     const dataRow: (string | number | null)[] = [
       projectData.본부명 || null,
       projectData.지사명 || null,
       projectData.지구명 || null,
-      projectData.공사감독 || null, // 공사감독 (예: "3급 윤혁")
-      null // TBM 시간 (빈칸 - null로 설정하여 완전히 비움)
+      projectData.공사감독 || null,
+      projectData.현장주소 || null, // 현장주소 (tbm_submissions에서 가져옴)
+      projectData.TBM시간 || null  // TBM 시간
     ]
 
     // TBM입회여부: 작업여부/입회자 (날짜당 2컬럼)
     dateRange.forEach(date => {
-      const 날짜데이터 = projectData.날짜별데이터.get(date) || { 작업여부: '', 입회자: '' }
-      // 빈 문자열은 null로 변환하여 완전히 비운 셀로 만듦
+      const 날짜데이터 = projectData.날짜별데이터.get(date) || { 작업여부: '', 입회자: '', 신규인원: null, 대수: null }
       dataRow.push(날짜데이터.작업여부 || null)
       dataRow.push(날짜데이터.입회자 || null)
     })
 
-    // 신규근로자: 신규인원(명)만 - 빈 셀 (날짜당 1컬럼)
-    dateRange.forEach(() => {
-      dataRow.push(null) // 신규인원
+    // 신규근로자: 신규인원(명) - tbm_submissions에서 가져옴 (날짜당 1컬럼)
+    dateRange.forEach(date => {
+      const 날짜데이터 = projectData.날짜별데이터.get(date) || { 작업여부: '', 입회자: '', 신규인원: null, 대수: null }
+      dataRow.push(날짜데이터.신규인원 ?? null)
     })
 
-    // 건설기계: 대수(대)만 - 빈 셀 (날짜당 1컬럼)
-    dateRange.forEach(() => {
-      dataRow.push(null) // 대수
+    // 건설기계: 대수(대) - tbm_submissions에서 가져옴 (날짜당 1컬럼)
+    dateRange.forEach(date => {
+      const 날짜데이터 = projectData.날짜별데이터.get(date) || { 작업여부: '', 입회자: '', 신규인원: null, 대수: null }
+      dataRow.push(날짜데이터.대수 ?? null)
     })
 
     dataRow.push(null) // 비고 (null로 설정하여 완전히 비움)
@@ -517,12 +580,26 @@ export async function downloadTBMSafetyInspectionExcel(
     for (let col = 1; col <= totalCols; col++) {
       const cell = row.getCell(col)
       // 테두리 추가 - 섹션 구분선은 굵게
-      const isSectionBorder = col === 5 || col === tbmEndCol || col === workerEndCol || col === equipmentEndCol
+      const isSectionBorder = col === 6 || col === tbmEndCol || col === workerEndCol || col === equipmentEndCol
       cell.border = {
         top: { style: 'thin', color: { argb: 'FF000000' } },
-        left: { style: col === 5 || col === tbmEndCol + 1 || col === workerEndCol + 1 || col === equipmentEndCol + 1 ? 'medium' : 'thin', color: { argb: 'FF000000' } },
+        left: { style: col === 6 || col === tbmEndCol + 1 || col === workerEndCol + 1 || col === equipmentEndCol + 1 ? 'medium' : 'thin', color: { argb: 'FF000000' } },
         bottom: { style: 'thin', color: { argb: 'FF000000' } },
         right: { style: isSectionBorder ? 'medium' : 'thin', color: { argb: 'FF000000' } }
+      }
+      // 현장주소 컬럼: 좌측정렬
+      if (col === 5) {
+        cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true }
+      }
+      // 신규인원/대수 컬럼에 숫자 서식 적용
+      const isNumberCol = (col >= workerStartCol && col <= workerEndCol) ||
+        (col >= equipmentStartCol && col <= equipmentEndCol)
+      if (isNumberCol && cell.value !== null) {
+        const numValue = Number(cell.value)
+        if (!isNaN(numValue)) {
+          cell.value = numValue
+          cell.numFmt = '0'
+        }
       }
       cell.alignment = {
         horizontal: 'center',
@@ -555,8 +632,9 @@ export async function downloadTBMSafetyInspectionExcel(
   worksheet.getColumn(2).width = 15 // 지사명
   worksheet.getColumn(3).width = 12 // 지구명
   worksheet.getColumn(4).width = 12 // 공사감독
-  worksheet.getColumn(5).width = 15 // TBM 시간
-  let widthColIndex = 6 // TBM 시간 다음부터
+  worksheet.getColumn(5).width = 30 // 현장주소
+  worksheet.getColumn(6).width = 12 // TBM 시간
+  let widthColIndex = 7 // TBM 시간 다음부터
   // TBM입회여부: 작업여부/입회자 (날짜당 2컬럼)
   dateRange.forEach(() => {
     worksheet.getColumn(widthColIndex).width = 10 // 작업여부
@@ -810,6 +888,9 @@ export async function downloadTBMSafetyInspectionExcel(
 
     // 작업없음으로 보고된 TBM은 제외
     query = query.neq('today_work', '작업없음')
+
+    // 프로젝트ID가 없는 건만 TBM실시 시트에 포함
+    query = query.is('project_id', null)
 
     const { data: tbmSubmissions, error: supabaseError } = await query.order('meeting_date', { ascending: true })
 

@@ -1317,7 +1317,7 @@ export async function getSafetyInspectionCountsByUserBranch(
         project_id, 
         inspection_type, 
         signatures,
-        safety_inspection_results (findings, action_items, photo_url)
+        safety_inspection_results (findings, action_items, photo_url, after_photo_url)
       `)
       .in('project_id', projectIds)
 
@@ -1348,11 +1348,11 @@ export async function getSafetyInspectionCountsByUserBranch(
         existing.total += 1
         const type = (ins.inspection_type || '').trim()
 
-        // 미조치 판단: findings가 있는데 사진(photo_url)이 등록되지 않은 항목이 1개라도 있으면 미조치
+        // 미조치 판단: findings가 있는데 조치 후 사진(after_photo_url)이 등록되지 않은 항목이 1개라도 있으면 미조치
         let isUnresolved = false
         if (ins.safety_inspection_results && Array.isArray(ins.safety_inspection_results)) {
           isUnresolved = ins.safety_inspection_results.some((r: any) =>
-            r.findings && r.findings.trim() !== '' && (!r.photo_url || r.photo_url.trim() === '')
+            r.findings && r.findings.trim() !== '' && (!r.after_photo_url || r.after_photo_url.trim() === '')
           )
         }
 
