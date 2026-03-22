@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package } from 'lucide-react'
+import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type WorkerCountByProject, type MaterialCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
@@ -91,6 +91,7 @@ const Dashboard: React.FC = () => {
   }, [pathname])
   const [selectedHq, setSelectedHq] = useState<string>('') // 선택된 본부
   const [selectedBranch, setSelectedBranch] = useState<string>('') // 선택된 지사
+  const [searchQuery, setSearchQuery] = useState<string>('') // 목록 검색어
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [windowSize, setWindowSize] = useState({
     width: typeof window !== 'undefined' ? window.innerWidth : 1024,
@@ -2193,6 +2194,24 @@ const Dashboard: React.FC = () => {
     })
   }, [projects, selectedHq, selectedBranch])
 
+  // 검색어 기반 필터링 (list 뷰용)
+  const searchFilteredProjects = React.useMemo(() => {
+    if (!searchQuery.trim()) return filteredProjects
+    const tokens = searchQuery.trim().toLowerCase().split(/\s+/)
+    return filteredProjects.filter((project: Project) => {
+      const searchableText = [
+        project.project_name,
+        project.managing_branch,
+        project.supervisor_name,
+        project.site_address,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return tokens.every(token => searchableText.includes(token))
+    })
+  }, [filteredProjects, searchQuery])
+
   const filteredProjectsWithCoords = React.useMemo(() => {
     return projectsWithCoords.filter((project: ProjectWithCoords) => {
       if (selectedHq && project.managing_hq !== selectedHq) return false
@@ -3257,7 +3276,36 @@ const Dashboard: React.FC = () => {
           </div>
         ) : (
           <>
+            {/* 검색바 */}
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchQuery(e.target.value)}
+                placeholder="사업명, 지사명, 감독명, 주소로 검색..."
+                className="w-full pl-10 pr-10 py-2.5 bg-white/90 backdrop-blur rounded-lg border border-white/20 shadow-sm text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-300"
+              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
             {(selectedHq || selectedBranch) ? (
+              searchQuery.trim() && searchFilteredProjects.length === 0 ? (
+                <div className="flex flex-col items-center justify-center min-h-[20vh]">
+                  <div className="text-center">
+                    <Search className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                    <h3 className="text-base font-medium text-gray-900 mb-1">검색 결과가 없습니다</h3>
+                    <p className="text-sm text-gray-600">&apos;{searchQuery}&apos;에 해당하는 현장이 없습니다.</p>
+                  </div>
+                </div>
+              ) : (
               <div className="space-y-6">
                 {(() => {
                   // display_order로 정렬하는 헬퍼 함수
@@ -3271,7 +3319,7 @@ const Dashboard: React.FC = () => {
                   }
 
                   const groups = new Map<string, Project[]>()
-                  filteredProjects.forEach((p: Project) => {
+                  searchFilteredProjects.forEach((p: Project) => {
                     const key = p.managing_branch || '미지정'
                     if (!groups.has(key)) groups.set(key, [])
                     groups.get(key)!.push(p)
@@ -3400,7 +3448,10 @@ const Dashboard: React.FC = () => {
                     : Array.from(new Set(Object.values(BRANCH_OPTIONS).flat()))
 
                   const branchOrder: string[] = selectedHq ? (BRANCH_OPTIONS[selectedHq] || []) : baseBranches
-                  const branchNames: string[] = Array.from(new Set([...baseBranches, ...Array.from(groups.keys())]))
+                  // 검색 중이면 매칭된 지사만, 아니면 전체 지사 표시
+                  const branchNames: string[] = searchQuery.trim()
+                    ? Array.from(groups.keys())
+                    : Array.from(new Set([...baseBranches, ...Array.from(groups.keys())]))
                   const sortedBranchNames: string[] = branchNames.sort((a: string, b: string) => {
                     if (branchOrder.length === 0) return a.localeCompare(b)
                     const ai = branchOrder.indexOf(a)
@@ -3523,18 +3574,25 @@ const Dashboard: React.FC = () => {
                   })
                 })()}
               </div>
+              )
             ) : (
               // 본부/지사 선택이 없는 경우
-              filteredProjects.length === 0 ? (
+              searchFilteredProjects.length === 0 ? (
                 <div className="flex flex-col items-center justify-center min-h-[40vh]">
                   <div className="text-center">
-                    <Building className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
-                      현장이 등록되어 있지 않습니다
-                    </h3>
-                    <p className="text-gray-600">
-                      선택한 조건에 해당하는 현장이 없습니다.
-                    </p>
+                    {searchQuery.trim() ? (
+                      <>
+                        <Search className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">검색 결과가 없습니다</h3>
+                        <p className="text-gray-600">&apos;{searchQuery}&apos;에 해당하는 현장이 없습니다.</p>
+                      </>
+                    ) : (
+                      <>
+                        <Building className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">현장이 등록되어 있지 않습니다</h3>
+                        <p className="text-gray-600">선택한 조건에 해당하는 현장이 없습니다.</p>
+                      </>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -3558,10 +3616,13 @@ const Dashboard: React.FC = () => {
                       return allHqNames.map((hqName) => {
                         // 해당 본부의 프로젝트 필터링 및 정렬
                         const items = sortByDisplayOrder(
-                          filteredProjects.filter((p: Project) =>
+                          searchFilteredProjects.filter((p: Project) =>
                             p.managing_hq === hqName
                           )
                         )
+
+                        // 검색 중이고 매칭 결과가 없는 본부 숨기기
+                        if (searchQuery.trim() && items.length === 0) return null
 
                         // 분기별 프로젝트 수 계산
                         const q1Count = items.filter(p => {
@@ -3677,7 +3738,7 @@ const Dashboard: React.FC = () => {
                 ) : (
                   // 본사가 아닌 경우: 기존 단일 그리드 표시
                   <div data-project-edit-grid="true" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-                    {filteredProjects.map((project: Project, index: number) => (
+                    {searchFilteredProjects.map((project: Project, index: number) => (
                       <ProjectCard
                         key={project.id}
                         project={project}
@@ -3690,13 +3751,13 @@ const Dashboard: React.FC = () => {
                         canEditQuarters={isProjectEditMode ? false : (userProfile?.role === '발주청')}
                         onIsActiveChange={isProjectEditMode ? undefined : handleProjectIsActiveJsonChange}
                         isEditMode={isProjectEditMode}
-                        displayOrder={getProjectDisplayOrder(project, index, filteredProjects)}
+                        displayOrder={getProjectDisplayOrder(project, index, searchFilteredProjects)}
                         onLongPressStart={handleProjectLongPressStart}
                         onLongPressEnd={handleProjectLongPressEnd}
                         onDragStart={() => handleProjectDragStart(project.id)}
-                        onDragOver={(e) => handleProjectDragOver(e, project.id, filteredProjects)}
-                        onDragEnd={() => void handleProjectDragEnd(filteredProjects)}
-                        onDrop={(e) => handleProjectDrop(e, project.id, filteredProjects)}
+                        onDragOver={(e) => handleProjectDragOver(e, project.id, searchFilteredProjects)}
+                        onDragEnd={() => void handleProjectDragEnd(searchFilteredProjects)}
+                        onDrop={(e) => handleProjectDrop(e, project.id, searchFilteredProjects)}
                         isDragging={draggedProjectId === project.id}
                         isDragOver={dragOverProjectId === project.id}
                         hqPendingCount={hqPendingCounts[project.id]}

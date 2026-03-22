@@ -16,6 +16,8 @@ interface DocumentFolderProps {
   isPending?: boolean // 준비중 상태
   isAncientDocument?: boolean // 고대 문서 스타일 (디아블로 테마)
   badgeCount?: number // 우측 상단 뱃지 숫자
+  pdcaCategory?: 'P' | 'D' | 'C' | 'A' // PDCA 그룹 색상
+  bottomLabel?: string // 하단 라벨 커스텀 (기본: "안전")
 }
 
 const DocumentFolder: React.FC<DocumentFolderProps> = ({
@@ -30,7 +32,9 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
   isProjectActive = true,
   isPending = false,
   isAncientDocument = false,
-  badgeCount
+  badgeCount,
+  pdcaCategory,
+  bottomLabel
 }) => {
   const router = useRouter()
 
@@ -75,6 +79,15 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
     // 준비중이거나 비활성화된 경우 회색으로 표시
     folderBgColor = 'bg-gray-200'
     folderTabColor = 'bg-gray-300'
+  } else if (pdcaCategory === 'P') {
+    folderBgColor = 'bg-pink-200'
+    folderTabColor = 'bg-pink-300'
+  } else if (pdcaCategory === 'C') {
+    folderBgColor = 'bg-sky-300'
+    folderTabColor = 'bg-sky-400'
+  } else if (pdcaCategory === 'A') {
+    folderBgColor = 'bg-lime-300'
+    folderTabColor = 'bg-lime-400'
   } else if (isTBMInspectionFolder) {
     folderBgColor = 'bg-pink-200'
     folderTabColor = 'bg-pink-300'
@@ -93,7 +106,7 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
     return (
       <div
         className={`
-          relative w-[72px] h-56 sm:w-20 lg:w-25 lg:h-96 transition-all duration-200 
+          relative w-[60px] h-56 sm:w-[68px] lg:w-[80px] lg:h-96 transition-all duration-200 
           cursor-pointer hover:scale-105
           ${isActive ? 'z-10' : 'z-0'}
         `}
@@ -246,7 +259,7 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
   return (
     <div
       className={`
-        relative w-[72px] h-56 sm:w-20 lg:w-25 lg:h-96 transition-all duration-200 
+        relative w-[60px] h-56 sm:w-[68px] lg:w-[80px] lg:h-96 transition-all duration-200 
         ${isGrayedOut ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:scale-105'}
         ${isActive ? 'z-10' : 'z-0'}
       `}
@@ -257,23 +270,128 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
         w-full h-full border-2 ${isGrayedOut ? 'border-gray-300' : 'border-gray-400'} ${folderBgColor} relative
         ${isActive ? 'shadow-lg border-blue-500' : isGrayedOut ? 'shadow-sm' : 'shadow-md hover:shadow-lg'}
       `}
-        style={isSpecialInspection && !isGrayedOut ? { backgroundColor: 'rgb(88, 190, 213)' } : {}}
+        style={!isGrayedOut && pdcaCategory === 'P' ? { backgroundColor: 'rgb(215, 170, 175)' } : !isGrayedOut && pdcaCategory === 'A' ? { backgroundColor: 'rgb(180, 205, 100)' } : !isGrayedOut && (pdcaCategory === 'C' || isSpecialInspection) ? { backgroundColor: 'rgb(88, 190, 213)' } : {}}
       >
-        {/* 문서철 상단 탭 */}
+        {/* 문서철 상단 - 종이 묶음이 보이는 윗면 */}
         <div
-          className={`absolute -top-2 lg:-top-3 left-0 right-0 h-4 lg:h-6 ${folderTabColor} border-2 ${isGrayedOut ? 'border-gray-300' : 'border-gray-400'} border-b-0 rounded-t-sm`}
-          style={isSpecialInspection && !isGrayedOut ? { backgroundColor: 'rgb(68, 170, 193)' } : {}}
-        ></div>
+          className="absolute -top-3 lg:-top-4 left-0 right-0 h-5 lg:h-7 overflow-hidden"
+          style={{
+            clipPath: 'polygon(10% 0%, 90% 0%, 98% 100%, 2% 100%)',
+          }}
+        >
+          {/* 배경 - 폴더 색상 그라데이션 */}
+          <div
+            className={`absolute inset-0 ${folderTabColor}`}
+            style={{
+              background: (() => {
+                if (isGrayedOut) return 'linear-gradient(180deg, rgb(180,180,180) 0%, rgb(200,200,200) 100%)'
+                if (pdcaCategory === 'P') return 'linear-gradient(180deg, rgb(175,130,135) 0%, rgb(195,150,155) 100%)'
+                if (pdcaCategory === 'A') return 'linear-gradient(180deg, rgb(140,165,60) 0%, rgb(160,185,80) 100%)'
+                if (pdcaCategory === 'C' || isSpecialInspection) return 'linear-gradient(180deg, rgb(48,150,173) 0%, rgb(68,170,193) 100%)'
+                return 'linear-gradient(180deg, rgb(200,185,130) 0%, rgb(220,205,150) 100%)'
+              })(),
+            }}
+          />
+          {/* 종이 장들 - 불규칙한 두께와 높이로 리얼하게 */}
+          <div className="absolute inset-0">
+            {(() => {
+              const pages = [
+                { pos: 14, rot: 5.5, h: 75, w: 1.5, color: 'rgba(255,255,255,0.95)' },
+                { pos: 18, rot: 4.8, h: 85, w: 1, color: 'rgba(250,248,240,0.9)' },
+                { pos: 21, rot: 4.2, h: 70, w: 1.5, color: 'rgba(255,255,255,0.85)' },
+                { pos: 24, rot: 3.6, h: 90, w: 1, color: 'rgba(245,243,235,0.9)' },
+                { pos: 27, rot: 3.1, h: 65, w: 1.5, color: 'rgba(255,255,255,0.95)' },
+                { pos: 30, rot: 2.5, h: 80, w: 1, color: 'rgba(252,250,242,0.85)' },
+                { pos: 33, rot: 2.0, h: 88, w: 1.5, color: 'rgba(255,255,255,0.9)' },
+                { pos: 36, rot: 1.5, h: 72, w: 1, color: 'rgba(248,246,238,0.9)' },
+                { pos: 39, rot: 1.0, h: 85, w: 1.5, color: 'rgba(255,255,255,0.95)' },
+                { pos: 42, rot: 0.5, h: 78, w: 1, color: 'rgba(250,248,240,0.85)' },
+                { pos: 45, rot: 0.2, h: 90, w: 1.5, color: 'rgba(255,255,255,0.9)' },
+                { pos: 48, rot: 0, h: 82, w: 1, color: 'rgba(245,243,235,0.9)' },
+                { pos: 51, rot: -0.2, h: 88, w: 1.5, color: 'rgba(255,255,255,0.95)' },
+                { pos: 54, rot: -0.5, h: 70, w: 1, color: 'rgba(252,250,242,0.85)' },
+                { pos: 57, rot: -1.0, h: 85, w: 1.5, color: 'rgba(255,255,255,0.9)' },
+                { pos: 60, rot: -1.5, h: 78, w: 1, color: 'rgba(248,246,238,0.9)' },
+                { pos: 63, rot: -2.0, h: 90, w: 1.5, color: 'rgba(255,255,255,0.95)' },
+                { pos: 66, rot: -2.5, h: 68, w: 1, color: 'rgba(250,248,240,0.85)' },
+                { pos: 69, rot: -3.1, h: 82, w: 1.5, color: 'rgba(255,255,255,0.9)' },
+                { pos: 72, rot: -3.6, h: 88, w: 1, color: 'rgba(245,243,235,0.9)' },
+                { pos: 75, rot: -4.2, h: 74, w: 1.5, color: 'rgba(255,255,255,0.95)' },
+                { pos: 78, rot: -4.8, h: 85, w: 1, color: 'rgba(252,250,242,0.85)' },
+                { pos: 82, rot: -5.5, h: 80, w: 1.5, color: 'rgba(255,255,255,0.9)' },
+              ]
+              return pages.map((p, i) => (
+                <React.Fragment key={i}>
+                  {/* 종이 그림자 */}
+                  <div
+                    className="absolute"
+                    style={{
+                      left: `${p.pos + 0.3}%`,
+                      bottom: 0,
+                      height: `${p.h}%`,
+                      width: `${p.w + 0.5}px`,
+                      backgroundColor: 'rgba(0,0,0,0.15)',
+                      transform: `rotate(${p.rot}deg)`,
+                      transformOrigin: 'bottom center',
+                    }}
+                  />
+                  {/* 종이 */}
+                  <div
+                    className="absolute"
+                    style={{
+                      left: `${p.pos}%`,
+                      bottom: 0,
+                      height: `${p.h}%`,
+                      width: `${p.w}px`,
+                      backgroundColor: p.color,
+                      transform: `rotate(${p.rot}deg)`,
+                      transformOrigin: 'bottom center',
+                      boxShadow: '0 0 1px rgba(0,0,0,0.1)',
+                    }}
+                  />
+                </React.Fragment>
+              ))
+            })()}
+          </div>
+          {/* 상단 가장자리 하이라이트 */}
+          <div
+            className="absolute top-0 left-[10%] right-[10%] h-[1px]"
+            style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.4) 30%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.4) 70%, transparent 100%)' }}
+          />
+          {/* 하단 그림자 (폴더 본체와의 경계) */}
+          <div
+            className="absolute bottom-0 left-0 right-0 h-[2px]"
+            style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.05) 100%)' }}
+          />
+        </div>
 
         {/* 문서철 내용 */}
         <div className="flex flex-col h-full p-2 lg:p-4 justify-between">
           {/* 제목 */}
           <div className="flex-1 flex items-center justify-center overflow-hidden">
-            <div className="bg-white border border-gray-200 rounded-sm p-1 m-1 w-full h-full flex items-center justify-center">
+            <div className="bg-white border border-gray-200 rounded-sm p-1 m-1 w-full h-full flex items-center justify-center" style={{ fontFamily: 'ChosunBg, serif' }}>
               <div className="flex justify-center items-center h-full w-full">
                 {title && (() => {
                   // 줄바꿈이 있는 경우 처리
                   const lines = title.split('\n')
+
+                  // 글자 수 기반 장평/높이 계산 함수
+                  const getCompactStyle = (count: number) => {
+                    const compact = count > 8
+                    const veryCompact = count > 12
+                    return {
+                      charScale: veryCompact ? 'scaleY(0.75)' : compact ? 'scaleY(0.85)' : undefined,
+                      charHeight: veryCompact ? 'h-2 lg:h-3.5' : compact ? 'h-2.5 lg:h-3.5' : 'h-3 lg:h-4',
+                      smallCharHeight: veryCompact ? 'h-1.5 lg:h-2.5' : compact ? 'h-2 lg:h-2.5' : 'h-2.5 lg:h-3',
+                    }
+                  }
+
+                  // 전체 글자 수 (멀티라인용)
+                  const totalCharCount = lines.reduce((sum, line) => {
+                    const cleaned = line.replace(/[︵︶\s]/g, '')
+                    return sum + cleaned.length
+                  }, 0)
+                  const multiLineStyle = getCompactStyle(totalCharCount)
 
                   // 줄바꿈이 있는 경우 각 줄을 단어 단위로 처리
                   if (lines.length > 1) {
@@ -287,7 +405,11 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
                           const words = line.split(/\s+/).filter(word => word.length > 0)
 
                           return (
-                            <div key={lineIndex} className={`flex flex-col items-center justify-center w-full ${lineIndex < lines.length - 1 ? '-mb-1' : ''}`}>
+                            <React.Fragment key={lineIndex}>
+                              {lineIndex > 0 && !isSmallText && (
+                                <div className="w-3/4 border-t border-gray-300 my-1" />
+                              )}
+                              <div className="flex flex-col items-center justify-center w-full">
                               {words.map((word, wordIndex) => {
                                 const chars = word.split('')
                                 // 긴 단어(4글자 이상)는 자간을 줄여서 표시
@@ -302,7 +424,8 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
                                     {chars.map((char, charIndex) => (
                                       <div
                                         key={charIndex}
-                                        className={`${isSmallText ? 'text-[10px] lg:text-xs' : 'text-xs lg:text-sm'} font-medium ${isGrayedOut ? 'text-gray-500' : 'text-gray-800'} ${isSmallText ? 'h-2.5 lg:h-3' : 'h-3 lg:h-4'} flex items-center justify-center mb-0.5 lg:mb-1`}
+                                        className={`${isSmallText ? 'text-[10px] lg:text-xs' : 'text-xs lg:text-sm'} font-medium ${isGrayedOut ? 'text-gray-500' : 'text-gray-800'} ${isSmallText ? multiLineStyle.smallCharHeight : multiLineStyle.charHeight} flex items-center justify-center mb-0.5 lg:mb-1`}
+                                        style={multiLineStyle.charScale ? { transform: multiLineStyle.charScale } : undefined}
                                       >
                                         {char}
                                       </div>
@@ -310,7 +433,8 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
                                   </div>
                                 )
                               })}
-                            </div>
+                              </div>
+                            </React.Fragment>
                           )
                         })}
                       </div>
@@ -369,6 +493,12 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
                     const firstColumnWords = words.slice(0, splitIndex || Math.ceil(words.length / 2))
                     const secondColumnWords = words.slice(splitIndex || Math.ceil(words.length / 2))
 
+                    // 각 열의 글자 수로 개별 장평 계산
+                    const col1Chars = firstColumnWords.reduce((s, w) => s + w.length, 0)
+                    const col2Chars = secondColumnWords.reduce((s, w) => s + w.length, 0)
+                    const col1Style = getCompactStyle(col1Chars)
+                    const col2Style = getCompactStyle(col2Chars)
+
                     return (
                       <div className="flex space-x-1 items-center justify-center h-full w-full px-1">
                         {/* 첫 번째 열 */}
@@ -386,7 +516,8 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
                                 {chars.map((char, charIndex) => (
                                   <div
                                     key={charIndex}
-                                    className={`text-xs lg:text-sm font-medium ${isGrayedOut ? 'text-gray-500' : 'text-gray-800'} h-3 lg:h-4 flex items-center justify-center mb-0.5 lg:mb-1`}
+                                    className={`text-xs lg:text-sm font-medium ${isGrayedOut ? 'text-gray-500' : 'text-gray-800'} ${col1Style.charHeight} flex items-center justify-center mb-0.5 lg:mb-1`}
+                                    style={col1Style.charScale ? { transform: col1Style.charScale } : undefined}
                                   >
                                     {char}
                                   </div>
@@ -410,7 +541,8 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
                                 {chars.map((char, charIndex) => (
                                   <div
                                     key={charIndex}
-                                    className={`text-xs lg:text-sm font-medium ${isGrayedOut ? 'text-gray-500' : 'text-gray-800'} h-3 lg:h-4 flex items-center justify-center mb-0.5 lg:mb-1`}
+                                    className={`text-xs lg:text-sm font-medium ${isGrayedOut ? 'text-gray-500' : 'text-gray-800'} ${col2Style.charHeight} flex items-center justify-center mb-0.5 lg:mb-1`}
+                                    style={col2Style.charScale ? { transform: col2Style.charScale } : undefined}
                                   >
                                     {char}
                                   </div>
@@ -428,18 +560,15 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
           </div>
 
           {/* 하단 년도 */}
-          <div className="border-t border-gray-300 pt-2 lg:pt-3 mt-2 lg:mt-3">
+          <div className="border-t border-gray-300 pt-2 lg:pt-3 mt-2 lg:mt-3" style={{ fontFamily: 'ChosunBg, serif' }}>
             <div className="text-center text-xs lg:text-sm text-gray-600 font-medium">
-              {year}
+              {year.slice(-2)}년
             </div>
-            <div className="text-center text-xs lg:text-sm text-gray-400 mt-1 lg:mt-2">
-              안전관리
+            <div className="text-center text-xs lg:text-sm text-gray-800 mt-1 lg:mt-2">
+              {bottomLabel || '안전'}
             </div>
           </div>
         </div>
-
-        {/* 문서철 측면 효과 */}
-        <div className={`absolute -right-1 lg:-right-2 top-1 lg:top-2 bottom-1 lg:bottom-2 w-2 lg:w-3 bg-gray-200 border-r ${isGrayedOut ? 'border-gray-300' : 'border-gray-400'}`}></div>
 
         {/* 비활성화 라벨 */}
         {isDisabled && (

@@ -648,199 +648,210 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          {/* 문서철 그리드 */}
-          <div className="flex justify-center">
-            <div className="flex flex-wrap justify-center gap-2 sm:gap-3 md:gap-4">
-              {/* 폭염대비 점검 문서철 */}
-              <DocumentFolder
-                title="폭염대비점검"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                isProjectActive={project.is_active !== false}
-              />
-
-              {/* 일일안전교육(AI TBM일지) 문서철 */}
-              <DocumentFolder
-                title="일일안전교육
-︵AI TBM일지︶"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                onClick={() => router.push(`/project/${projectId}/tbm-submission`)}
-                isProjectActive={project.is_active !== false}
-              />
-
-              {/* 안전서류 점검 문서철 */}
-              <DocumentFolder
-                title="안전서류
-점검"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                onClick={() => router.push(`/project/${projectId}/safe-documents`)}
-              />
-
-              {/* 시공서류 점검 문서철 */}
-              <DocumentFolder
-                title="시공서류
-점검"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                externalUrl="https://docs.google.com/forms/d/e/1FAIpQLSdY1beSxNGj6niH6_jG7onccyQsUoIBfldYbIWsbMkc7VoQKA/viewform"
-              />
-
-              {/* 품질서류 점검 문서철 */}
-              <DocumentFolder
-                title="품질서류
-점검"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                externalUrl="https://docs.google.com/forms/d/e/1FAIpQLSeSTpnRsOBiy0myufl0itGdeDeVzfkYWeybqBhR7ThDef5HHw/viewform"
-              />
-
-              {/* 위험성평가 AI GPT 문서철 */}
-              <DocumentFolder
-                title="위험성평가 AI GPT"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                externalUrl="https://chatgpt.com/g/g-uhvOsghT3-hangugnongeocongongsa-wiheomseongpyeongga-jagseong-ai"
-              />
-
-              {/* 근로자 관리대장 문서철 */}
-              <DocumentFolder
-                title="근로자
-관리대장"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                onClick={() => router.push(`/project/${projectId}/worker-management`)}
-              />
-
-              {/* 신규근로자 현장안내 문서철 */}
-              <DocumentFolder
-                title="신규근로자
-현장안내"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                onClick={() => router.push(`/project/${projectId}/new-worker-orientation`)}
-              />
-
-              {/* 자재 수불부 문서철 - 고대 문서 스타일 */}
-              <DocumentFolder
-                title="자재
-수불부"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                onClick={() => router.push(`/project/${projectId}/material-ledger`)}
-                isAncientDocument={true}
-              />
-
-              {/* 지사 안전점검 문서철 - 00지사인 경우에만 표시 */}
-              {project?.managing_branch?.endsWith('지사') && (
+          {/* 문서철 그리드 - PDCA 그룹핑 */}
+          <div className="flex flex-wrap justify-center gap-3">
+            {/* P (계획) */}
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>P (계획)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
                 <DocumentFolder
-                  title="︵지사︶ 안전점검"
+                  title="안전
+서류
+관리"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  onClick={() => router.push(`/project/${projectId}/safe-documents`)}
+                  pdcaCategory="P"
+                />
+                <DocumentFolder
+                  title="시공
+서류
+관리"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  externalUrl="https://docs.google.com/forms/d/e/1FAIpQLSdY1beSxNGj6niH6_jG7onccyQsUoIBfldYbIWsbMkc7VoQKA/viewform"
+                  pdcaCategory="P"
+                />
+                <DocumentFolder
+                  title="품질
+서류
+관리"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  externalUrl="https://docs.google.com/forms/d/e/1FAIpQLSeSTpnRsOBiy0myufl0itGdeDeVzfkYWeybqBhR7ThDef5HHw/viewform"
+                  pdcaCategory="P"
+                />
+                <DocumentFolder
+                  title="위험성평가 AI GPT"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  externalUrl="https://chatgpt.com/g/g-uhvOsghT3-hangugnongeocongongsa-wiheomseongpyeongga-jagseong-ai"
+                  pdcaCategory="P"
+                />
+                <DocumentFolder
+                  title="︵AI︶수시
+위험성 평가"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  isPending={true}
+                  onClick={() => router.push(`/project/${projectId}/risk-assessment`)}
+                  pdcaCategory="P"
+                />
+              </div>
+            </div>
+
+            {/* D (실행) */}
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>D (실행)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="일일안전교육
+︵AI TBM일지︶"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/tbm-submission`)}
+                  isProjectActive={project.is_active !== false}
+                />
+                <DocumentFolder
+                  title="신규근로자
+현장안내"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/new-worker-orientation`)}
+                />
+                <DocumentFolder
+                  title="근로자
+관리대장"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/worker-management`)}
+                />
+                <DocumentFolder
+                  title="폭염대비점검"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  isProjectActive={project.is_active !== false}
+                />
+                <DocumentFolder
+                  title="자재
+수불부"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/material-ledger`)}
+                  bottomLabel="사업"
+                />
+                <DocumentFolder
+                  title="위험공종
+작업허가제
+︵PTW︶"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  isPending={true}
+                  onClick={() => router.push(`/project/${projectId}/ptw`)}
+                />
+              </div>
+            </div>
+
+            {/* C (점검) */}
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>C (점검)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="︵본부︶ 안전점검"
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
                   projectName={project?.project_name}
                   managingBranch={project?.managing_branch}
-                  onClick={() => router.push(`/project/${projectId}/manager-inspection`)}
+                  onClick={() => router.push(`/project/${projectId}/headquarters-inspection`)}
+                  badgeCount={hqPendingCount}
+                  pdcaCategory="C"
                 />
-              )}
-
-              {/* 본부 안전점검 문서철 - 모든 프로젝트에 표시 */}
-              <DocumentFolder
-                title="︵본부︶ 안전점검"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                projectName={project?.project_name}
-                managingBranch={project?.managing_branch}
-                onClick={() => router.push(`/project/${projectId}/headquarters-inspection`)}
-                badgeCount={hqPendingCount}
-              />
-
-              {/* 안전점검 관리대장 문서철 */}
-              <DocumentFolder
-                title="안전점검
-관리대장
-︵해빙기, 우기,
-종합, 특별︶"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                onClick={() => router.push(`/project/${projectId}/safety-inspection-ledger`)}
-                badgeCount={safetyLedgerPendingCount}
-              />
-
-              {/* AI TBM안전활동 점검표(감독) 문서철 */}
-              <DocumentFolder
-                title="AI TBM안전활동
-점검표︵감독︶"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                onClick={() => router.push(`/project/${projectId}/tbm-safety-inspection`)}
-              />
-
-              {/* 휴일작업 관리대장 문서철 */}
-              <DocumentFolder
-                title="휴일작업
-관리대장"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                isPending={true}
-                onClick={() => router.push(`/project/${projectId}/holiday-work`)}
-              />
-
-              {/* ︵AI︶수시 위험성 평가 문서철 */}
-              <DocumentFolder
-                title="︵AI︶수시
-위험성 평가"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                isPending={true}
-                onClick={() => router.push(`/project/${projectId}/risk-assessment`)}
-              />
-
-              {/* 위험공종 작업허가제(PTW) 문서철 */}
-              <DocumentFolder
-                title="위험공종
-작업허가제
-︵PTW︶"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                isPending={true}
-                onClick={() => router.push(`/project/${projectId}/ptw`)}
-              />
-
-              {/* 일일안전점검 문서철 */}
-              <DocumentFolder
-                title="︵AI︶
+                {project?.managing_branch?.endsWith('지사') && (
+                  <DocumentFolder
+                    title="︵지사︶ 안전점검"
+                    year={new Date().getFullYear().toString()}
+                    isActive={false}
+                    projectId={projectId}
+                    projectName={project?.project_name}
+                    managingBranch={project?.managing_branch}
+                    onClick={() => router.push(`/project/${projectId}/manager-inspection`)}
+                    pdcaCategory="C"
+                  />
+                )}
+                <DocumentFolder
+                  title="정기점검
+︵해빙,우기,
+종합,특별︶"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/safety-inspection-ledger`)}
+                  badgeCount={safetyLedgerPendingCount}
+                  pdcaCategory="C"
+                />
+                <DocumentFolder
+                  title="안전점검 GPT"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  externalUrl="https://chatgpt.com/g/g-nsUeMuOdM-hangugnongeocongongsa-anjeonjeomgeom-caesbos"
+                  pdcaCategory="C"
+                />
+                <DocumentFolder
+                  title="︵AI︶
 일일안전점검"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                isPending={true}
-                onClick={() => router.push(`/project/${projectId}/daily-inspection`)}
-              />
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  isPending={true}
+                  onClick={() => router.push(`/project/${projectId}/daily-inspection`)}
+                  pdcaCategory="C"
+                />
+              </div>
+            </div>
 
-              {/* (자동) 지적사항 관리대장 문서철 */}
-              <DocumentFolder
-                title="︵자동︶
+            {/* A (조치) */}
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>A (조치)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="관리자 TBM
+활동 점검"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/tbm-safety-inspection`)}
+                  pdcaCategory="A"
+                />
+                <DocumentFolder
+                  title="휴일작업
+관리대장"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  isPending={true}
+                  onClick={() => router.push(`/project/${projectId}/holiday-work`)}
+                  pdcaCategory="A"
+                />
+                <DocumentFolder
+                  title="︵자동︶
 지적사항
 관리대장"
-                year={new Date().getFullYear().toString()}
-                isActive={false}
-                projectId={projectId}
-                isPending={true}
-                onClick={() => router.push(`/project/${projectId}/issue-management`)}
-              />
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  isPending={true}
+                  onClick={() => router.push(`/project/${projectId}/issue-management`)}
+                  pdcaCategory="A"
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* 조선견고딕 웹폰트 */
+@font-face {
+  font-family: 'ChosunBg';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_20-04@1.0/ChosunBg.woff') format('woff');
+  font-weight: normal;
+  font-display: swap;
+}
+
 /* 다크모드 비활성화 - 항상 라이트 모드 강제 적용 */
 :root {
   --background: #ffffff;

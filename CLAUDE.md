@@ -6,6 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 SafeSys는 Next.js 15, React 19, Supabase로 구축된 한국의 안전관리 시스템입니다. 한국 건설회사의 건설 프로젝트 안전 점검, 열중질환 모니터링, TBM 상태 추적, 관리자 점검, 본부불시점검을 관리합니다.
 
+## 계획서 (Plans)
+
+계획서 작성 요청 시 `plans/` 디렉토리에 마크다운 파일로 작성합니다.
+
+- **저장 위치**: `plans/`
+- **파일명 형식**: `YYYYMMDD_주제.md` (예: `20260323_인증시스템개선.md`)
+- **수정/업데이트 시**: 파일명의 날짜 부분을 수정일로 변경
+
 ## 개발 명령어
 
 **중요**: 모든 명령어는 `safesys-app` 디렉토리에서 실행해야 합니다.
@@ -292,3 +300,91 @@ const canSeeAllHq = userProfile?.role === '발주청' &&
 - **중복 요청**: Dashboard.tsx의 ref 기반 캐시 확인
 - **권한 오류**: RLS 정책 및 사용자 역할, `hq_division`/`branch_division` 값 확인
 - **지도 문제**: layout.tsx의 API 키 포함 여부, projects 테이블의 latitude/longitude 확인
+
+## Claude Code 에이전트 및 스킬 구성
+
+`.claude/` 디렉토리에 다음 리소스가 설치되어 있습니다.
+
+### 에이전트 (`agents/`, 28개)
+전문 서브에이전트 목록 (자동 위임 가능):
+
+| 에이전트 | 역할 | 자동 사용 시점 |
+|---------|------|--------------|
+| `planner` | 구현 계획 수립 | 복잡한 기능 요청 |
+| `architect` | 시스템 설계 | 아키텍처 결정 |
+| `tdd-guide` | 테스트 주도 개발 | 새 기능/버그 수정 |
+| `code-reviewer` | 코드 품질 리뷰 | 코드 작성 후 |
+| `security-reviewer` | 보안 취약점 분석 | 커밋 전, 민감한 코드 |
+| `build-error-resolver` | 빌드/타입 오류 수정 | 빌드 실패 시 |
+| `database-reviewer` | PostgreSQL 최적화 | 쿼리/스키마 변경 |
+| `refactor-cleaner` | 데드코드 제거 | 코드 정리 |
+| `e2e-runner` | E2E 테스트 실행 | 핵심 사용자 플로우 |
+| `code-explorer` | 코드베이스 탐색 | 파일/함수 검색 |
+| `db-analyzer` | DB 쿼리 분석 | 데이터베이스 조사 |
+| `test-runner` | 린트/빌드 검증 | 코드 변경 후 |
+
+### 슬래시 커맨드 (`commands/`, 57개)
+주요 커맨드:
+
+| 커맨드 | 설명 |
+|--------|------|
+| `/plan` | 구현 전 계획 수립 (코드 작성 전 확인 필수) |
+| `/tdd` | 테스트 주도 개발 (RED→GREEN→REFACTOR) |
+| `/code-review` | git diff 기반 코드 리뷰 |
+| `/build-fix` | 빌드 오류 점진적 수정 |
+| `/security` | 보안 취약점 검토 |
+| `/verify` | 빌드/타입/린트/테스트 일괄 검증 |
+| `/e2e` | Playwright E2E 테스트 생성 및 실행 |
+| `/docs` | Context7 기반 라이브러리 문서 조회 |
+| `/learn` | 세션 패턴 스킬로 저장 |
+| `/checkpoint` | 작업 체크포인트 생성/확인 |
+| `/save-session` | 세션 상태 파일로 저장 |
+| `/resume-session` | 이전 세션 상태 복원 |
+| `/refactor-clean` | 데드코드 탐지 및 제거 |
+| `/update-docs` | 코드 기반 문서 자동 업데이트 |
+| `/orchestrate` | 다중 에이전트 순차 워크플로우 |
+
+### 스킬 (`skills/`, 23개 — ECC)
+SafeSys에 관련된 선별 스킬:
+
+- `tdd-workflow` — TDD 7단계 방법론
+- `coding-standards` — TypeScript/React 코딩 표준
+- `security-review` — 보안 체크리스트 (Supabase RLS 포함)
+- `frontend-patterns` — React/Next.js 컴포넌트 패턴
+- `nextjs-turbopack` — Next.js 16+ Turbopack 설정
+- `database-migrations` — 안전한 DB 스키마 마이그레이션
+- `postgres-patterns` — PostgreSQL/Supabase 쿼리 최적화
+- `api-design` — REST API 설계 규칙
+- `e2e-testing` — Playwright E2E 패턴
+- `backend-patterns` — Repository 패턴, 서비스 레이어
+- `security-scan` — AgentShield 보안 스캔
+- `verification-loop` — 6단계 QA 검증 루프
+- `deployment-patterns` — CI/CD, Docker, 배포 전략
+
+### 스킬 (`skills-anthropic/`, 17개 — Anthropic 공식)
+Anthropic 공식 제공 스킬:
+
+- `pdf` — PDF 생성 및 처리
+- `xlsx` — Excel 파일 생성 (xlsx 라이브러리 활용)
+- `pptx` — PowerPoint 파일 생성
+- `webapp-testing` — 웹앱 테스트
+- `claude-api` — Claude API 연동
+- `mcp-builder` — MCP 서버 구축
+- `frontend-design` — 프론트엔드 디자인 패턴
+- `doc-coauthoring` — 문서 공동 작성
+
+### 규칙 (`rules/`)
+- `rules/common/` — 코딩 스타일, 보안, 테스트, Git 워크플로우 등 9개 공통 규칙
+- `rules/typescript/` — TypeScript/React 전용 규칙 5개
+
+### 컨텍스트 (`contexts/`)
+- `dev.md` — 개발 모드 (코드 먼저, 설명 나중)
+- `review.md` — 리뷰 모드 (심각도별 우선순위)
+- `research.md` — 탐색 모드 (이해 후 코드 작성)
+
+### 개발 원칙
+- **Agent-First**: 복잡한 작업은 전문 에이전트에 위임
+- **TDD**: 테스트 먼저 작성, 80% 이상 커버리지
+- **Security-First**: 모든 입력값 검증, 하드코딩 금지
+- **Immutability**: 객체 직접 변경 금지, 항상 새 객체 생성
+- **Plan Before Execute**: 복잡한 기능은 `/plan`으로 먼저 계획
