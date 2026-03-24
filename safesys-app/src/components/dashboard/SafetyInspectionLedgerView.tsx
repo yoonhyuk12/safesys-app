@@ -10,6 +10,7 @@ import { downloadPanoramaHwpx } from '@/lib/hwpx/safety-inspection-panorama-expo
 import { downloadDefectPhotoHwpx } from '@/lib/hwpx/safety-inspection-defect-photo-export'
 import { useAuth } from '@/contexts/AuthContext'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
+import DownloadProgressModal from '@/components/ui/DownloadProgressModal'
 
 interface SafetyInspectionLedgerViewProps {
   loading: boolean
@@ -86,6 +87,7 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
   const [panoramaLoading, setPanoramaLoading] = useState(false)
   const [defectPhotoLoading, setDefectPhotoLoading] = useState(false)
   const [activeMenu, setActiveMenu] = useState<{ level: 'hq' | 'branch' | 'project', type: 'panorama' | 'defect' | 'excel' } | null>(null)
+  const [downloadProgress, setDownloadProgress] = useState<{ current: number, total: number, stage: string, title: string } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // 드롭다운 외부 클릭 시 닫기
@@ -167,12 +169,15 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
         filename = '전경사진_전체.hwpx'
       }
 
-      await downloadPanoramaHwpx(result.data, filename)
+      await downloadPanoramaHwpx(result.data, filename, (current, total, stage) => {
+        setDownloadProgress({ current, total, stage, title: '전경사진 다운로드' })
+      })
     } catch (err) {
       console.error('전경사진 HWPX 다운로드 실패:', err)
       alert('한글 문서 다운로드 중 오류가 발생했습니다.')
     } finally {
       setPanoramaLoading(false)
+      setDownloadProgress(null)
     }
   }
 
@@ -199,12 +204,15 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
         filename = '지적사항사진_전체.hwpx'
       }
 
-      await downloadDefectPhotoHwpx(result.data, filename)
+      await downloadDefectPhotoHwpx(result.data, filename, (current, total, stage) => {
+        setDownloadProgress({ current, total, stage, title: '지적사항 사진 다운로드' })
+      })
     } catch (err) {
       console.error('지적사항 사진 HWPX 다운로드 실패:', err)
       alert('한글 문서 다운로드 중 오류가 발생했습니다.')
     } finally {
       setDefectPhotoLoading(false)
+      setDownloadProgress(null)
     }
   }
 
@@ -479,6 +487,14 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
 
   return (
     <div className="space-y-4">
+      {downloadProgress && (
+        <DownloadProgressModal
+          current={downloadProgress.current}
+          total={downloadProgress.total}
+          stage={downloadProgress.stage}
+          title={downloadProgress.title}
+        />
+      )}
       <div className="flex items-center gap-3 mb-4">
         <button
           onClick={handleBack}

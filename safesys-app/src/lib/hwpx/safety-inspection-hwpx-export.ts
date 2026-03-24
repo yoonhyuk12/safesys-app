@@ -133,7 +133,7 @@ class ImageCollector {
     images: ImageEntry[] = []
 
     async collect(url: string | null | undefined): Promise<string | null> {
-        if (!url || !url.trim()) return null
+        if (!url || !url.trim() || url.trim() === 'N/A') return null
         const img = await fetchImageAsBuffer(url)
         if (!img) return null
         this.idx++
@@ -273,9 +273,9 @@ function adjustResultRows(xml: string, results: ResultData[]): string {
 // ── Photo page duplication (Table 2090879182 - 지적사항 사진대지) ──
 
 function duplicatePhotoPages(xml: string, results: ResultData[]): string {
-    // 지적사항이 있는 결과만 필터링
+    // 지적사항이 있는 결과만 필터링 (after_photo_url 'N/A'는 해당없음 표시이므로 제외)
     const resultsWithPhotos = results.filter(r =>
-        (r.photo_url && r.photo_url.trim()) || (r.after_photo_url && r.after_photo_url.trim()) ||
+        (r.photo_url && r.photo_url.trim()) || (r.after_photo_url && r.after_photo_url.trim() && r.after_photo_url.trim() !== 'N/A') ||
         r.findings || r.action_items
     )
 
@@ -350,7 +350,7 @@ function insertPhotosIntoDefectPages(
     resultImageIds: { beforeId: string | null; afterId: string | null }[]
 ): string {
     const resultsWithContent = results.filter(r =>
-        (r.photo_url && r.photo_url.trim()) || (r.after_photo_url && r.after_photo_url.trim()) ||
+        (r.photo_url && r.photo_url.trim()) || (r.after_photo_url && r.after_photo_url.trim() && r.after_photo_url.trim() !== 'N/A') ||
         r.findings || r.action_items
     )
 

@@ -1348,12 +1348,21 @@ export async function getSafetyInspectionCountsByUserBranch(
         existing.total += 1
         const type = (ins.inspection_type || '').trim()
 
-        // 미조치 판단: findings가 있는데 조치 후 사진(after_photo_url)이 등록되지 않은 항목이 1개라도 있으면 미조치
+        // 미조치 판단: 실제 지적사항이 있는 항목에 대해 조치 후 사진(after_photo_url)이 미등록이면 미조치
+        // 실제 지적 = photo_url(지적사진)이 있거나, findings 텍스트가 단순 "양호/이상없음" 등이 아닌 경우
+        const NO_FINDING_KEYWORDS = ['양호', '적정', '이상없음', '이상 없음', '지적없음', '지적 없음', '해당없음', '해당 없음', '없음', '특이사항 없음', '특이사항없음']
         let isUnresolved = false
         if (ins.safety_inspection_results && Array.isArray(ins.safety_inspection_results)) {
-          isUnresolved = ins.safety_inspection_results.some((r: any) =>
-            r.findings && r.findings.trim() !== '' && (!r.after_photo_url || r.after_photo_url.trim() === '')
-          )
+          isUnresolved = ins.safety_inspection_results.some((r: any) => {
+            const hasAfterPhoto = r.after_photo_url && r.after_photo_url.trim() !== ''
+            if (hasAfterPhoto) return false
+            // 지적사진이 있으면 실제 지적
+            if (r.photo_url && r.photo_url.trim() !== '') return true
+            // 지적사진 없지만 findings 텍스트가 실제 지적내용이면 미조치
+            const f = (r.findings || '').trim()
+            if (f && !NO_FINDING_KEYWORDS.includes(f)) return true
+            return false
+          })
         }
 
         // 미서명 판단: signatures 중 이름/직급이 있는데 서명(dataUrl)이 없는 항목이 1개라도 있으면 미서명

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Trash2, Eye, FileText, FileSpreadsheet, Upload, Image as ImageIcon, Edit2, MoreVertical, Crop } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Eye, FileText, FileSpreadsheet, Upload, Image as ImageIcon, Edit2, MoreVertical, Crop, Ban } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import type { Project } from '@/lib/projects'
@@ -202,6 +202,22 @@ export default function SafetyInspectionLedgerPage() {
     }
     setUploadingResultId(null)
     e.target.value = ''
+  }
+
+  const toggleNotApplicable = async (resultId: string, currentValue: string | null | undefined) => {
+    try {
+      setUploadingResultId(resultId)
+      const newValue = currentValue === 'N/A' ? null : 'N/A'
+      await (supabase.from('safety_inspection_results') as any)
+        .update({ after_photo_url: newValue })
+        .eq('id', resultId)
+      await loadInspections()
+    } catch (err) {
+      console.error(err)
+      alert('저장 중 오류가 발생했습니다.')
+    } finally {
+      setUploadingResultId(null)
+    }
   }
 
   const handleSaveActionItem = async (resultId: string) => {
@@ -427,7 +443,23 @@ export default function SafetyInspectionLedgerPage() {
 
                               <td className="px-3 py-3 text-xs border-l border-gray-100 relative group/photo align-top w-[30%]">
                                 <div className="flex flex-col gap-2">
-                                  {r.after_photo_url ? (
+                                  {r.after_photo_url === 'N/A' ? (
+                                    <div className="w-full flex justify-center">
+                                      <div className="flex flex-col items-center gap-2">
+                                        <div className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 border border-gray-300 rounded text-xs text-gray-500">
+                                          <Ban className="h-3.5 w-3.5" />
+                                          <span className="font-medium">해당 없음</span>
+                                        </div>
+                                        <button
+                                          onClick={() => toggleNotApplicable(r.id, r.after_photo_url)}
+                                          disabled={uploadingResultId === r.id}
+                                          className="text-[10px] text-blue-500 hover:text-blue-700 hover:underline transition-colors disabled:opacity-50"
+                                        >
+                                          취소
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : r.after_photo_url ? (
                                     <div className="w-full flex justify-center">
                                       <div className="relative w-32 h-24">
                                         <img src={r.after_photo_url} alt="조치 후" className="w-full h-full object-cover rounded border cursor-pointer" onClick={() => window.open(r.after_photo_url!, '_blank')} />
@@ -456,17 +488,27 @@ export default function SafetyInspectionLedgerPage() {
                                     </div>
                                   ) : (
                                     <div className="w-full flex justify-center">
-                                      <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded h-24 w-32 hover:bg-green-50 hover:border-green-300 cursor-pointer text-xs text-gray-500 transition-colors">
-                                        {uploadingResultId === r.id ? (
-                                          <LoadingSpinner />
-                                        ) : (
-                                          <>
-                                            <Plus className="h-5 w-5 mb-1 text-gray-400" />
-                                            <span className="font-medium text-[11px]">사진 등록</span>
-                                          </>
-                                        )}
-                                        <input type="file" accept="image/*" onChange={e => handleAfterPhotoUpload(r.id, e)} className="hidden" disabled={uploadingResultId === r.id} />
-                                      </label>
+                                      <div className="flex gap-1.5">
+                                        <label className="flex flex-col items-center justify-center border border-gray-300 rounded px-3 py-2 hover:bg-green-50 hover:border-green-400 cursor-pointer text-xs text-gray-600 transition-colors">
+                                          {uploadingResultId === r.id ? (
+                                            <LoadingSpinner />
+                                          ) : (
+                                            <>
+                                              <Plus className="h-4 w-4 mb-0.5 text-green-500" />
+                                              <span className="font-medium text-[10px]">추가</span>
+                                            </>
+                                          )}
+                                          <input type="file" accept="image/*" onChange={e => handleAfterPhotoUpload(r.id, e)} className="hidden" disabled={uploadingResultId === r.id} />
+                                        </label>
+                                        <button
+                                          onClick={() => toggleNotApplicable(r.id, r.after_photo_url)}
+                                          disabled={uploadingResultId === r.id}
+                                          className="flex flex-col items-center justify-center border border-gray-300 rounded px-3 py-2 hover:bg-gray-100 hover:border-gray-400 text-xs text-gray-600 transition-colors disabled:opacity-50"
+                                        >
+                                          <Ban className="h-4 w-4 mb-0.5 text-gray-400" />
+                                          <span className="font-medium text-[10px]">해당없음</span>
+                                        </button>
+                                      </div>
                                     </div>
                                   )}
                                   {editingActionId === r.id ? (

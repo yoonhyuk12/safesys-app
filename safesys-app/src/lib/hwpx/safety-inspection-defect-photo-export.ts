@@ -61,7 +61,7 @@ async function convertToPng(blob: Blob, maxEdge = 800): Promise<{ blob: Blob; wi
 }
 
 async function fetchAndCompressImage(url: string | null): Promise<{ data: Uint8Array; ext: string; width: number; height: number } | null> {
-    if (!url) return null
+    if (!url || url === 'N/A') return null
     try {
         const res = await fetch(url)
         if (!res.ok) return null
@@ -157,7 +157,8 @@ function addImageManifest(contentHpf: string, images: ImageEntry[]): string {
 
 export async function downloadDefectPhotoHwpx(
     inspections: SafetyInspectionDetailForExcel[],
-    filename: string
+    filename: string,
+    onProgress?: (current: number, total: number, stage: string) => void
 ): Promise<void> {
     const allResults: { insp: SafetyInspectionDetailForExcel; res: SafetyInspectionDetailForExcel['results'][0] }[] = []
     for (const insp of inspections) {
@@ -217,6 +218,7 @@ export async function downloadDefectPhotoHwpx(
         let beforeImgId = null
         let afterImgId = null
 
+        onProgress?.(i + 1, allResults.length, '사진 다운로드')
         const bImg = await fetchAndCompressImage(result.photo_url)
         if (bImg) {
             const id = `img_defect_b_${imgIdx}`
@@ -270,6 +272,7 @@ export async function downloadDefectPhotoHwpx(
     const mimetypeContent = await zip.file('mimetype')!.async('string')
     zip.file('mimetype', mimetypeContent, { compression: 'STORE' })
 
+    onProgress?.(allResults.length, allResults.length, '문서 생성')
     const blob = await zip.generateAsync({
         type: 'blob',
         compression: 'DEFLATE',

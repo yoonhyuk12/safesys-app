@@ -128,7 +128,8 @@ function addImageManifest(contentHpf: string, images: ImageEntry[]): string {
 
 export async function downloadPanoramaHwpx(
   photoEntries: SafetyInspectionPhotoForHwpx[],
-  filename: string
+  filename: string,
+  onProgress?: (current: number, total: number, stage: string) => void
 ): Promise<void> {
   if (photoEntries.length === 0) {
     alert('다운로드할 전경사진이 없습니다.')
@@ -173,10 +174,12 @@ export async function downloadPanoramaHwpx(
   // 4. 이미지 다운로드 (2개씩 묶어서 처리)
   const images: ImageEntry[] = []
   const imageIds: ({ id: string, width: number, height: number } | null)[] = []
+  const totalImages = photoEntries.filter(e => e.photo_url).length
 
   for (let i = 0; i < photoEntries.length; i++) {
     const url = photoEntries[i].photo_url
     if (!url) { imageIds.push(null); continue }
+    onProgress?.(imageIds.filter(x => x !== null).length + 1, totalImages, '사진 다운로드')
     const imgAttr = await fetchAndCompressImage(url)
     if (!imgAttr) { imageIds.push(null); continue }
     const id = `img_pano_${i}`
@@ -282,6 +285,7 @@ export async function downloadPanoramaHwpx(
   zip.file('mimetype', mimetypeContent, { compression: 'STORE' })
 
   // 11. ZIP 생성 및 다운로드
+  onProgress?.(totalImages, totalImages, '문서 생성')
   const blob = await zip.generateAsync({
     type: 'blob',
     compression: 'DEFLATE',
