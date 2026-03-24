@@ -11,6 +11,7 @@ import { downloadDefectPhotoHwpx } from '@/lib/hwpx/safety-inspection-defect-pho
 import { useAuth } from '@/contexts/AuthContext'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
 import DownloadProgressModal from '@/components/ui/DownloadProgressModal'
+import { generateBulkSafetyInspectionPdf } from '@/lib/reports/safety-inspection-bulk-pdf'
 
 interface SafetyInspectionLedgerViewProps {
   loading: boolean
@@ -24,6 +25,8 @@ interface SafetyInspectionLedgerViewProps {
   onBack: () => void
   onSelectSafetyHq: (hq: string) => void
   onSelectSafetyBranch: (branch: string) => void
+  onClearBranchFilter: () => void
+  onClearHqFilter: () => void
   onRowClickProject: (projectId: string) => void
   onYearChange: (year: number) => void
 }
@@ -72,6 +75,8 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
   onBack,
   onSelectSafetyHq,
   onSelectSafetyBranch,
+  onClearBranchFilter,
+  onClearHqFilter,
   onRowClickProject,
   onYearChange,
 }) => {
@@ -86,7 +91,8 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
   const [excelLoading, setExcelLoading] = useState(false)
   const [panoramaLoading, setPanoramaLoading] = useState(false)
   const [defectPhotoLoading, setDefectPhotoLoading] = useState(false)
-  const [activeMenu, setActiveMenu] = useState<{ level: 'hq' | 'branch' | 'project', type: 'panorama' | 'defect' | 'excel' } | null>(null)
+  const [bulkPdfLoading, setBulkPdfLoading] = useState(false)
+  const [activeMenu, setActiveMenu] = useState<{ level: 'hq' | 'branch' | 'project', type: 'panorama' | 'defect' | 'excel' | 'bulkPdf' } | null>(null)
   const [downloadProgress, setDownloadProgress] = useState<{ current: number, total: number, stage: string, title: string } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -117,13 +123,14 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
     </svg>
   )
 
-  const renderTypeSelectionMenu = (level: 'hq' | 'branch' | 'project', type: 'panorama' | 'defect' | 'excel') => {
+  const renderTypeSelectionMenu = (level: 'hq' | 'branch' | 'project', type: 'panorama' | 'defect' | 'excel' | 'bulkPdf') => {
     if (activeMenu?.level !== level || activeMenu?.type !== type) return null
 
     const onSelect = (val: string) => {
       if (type === 'panorama') handlePanoramaHwpDownload(level, val || undefined)
       else if (type === 'defect') handleDefectPhotoHwpxDownload(level, val || undefined)
       else if (type === 'excel') handleExcelDownload(level, val || undefined)
+      else if (type === 'bulkPdf') handleBulkPdfDownload(level, val || undefined)
       setActiveMenu(null)
     }
 
@@ -212,6 +219,52 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
       alert('한글 문서 다운로드 중 오류가 발생했습니다.')
     } finally {
       setDefectPhotoLoading(false)
+      setDownloadProgress(null)
+    }
+  }
+
+  const handleBulkPdfDownload = async (level: 'hq' | 'branch' | 'project', inspectionType?: string) => {
+    if (!userProfile || bulkPdfLoading) return
+    setBulkPdfLoading(true)
+    try {
+      // level에 따라 프로젝트 ID 목록 수집
+      const activeList = projects.filter(p => !isCompleted(p))
+      let targetProjects: typeof activeList = []
+      let scopeBranch: string | undefined
+      let scopeHq: string | undefined
+
+      if (level === 'project' && selectedBranchForDetail) {
+        targetProjects = activeList.filter(p => p.managing_branch === selectedBranchForDetail)
+        scopeBranch = selectedBranchForDetail
+        scopeHq = selectedHqForDetail || undefined
+      } else if (level === 'branch' && selectedHqForDetail) {
+        targetProjects = activeList.filter(p => p.managing_hq === selectedHqForDetail)
+        scopeHq = selectedHqForDetail
+      } else {
+        targetProjects = activeList
+      }
+
+      const pIds = targetProjects.map(p => p.id)
+      if (pIds.length === 0) {
+        alert('다운로드할 프로젝트가 없습니다.')
+        return
+      }
+
+      await generateBulkSafetyInspectionPdf({
+        branchName: scopeBranch,
+        hqName: scopeHq,
+        projectIds: pIds,
+        inspectionType,
+        selectedYear,
+        onProgress: (current, total, stage) => {
+          setDownloadProgress({ current, total, stage, title: '점검카드 PDF 다운로드' })
+        }
+      })
+    } catch (err: any) {
+      console.error('벌크 PDF 다운로드 실패:', err)
+      alert(err.message || 'PDF 다운로드 중 오류가 발생했습니다.')
+    } finally {
+      setBulkPdfLoading(false)
       setDownloadProgress(null)
     }
   }
@@ -362,9 +415,11 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
     if (viewLevel === 'project') {
       setViewLevel('branch')
       setSelectedBranchForDetail(null)
+      onClearBranchFilter()
     } else if (viewLevel === 'branch') {
       setViewLevel('hq')
       setSelectedHqForDetail(null)
+      onClearHqFilter()
     } else {
       onBack()
     }
@@ -528,6 +583,17 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
               <div className="flex items-center gap-2">
                 <div className="relative">
                   <button
+                    onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu?.level === 'hq' && activeMenu?.type === 'bulkPdf' ? null : { level: 'hq', type: 'bulkPdf' }) }}
+                    className="p-1 hover:bg-red-100 rounded transition-colors disabled:opacity-50"
+                    title="점검카드 PDF 일괄 다운로드"
+                    disabled={bulkPdfLoading}
+                  >
+                    {bulkPdfLoading ? <Loader2 className="h-4 w-4 text-red-600 animate-spin" /> : <FileText className="h-4 w-4 text-red-600" />}
+                  </button>
+                  {renderTypeSelectionMenu('hq', 'bulkPdf')}
+                </div>
+                <div className="relative">
+                  <button
                     onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu?.level === 'hq' && activeMenu?.type === 'panorama' ? null : { level: 'hq', type: 'panorama' }) }}
                     className="p-1 hover:bg-blue-100 rounded transition-colors disabled:opacity-50"
                     title="전경사진 한글 다운로드"
@@ -620,6 +686,17 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
                 <Building className="h-4 w-4 text-teal-600" />
               </div>
               <div className="flex items-center gap-2">
+                <div className="relative">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu?.level === 'branch' && activeMenu?.type === 'bulkPdf' ? null : { level: 'branch', type: 'bulkPdf' }) }}
+                    className="p-1 hover:bg-red-100 rounded transition-colors disabled:opacity-50"
+                    title="점검카드 PDF 일괄 다운로드"
+                    disabled={bulkPdfLoading}
+                  >
+                    {bulkPdfLoading ? <Loader2 className="h-4 w-4 text-red-600 animate-spin" /> : <FileText className="h-4 w-4 text-red-600" />}
+                  </button>
+                  {renderTypeSelectionMenu('branch', 'bulkPdf')}
+                </div>
                 <div className="relative">
                   <button
                     onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu?.level === 'branch' && activeMenu?.type === 'panorama' ? null : { level: 'branch', type: 'panorama' }) }}
@@ -717,6 +794,17 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
                 <ClipboardCheck className="h-4 w-4 text-teal-600" />
               </div>
               <div className="flex items-center gap-2">
+                <div className="relative">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu?.level === 'project' && activeMenu?.type === 'bulkPdf' ? null : { level: 'project', type: 'bulkPdf' }) }}
+                    className="p-1 hover:bg-red-100 rounded transition-colors disabled:opacity-50"
+                    title="점검카드 PDF 일괄 다운로드"
+                    disabled={bulkPdfLoading}
+                  >
+                    {bulkPdfLoading ? <Loader2 className="h-4 w-4 text-red-600 animate-spin" /> : <FileText className="h-4 w-4 text-red-600" />}
+                  </button>
+                  {renderTypeSelectionMenu('project', 'bulkPdf')}
+                </div>
                 <div className="relative">
                   <button
                     onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu?.level === 'project' && activeMenu?.type === 'panorama' ? null : { level: 'project', type: 'panorama' }) }}

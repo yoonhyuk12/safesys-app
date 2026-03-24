@@ -5,13 +5,72 @@ export interface SafetyInspectionReportPdfParams {
   project: any;
 }
 
-export async function generateSafetyInspectionReportPdf(params: SafetyInspectionReportPdfParams): Promise<void> {
+// Format Date: YYYY. MM. DD
+const parseDate = (dStr: string) => {
+  if (!dStr) return '';
+  try {
+    const d = new Date(dStr);
+    return `${d.getFullYear()}. ${String(d.getMonth() + 1).padStart(2, '0')}. ${String(d.getDate()).padStart(2, '0')}`;
+  } catch {
+    return dStr;
+  }
+}
+
+// Format Date short: YY.MM.DD
+const parseDateShort = (dStr: string) => {
+  if (!dStr) return '';
+  try {
+    const d = new Date(dStr);
+    const yy = String(d.getFullYear()).slice(2);
+    return `${yy}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
+  } catch {
+    return dStr;
+  }
+}
+
+// 지구명 축약: "00지구 수리시설개보수사업" → "00지구", "포승읍 농촌중심지활성화" → "포승읍"
+const shortenDistrictName = (name: string): string => {
+  if (!name) return '';
+  const jiguIdx = name.indexOf('지구');
+  if (jiguIdx >= 0) return name.substring(0, jiguIdx + 2);
+  const spaceIdx = name.indexOf(' ');
+  if (spaceIdx > 0) return name.substring(0, spaceIdx);
+  return name.substring(0, 4);
+}
+
+const commonStyles = `
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { border: 1px solid #000; font-size: 11px; padding: 4px 6px; word-break: break-all; }
+    th { background-color: #f2f2f2; text-align: center; font-weight: bold; }
+  </style>
+`;
+
+const createPageDiv = () => {
+  const div = document.createElement('div');
+  div.style.width = '210mm';
+  div.style.minHeight = '297mm';
+  div.style.padding = '15mm 20mm';
+  div.style.background = '#ffffff';
+  div.style.fontFamily = '"Malgun Gothic", "맑은 고딕", Arial, sans-serif';
+  div.style.color = '#000000';
+  div.style.fontSize = '12px';
+  return div;
+}
+
+/**
+ * 외부에서 전달한 jsPDF 인스턴스에 점검 보고서 페이지를 추가합니다.
+ * pdf.save()는 호출하지 않습니다. 벌크 다운로드용.
+ */
+export async function appendSafetyInspectionPages(
+  pdf: any,
+  params: SafetyInspectionReportPdfParams,
+  isFirstInspection: boolean
+): Promise<void> {
   const { inspection, results, photos, project } = params;
 
   const html2canvas = (await import('html2canvas')).default;
-  const jsPDF = (await import('jspdf')).jsPDF;
-
-  const pdf = new jsPDF('p', 'mm', 'a4');
   const imgW = 210;
 
   // Parse supervisor name into title + name
@@ -24,28 +83,8 @@ export async function generateSafetyInspectionReportPdf(params: SafetyInspection
     supervisorPureName = parts.slice(1).join(' ')
   }
 
-  // Format Date
-  const parseDate = (dStr: string) => {
-    if (!dStr) return '';
-    try {
-      const d = new Date(dStr);
-      return `${d.getFullYear()}. ${String(d.getMonth() + 1).padStart(2, '0')}. ${String(d.getDate()).padStart(2, '0')}`;
-    } catch {
-      return dStr;
-    }
-  }
-
-  // Format Date short: YY.MM.DD
-  const parseDateShort = (dStr: string) => {
-    if (!dStr) return '';
-    try {
-      const d = new Date(dStr);
-      const yy = String(d.getFullYear()).slice(2);
-      return `${yy}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`;
-    } catch {
-      return dStr;
-    }
-  }
+  // 지구명 축약
+  const shortDistrict = shortenDistrictName(inspection.district_name || '')
 
   // Sort photos
   const sitePhotos = photos.filter((p: any) => p.photo_type === 'site_before')
@@ -55,16 +94,6 @@ export async function generateSafetyInspectionReportPdf(params: SafetyInspection
   const sig1 = inspection.signatures?.find((s: any) => s.role === '현장대리인')
   const sigSupervisor = inspection.signatures?.find((s: any) => s.role === '공사감독원')
   const inspectorSigs = inspection.signatures?.filter((s: any) => s.role === '점검자') || []
-
-  // Common styles
-  const commonStyles = `
-    <style>
-      * { margin: 0; padding: 0; box-sizing: border-box; }
-      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-      th, td { border: 1px solid #000; font-size: 11px; padding: 4px 6px; word-break: break-all; }
-      th { background-color: #f2f2f2; text-align: center; font-weight: bold; }
-    </style>
-  `;
 
   // Hidden container for off-screen rendering
   const hiddenContainer = document.createElement('div');
@@ -89,23 +118,10 @@ export async function generateSafetyInspectionReportPdf(params: SafetyInspection
     pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, imgW, imgH, undefined, 'FAST');
   }
 
-  const createPageDiv = () => {
-    const div = document.createElement('div');
-    div.style.width = '210mm';
-    div.style.minHeight = '297mm';
-    div.style.padding = '15mm 20mm';
-    div.style.background = '#ffffff';
-    div.style.fontFamily = '"Malgun Gothic", "맑은 고딕", Arial, sans-serif';
-    div.style.color = '#000000';
-    div.style.fontSize = '12px';
-    return div;
-  }
-
-  // Prepare result rows - 지적사항 rows (actual count)
+  // Prepare result rows
   const goodExampleContent = inspection.good_example_content || '';
   const resultRows = [];
 
-  // 지적사항 행: 실제 데이터 건수만큼
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
     resultRows.push(`
@@ -117,7 +133,6 @@ export async function generateSafetyInspectionReportPdf(params: SafetyInspection
     `);
   }
 
-  // 수범사례 행: 사진 건수만큼 (사진 없으면 내용이 있을 때 1행)
   if (goodExPhotos.length > 0) {
     for (let i = 0; i < goodExPhotos.length; i++) {
       const photo = goodExPhotos[i];
@@ -137,7 +152,6 @@ export async function generateSafetyInspectionReportPdf(params: SafetyInspection
       </tr>
     `);
   }
-
 
   const projectName = project?.project_name || inspection.district_name || '';
 
@@ -184,7 +198,7 @@ export async function generateSafetyInspectionReportPdf(params: SafetyInspection
       </tr>
       <tr>
         <td style="text-align: center; height: 32px; padding-bottom: 10px;">${inspection.management_entity || ''}</td>
-        <td style="text-align: center; padding-bottom: 10px;">${inspection.district_name || ''}</td>
+        <td style="text-align: center; padding-bottom: 10px;">${shortDistrict}</td>
         <td style="text-align: center; padding-bottom: 10px;">${inspection.location_province || ''}</td>
         <td style="text-align: center; padding-bottom: 10px;">${inspection.location_city || ''}</td>
         <td style="text-align: center; padding-bottom: 10px;">${inspection.total_budget ? Number(inspection.total_budget).toLocaleString() : ''}</td>
@@ -261,7 +275,8 @@ export async function generateSafetyInspectionReportPdf(params: SafetyInspection
     </div>
   `;
 
-  await renderPage(page1, false);
+  // 첫 번째 점검이 아니면 새 페이지 추가
+  await renderPage(page1, !isFirstInspection);
 
   // ============================================================
   // Page 2: 건설현장 점검사진 (전경사진 2장, 각각 별도 테이블)
@@ -274,7 +289,7 @@ export async function generateSafetyInspectionReportPdf(params: SafetyInspection
     <table style="margin-bottom: 0;">
       <tr>
         <th style="width: 12%; padding: 6px 6px 15px;">지구명</th>
-        <td style="width: 38%; text-align: center; padding: 6px 6px 15px;">${hasPhoto ? (inspection.district_name || '') : ''}</td>
+        <td style="width: 38%; text-align: center; padding: 6px 6px 15px;">${hasPhoto ? shortDistrict : ''}</td>
         <th style="width: 14%; padding: 6px 6px 15px;">공사감독원</th>
         <td style="width: 36%; text-align: center; padding: 6px 6px 15px;">${hasPhoto ? (supervisorTitle ? supervisorTitle + ' ' : '') + supervisorPureName : ''}</td>
       </tr>
@@ -331,7 +346,7 @@ export async function generateSafetyInspectionReportPdf(params: SafetyInspection
       <table style="margin-bottom: 0;">
         <tr>
           <th style="width: 12%; padding: 6px 6px 12px;">지구명</th>
-          <td style="width: 38%; text-align: center; padding: 6px 6px 12px;">${inspection.district_name || ''}</td>
+          <td style="width: 38%; text-align: center; padding: 6px 6px 12px;">${shortDistrict}</td>
           <th style="width: 14%; padding: 6px 6px 12px;">공사감독원</th>
           <td style="width: 36%; text-align: center; padding: 6px 6px 12px;">${supervisorTitle ? supervisorTitle + ' ' : ''}${supervisorPureName}</td>
         </tr>
@@ -348,7 +363,7 @@ export async function generateSafetyInspectionReportPdf(params: SafetyInspection
       <table style="margin-bottom: 0;">
         <tr>
           <th style="width: 12%; padding: 6px 6px 12px;">지구명</th>
-          <td style="width: 38%; text-align: center; padding: 6px 6px 12px;">${inspection.district_name || ''}</td>
+          <td style="width: 38%; text-align: center; padding: 6px 6px 12px;">${shortDistrict}</td>
           <th style="width: 14%; padding: 6px 6px 12px;">공사감독원</th>
           <td style="width: 36%; text-align: center; padding: 6px 6px 12px;">${supervisorTitle ? supervisorTitle + ' ' : ''}${supervisorPureName}</td>
         </tr>
@@ -402,7 +417,7 @@ export async function generateSafetyInspectionReportPdf(params: SafetyInspection
       <table style="margin-bottom: 0;">
         <tr>
           <th style="width: 12%; padding: 6px 6px 16px;">지구명</th>
-          <td style="width: 88%; text-align: center; padding: 6px 6px 16px;">${photo?.photo_url ? (inspection.district_name || '') : ''}</td>
+          <td style="width: 88%; text-align: center; padding: 6px 6px 16px;">${photo?.photo_url ? shortDistrict : ''}</td>
         </tr>
         <tr>
           <th style="padding: 6px 6px 16px;">설 &nbsp; 명</th>
@@ -437,8 +452,18 @@ export async function generateSafetyInspectionReportPdf(params: SafetyInspection
 
   // Clean up hidden container
   document.body.removeChild(hiddenContainer);
+}
 
-  const rawName = `건설현장_점검카드_${inspection.inspection_type}_${inspection.inspection_date}`
+/**
+ * 단일 점검 보고서 PDF 생성 및 다운로드 (기존 함수 — 동작 변화 없음)
+ */
+export async function generateSafetyInspectionReportPdf(params: SafetyInspectionReportPdfParams): Promise<void> {
+  const jsPDF = (await import('jspdf')).jsPDF;
+  const pdf = new jsPDF('p', 'mm', 'a4');
+
+  await appendSafetyInspectionPages(pdf, params, true);
+
+  const rawName = `건설현장_점검카드_${params.inspection.inspection_type}_${params.inspection.inspection_date}`
   const fileName = rawName.replace(/[\\/:*?"<>|]/g, '_') + '.pdf'
   pdf.save(fileName)
 }

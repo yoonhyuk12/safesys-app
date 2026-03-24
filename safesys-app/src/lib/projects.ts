@@ -1310,30 +1310,43 @@ export async function getSafetyInspectionCountsByUserBranch(
     }
 
     // 2. safety_inspections 테이블에서 프로젝트별 점검 건수 집계
+    // 프로젝트가 많으면 타임아웃 방지를 위해 배치로 분할 조회
     const projectIds = activeProjects.map(p => p.id)
-    let inspQuery = supabase
-      .from('safety_inspections')
-      .select(`
-        project_id, 
-        inspection_type, 
-        signatures,
-        safety_inspection_results (findings, action_items, photo_url, after_photo_url)
-      `)
-      .in('project_id', projectIds)
+    const BATCH_SIZE = 30
+    const allInspections: any[] = []
 
-    // 연도 필터링
-    if (selectedYear) {
-      inspQuery = inspQuery
-        .gte('inspection_date', `${selectedYear}-01-01`)
-        .lte('inspection_date', `${selectedYear}-12-31`)
+    for (let i = 0; i < projectIds.length; i += BATCH_SIZE) {
+      const batchIds = projectIds.slice(i, i + BATCH_SIZE)
+      let inspQuery = supabase
+        .from('safety_inspections')
+        .select(`
+          project_id,
+          inspection_type,
+          signatures,
+          safety_inspection_results (findings, action_items, photo_url, after_photo_url)
+        `)
+        .in('project_id', batchIds)
+
+      // 연도 필터링
+      if (selectedYear) {
+        inspQuery = inspQuery
+          .gte('inspection_date', `${selectedYear}-01-01`)
+          .lte('inspection_date', `${selectedYear}-12-31`)
+      }
+
+      const { data: batchData, error: inspError } = await inspQuery
+
+      if (inspError) {
+        console.error('정기안전점검 조회 오류 (배치):', inspError)
+        return { success: false, error: inspError.message }
+      }
+
+      if (batchData) {
+        allInspections.push(...batchData)
+      }
     }
 
-    const { data: inspections, error: inspError } = await inspQuery
-
-    if (inspError) {
-      console.error('정기안전점검 조회 오류:', inspError)
-      return { success: false, error: inspError.message }
-    }
+    const inspections = allInspections
 
     // 프로젝트별 점검 건수 및 유형별 카운트
     const statsMap = new Map<string, any>()

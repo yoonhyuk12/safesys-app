@@ -215,6 +215,7 @@ const Dashboard: React.FC = () => {
   const [orientationStats, setOrientationStats] = useState<{ project_id: string; project_name: string; orientation_count: number; worker_count: number }[]>([])
   const [orientationDataLoading, setOrientationDataLoading] = useState(false)
   const [inspectionDataLoading, setInspectionDataLoading] = useState(false)
+  const [cardDataLoading, setCardDataLoading] = useState(false)
   const [isAccountDeleteModalOpen, setIsAccountDeleteModalOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
@@ -1146,6 +1147,7 @@ const Dashboard: React.FC = () => {
     // 안전현황 메인에서는 카드 건수 표시를 위해 모든 점검 데이터 로딩
     const loadCardData = async () => {
       try {
+        setCardDataLoading(true)
         console.log('📊 카드 건수 표시용 데이터 로딩:', currentCardParams)
         const [heatWaveResult, managerResult, headquartersResult, tbmResult, safeDocResult, workerResult, safetyInspResult] = await Promise.all([
           getHeatWaveChecksByUserBranch(userProfile, selectedDate, selectedHq, selectedBranch),
@@ -1195,6 +1197,8 @@ const Dashboard: React.FC = () => {
         console.log('🏠 안전현황 메인 카드 데이터 로딩 완료')
       } catch (err) {
         console.error('카드 데이터 로드 실패:', err)
+      } finally {
+        setCardDataLoading(false)
       }
     }
 
@@ -2996,6 +3000,18 @@ const Dashboard: React.FC = () => {
                       setSelectedSafetyBranch(branch)
                       router.push(`/safe/branch/${encodeURIComponent(branch)}/safetyInspection`)
                     }}
+                    onClearBranchFilter={() => {
+                      setSelectedBranch('')
+                      setSelectedSafetyBranch(null)
+                      lastSafetyInspectionParams.current = null
+                    }}
+                    onClearHqFilter={() => {
+                      setSelectedHq('')
+                      setSelectedBranch('')
+                      setSelectedSafetyHq(null)
+                      setSelectedSafetyBranch(null)
+                      lastSafetyInspectionParams.current = null
+                    }}
                     onRowClickProject={(projectId) => router.push(`/project/${projectId}/safety-inspection-ledger?returnUrl=${encodeURIComponent(pathname || '/safe')}`)}
                     onYearChange={(year) => setSafetyInspectionYear(year)}
                   />
@@ -3020,10 +3036,18 @@ const Dashboard: React.FC = () => {
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">TBM 안전활동점검</h4>
                     <div className="text-xs text-gray-600">
-                      <div className="text-sm font-semibold text-blue-600 mb-0.5">
-                        {tbmSafetyInspections.length}
-                      </div>
-                      <div className="text-xs">건 점검완료</div>
+                      {cardDataLoading ? (
+                        <div className="flex justify-center my-1">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-200 border-t-blue-600"></div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-sm font-semibold text-blue-600 mb-0.5">
+                            {tbmSafetyInspections.length}
+                          </div>
+                          <div className="text-xs">건 점검완료</div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3059,9 +3083,15 @@ const Dashboard: React.FC = () => {
                     <h4 className="text-xs font-medium text-gray-900 mb-1">안전서류 점검</h4>
                     <div className="text-xs text-gray-600">
                       <div className="text-[10px] text-gray-500 mb-0.5">(분기당 점검 건수)</div>
-                      <div className="text-sm font-semibold text-purple-600 mb-0.5">
-                        {safeDocumentInspections.length}건
-                      </div>
+                      {cardDataLoading ? (
+                        <div className="flex justify-center my-1">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-200 border-t-purple-600"></div>
+                        </div>
+                      ) : (
+                        <div className="text-sm font-semibold text-purple-600 mb-0.5">
+                          {safeDocumentInspections.length}건
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3083,10 +3113,18 @@ const Dashboard: React.FC = () => {
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">근로자 등록현황</h4>
                     <div className="text-xs text-gray-600">
-                      <div className="text-sm font-semibold text-cyan-600 mb-0.5">
-                        {workerCounts.reduce((s, w) => s + w.worker_count, 0).toLocaleString()}명
-                      </div>
-                      <div className="text-xs">등록</div>
+                      {cardDataLoading ? (
+                        <div className="flex justify-center my-1">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-cyan-200 border-t-cyan-600"></div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-sm font-semibold text-cyan-600 mb-0.5">
+                            {workerCounts.reduce((s, w) => s + w.worker_count, 0).toLocaleString()}명
+                          </div>
+                          <div className="text-xs">등록</div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3104,10 +3142,18 @@ const Dashboard: React.FC = () => {
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">신규근로자 현장안내</h4>
                     <div className="text-xs text-gray-600">
-                      <div className="text-sm font-semibold text-emerald-600 mb-0.5">
-                        {orientationStats.reduce((s, os) => s + os.orientation_count, 0).toLocaleString()}건
-                      </div>
-                      <div className="text-xs">현장안내</div>
+                      {cardDataLoading ? (
+                        <div className="flex justify-center my-1">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-200 border-t-emerald-600"></div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-sm font-semibold text-emerald-600 mb-0.5">
+                            {orientationStats.reduce((s, os) => s + os.orientation_count, 0).toLocaleString()}건
+                          </div>
+                          <div className="text-xs">현장안내</div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3129,10 +3175,18 @@ const Dashboard: React.FC = () => {
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">정기안전점검</h4>
                     <div className="text-xs text-gray-600">
-                      <div className="text-sm font-semibold text-teal-600 mb-0.5">
-                        {safetyInspectionCounts.reduce((s, c) => s + c.inspection_count, 0).toLocaleString()}건
-                      </div>
-                      <div className="text-xs">점검완료</div>
+                      {cardDataLoading ? (
+                        <div className="flex justify-center my-1">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-teal-200 border-t-teal-600"></div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-sm font-semibold text-teal-600 mb-0.5">
+                            {safetyInspectionCounts.reduce((s, c) => s + c.inspection_count, 0).toLocaleString()}건
+                          </div>
+                          <div className="text-xs">점검완료</div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3150,10 +3204,18 @@ const Dashboard: React.FC = () => {
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">(지사) 관리자 점검</h4>
                     <div className="text-xs text-gray-600">
-                      <div className="text-sm font-semibold text-blue-600 mb-0.5">
-                        {managerInspections.length}
-                      </div>
-                      <div className="text-xs">건 점검완료</div>
+                      {cardDataLoading ? (
+                        <div className="flex justify-center my-1">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-200 border-t-blue-600"></div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-sm font-semibold text-blue-600 mb-0.5">
+                            {managerInspections.length}
+                          </div>
+                          <div className="text-xs">건 점검완료</div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3175,10 +3237,18 @@ const Dashboard: React.FC = () => {
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">(본부) 불시 점검</h4>
                     <div className="text-xs text-gray-600">
-                      <div className="text-sm font-semibold text-blue-600 mb-0.5">
-                        {headquartersInspections.length}
-                      </div>
-                      <div className="text-xs">건 점검완료</div>
+                      {cardDataLoading ? (
+                        <div className="flex justify-center my-1">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-200 border-t-blue-600"></div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="text-sm font-semibold text-blue-600 mb-0.5">
+                            {headquartersInspections.length}
+                          </div>
+                          <div className="text-xs">건 점검완료</div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -3199,9 +3269,9 @@ const Dashboard: React.FC = () => {
                       <Thermometer className="h-4 w-4 text-red-600" />
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">폭염대비점검</h4>
-                    {loading ? (
-                      <div className="flex justify-center">
-                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
+                    {cardDataLoading ? (
+                      <div className="flex justify-center my-1">
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-200 border-t-red-600"></div>
                       </div>
                     ) : (() => {
                       // 선택된 본부/지사에 따라 폭염점검 데이터 필터링

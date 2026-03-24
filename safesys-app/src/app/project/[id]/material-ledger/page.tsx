@@ -102,13 +102,15 @@ export default function MaterialLedgerPage() {
   const [isSignaturePadOpen, setIsSignaturePadOpen] = useState(false)
   const [isSavingSignature, setIsSavingSignature] = useState(false)
 
-  // 드래그 삭제 상태
+  // 드래그 삭제 & 자리이동 상태
   const [draggingMaterialId, setDraggingMaterialId] = useState<string | null>(null)
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null)
   const [isOverTrash, setIsOverTrash] = useState(false)
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
   const longPressTimer = useRef<NodeJS.Timeout | null>(null)
   const dragStartPos = useRef<{ x: number; y: number } | null>(null)
   const trashZoneRef = useRef<HTMLDivElement>(null)
+  const materialRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const wasDragging = useRef(false)
 
   const selectedMaterial = materials.find(m => m.id === selectedMaterialId) || null
@@ -138,6 +140,7 @@ export default function MaterialLedgerPage() {
         .from('materials')
         .select('*')
         .eq('project_id', projectId)
+        .order('sort_order', { ascending: true })
         .order('created_at', { ascending: true })
       if (matError) {
         console.error('Materials load error:', matError)
@@ -226,6 +229,7 @@ export default function MaterialLedgerPage() {
           name: materialForm.name.trim(),
           unit: materialForm.unit.trim() || null,
           created_by: user?.id,
+          sort_order: materials.length + 1,
         })
         .select()
         .single()
@@ -249,7 +253,12 @@ export default function MaterialLedgerPage() {
         .delete()
         .eq('id', id)
       if (deleteError) throw deleteError
-      setMaterials(prev => prev.filter(m => m.id !== id))
+      const remaining = materials.filter(m => m.id !== id)
+      setMaterials(remaining)
+      // 삭제 후 순서 재정렬
+      for (let i = 0; i < remaining.length; i++) {
+        await supabase.from('materials').update({ sort_order: i + 1 }).eq('id', remaining[i].id)
+      }
     } catch (err: any) {
       console.error('자재 삭제 실패:', err)
       alert('자재 삭제에 실패했습니다.')
@@ -677,18 +686,69 @@ export default function MaterialLedgerPage() {
       const rect = trashZoneRef.current.getBoundingClientRect()
       const isOver = clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
       setIsOverTrash(isOver)
+
+      if (isOver) {
+        setDropTargetIndex(null)
+        return
+      }
     }
-  }, [draggingMaterialId])
+
+    // 자재 박스 위에 있는지 확인 (자리이동 대상)
+    let foundTarget = false
+    materialRefs.current.forEach((el, matId) => {
+      if (matId === draggingMaterialId) return
+      const rect = el.getBoundingClientRect()
+      if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+        const targetIdx = materials.findIndex(m => m.id === matId)
+        if (targetIdx !== -1) {
+          setDropTargetIndex(targetIdx)
+          foundTarget = true
+        }
+      }
+    })
+    if (!foundTarget) {
+      setDropTargetIndex(null)
+    }
+  }, [draggingMaterialId, materials])
+
+  const handleReorder = useCallback(async (fromIndex: number, toIndex: number) => {
+    // 로컬 상태 즉시 업데이트 (optimistic)
+    const newMaterials = [...materials]
+    const [moved] = newMaterials.splice(fromIndex, 1)
+    newMaterials.splice(toIndex, 0, moved)
+    setMaterials(newMaterials)
+
+    // DB 순서 업데이트
+    try {
+      const updates = newMaterials.map((m, i) => ({ id: m.id, sort_order: i + 1 }))
+      for (const u of updates) {
+        await supabase.from('materials').update({ sort_order: u.sort_order }).eq('id', u.id)
+      }
+    } catch (err) {
+      console.error('순서 저장 실패:', err)
+      // 실패 시 원래 순서로 복원
+      loadData()
+    }
+  }, [materials])
 
   const handleDragEnd = useCallback(() => {
-    if (draggingMaterialId && isOverTrash) {
-      // 쓰레기통에 드롭 - 삭제 실행
-      handleDeleteMaterial(draggingMaterialId)
+    if (draggingMaterialId) {
+      if (isOverTrash) {
+        // 쓰레기통에 드롭 - 삭제 실행
+        handleDeleteMaterial(draggingMaterialId)
+      } else if (dropTargetIndex !== null) {
+        // 다른 위치에 드롭 - 자리 이동
+        const fromIndex = materials.findIndex(m => m.id === draggingMaterialId)
+        if (fromIndex !== -1 && fromIndex !== dropTargetIndex) {
+          handleReorder(fromIndex, dropTargetIndex)
+        }
+      }
     }
     // 상태 초기화
     setDraggingMaterialId(null)
     setDragPosition(null)
     setIsOverTrash(false)
+    setDropTargetIndex(null)
     dragStartPos.current = null
     if (longPressTimer.current) {
       clearTimeout(longPressTimer.current)
@@ -698,7 +758,7 @@ export default function MaterialLedgerPage() {
     setTimeout(() => {
       wasDragging.current = false
     }, 100)
-  }, [draggingMaterialId, isOverTrash])
+  }, [draggingMaterialId, isOverTrash, dropTargetIndex, materials, handleReorder])
 
   const handleLongPressStart = useCallback((materialId: string, clientX: number, clientY: number) => {
     longPressTimer.current = setTimeout(() => {
@@ -1364,6 +1424,16 @@ export default function MaterialLedgerPage() {
     <div className="min-h-screen" style={{
       background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0d0d15 50%, #000000 100%)'
     }}>
+      {/* 드래그 중 흔들림 애니메이션 */}
+      {draggingMaterialId && (
+        <style>{`
+          @keyframes wobble {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-1.5deg); }
+            75% { transform: rotate(1.5deg); }
+          }
+        `}</style>
+      )}
       {/* 드래그 중 쓰레기통 영역 */}
       {draggingMaterialId && (
         <div
@@ -1508,11 +1578,19 @@ export default function MaterialLedgerPage() {
                   {materials.map((mat, idx) => {
                     const gemStyle = getMaterialGemStyle(mat.name, idx)
                     const isDragging = draggingMaterialId === mat.id
+                    const isDropTarget = dropTargetIndex === idx && !isDragging
                     return (
                       <div
                         key={mat.id}
-                        className={`relative group select-none ${isDragging ? 'opacity-30' : ''}`}
-                        style={{ WebkitTouchCallout: 'none', WebkitUserSelect: 'none', touchAction: 'none' }}
+                        ref={(el) => {
+                          if (el) materialRefs.current.set(mat.id, el)
+                          else materialRefs.current.delete(mat.id)
+                        }}
+                        className={`relative group select-none transition-all duration-200 ${isDragging ? 'opacity-30 scale-90' : ''} ${isDropTarget ? 'scale-110 z-10' : ''}`}
+                        style={{
+                          WebkitTouchCallout: 'none', WebkitUserSelect: 'none', touchAction: 'none',
+                          ...(draggingMaterialId && !isDragging ? { animation: 'wobble 0.8s ease-in-out infinite' } : {}),
+                        }}
                         onMouseDown={(e) => {
                           if (e.button === 0) {
                             handleLongPressStart(mat.id, e.clientX, e.clientY)
@@ -1530,6 +1608,13 @@ export default function MaterialLedgerPage() {
                         onTouchEnd={handleLongPressCancel}
                         onTouchCancel={handleLongPressCancel}
                       >
+                        {/* 드롭 대상 표시 - 빛나는 테두리 */}
+                        {isDropTarget && (
+                          <div className="absolute -inset-1 rounded-lg z-0 animate-pulse" style={{
+                            border: '2px solid #fbbf24',
+                            boxShadow: '0 0 12px rgba(251,191,36,0.6), inset 0 0 12px rgba(251,191,36,0.2)',
+                          }} />
+                        )}
                         <button
                           onClick={() => !draggingMaterialId && !wasDragging.current && setSelectedMaterialId(mat.id)}
                           className="w-full aspect-square rounded transition-all duration-200 hover:scale-110 hover:z-10 relative"
