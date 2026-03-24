@@ -34,6 +34,7 @@ export async function downloadTBMStatusExcel(
     { header: '위험공종', key: 'riskType', width: 14 },
     { header: '소장이름', key: 'leader', width: 12 },
     { header: '소장연락처', key: 'contact', width: 16 },
+    { header: 'CCTV 사용여부', key: 'cctv', width: 14 },
   ]
 
   const colCount = columns.length
@@ -114,10 +115,11 @@ export async function downloadTBMStatusExcel(
       record.risk_work_type || '',
       record.leader || '',
       record.contact || '',
+      record.cctv_usage || '',
     ]
 
-    // 가운데 정렬 컬럼 인덱스: 일자(0), 지사명(1), 사업명(2), 회사명(5), 위험공종(9), 소장이름(10)
-    const centerColumns = new Set([0, 1, 2, 5, 9, 10])
+    // 가운데 정렬 컬럼 인덱스: 일자(0), 지사명(1), 사업명(2), 회사명(5), 위험공종(9), 소장이름(10), CCTV(12)
+    const centerColumns = new Set([0, 1, 2, 5, 9, 10, 12])
 
     values.forEach((val, colIdx) => {
       const cell = row.getCell(colIdx + 1)
