@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { User } from '@supabase/supabase-js'
 import { useSupabase } from '@/providers/SupabaseProvider'
 import { UserProfile } from '@/lib/supabase'
@@ -56,12 +56,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  // 이전 유저 ID를 추적하여 토큰 갱신 시 불필요한 프로필 재조회 방지
+  const prevUserIdRef = useRef<string | null>(null)
+
   useEffect(() => {
-    setUser(session?.user ?? null)
-    if (session?.user) {
-      fetchUserProfile(session.user.id).then(setUserProfile)
-    } else {
-      setUserProfile(null)
+    const newUser = session?.user ?? null
+    const newUserId = newUser?.id ?? null
+    const prevUserId = prevUserIdRef.current
+
+    // 유저가 바뀌었을 때만 user 상태 업데이트 (같은 유저의 토큰 갱신은 무시)
+    if (newUserId !== prevUserId) {
+      prevUserIdRef.current = newUserId
+      setUser(newUser)
+      if (newUser) {
+        fetchUserProfile(newUser.id).then(setUserProfile)
+      } else {
+        setUserProfile(null)
+      }
     }
     setLoading(false)
   }, [session])

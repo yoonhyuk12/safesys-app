@@ -1195,6 +1195,42 @@ const Dashboard: React.FC = () => {
         }
 
         console.log('🏠 안전현황 메인 카드 데이터 로딩 완료')
+
+        // 개별 카드 useEffect의 중복 조회를 방지하기 위해 각 ref도 함께 설정
+        lastHeatWaveParams.current = {
+          date: currentCardParams.date,
+          hq: currentCardParams.hq,
+          branch: currentCardParams.branch,
+          viewMode: 'safety'
+        }
+        lastManagerParams.current = {
+          quarter: currentCardParams.quarter,
+          hq: currentCardParams.hq,
+          branch: currentCardParams.branch
+        }
+        lastHeadquartersParams.current = {
+          quarter: currentCardParams.quarter,
+          hq: currentCardParams.hq,
+          branch: currentCardParams.branch
+        }
+        lastTBMParams.current = {
+          hq: currentCardParams.hq,
+          branch: currentCardParams.branch
+        }
+        lastSafeDocParams.current = {
+          quarter: currentCardParams.quarter,
+          hq: currentCardParams.hq,
+          branch: currentCardParams.branch
+        }
+        lastWorkerParams.current = {
+          hq: currentCardParams.hq,
+          branch: currentCardParams.branch
+        }
+        lastSafetyInspectionParams.current = {
+          hq: currentCardParams.hq,
+          branch: currentCardParams.branch,
+          year: safetyInspectionYear
+        }
       } catch (err) {
         console.error('카드 데이터 로드 실패:', err)
       } finally {

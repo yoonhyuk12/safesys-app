@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer } from 'lucide-react'
+import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignaturePad from '@/components/ui/SignaturePad'
@@ -95,6 +95,10 @@ export default function MaterialLedgerPage() {
   const [isRowModalOpen, setIsRowModalOpen] = useState(false)
   const [editingRowId, setEditingRowId] = useState<string | null>(null) // null=신규, string=수정
   const [rowForm, setRowForm] = useState<RowFormData>({ nameOrSpec: '', orderQty: '', receiveDate: '', receiveQty: '', passQtyCurrent: '', failQty: '', action: '', releaseDate: '', releaseQty: '' })
+
+  // 자재명/규격 수정 모달
+  const [isMaterialEditModalOpen, setIsMaterialEditModalOpen] = useState(false)
+  const [materialEditForm, setMaterialEditForm] = useState<{ name: string; unit: string }>({ name: '', unit: '' })
 
   // 감독 서명 모드
   const [signatureMode, setSignatureMode] = useState(false)
@@ -262,6 +266,37 @@ export default function MaterialLedgerPage() {
     } catch (err: any) {
       console.error('자재 삭제 실패:', err)
       alert('자재 삭제에 실패했습니다.')
+    }
+  }
+
+  // ── 자재명/규격 수정 ──
+
+  const openMaterialEditModal = () => {
+    if (!selectedMaterial) return
+    setMaterialEditForm({ name: selectedMaterial.name, unit: selectedMaterial.unit })
+    setIsMaterialEditModalOpen(true)
+  }
+
+  const handleUpdateMaterial = async () => {
+    if (!selectedMaterial || !materialEditForm.name.trim()) return
+    try {
+      const { error: updateError } = await supabase
+        .from('materials')
+        .update({
+          name: materialEditForm.name.trim(),
+          unit: materialEditForm.unit.trim() || null,
+        })
+        .eq('id', selectedMaterial.id)
+      if (updateError) throw updateError
+      setMaterials(prev => prev.map(m =>
+        m.id === selectedMaterial.id
+          ? { ...m, name: materialEditForm.name.trim(), unit: materialEditForm.unit.trim() }
+          : m
+      ))
+      setIsMaterialEditModalOpen(false)
+    } catch (err: any) {
+      console.error('자재 수정 실패:', err)
+      alert('자재 수정에 실패했습니다.')
     }
   }
 
@@ -939,6 +974,18 @@ export default function MaterialLedgerPage() {
                   </>
                 ) : (
                   <>
+                    <button
+                      onClick={openMaterialEditModal}
+                      className="p-2 rounded transition-all hover:scale-105"
+                      style={{
+                        background: 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
+                        border: '2px solid #4a4a55',
+                        color: '#a8a8b0'
+                      }}
+                      title="자재명/규격 수정"
+                    >
+                      <Pencil className="h-5 w-5" />
+                    </button>
                     <button
                       onClick={() => {
                         if (!selectedMaterial) return
@@ -1855,6 +1902,133 @@ export default function MaterialLedgerPage() {
             </div>
 
             {/* 하단 금속 테두리 */}
+            <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
+              boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
+            }} />
+          </div>
+        </div>
+      )}
+
+      {/* 자재명/규격 수정 모달 */}
+      {isMaterialEditModalOpen && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setIsMaterialEditModalOpen(false)}>
+          <div
+            className="max-w-sm w-full rounded-lg overflow-hidden"
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 50%, #12121a 100%)',
+              border: '3px solid #4a3a28',
+              boxShadow: 'inset 0 0 40px rgba(0,0,0,0.8), 0 10px 40px rgba(0,0,0,0.9)'
+            }}
+          >
+            <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
+              boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
+            }} />
+
+            <div className="flex items-center justify-between px-5 py-3" style={{
+              background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)',
+              borderBottom: '2px solid #5a4a35'
+            }}>
+              <h3 className="text-base font-bold text-amber-100" style={{ fontFamily: 'serif', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                ⚔ 자재 수정
+              </h3>
+              <button onClick={() => setIsMaterialEditModalOpen(false)} className="text-amber-200/50 hover:text-amber-200 transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>자재명</label>
+                <input
+                  type="text"
+                  value={materialEditForm.name}
+                  onChange={e => setMaterialEditForm(p => ({ ...p, name: e.target.value }))}
+                  className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                  style={{
+                    background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                    border: '2px solid #4a4a55',
+                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                  }}
+                />
+              </div>
+
+              <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
+
+              <div>
+                <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>단위</label>
+                <input
+                  type="text"
+                  value={materialEditForm.unit}
+                  onChange={e => setMaterialEditForm(p => ({ ...p, unit: e.target.value }))}
+                  placeholder="예: 포, m³, EA"
+                  className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                  style={{
+                    background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                    border: '2px solid #4a4a55',
+                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                  }}
+                />
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {['ton', 'kg', 'm³', 'm²', 'm', '포', '대', 'EA', '본', '세트', '장'].map(u => (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => setMaterialEditForm(p => ({ ...p, unit: u }))}
+                      className="px-2.5 py-1 text-xs transition-all duration-200"
+                      style={{
+                        background: materialEditForm.unit === u
+                          ? 'linear-gradient(180deg, #8b0000 0%, #5a0000 100%)'
+                          : 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
+                        border: materialEditForm.unit === u ? '1px solid #aa2020' : '1px solid #4a4a55',
+                        borderRadius: '4px',
+                        color: materialEditForm.unit === u ? '#fca5a5' : '#a8a8b0',
+                        boxShadow: materialEditForm.unit === u ? '0 0 10px rgba(139,0,0,0.5)' : 'none'
+                      }}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 px-5 py-4" style={{
+              background: 'linear-gradient(180deg, #2a2520 0%, #1a1510 100%)',
+              borderTop: '2px solid #5a4a35'
+            }}>
+              <button
+                onClick={() => setIsMaterialEditModalOpen(false)}
+                className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105"
+                style={{
+                  background: 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
+                  border: '2px solid #4a4a55',
+                  borderRadius: '6px',
+                  color: '#a8a8b0',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)'
+                }}
+              >
+                취소
+              </button>
+              <button
+                onClick={handleUpdateMaterial}
+                disabled={!materialEditForm.name.trim()}
+                className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                style={{
+                  background: materialEditForm.name.trim()
+                    ? 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)'
+                    : 'linear-gradient(180deg, #3a3a40 0%, #25252a 100%)',
+                  border: '2px solid #6a5a40',
+                  borderRadius: '6px',
+                  color: '#f5d78e',
+                  boxShadow: materialEditForm.name.trim() ? '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)' : 'none',
+                  fontFamily: 'serif'
+                }}
+              >
+                ⚔ 수정
+              </button>
+            </div>
+
             <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
               boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
             }} />
