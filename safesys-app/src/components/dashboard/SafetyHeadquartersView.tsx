@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ChevronLeft, Calendar, Download, AlertTriangle, ArrowLeft, ClipboardX, FileDown, X, Phone } from 'lucide-react'
+import { ChevronLeft, Calendar, Download, AlertTriangle, ArrowLeft, ClipboardX, FileDown, X, Phone, MessageSquare, Copy, Check } from 'lucide-react'
 import UninspectedProjectsTable from '@/components/dashboard/UninspectedProjectsTable'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import type { Project, HeadquartersInspection } from '@/lib/projects'
@@ -69,6 +69,7 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
   const [pendingModalData, setPendingModalData] = React.useState<{ name: string; phone: string; companyName?: string } | null>(null)
   const [showPhoneModal, setShowPhoneModal] = React.useState(false)
   const [showYearModal, setShowYearModal] = React.useState(false)
+  const [smsCopied, setSmsCopied] = React.useState(false)
   const [tempYear, setTempYear] = React.useState(new Date().getFullYear())
   const selectedQuarterNum = React.useMemo(() => {
     const parts = (selectedQuarter || '').split('Q')
@@ -1227,14 +1228,81 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="flex items-center justify-between p-4 border-b">
-                  <h3 className="text-lg font-semibold text-gray-900">대기 건수 상세 목록</h3>
-                  <button
-                    onClick={() => setShowPendingModal(false)}
-                    className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="닫기"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
+                  <h3 className="text-lg font-semibold text-gray-900">미조치내역</h3>
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const phoneNumbers = pendingProjects
+                        .map(item => item.phoneNumber)
+                        .filter((p): p is string => !!p)
+                        .filter((v, i, a) => a.indexOf(v) === i)
+                      if (phoneNumbers.length === 0) return null
+
+                      const smsBody = '안전 미조치 사항 등록 바랍니다(점검(서류)>(본부)안전점검) https://safesys.vercel.app/'
+                      const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+                      const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent)
+                      // iOS: sms:번호&body=  /  Android: sms:번호?body=
+                      const smsHref = `sms:${phoneNumbers.join(',')}${isIOS ? '&' : '?'}body=${encodeURIComponent(smsBody)}`
+
+                      return (
+                        <>
+                          <button
+                            onClick={async () => {
+                              const text = `${phoneNumbers.join(',')}\n\n[문자 내용]\n${smsBody}`
+                              try {
+                                await navigator.clipboard.writeText(text)
+                                setSmsCopied(true)
+                                setTimeout(() => setSmsCopied(false), 2000)
+                              } catch {
+                                const textarea = document.createElement('textarea')
+                                textarea.value = text
+                                document.body.appendChild(textarea)
+                                textarea.select()
+                                document.execCommand('copy')
+                                document.body.removeChild(textarea)
+                                setSmsCopied(true)
+                                setTimeout(() => setSmsCopied(false), 2000)
+                              }
+                            }}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                              smsCopied
+                                ? 'bg-green-100 text-green-700'
+                                : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                            }`}
+                            title={`연락처 ${phoneNumbers.length}건 + 문자내용 복사`}
+                          >
+                            {smsCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                            {smsCopied ? '복사됨' : `연락처 복사 (${phoneNumbers.length})`}
+                          </button>
+                          {isMobile ? (
+                            <a
+                              href={smsHref}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg transition-colors"
+                              title="단체문자 보내기"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              단체문자
+                            </a>
+                          ) : (
+                            <a
+                              href={smsHref}
+                              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg transition-colors"
+                              title="단체문자 보내기 (모바일에서 최적)"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              단체문자
+                            </a>
+                          )}
+                        </>
+                      )
+                    })()}
+                    <button
+                      onClick={() => setShowPendingModal(false)}
+                      className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                      title="닫기"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4">
@@ -1251,7 +1319,7 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">지사</th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트명</th>
                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">점검자(점검일자)</th>
-                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">대기건수</th>
+                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">건</th>
                             <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">전화</th>
                           </tr>
                         </thead>
