@@ -1087,16 +1087,33 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       // 텔레그램 알림 발송 (발주청)
       try {
         if (!editingSubmission) {
-          // 프로젝트의 텔레그램 ID 조회
-          const { data: projectData } = await supabase
+          // AI 안전조치 조회 + 텔레그램 ID 조회 병렬 실행
+          const aiAdvicePromise = !formData.noWorkCheck && formData.todayWork
+            ? fetch('/api/ai/tbm-safety-advice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  todayWork: formData.todayWork,
+                  personnelInput: formData.personnelInput,
+                  equipmentInput: formData.equipmentInput
+                })
+              }).then(res => res.json()).then(data => data.success ? data.advice : null).catch(() => null)
+            : Promise.resolve(null)
+
+          const projectDataPromise = supabase
             .from('projects')
             .select('client_telegram_id')
             .eq('id', projectId)
             .single()
 
+          const [aiAdvice, { data: projectData }] = await Promise.all([
+            aiAdvicePromise,
+            projectDataPromise
+          ])
+
           if (projectData?.client_telegram_id) {
             // 텔레그램 메시지 구성
-            const telegramMessage = `📋 <b>TBM 일일안전교육 제출</b>\n\n` +
+            let telegramMessage = `📋 <b>TBM 일일안전교육 제출</b>\n\n` +
               `🏗️ <b>현장:</b> ${projectName}\n` +
               `📅 <b>교육일자:</b> ${formData.educationDate}\n` +
               `⏰ <b>교육시간:</b> ${formData.educationStartTime} ~ ${formData.educationEndTime}\n\n` +
@@ -1105,8 +1122,17 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
               `👷 <b>투입인원:</b>\n${formData.personnelInput || '(미입력)'}\n\n` +
               `🚜 <b>투입장비:</b>\n${formData.equipmentInput || '(미입력)'}\n\n` +
               `👤 <b>작성자:</b> ${formData.name}\n` +
-              `📞 <b>연락처:</b> ${formData.contact}` +
-              (educationPhotoUrl ? `\n\n📷 교육사진이 첨부되었습니다.` : '') +
+              `📞 <b>연락처:</b> ${formData.contact}`
+
+            // AI 안전조치 확인사항 추가
+            if (aiAdvice) {
+              telegramMessage += `\n\n━━━━━━━━━━━━━━━━━━━━\n` +
+                `🤖 <b>AI 안전조치 확인사항 (공사감독용)</b>\n\n` +
+                `${aiAdvice}\n` +
+                `━━━━━━━━━━━━━━━━━━━━`
+            }
+
+            telegramMessage += (educationPhotoUrl ? `\n\n📷 교육사진이 첨부되었습니다.` : '') +
               `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
 
             await fetch('/api/telegram', {
