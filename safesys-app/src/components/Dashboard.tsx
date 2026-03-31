@@ -1497,7 +1497,14 @@ const Dashboard: React.FC = () => {
     const currentState = quartersToggleMap.get(currentHq) ||
       { q1: false, q2: false, q3: false, q4: false, completed: false }
 
-    const wasAllOff = Object.values(currentState).every(v => !v)
+    // 비활성화 상태(모든 분기 OFF)에서는 개별 분기 클릭 불가 → 활성화 버튼을 먼저 눌러야 함
+    const isAllOff = Object.values(currentState).every(v => !v)
+    if (isAllOff) {
+      alert('활성화 버튼을 먼저 눌러주세요')
+      return
+    }
+
+    const wasAllOff = false // 이미 위에서 allOff면 리턴하므로 항상 false
     const newState = { ...currentState, [quarter]: !currentState[quarter] }
     const isNowSomeOn = Object.values(newState).some(v => v)
 
