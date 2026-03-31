@@ -385,6 +385,75 @@ export async function getHeatWaveChecksByUserBranch(
   }
 }
 
+// 폭염점검 건수만 조회 (카드 표시용 경량 쿼리)
+export async function getHeatWaveCheckCountByUserBranch(
+  userProfile: UserProfile,
+  selectedDate?: string,
+  selectedHq?: string,
+  selectedBranch?: string
+): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    if (userProfile.role !== '발주청') {
+      return { success: false, count: 0, error: '발주청만 접근 가능합니다.' }
+    }
+
+    const projectsResult = await getProjectsByUserBranch(userProfile)
+    if (!projectsResult.success || !projectsResult.projects) {
+      return { success: false, count: 0, error: '관할 프로젝트를 조회할 수 없습니다.' }
+    }
+
+    let filteredProjects = projectsResult.projects
+
+    if (selectedHq) {
+      filteredProjects = filteredProjects.filter(project => project.managing_hq === selectedHq)
+    }
+
+    if (selectedBranch !== undefined) {
+      if (selectedBranch === '') {
+        if (selectedHq) {
+          const { BRANCH_OPTIONS } = await import('./constants')
+          const branchOptions = BRANCH_OPTIONS[selectedHq] || []
+          filteredProjects = filteredProjects.filter(project =>
+            project.managing_branch && branchOptions.includes(project.managing_branch)
+          )
+        }
+      } else {
+        filteredProjects = filteredProjects.filter(project => project.managing_branch === selectedBranch)
+      }
+    }
+
+    const projectIds = filteredProjects.map(p => p.id)
+    if (projectIds.length === 0) {
+      return { success: true, count: 0 }
+    }
+
+    // project_id만 조회하여 dedup 카운트 (프로젝트별 최신 1건)
+    let query = supabase
+      .from('heat_wave_checks')
+      .select('project_id')
+      .in('project_id', projectIds)
+
+    if (selectedDate) {
+      const startDateTime = `${selectedDate}T00:00:00`
+      const endDateTime = `${selectedDate}T23:59:59`
+      query = query.gte('check_time', startDateTime).lte('check_time', endDateTime)
+    }
+
+    const { data: checks, error } = await query
+
+    if (error) {
+      return { success: false, count: 0, error: '폭염점검 건수 조회에 실패했습니다.' }
+    }
+
+    // 프로젝트별 최신 1건만 카운트 (unique project_id 수)
+    const uniqueProjects = new Set(checks?.map(c => c.project_id))
+    return { success: true, count: uniqueProjects.size }
+  } catch (error) {
+    console.error('Get heat wave check count error:', error)
+    return { success: false, count: 0, error: '폭염점검 건수 조회 중 오류가 발생했습니다.' }
+  }
+}
+
 // 프로젝트 삭제 (관련 점검 데이터도 함께 삭제)
 export async function deleteProject(projectId: string): Promise<{ success: boolean; error?: string }> {
   try {
@@ -763,7 +832,73 @@ export async function getManagerInspectionsByUserBranch(
   }
 }
 
-// 발주청 사용자가 볼 수 있는 본부 불시점검 현황 조회  
+// 관리자 점검 건수만 조회 (카드 표시용 경량 쿼리)
+export async function getManagerInspectionCountByUserBranch(
+  userProfile: UserProfile,
+  quarterYear?: string,
+  selectedHq?: string,
+  selectedBranch?: string
+): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    // 분기별 날짜 범위 계산
+    let startDate: string | null = null
+    let endDate: string | null = null
+
+    if (quarterYear) {
+      const [year, quarter] = quarterYear.split('Q')
+      const yearNum = parseInt(year)
+      const quarterNum = parseInt(quarter)
+
+      switch (quarterNum) {
+        case 1: startDate = `${yearNum}-01-01`; endDate = `${yearNum}-03-31`; break
+        case 2: startDate = `${yearNum}-04-01`; endDate = `${yearNum}-06-30`; break
+        case 3: startDate = `${yearNum}-07-01`; endDate = `${yearNum}-09-30`; break
+        case 4: startDate = `${yearNum}-10-01`; endDate = `${yearNum}-12-31`; break
+      }
+    }
+
+    let query = supabase
+      .from('manager_inspections')
+      .select('id, projects!inner(managing_hq, managing_branch)', { count: 'exact', head: true })
+
+    if (startDate && endDate) {
+      query = query.gte('inspection_date', startDate).lte('inspection_date', endDate)
+    }
+
+    if (userProfile.role === '발주청') {
+      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+        // 전사 조회
+      } else {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          query = query.eq('projects.managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          query = query.eq('projects.managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) {
+      query = query.eq('projects.managing_hq', selectedHq)
+    }
+    if (selectedBranch) {
+      query = query.eq('projects.managing_branch', selectedBranch)
+    }
+
+    const { count, error } = await query
+
+    if (error) {
+      return { success: false, count: 0, error: error.message }
+    }
+
+    return { success: true, count: count || 0 }
+  } catch (error: any) {
+    console.error('관리자 점검 건수 조회 실패:', error)
+    return { success: false, count: 0, error: error.message || '관리자 점검 건수 조회에 실패했습니다.' }
+  }
+}
+
+// 발주청 사용자가 볼 수 있는 본부 불시점검 현황 조회
 export async function getHeadquartersInspectionsByUserBranch(
   userProfile: UserProfile,
   quarterYear?: string, // 2025Q1 형식
@@ -912,6 +1047,71 @@ export async function getHeadquartersInspectionsByUserBranch(
     }
 
     return { success: false, error: error?.message || '본부 불시점검 데이터를 불러오는데 실패했습니다.' }
+  }
+}
+
+// 본부 불시점검 건수만 조회 (카드 표시용 경량 쿼리)
+export async function getHeadquartersInspectionCountByUserBranch(
+  userProfile: UserProfile,
+  quarterYear?: string,
+  selectedHq?: string,
+  selectedBranch?: string
+): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    let startDate: string | null = null
+    let endDate: string | null = null
+
+    if (quarterYear) {
+      const [year, quarter] = quarterYear.split('Q')
+      const yearNum = parseInt(year)
+      const quarterNum = parseInt(quarter)
+
+      switch (quarterNum) {
+        case 1: startDate = `${yearNum}-01-01`; endDate = `${yearNum}-03-31`; break
+        case 2: startDate = `${yearNum}-04-01`; endDate = `${yearNum}-06-30`; break
+        case 3: startDate = `${yearNum}-07-01`; endDate = `${yearNum}-09-30`; break
+        case 4: startDate = `${yearNum}-10-01`; endDate = `${yearNum}-12-31`; break
+      }
+    }
+
+    let query = supabase
+      .from('headquarters_inspections')
+      .select('id, projects!inner(managing_hq, managing_branch)', { count: 'exact', head: true })
+
+    if (startDate && endDate) {
+      query = query.gte('inspection_date', startDate).lte('inspection_date', endDate)
+    }
+
+    if (userProfile.role === '발주청') {
+      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+        // 전사 조회
+      } else {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          query = query.eq('projects.managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          query = query.eq('projects.managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) {
+      query = query.eq('projects.managing_hq', selectedHq)
+    }
+    if (selectedBranch) {
+      query = query.eq('projects.managing_branch', selectedBranch)
+    }
+
+    const { count, error } = await query
+
+    if (error) {
+      return { success: false, count: 0, error: error.message }
+    }
+
+    return { success: true, count: count || 0 }
+  } catch (error: any) {
+    console.error('본부 불시점검 건수 조회 실패:', error)
+    return { success: false, count: 0, error: error?.message || '본부 불시점검 건수 조회에 실패했습니다.' }
   }
 }
 
@@ -1071,6 +1271,59 @@ export async function getTBMSafetyInspectionsByUserBranch(
   } catch (error: any) {
     console.error('TBM 안전활동점검 조회 실패:', error)
     return { success: false, error: error.message || 'TBM 안전활동점검 데이터를 불러오는데 실패했습니다.' }
+  }
+}
+
+// TBM 안전활동점검 건수만 조회 (카드 표시용 경량 쿼리)
+export async function getTBMSafetyInspectionCountByUserBranch(
+  userProfile: UserProfile,
+  selectedHq?: string,
+  selectedBranch?: string,
+  startDate?: string,
+  endDate?: string
+): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    let query = supabase
+      .from('tbm_safety_inspections')
+      .select('id, projects!inner(managing_hq, managing_branch)', { count: 'exact', head: true })
+
+    if (startDate) {
+      query = query.gte('tbm_date', startDate)
+    }
+    if (endDate) {
+      query = query.lte('tbm_date', endDate)
+    }
+
+    if (userProfile.role === '발주청') {
+      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+        // 전사 조회
+      } else {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          query = query.eq('projects.managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          query = query.eq('projects.managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) {
+      query = query.eq('projects.managing_hq', selectedHq)
+    }
+    if (selectedBranch) {
+      query = query.eq('projects.managing_branch', selectedBranch)
+    }
+
+    const { count, error } = await query
+
+    if (error) {
+      return { success: false, count: 0, error: error.message }
+    }
+
+    return { success: true, count: count || 0 }
+  } catch (error: any) {
+    console.error('TBM 안전활동점검 건수 조회 실패:', error)
+    return { success: false, count: 0, error: error.message || 'TBM 안전활동점검 건수 조회에 실패했습니다.' }
   }
 }
 
@@ -1803,6 +2056,71 @@ export async function getSafeDocumentInspectionsByUserBranch(
   }
 }
 
+// 안전서류 점검 건수만 조회 (카드 표시용 경량 쿼리)
+export async function getSafeDocumentInspectionCountByUserBranch(
+  userProfile: UserProfile,
+  quarterYear?: string,
+  selectedHq?: string,
+  selectedBranch?: string
+): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    let startDate: string | null = null
+    let endDate: string | null = null
+
+    if (quarterYear) {
+      const [year, quarter] = quarterYear.split('Q')
+      const yearNum = parseInt(year)
+      const quarterNum = parseInt(quarter)
+
+      switch (quarterNum) {
+        case 1: startDate = `${yearNum}-01-01`; endDate = `${yearNum}-03-31`; break
+        case 2: startDate = `${yearNum}-04-01`; endDate = `${yearNum}-06-30`; break
+        case 3: startDate = `${yearNum}-07-01`; endDate = `${yearNum}-09-30`; break
+        case 4: startDate = `${yearNum}-10-01`; endDate = `${yearNum}-12-31`; break
+      }
+    }
+
+    let query = supabase
+      .from('safe_document_inspections')
+      .select('id, projects!inner(managing_hq, managing_branch)', { count: 'exact', head: true })
+
+    if (startDate && endDate) {
+      query = query.gte('inspection_date', startDate).lte('inspection_date', endDate)
+    }
+
+    if (userProfile.role === '발주청') {
+      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+        // 전사 조회
+      } else {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          query = query.eq('projects.managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          query = query.eq('projects.managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) {
+      query = query.eq('projects.managing_hq', selectedHq)
+    }
+    if (selectedBranch) {
+      query = query.eq('projects.managing_branch', selectedBranch)
+    }
+
+    const { count, error } = await query
+
+    if (error) {
+      return { success: false, count: 0, error: error.message }
+    }
+
+    return { success: true, count: count || 0 }
+  } catch (error: any) {
+    console.error('안전서류 점검 건수 조회 실패:', error)
+    return { success: false, count: 0, error: error.message || '안전서류 점검 건수 조회에 실패했습니다.' }
+  }
+}
+
 // 자급자재 등록 건수 조회 (프로젝트별)
 export interface MaterialCountByProject {
   project_id: string
@@ -2056,5 +2374,34 @@ export async function revokeProjectShare(shareId: string): Promise<{ success: bo
   } catch (error) {
     console.error('Revoke project share error:', error)
     return { success: false, error: '공유 취소 중 오류가 발생했습니다.' }
+  }
+}
+
+// 본부 소속 프로젝트들의 actual_work_address를 최신 TBM 주소로 일괄 업데이트
+export async function bulkUpdateActualWorkAddress(hqDivision: string): Promise<{
+  success: boolean
+  tbmCount: number
+  fallbackCount: number
+  totalCount: number
+  error?: string
+}> {
+  try {
+    const { data, error } = await supabase
+      .rpc('bulk_update_actual_work_address', { hq_division: hqDivision })
+
+    if (error) {
+      console.error('Bulk update address error:', error)
+      return { success: false, tbmCount: 0, fallbackCount: 0, totalCount: 0, error: error.message }
+    }
+
+    return {
+      success: true,
+      tbmCount: data.tbm_count,
+      fallbackCount: data.fallback_count,
+      totalCount: data.total_count,
+    }
+  } catch (error) {
+    console.error('Bulk update address error:', error)
+    return { success: false, tbmCount: 0, fallbackCount: 0, totalCount: 0, error: '주소 업데이트 중 오류가 발생했습니다.' }
   }
 }

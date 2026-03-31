@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type WorkerCountByProject, type MaterialCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
+import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, getHeatWaveCheckCountByUserBranch, getManagerInspectionCountByUserBranch, getHeadquartersInspectionCountByUserBranch, getTBMSafetyInspectionCountByUserBranch, getSafeDocumentInspectionCountByUserBranch, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type WorkerCountByProject, type MaterialCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
 import { getTBMRecords, type TBMRecord } from '@/lib/tbm'
 import { downloadProjectListExcel } from '@/lib/excel/project-list-export'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS, DEBUG_LOGS } from '@/lib/constants'
@@ -216,6 +216,12 @@ const Dashboard: React.FC = () => {
   const [orientationDataLoading, setOrientationDataLoading] = useState(false)
   const [inspectionDataLoading, setInspectionDataLoading] = useState(false)
   const [cardDataLoading, setCardDataLoading] = useState(false)
+  // 카드 건수 전용 상태 (메인 /safe 페이지에서 경량 조회용)
+  const [heatWaveCount, setHeatWaveCount] = useState<number>(0)
+  const [managerInspectionCount, setManagerInspectionCount] = useState<number>(0)
+  const [headquartersInspectionCount, setHeadquartersInspectionCount] = useState<number>(0)
+  const [tbmSafetyInspectionCount, setTbmSafetyInspectionCount] = useState<number>(0)
+  const [safeDocumentInspectionCount, setSafeDocumentInspectionCount] = useState<number>(0)
   const [isAccountDeleteModalOpen, setIsAccountDeleteModalOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
@@ -1132,58 +1138,56 @@ const Dashboard: React.FC = () => {
       branch: selectedBranch || ''
     }
 
-    // 이미 동일한 파라미터로 로딩했는지 확인하되, 모든 카드 데이터가 채워져 있을 때만 스킵
+    // 이미 동일한 파라미터로 로딩했는지 확인
     if (lastCardDataParams.current &&
       lastCardDataParams.current.date === currentCardParams.date &&
       lastCardDataParams.current.quarter === currentCardParams.quarter &&
       lastCardDataParams.current.hq === currentCardParams.hq &&
-      lastCardDataParams.current.branch === currentCardParams.branch &&
-      heatWaveChecks.length > 0 && managerInspections.length > 0 && headquartersInspections.length > 0 && tbmSafetyInspections.length >= 0) {
-      console.log('✅ 카드용 데이터 이미 로딩됨. 중복 실행 방지:', currentCardParams)
+      lastCardDataParams.current.branch === currentCardParams.branch) {
+      console.log('✅ 카드 건수 데이터 이미 로딩됨. 중복 실행 방지:', currentCardParams)
       return
     }
 
-    console.log('🏠 안전현황 메인 - 카드 건수 표시용 전체 데이터 로딩 시작')
+    console.log('🏠 안전현황 메인 - 카드 건수 표시용 경량 데이터 로딩 시작')
     lastCardDataParams.current = currentCardParams
 
-    // 안전현황 메인에서는 카드 건수 표시를 위해 모든 점검 데이터 로딩
+    // 안전현황 메인에서는 카드 건수 표시를 위해 카운트만 조회 (경량 쿼리)
     const loadCardData = async () => {
       try {
         setCardDataLoading(true)
-        console.log('📊 카드 건수 표시용 데이터 로딩:', currentCardParams)
-        const [heatWaveResult, managerResult, headquartersResult, tbmResult, safeDocResult, workerResult, safetyInspResult] = await Promise.all([
-          getHeatWaveChecksByUserBranch(userProfile, selectedDate, selectedHq, selectedBranch),
-          getManagerInspectionsByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch),
-          getHeadquartersInspectionsByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch),
-          getTBMSafetyInspectionsByUserBranch(userProfile, selectedHq, selectedBranch, selectedDate, selectedDate),
-          getSafeDocumentInspectionsByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch),
+        const [hwCountResult, mgCountResult, hqCountResult, tbmCountResult, sdCountResult, workerResult, safetyInspResult] = await Promise.all([
+          getHeatWaveCheckCountByUserBranch(userProfile, selectedDate, selectedHq, selectedBranch),
+          getManagerInspectionCountByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch),
+          getHeadquartersInspectionCountByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch),
+          getTBMSafetyInspectionCountByUserBranch(userProfile, selectedHq, selectedBranch, selectedDate, selectedDate),
+          getSafeDocumentInspectionCountByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch),
           getWorkerCountsByUserBranch(userProfile, selectedHq, selectedBranch),
           getSafetyInspectionCountsByUserBranch(userProfile, selectedHq, selectedBranch, safetyInspectionYear)
         ])
 
-        if (heatWaveResult.success && heatWaveResult.checks) {
-          setHeatWaveChecks(heatWaveResult.checks)
-          console.log('✅ 폭염점검:', heatWaveResult.checks.length, '건')
+        if (hwCountResult.success) {
+          setHeatWaveCount(hwCountResult.count)
+          console.log('✅ 폭염점검:', hwCountResult.count, '건')
         }
 
-        if (managerResult.success && managerResult.inspections) {
-          setManagerInspections(managerResult.inspections)
-          console.log('✅ 관리자점검:', managerResult.inspections.length, '건')
+        if (mgCountResult.success) {
+          setManagerInspectionCount(mgCountResult.count)
+          console.log('✅ 관리자점검:', mgCountResult.count, '건')
         }
 
-        if (headquartersResult.success && headquartersResult.inspections) {
-          setHeadquartersInspections(headquartersResult.inspections)
-          console.log('✅ 본부불시점검:', headquartersResult.inspections.length, '건')
+        if (hqCountResult.success) {
+          setHeadquartersInspectionCount(hqCountResult.count)
+          console.log('✅ 본부불시점검:', hqCountResult.count, '건')
         }
 
-        if (tbmResult.success && tbmResult.inspections) {
-          setTbmSafetyInspections(tbmResult.inspections)
-          console.log('✅ TBM안전활동점검:', tbmResult.inspections.length, '건')
+        if (tbmCountResult.success) {
+          setTbmSafetyInspectionCount(tbmCountResult.count)
+          console.log('✅ TBM안전활동점검:', tbmCountResult.count, '건')
         }
 
-        if (safeDocResult.success && safeDocResult.inspections) {
-          setSafeDocumentInspections(safeDocResult.inspections)
-          console.log('✅ 안전서류점검:', safeDocResult.inspections.length, '건')
+        if (sdCountResult.success) {
+          setSafeDocumentInspectionCount(sdCountResult.count)
+          console.log('✅ 안전서류점검:', sdCountResult.count, '건')
         }
 
         if (workerResult.success && workerResult.workerCounts) {
@@ -1196,45 +1200,9 @@ const Dashboard: React.FC = () => {
           console.log('✅ 정기안전점검:', safetyInspResult.inspectionCounts.reduce((s: number, c: SafetyInspectionCountByProject) => s + c.inspection_count, 0), '건')
         }
 
-        console.log('🏠 안전현황 메인 카드 데이터 로딩 완료')
-
-        // 개별 카드 useEffect의 중복 조회를 방지하기 위해 각 ref도 함께 설정
-        lastHeatWaveParams.current = {
-          date: currentCardParams.date,
-          hq: currentCardParams.hq,
-          branch: currentCardParams.branch,
-          viewMode: 'safety'
-        }
-        lastManagerParams.current = {
-          quarter: currentCardParams.quarter,
-          hq: currentCardParams.hq,
-          branch: currentCardParams.branch
-        }
-        lastHeadquartersParams.current = {
-          quarter: currentCardParams.quarter,
-          hq: currentCardParams.hq,
-          branch: currentCardParams.branch
-        }
-        lastTBMParams.current = {
-          hq: currentCardParams.hq,
-          branch: currentCardParams.branch
-        }
-        lastSafeDocParams.current = {
-          quarter: currentCardParams.quarter,
-          hq: currentCardParams.hq,
-          branch: currentCardParams.branch
-        }
-        lastWorkerParams.current = {
-          hq: currentCardParams.hq,
-          branch: currentCardParams.branch
-        }
-        lastSafetyInspectionParams.current = {
-          hq: currentCardParams.hq,
-          branch: currentCardParams.branch,
-          year: safetyInspectionYear
-        }
+        console.log('🏠 안전현황 메인 카드 건수 로딩 완료')
       } catch (err) {
-        console.error('카드 데이터 로드 실패:', err)
+        console.error('카드 건수 데이터 로드 실패:', err)
       } finally {
         setCardDataLoading(false)
       }
@@ -3196,7 +3164,7 @@ const Dashboard: React.FC = () => {
                       ) : (
                         <>
                           <div className="text-sm font-semibold text-blue-600 mb-0.5">
-                            {tbmSafetyInspections.length}
+                            {tbmSafetyInspectionCount}
                           </div>
                           <div className="text-xs">건 점검완료</div>
                         </>
@@ -3242,7 +3210,7 @@ const Dashboard: React.FC = () => {
                         </div>
                       ) : (
                         <div className="text-sm font-semibold text-purple-600 mb-0.5">
-                          {safeDocumentInspections.length}건
+                          {safeDocumentInspectionCount}건
                         </div>
                       )}
                     </div>
@@ -3364,7 +3332,7 @@ const Dashboard: React.FC = () => {
                       ) : (
                         <>
                           <div className="text-sm font-semibold text-blue-600 mb-0.5">
-                            {managerInspections.length}
+                            {managerInspectionCount}
                           </div>
                           <div className="text-xs">건 점검완료</div>
                         </>
@@ -3397,7 +3365,7 @@ const Dashboard: React.FC = () => {
                       ) : (
                         <>
                           <div className="text-sm font-semibold text-blue-600 mb-0.5">
-                            {headquartersInspections.length}
+                            {headquartersInspectionCount}
                           </div>
                           <div className="text-xs">건 점검완료</div>
                         </>
@@ -3426,24 +3394,14 @@ const Dashboard: React.FC = () => {
                       <div className="flex justify-center my-1">
                         <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-200 border-t-red-600"></div>
                       </div>
-                    ) : (() => {
-                      // 선택된 본부/지사에 따라 폭염점검 데이터 필터링
-                      const filteredHeatWaveChecks = heatWaveChecks.filter((check: HeatWaveCheck) => {
-                        if (selectedHq && check.managing_hq !== selectedHq) return false
-                        // selectedBranch가 빈 문자열이면 전체 지사로 간주하여 스킵
-                        if (selectedBranch && selectedBranch !== '' && check.managing_branch !== selectedBranch) return false
-                        return true
-                      })
-
-                      return (
-                        <div className="text-xs text-gray-600">
-                          <div className="text-sm font-semibold text-blue-600 mb-0.5">
-                            {filteredHeatWaveChecks.length}
-                          </div>
-                          <div className="text-xs">건 점검완료</div>
+                    ) : (
+                      <div className="text-xs text-gray-600">
+                        <div className="text-sm font-semibold text-blue-600 mb-0.5">
+                          {heatWaveCount}
                         </div>
-                      )
-                    })()}
+                        <div className="text-xs">건 점검완료</div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
