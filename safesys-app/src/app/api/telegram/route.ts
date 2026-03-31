@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import {
   sendTelegramMessage,
+  sendTelegramMessageBulk,
   sendProjectNotification,
   createSafetyCheckMessage,
   createTBMStatusMessage,
@@ -27,15 +28,20 @@ export async function POST(request: NextRequest) {
     // 타입별 처리
     switch (type) {
       case 'direct': {
-        // 직접 메시지 발송
+        // 직접 메시지 발송 (쉼표 구분 복수 ID 지원)
         if (!chatId || !message) {
           return NextResponse.json(
             { error: 'chatId와 message가 필요합니다.' },
             { status: 400 }
           )
         }
-        const result = await sendTelegramMessage(chatId, message)
-        return NextResponse.json(result)
+        const chatIds = String(chatId).split(',').map(id => id.trim()).filter(Boolean)
+        if (chatIds.length === 1) {
+          const result = await sendTelegramMessage(chatIds[0], message)
+          return NextResponse.json(result)
+        }
+        const results = await sendTelegramMessageBulk(chatIds, message)
+        return NextResponse.json({ ok: true, results })
       }
 
       case 'project': {

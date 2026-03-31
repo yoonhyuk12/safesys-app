@@ -1222,15 +1222,20 @@ export default function HeadquartersInspectionPage() {
 
         alert('본부 불시점검이 성공적으로 저장되었습니다!')
 
-        // 텔레그램 알림 발송 (발주청) - 신규 등록 시에만
+        // 텔레그램 알림 발송 (발주청 + 시공사) - 신규 등록 시에만
         try {
           const { data: projectTgData } = await supabase
             .from('projects')
-            .select('client_telegram_id')
+            .select('client_telegram_id, contractor_telegram_id')
             .eq('id', projectId)
             .single()
 
-          if (projectTgData?.client_telegram_id) {
+          const chatIds = [
+            projectTgData?.client_telegram_id,
+            projectTgData?.contractor_telegram_id
+          ].filter(Boolean).join(',')
+
+          if (chatIds) {
             const telegramMessage =
               `🔍 <b>본부불시점검 결과 알림</b>\n\n` +
               `🏗️ <b>현장:</b> ${project?.project_name}\n` +
@@ -1246,7 +1251,7 @@ export default function HeadquartersInspectionPage() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 type: 'direct',
-                chatId: projectTgData.client_telegram_id,
+                chatId: chatIds,
                 message: telegramMessage
               })
             })

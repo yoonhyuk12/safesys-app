@@ -31,26 +31,36 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const response = await fetch(`${TELEGRAM_API_URL}/sendPhoto`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        chat_id: chatId,
-        photo: photoUrl,
-        caption: caption || '',
-        parse_mode: 'HTML',
-      }),
-    })
+    // 쉼표 구분 복수 ID 지원 - 일괄 발송
+    const chatIds = String(chatId).split(',').map((id: string) => id.trim()).filter(Boolean)
 
-    const result = await response.json()
+    const results = await Promise.all(
+      chatIds.map(async (id: string) => {
+        const response = await fetch(`${TELEGRAM_API_URL}/sendPhoto`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            chat_id: id,
+            photo: photoUrl,
+            caption: caption || '',
+            parse_mode: 'HTML',
+          }),
+        })
+        return response.json()
+      })
+    )
 
-    if (!result.ok) {
-      console.error('텔레그램 사진 발송 실패:', result.description)
+    // 단일 ID면 기존과 동일한 응답 형식
+    if (chatIds.length === 1) {
+      if (!results[0].ok) {
+        console.error('텔레그램 사진 발송 실패:', results[0].description)
+      }
+      return NextResponse.json(results[0])
     }
 
-    return NextResponse.json(result)
+    return NextResponse.json({ ok: true, results })
   } catch (error) {
     console.error('텔레그램 사진 API 오류:', error)
     return NextResponse.json(

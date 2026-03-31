@@ -193,10 +193,11 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
       const result = await response.json()
 
       if (result.ok) {
+        const idCount = chatId.trim().split(',').filter((id: string) => id.trim()).length
         setTelegramTestResult({
           type,
           success: true,
-          message: `${label} 테스트 발송 성공!`
+          message: idCount > 1 ? `${label} ${idCount}명 테스트 발송 성공!` : `${label} 테스트 발송 성공!`
         })
       } else {
         setTelegramTestResult({
@@ -672,7 +673,7 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
                     name="client_telegram_id"
                     value={formData.client_telegram_id}
                     onChange={handleInputChange}
-                    placeholder="발주청 텔레그램 ID"
+                    placeholder="발주청 텔레그램 ID (복수: 쉼표 구분)"
                     className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     disabled={loading}
                   />
@@ -700,7 +701,7 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
                     name="contractor_telegram_id"
                     value={formData.contractor_telegram_id}
                     onChange={handleInputChange}
-                    placeholder="시공사 텔레그램 ID"
+                    placeholder="시공사 텔레그램 ID (복수: 쉼표 구분)"
                     className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     disabled={loading}
                   />
@@ -728,7 +729,7 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
                 </div>
               )}
               <p className="mt-1 text-xs text-gray-500">
-                안전점검 알림을 받을 텔레그램 채팅 ID를 입력하세요
+                안전점검 알림을 받을 텔레그램 채팅 ID를 입력하세요 (복수 입력 시 쉼표로 구분)
               </p>
               <div className="mt-1 flex flex-col gap-1">
                 <a href="https://t.me/Getmyid_Work_Bot" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:text-blue-800 hover:underline">

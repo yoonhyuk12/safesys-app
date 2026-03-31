@@ -227,6 +227,54 @@ export default function DailyInspectionPage() {
 
       if (error) throw error
 
+      // 텔레그램 알림 발송 (발주청 + 시공사)
+      try {
+        const { data: projectTgData } = await supabase
+          .from('projects')
+          .select('client_telegram_id, contractor_telegram_id, project_name')
+          .eq('id', projectId)
+          .single()
+
+        const chatIds = [
+          projectTgData?.client_telegram_id,
+          projectTgData?.contractor_telegram_id
+        ].filter(Boolean).join(',')
+
+        if (chatIds) {
+          const cautionItems = inspectionItems.filter(item => item.status === 'caution')
+          const dangerItems = inspectionItems.filter(item => item.status === 'danger')
+
+          const telegramMessage =
+            `📋 <b>일일안전점검 결과 알림</b>\n\n` +
+            `🏗️ <b>현장:</b> ${projectTgData?.project_name}\n` +
+            `📅 <b>점검일자:</b> ${new Date().toISOString().split('T')[0]}\n` +
+            `👤 <b>점검자:</b> ${userProfile?.full_name || ''}\n\n` +
+            `📊 <b>점검결과:</b> 총 ${inspectionItems.length}건` +
+            (dangerItems.length > 0
+              ? `\n🔴 <b>위험:</b> ${dangerItems.map(i => i.item).join(', ')}`
+              : '') +
+            (cautionItems.length > 0
+              ? `\n🟡 <b>주의:</b> ${cautionItems.map(i => i.item).join(', ')}`
+              : '') +
+            (dangerItems.length === 0 && cautionItems.length === 0
+              ? `\n✅ 전 항목 양호`
+              : '') +
+            `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+
+          await fetch('/api/telegram', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'direct',
+              chatId: chatIds,
+              message: telegramMessage
+            })
+          })
+        }
+      } catch (telegramError) {
+        console.error('텔레그램 발송 오류:', telegramError)
+      }
+
       alert('일일안전점검이 저장되었습니다.')
       setInspectionItems([])
       setWorkDescription('')

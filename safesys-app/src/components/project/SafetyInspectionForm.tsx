@@ -616,16 +616,21 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                     .eq('id', p.id as string)
             }
 
-            // 텔레그램 알림 발송 (발주청) - 신규 등록 시에만
+            // 텔레그램 알림 발송 (발주청 + 시공사) - 신규 등록 시에만
             if (!editingId) {
                 try {
                     const { data: projectTgData } = await supabase
                         .from('projects')
-                        .select('client_telegram_id')
+                        .select('client_telegram_id, contractor_telegram_id')
                         .eq('id', projectId)
                         .single()
 
-                    if (projectTgData?.client_telegram_id) {
+                    const chatIds = [
+                        projectTgData?.client_telegram_id,
+                        projectTgData?.contractor_telegram_id
+                    ].filter(Boolean).join(',')
+
+                    if (chatIds) {
                         const findingsItems = results
                             .filter(r => r.findings && r.findings.trim() !== '')
                             .map(r => `- ${r.field_item}: ${r.findings}`)
@@ -646,7 +651,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 type: 'direct',
-                                chatId: projectTgData.client_telegram_id,
+                                chatId: chatIds,
                                 message: telegramMessage
                             })
                         })

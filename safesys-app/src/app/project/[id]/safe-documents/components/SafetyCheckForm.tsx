@@ -534,22 +534,27 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
 
       showToastMessage('저장되었습니다!', 'success');
 
-      // 텔레그램 알림 발송 (발주청)
+      // 텔레그램 알림 발송 (발주청 + 시공사)
       try {
         const { data: projectTgData } = await supabase
           .from('projects')
-          .select('client_telegram_id, project_name')
+          .select('client_telegram_id, contractor_telegram_id, project_name')
           .eq('id', projectId)
           .single()
 
-        if (projectTgData?.client_telegram_id) {
+        const chatIds = [
+          projectTgData?.client_telegram_id,
+          projectTgData?.contractor_telegram_id
+        ].filter(Boolean).join(',')
+
+        if (chatIds) {
           const nonCompliantItems = Object.entries(formData.checklistItems)
             .filter(([, value]) => value === '불이행')
             .map(([key]) => key)
 
           const telegramMessage =
             `📋 <b>안전서류점검 결과 알림</b>\n\n` +
-            `🏗️ <b>현장:</b> ${projectTgData.project_name || formData.projectName}\n` +
+            `🏗️ <b>현장:</b> ${projectTgData?.project_name || formData.projectName}\n` +
             `📅 <b>점검일자:</b> ${formData.inspectionDate}\n` +
             `👤 <b>점검자:</b> ${formData.inspectorName} (${formData.inspectorAffiliation})\n\n` +
             `📊 <b>점검결과:</b>\n` +
@@ -566,7 +571,7 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               type: 'direct',
-              chatId: projectTgData.client_telegram_id,
+              chatId: chatIds,
               message: telegramMessage
             })
           })
