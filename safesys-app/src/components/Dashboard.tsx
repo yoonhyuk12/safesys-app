@@ -4186,18 +4186,20 @@ const Dashboard: React.FC = () => {
                       const state = quartersToggleMap.get(userProfile.hq_division!)
                       const isOn = state?.[q] ?? false
                       const label = q === 'completed' ? '준공' : `${q[1]}분기`
+                      const shortLabel = q === 'completed' ? '준' : `${q[1]}Q`
                       return (
                         <button
                           key={q}
                           onClick={() => handleQuarterSelect(q)}
                           disabled={isAddressUpdating}
-                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          className={`px-2 sm:px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                             isOn
                               ? 'bg-green-600 text-white hover:bg-green-700'
                               : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                           } ${isAddressUpdating ? 'opacity-75 cursor-not-allowed' : ''}`}
                         >
-                          {label}
+                          <span className="hidden sm:inline">{label}</span>
+                          <span className="sm:hidden">{shortLabel}</span>
                         </button>
                       )
                     })}
