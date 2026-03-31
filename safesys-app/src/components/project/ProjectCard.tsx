@@ -5,6 +5,7 @@ import { Building, MapPin, MoreVertical, Video, Share2 } from 'lucide-react'
 import { Project } from '@/lib/projects'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
+import type { QuarterToggleState } from '@/lib/ui-settings'
 
 interface ProjectCardProps {
   project: Project
@@ -13,6 +14,7 @@ interface ProjectCardProps {
   onClick?: (project: Project) => void
   onStatusChange?: (project: Project, isActive: boolean) => void
   canEditQuarters?: boolean // 편집 가능 여부 (true: 활성화, false: disabled)
+  editableQuarters?: QuarterToggleState | null // 분기별 개별 편집 가능 여부 (null이면 모든 분기 편집 가능)
   showQuarters?: boolean // 분기 토글 표시 여부 (undefined는 canEditQuarters 값 사용)
   onIsActiveChange?: (project: Project, isActive: { q1: boolean; q2: boolean; q3: boolean; q4: boolean; completed: boolean }) => void
   onHandover?: (project: Project) => void
@@ -40,6 +42,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   onClick,
   onStatusChange,
   canEditQuarters = false,
+  editableQuarters = null,
   showQuarters,
   onIsActiveChange,
   onHandover,
@@ -61,6 +64,14 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   // showQuarters가 명시되지 않으면 canEditQuarters 값 사용 (기존 동작 유지)
   const shouldShowQuarters = showQuarters !== undefined ? showQuarters : canEditQuarters
   const isDisabled = !canEditQuarters
+  // 분기별 disabled 상태 계산 (editableQuarters가 설정되면 해당 분기만 편집 가능)
+  const isQuarterDisabled = (quarter: 'q1' | 'q2' | 'q3' | 'q4') => {
+    if (isDisabled) return true
+    if (editableQuarters && !editableQuarters[quarter]) return true
+    return false
+  }
+  // completed 버튼은 editableQuarters에서 completed가 false이면 disabled
+  const isCompletedDisabled = isDisabled || (editableQuarters ? !editableQuarters.completed : false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isActive, setIsActive] = useState(project.is_active !== false)
   // 서버 is_active(JSON/boolean) 기반 초기화
@@ -313,6 +324,13 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
     if (isDisabled) {
       alert('본부에 분기 활성화를 요청해 주세요')
       return
+    }
+
+    // 분기별 disabled 체크
+    if (key === 'completed' && isCompletedDisabled) return
+    if (key !== 'completed') {
+      const qKey = key.replace('_active', '') as 'q1' | 'q2' | 'q3' | 'q4'
+      if (isQuarterDisabled(qKey)) return
     }
 
     // 현재 상태 파악
@@ -682,8 +700,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
             <div className="inline-flex items-center">
               <button
                 type="button"
-                title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
-                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border ${segmentClass(q1Active, isDisabled)} rounded-l-md`}
+                title={isQuarterDisabled('q1') ? "비활성화: 본부에 요청하세요" : ""}
+                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border ${segmentClass(q1Active, isQuarterDisabled('q1'))} rounded-l-md`}
                 onClick={(e) => handleQuarterClick(e, 'q1_active')}
               >
                 <span className="[@media(min-width:1413px)]:hidden">1Q</span>
@@ -691,8 +709,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
               </button>
               <button
                 type="button"
-                title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
-                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q2Active, isDisabled)}`}
+                title={isQuarterDisabled('q2') ? "비활성화: 본부에 요청하세요" : ""}
+                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q2Active, isQuarterDisabled('q2'))}`}
                 onClick={(e) => handleQuarterClick(e, 'q2_active')}
               >
                 <span className="[@media(min-width:1413px)]:hidden">2Q</span>
@@ -700,8 +718,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
               </button>
               <button
                 type="button"
-                title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
-                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q3Active, isDisabled)}`}
+                title={isQuarterDisabled('q3') ? "비활성화: 본부에 요청하세요" : ""}
+                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q3Active, isQuarterDisabled('q3'))}`}
                 onClick={(e) => handleQuarterClick(e, 'q3_active')}
               >
                 <span className="[@media(min-width:1413px)]:hidden">3Q</span>
@@ -709,8 +727,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
               </button>
               <button
                 type="button"
-                title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
-                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q4Active, isDisabled)}`}
+                title={isQuarterDisabled('q4') ? "비활성화: 본부에 요청하세요" : ""}
+                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q4Active, isQuarterDisabled('q4'))}`}
                 onClick={(e) => handleQuarterClick(e, 'q4_active')}
               >
                 <span className="[@media(min-width:1413px)]:hidden">4Q</span>
@@ -718,8 +736,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
               </button>
               <button
                 type="button"
-                title={isDisabled ? "비활성화: 본부에 요청하세요" : ""}
-                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(completed, isDisabled)} rounded-r-md`}
+                title={isCompletedDisabled ? "비활성화: 본부에 요청하세요" : ""}
+                className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(completed, isCompletedDisabled)} rounded-r-md`}
                 onClick={(e) => handleQuarterClick(e, 'completed')}
               >
                 <span className="[@media(min-width:1413px)]:hidden">준</span>

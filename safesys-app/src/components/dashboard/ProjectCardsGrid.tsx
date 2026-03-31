@@ -3,11 +3,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import ProjectCard from '@/components/project/ProjectCard'
 import type { Project } from '@/lib/projects'
+import type { QuarterToggleState } from '@/lib/ui-settings'
 
 interface ProjectCardsGridProps {
   projects: Project[]
   userRole?: string
   canEditQuarters?: boolean
+  editableQuarters?: QuarterToggleState | null
   onProjectClick: (project: Project) => void
   onProjectEdit: (project: Project) => void
   onProjectDelete: (project: Project) => Promise<void> | void
@@ -22,6 +24,7 @@ const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
   projects,
   userRole,
   canEditQuarters = false,
+  editableQuarters = null,
   onProjectClick,
   onProjectEdit,
   onProjectDelete,
@@ -293,6 +296,7 @@ const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
           onStatusChange={isEditMode ? undefined : onProjectStatusChange}
           onHandover={isEditMode ? undefined : onProjectHandover}
           canEditQuarters={isEditMode ? false : canEditQuarters}
+          editableQuarters={canEditQuarters ? editableQuarters : null}
           onIsActiveChange={isEditMode ? undefined : onProjectIsActiveJsonChange}
           isEditMode={isEditMode}
           displayOrder={getDisplayOrder(project, index)}

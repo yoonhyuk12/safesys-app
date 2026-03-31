@@ -1,15 +1,15 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X } from 'lucide-react'
+import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type WorkerCountByProject, type MaterialCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
+import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type WorkerCountByProject, type MaterialCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
 import { getTBMRecords, type TBMRecord } from '@/lib/tbm'
 import { downloadProjectListExcel } from '@/lib/excel/project-list-export'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS, DEBUG_LOGS } from '@/lib/constants'
 import { supabase } from '@/lib/supabase'
-import { getQuartersToggleMap, updateQuartersToggleSetting } from '@/lib/ui-settings'
+import { getQuartersToggleMap, updateQuartersToggleSetting, type QuarterToggleState } from '@/lib/ui-settings'
 import ProjectCard from '@/components/project/ProjectCard'
 import ProjectDeleteModal from '@/components/project/ProjectDeleteModal'
 import ProjectHandoverModal from '@/components/project/ProjectHandoverModal'
@@ -227,8 +227,10 @@ const Dashboard: React.FC = () => {
   // 분기 토글 UI 표시 여부: 발주청이면 모두 표시 (편집 권한과 별개)
   const showQuarters = userProfile?.role === '발주청'
 
-  // 본부별 공사중 토글 표시 여부 Map (본부명 -> 표시여부)
-  const [quartersToggleMap, setQuartersToggleMap] = useState<Map<string, boolean>>(new Map())
+  // 본부별 공사중 토글 상태 Map (본부명 -> 분기별 상태)
+  const [quartersToggleMap, setQuartersToggleMap] = useState<Map<string, QuarterToggleState>>(new Map())
+  const [isQuarterPanelOpen, setIsQuarterPanelOpen] = useState(false)
+  const [isAddressUpdating, setIsAddressUpdating] = useState(false)
 
   const [handoverModal, setHandoverModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
@@ -531,7 +533,7 @@ const Dashboard: React.FC = () => {
         const allHqs = Object.keys(BRANCH_OPTIONS).filter(hq => hq !== '본사' && hq !== '기타')
         allHqs.forEach(hq => {
           if (!map.has(hq)) {
-            map.set(hq, true) // 기본값: 활성화
+            map.set(hq, { q1: true, q2: true, q3: true, q4: true, completed: true }) // 기본값: 전체 활성화
           }
         })
 
@@ -1467,52 +1469,160 @@ const Dashboard: React.FC = () => {
     setIsUserMenuOpen(!isUserMenuOpen)
   }
 
-  // 프로젝트의 본부에 따라 분기 토글 편집 가능 여부 결정
-  const canEditQuartersForProject = (project: Project): boolean => {
-    // 프로젝트의 관할 본부 확인
+  // 프로젝트의 본부에 따라 분기별 편집 가능 상태 반환
+  const getEditableQuartersForProject = (project: Project): QuarterToggleState | null => {
     const projectHq = project.managing_hq
-    if (!projectHq) return false
+    if (!projectHq) return null
+    if (userProfile?.role !== '발주청') return null
 
-    // 해당 본부의 설정 확인 (기본값: true)
-    // 본부에서 토글을 off 했으면 무조건 비활성화
-    const hqToggleSetting = quartersToggleMap.get(projectHq) !== false
-    if (!hqToggleSetting) return false
+    const hqState = quartersToggleMap.get(projectHq)
+    if (!hqState) return null
 
-    // 본부 설정이 on이면 사용자 권한 확인
-    // 발주청 역할이 아니면 편집 불가
-    if (userProfile?.role !== '발주청') return false
-
-    // 발주청이면 활성화
-    return true
+    // 모든 분기가 false면 null 반환 (편집 불가)
+    const anyActive = Object.values(hqState).some(v => v)
+    return anyActive ? hqState : null
   }
 
-  // 공사중토글 버튼 클릭 핸들러 - 사용자 본부의 설정 토글
-  const handleQuartersToggleClick = async () => {
-    if (!userProfile || !userProfile.hq_division) {
-      alert('본부 정보를 찾을 수 없습니다.')
-      return
-    }
+  // 공사중토글 버튼 클릭 핸들러 - 패널 열기/닫기
+  const handleQuartersToggleClick = () => {
+    setIsQuarterPanelOpen(prev => !prev)
+  }
+
+  // 개별 분기 토글 핸들러
+  const handleQuarterSelect = async (quarter: keyof QuarterToggleState) => {
+    if (!userProfile?.hq_division) return
+    if (isAddressUpdating) return
 
     const currentHq = userProfile.hq_division
-    const currentSetting = quartersToggleMap.get(currentHq) !== false // 기본값 true
-    const newSetting = !currentSetting
+    const currentState = quartersToggleMap.get(currentHq) ||
+      { q1: false, q2: false, q3: false, q4: false, completed: false }
+
+    const wasAllOff = Object.values(currentState).every(v => !v)
+    const newState = { ...currentState, [quarter]: !currentState[quarter] }
+    const isNowSomeOn = Object.values(newState).some(v => v)
+
+    // 옵티미스틱 업데이트
+    setQuartersToggleMap(prev => {
+      const newMap = new Map(prev)
+      newMap.set(currentHq, newState)
+      return newMap
+    })
 
     try {
-      // 서버 업데이트
-      const result = await updateQuartersToggleSetting(currentHq, newSetting)
+      const result = await updateQuartersToggleSetting(currentHq, newState)
 
       if (result.success) {
-        // 로컬 상태 업데이트
+        // 모든 분기 OFF → 하나라도 ON 전환 시: TBM 주소 일괄 반영
+        if (wasAllOff && isNowSomeOn) {
+          setIsAddressUpdating(true)
+          try {
+            const addrResult = await bulkUpdateActualWorkAddress(currentHq)
+            if (addrResult.success) {
+              if (addrResult.totalCount > 0) {
+                const parts: string[] = []
+                if (addrResult.tbmCount > 0) parts.push(`TBM 주소 ${addrResult.tbmCount}개`)
+                if (addrResult.fallbackCount > 0) parts.push(`기본 주소 ${addrResult.fallbackCount}개`)
+                alert(`${addrResult.totalCount}개 현장 주소 업데이트 완료 (${parts.join(' + ')})`)
+              } else {
+                alert('업데이트 대상 현장이 없습니다.')
+              }
+              if (userProfile.role === '발주청') {
+                await loadBranchProjects()
+              } else {
+                await loadUserProjects()
+              }
+            } else {
+              alert(`주소 업데이트 중 오류가 발생했습니다: ${addrResult.error}`)
+            }
+          } finally {
+            setIsAddressUpdating(false)
+          }
+        }
+      } else {
+        // 롤백
         setQuartersToggleMap(prev => {
           const newMap = new Map(prev)
-          newMap.set(currentHq, newSetting)
+          newMap.set(currentHq, currentState)
           return newMap
         })
-      } else {
         alert(`설정 업데이트 실패: ${result.error}`)
       }
     } catch (error) {
+      // 롤백
+      setQuartersToggleMap(prev => {
+        const newMap = new Map(prev)
+        newMap.set(currentHq, currentState)
+        return newMap
+      })
       console.error('공사중토글 설정 업데이트 오류:', error)
+      alert('설정 업데이트 중 오류가 발생했습니다.')
+    }
+  }
+
+  // 전체 선택/해제 핸들러
+  const handleQuarterSelectAll = async (allOn: boolean) => {
+    if (!userProfile?.hq_division) return
+    if (isAddressUpdating) return
+
+    const currentHq = userProfile.hq_division
+    const currentState = quartersToggleMap.get(currentHq) ||
+      { q1: false, q2: false, q3: false, q4: false, completed: false }
+
+    const wasAllOff = Object.values(currentState).every(v => !v)
+    const newState: QuarterToggleState = {
+      q1: allOn, q2: allOn, q3: allOn, q4: allOn, completed: allOn
+    }
+
+    // 옵티미스틱 업데이트
+    setQuartersToggleMap(prev => {
+      const newMap = new Map(prev)
+      newMap.set(currentHq, newState)
+      return newMap
+    })
+
+    try {
+      const result = await updateQuartersToggleSetting(currentHq, newState)
+      if (result.success) {
+        if (wasAllOff && allOn) {
+          setIsAddressUpdating(true)
+          try {
+            const addrResult = await bulkUpdateActualWorkAddress(currentHq)
+            if (addrResult.success) {
+              if (addrResult.totalCount > 0) {
+                const parts: string[] = []
+                if (addrResult.tbmCount > 0) parts.push(`TBM 주소 ${addrResult.tbmCount}개`)
+                if (addrResult.fallbackCount > 0) parts.push(`기본 주소 ${addrResult.fallbackCount}개`)
+                alert(`${addrResult.totalCount}개 현장 주소 업데이트 완료 (${parts.join(' + ')})`)
+              } else {
+                alert('업데이트 대상 현장이 없습니다.')
+              }
+              if (userProfile.role === '발주청') {
+                await loadBranchProjects()
+              } else {
+                await loadUserProjects()
+              }
+            } else {
+              alert(`주소 업데이트 중 오류가 발생했습니다: ${addrResult.error}`)
+            }
+          } finally {
+            setIsAddressUpdating(false)
+          }
+        }
+      } else {
+        setQuartersToggleMap(prev => {
+          const newMap = new Map(prev)
+          newMap.set(currentHq, currentState)
+          return newMap
+        })
+        alert(`설정 업데이트 실패: ${result.error}`)
+      }
+    } catch (error) {
+      setQuartersToggleMap(prev => {
+        const newMap = new Map(prev)
+        newMap.set(currentHq, currentState)
+        return newMap
+      })
+      console.error('공사중토글 전체 설정 업데이트 오류:', error)
       alert('설정 업데이트 중 오류가 발생했습니다.')
     }
   }
@@ -3514,7 +3624,8 @@ const Dashboard: React.FC = () => {
                                     onHandover={isProjectEditMode ? undefined : handleProjectHandover}
                                     onShare={isProjectEditMode ? undefined : handleProjectShare}
                                     showQuarters={showQuarters}
-                                    canEditQuarters={isProjectEditMode ? false : canEditQuartersForProject(project)}
+                                    canEditQuarters={isProjectEditMode ? false : !!getEditableQuartersForProject(project)}
+                                    editableQuarters={getEditableQuartersForProject(project)}
                                     onIsActiveChange={isProjectEditMode ? undefined : handleProjectIsActiveJsonChange}
                                     isEditMode={isProjectEditMode}
                                     displayOrder={getProjectDisplayOrder(project, index, displayItems)}
@@ -3645,7 +3756,8 @@ const Dashboard: React.FC = () => {
                                     onHandover={isProjectEditMode ? undefined : handleProjectHandover}
                                     onShare={isProjectEditMode ? undefined : handleProjectShare}
                                     showQuarters={showQuarters}
-                                    canEditQuarters={isProjectEditMode ? false : canEditQuartersForProject(project)}
+                                    canEditQuarters={isProjectEditMode ? false : !!getEditableQuartersForProject(project)}
+                                    editableQuarters={getEditableQuartersForProject(project)}
                                     onIsActiveChange={isProjectEditMode ? undefined : handleProjectIsActiveJsonChange}
                                     isEditMode={isProjectEditMode}
                                     displayOrder={getProjectDisplayOrder(project, index, displayItems)}
@@ -3799,7 +3911,8 @@ const Dashboard: React.FC = () => {
                                       onStatusChange={isProjectEditMode ? undefined : handleProjectStatusChange}
                                       onHandover={isProjectEditMode ? undefined : handleProjectHandover}
                                       onShare={isProjectEditMode ? undefined : handleProjectShare}
-                                      canEditQuarters={isProjectEditMode ? false : (userProfile?.role === '발주청')}
+                                      canEditQuarters={isProjectEditMode ? false : !!getEditableQuartersForProject(project)}
+                                      editableQuarters={getEditableQuartersForProject(project)}
                                       onIsActiveChange={isProjectEditMode ? undefined : handleProjectIsActiveJsonChange}
                                       isEditMode={isProjectEditMode}
                                       displayOrder={getProjectDisplayOrder(project, index, displayedItems)}
@@ -3854,7 +3967,8 @@ const Dashboard: React.FC = () => {
                         onStatusChange={isProjectEditMode ? undefined : handleProjectStatusChange}
                         onHandover={isProjectEditMode ? undefined : handleProjectHandover}
                         onShare={isProjectEditMode ? undefined : handleProjectShare}
-                        canEditQuarters={isProjectEditMode ? false : (userProfile?.role === '발주청')}
+                        canEditQuarters={isProjectEditMode ? false : !!getEditableQuartersForProject(project)}
+                        editableQuarters={getEditableQuartersForProject(project)}
                         onIsActiveChange={isProjectEditMode ? undefined : handleProjectIsActiveJsonChange}
                         isEditMode={isProjectEditMode}
                         displayOrder={getProjectDisplayOrder(project, index, searchFilteredProjects)}
@@ -3889,7 +4003,7 @@ const Dashboard: React.FC = () => {
       sharedProjects={sharedProjects}
       userRole={userProfile?.role}
       showQuarters={showQuarters}
-      canEditQuartersForProject={canEditQuartersForProject}
+      getEditableQuartersForProject={getEditableQuartersForProject}
       onRetry={loadUserProjects}
       onSiteRegistration={handleSiteRegistration}
       onProjectClick={handleProjectClick}
@@ -4040,17 +4154,82 @@ const Dashboard: React.FC = () => {
         <div className="fixed bottom-6 right-6 flex flex-row gap-3 items-center">
           {/* 공사중토글 버튼 - 권한 있는 사용자만 표시 */}
           {canEditQuarters && userProfile?.hq_division && (
-            <button
-              onClick={handleQuartersToggleClick}
-              className={`${quartersToggleMap.get(userProfile.hq_division) !== false
-                ? 'bg-green-600 hover:bg-green-700'
-                : 'bg-gray-600 hover:bg-gray-700'
-                } text-white rounded-full px-4 py-3 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2`}
-              title={`${userProfile.hq_division} 분기별 토글 ${quartersToggleMap.get(userProfile.hq_division) !== false ? 'ON' : 'OFF'}`}
-            >
-              <Calendar className="h-5 w-5" />
-              <span className="font-medium text-sm">공사중토글</span>
-            </button>
+            <>
+              {/* 접힌 상태: 기존 버튼 */}
+              {!isQuarterPanelOpen && (
+                <button
+                  onClick={handleQuartersToggleClick}
+                  disabled={isAddressUpdating}
+                  className={`${(() => {
+                    const st = quartersToggleMap.get(userProfile.hq_division)
+                    return st && Object.values(st).some(v => v)
+                  })()
+                    ? 'bg-green-600 hover:bg-green-700'
+                    : 'bg-gray-600 hover:bg-gray-700'
+                    } text-white rounded-full px-4 py-3 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2 ${isAddressUpdating ? 'opacity-75 cursor-not-allowed' : ''}`}
+                  title={`${userProfile.hq_division} 분기별 토글`}
+                >
+                  {isAddressUpdating ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Calendar className="h-5 w-5" />
+                  )}
+                  <span className="font-medium text-sm">{isAddressUpdating ? '주소 업데이트 중...' : '공사중토글'}</span>
+                </button>
+              )}
+
+              {/* 펼친 상태: 분기 선택 패널 */}
+              {isQuarterPanelOpen && (
+                <div className="bg-white rounded-xl shadow-xl p-3 flex flex-col gap-2 border border-gray-200">
+                  <div className="flex gap-1.5">
+                    {(['q1', 'q2', 'q3', 'q4', 'completed'] as const).map(q => {
+                      const state = quartersToggleMap.get(userProfile.hq_division!)
+                      const isOn = state?.[q] ?? false
+                      const label = q === 'completed' ? '준공' : `${q[1]}분기`
+                      return (
+                        <button
+                          key={q}
+                          onClick={() => handleQuarterSelect(q)}
+                          disabled={isAddressUpdating}
+                          className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isOn
+                              ? 'bg-green-600 text-white hover:bg-green-700'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          } ${isAddressUpdating ? 'opacity-75 cursor-not-allowed' : ''}`}
+                        >
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <div className="flex gap-1.5">
+                    {(() => {
+                      const st = quartersToggleMap.get(userProfile.hq_division!)
+                      const anyOn = st && Object.values(st).some(v => v)
+                      return (
+                        <button
+                          onClick={() => handleQuarterSelectAll(!anyOn)}
+                          disabled={isAddressUpdating}
+                          className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                            anyOn
+                              ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                              : 'bg-green-50 text-green-600 hover:bg-green-100'
+                          } ${isAddressUpdating ? 'opacity-75 cursor-not-allowed' : ''}`}
+                        >
+                          {anyOn ? '비활성화' : '활성화'}
+                        </button>
+                      )
+                    })()}
+                    <button
+                      onClick={() => setIsQuarterPanelOpen(false)}
+                      className="flex-1 px-2 py-1.5 rounded-lg text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      닫기
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* 현장 등록 버튼 */}

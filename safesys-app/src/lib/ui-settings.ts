@@ -1,12 +1,24 @@
 import { supabase } from './supabase'
 
+export type QuarterToggleState = {
+  q1: boolean
+  q2: boolean
+  q3: boolean
+  q4: boolean
+  completed: boolean
+}
+
 export interface UISettings {
   id: string
   hq_division: string
   show_quarters_toggle: boolean
+  quarters_toggle_state: QuarterToggleState | null
   created_at: string
   updated_at: string
 }
+
+const DEFAULT_OFF: QuarterToggleState = { q1: false, q2: false, q3: false, q4: false, completed: false }
+const DEFAULT_ON: QuarterToggleState = { q1: true, q2: true, q3: true, q4: true, completed: true }
 
 /**
  * 모든 본부의 UI 설정 가져오기
@@ -44,20 +56,23 @@ export async function getUISettingsByHQ(hqDivision: string): Promise<UISettings 
 }
 
 /**
- * 본부의 분기별 토글 표시 여부 업데이트
+ * 본부의 분기별 토글 상태 업데이트
  */
 export async function updateQuartersToggleSetting(
   hqDivision: string,
-  showQuartersToggle: boolean
+  state: QuarterToggleState
 ): Promise<{ success: boolean; error?: string }> {
-  // 먼저 해당 본부 설정이 있는지 확인
   const existing = await getUISettingsByHQ(hqDivision)
+  // show_quarters_toggle은 하위호환: 하나라도 true면 true
+  const showToggle = Object.values(state).some(v => v)
 
   if (existing) {
-    // 업데이트
     const { error } = await supabase
       .from('ui_settings')
-      .update({ show_quarters_toggle: showQuartersToggle })
+      .update({
+        quarters_toggle_state: state,
+        show_quarters_toggle: showToggle
+      })
       .eq('hq_division', hqDivision)
 
     if (error) {
@@ -65,10 +80,13 @@ export async function updateQuartersToggleSetting(
       return { success: false, error: error.message }
     }
   } else {
-    // 새로 생성
     const { error } = await supabase
       .from('ui_settings')
-      .insert({ hq_division: hqDivision, show_quarters_toggle: showQuartersToggle })
+      .insert({
+        hq_division: hqDivision,
+        show_quarters_toggle: showToggle,
+        quarters_toggle_state: state
+      })
 
     if (error) {
       console.error('UI 설정 생성 오류:', error)
@@ -80,14 +98,19 @@ export async function updateQuartersToggleSetting(
 }
 
 /**
- * 본부별 분기 토글 표시 여부를 Map으로 반환
+ * 본부별 분기 토글 상태를 Map으로 반환
  */
-export async function getQuartersToggleMap(): Promise<Map<string, boolean>> {
+export async function getQuartersToggleMap(): Promise<Map<string, QuarterToggleState>> {
   const settings = await getAllUISettings()
-  const map = new Map<string, boolean>()
+  const map = new Map<string, QuarterToggleState>()
 
   settings.forEach(setting => {
-    map.set(setting.hq_division, setting.show_quarters_toggle)
+    if (setting.quarters_toggle_state) {
+      map.set(setting.hq_division, setting.quarters_toggle_state)
+    } else {
+      // 하위 호환: 기존 boolean 값을 QuarterToggleState로 변환
+      map.set(setting.hq_division, setting.show_quarters_toggle ? DEFAULT_ON : DEFAULT_OFF)
+    }
   })
 
   return map

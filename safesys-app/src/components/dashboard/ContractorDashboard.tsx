@@ -5,6 +5,7 @@ import { Building, Plus, Share2 } from 'lucide-react'
 import ProjectCard from '@/components/project/ProjectCard'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import type { Project } from '@/lib/projects'
+import type { QuarterToggleState } from '@/lib/ui-settings'
 
 interface ContractorDashboardProps {
   loading: boolean
@@ -13,7 +14,7 @@ interface ContractorDashboardProps {
   sharedProjects?: Project[]
   userRole?: string
   showQuarters?: boolean
-  canEditQuartersForProject?: (project: Project) => boolean
+  getEditableQuartersForProject?: (project: Project) => QuarterToggleState | null
   onRetry: () => void
   onSiteRegistration: () => void
   onProjectClick: (project: Project) => void
@@ -34,7 +35,7 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
   sharedProjects = [],
   userRole,
   showQuarters = false,
-  canEditQuartersForProject,
+  getEditableQuartersForProject,
   onRetry,
   onSiteRegistration,
   onProjectClick,
@@ -126,7 +127,8 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
                 onHandover={onProjectHandover}
                 onShare={onProjectShare}
                 showQuarters={showQuarters}
-                canEditQuarters={canEditQuartersForProject ? canEditQuartersForProject(project) : false}
+                canEditQuarters={getEditableQuartersForProject ? !!getEditableQuartersForProject(project) : false}
+                editableQuarters={getEditableQuartersForProject?.(project) ?? null}
                 onIsActiveChange={onProjectIsActiveJsonChange}
                 hqPendingCount={hqPendingCounts?.[project.id]}
                 safetyPendingCount={safetyPendingCounts?.[project.id]}
@@ -160,7 +162,8 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
                 isShared={true}
                 onShare={onProjectShare}
                 showQuarters={showQuarters}
-                canEditQuarters={canEditQuartersForProject ? canEditQuartersForProject(project) : false}
+                canEditQuarters={getEditableQuartersForProject ? !!getEditableQuartersForProject(project) : false}
+                editableQuarters={getEditableQuartersForProject?.(project) ?? null}
                 onIsActiveChange={onProjectIsActiveJsonChange}
                 onStatusChange={onProjectStatusChange}
                 hqPendingCount={hqPendingCounts?.[project.id]}

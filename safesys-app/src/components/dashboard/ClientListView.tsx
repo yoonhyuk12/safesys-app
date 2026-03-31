@@ -4,12 +4,14 @@ import React, { useMemo, useState } from 'react'
 import { Building, ChevronDown, ChevronUp } from 'lucide-react'
 import ProjectCardsGrid from '@/components/dashboard/ProjectCardsGrid'
 import type { Project } from '@/lib/projects'
+import type { QuarterToggleState } from '@/lib/ui-settings'
 
 interface ClientListViewProps {
   projects: Project[]
   filteredProjects: Project[]
   userRole?: string
   canEditQuarters?: boolean
+  editableQuarters?: QuarterToggleState | null
   selectedHq: string
   selectedBranch: string
   onProjectClick: (project: Project) => void
@@ -26,6 +28,7 @@ const ClientListView: React.FC<ClientListViewProps> = ({
   filteredProjects,
   userRole,
   canEditQuarters = false,
+  editableQuarters = null,
   selectedHq,
   selectedBranch,
   onProjectClick,
@@ -130,6 +133,7 @@ const ClientListView: React.FC<ClientListViewProps> = ({
         projects={filteredProjects}
         userRole={userRole}
         canEditQuarters={canEditQuarters}
+        editableQuarters={editableQuarters}
         onProjectClick={onProjectClick}
         onProjectEdit={onProjectEdit}
         onProjectDelete={onProjectDelete}
