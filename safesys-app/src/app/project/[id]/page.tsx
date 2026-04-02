@@ -460,53 +460,43 @@ export default function ProjectDetailPage() {
           {/* 프로젝트 정보 */}
           <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative">
             {/* 점점점 메뉴 버튼 */}
-            {(canEdit() || canHandover() || canDelete() || canShare()) && (
-              <div className="absolute top-4 right-4" ref={menuRef}>
-                <button
-                  onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="p-1 rounded hover:bg-gray-100 transition-colors"
-                >
-                  <MoreVertical className="h-5 w-5 text-gray-500" />
-                </button>
+            <div className="absolute top-4 right-4" ref={menuRef}>
+              <button
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className="p-1 rounded hover:bg-gray-100 transition-colors"
+              >
+                <MoreVertical className="h-5 w-5 text-gray-500" />
+              </button>
 
-                {isMenuOpen && (
-                  <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-[100px]">
-                    {canEdit() && !isSharedProject() && (
-                      <button
-                        onClick={handleEdit}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 first:rounded-t-md"
-                      >
-                        수정
-                      </button>
-                    )}
-                    {canHandover() && !isSharedProject() && (
-                      <button
-                        onClick={handleHandover}
-                        className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                      >
-                        인계
-                      </button>
-                    )}
-                    {canShare() && (
-                      <button
-                        onClick={handleShare}
-                        className="w-full text-left px-4 py-2 text-sm text-green-700 hover:bg-green-50"
-                      >
-                        공유
-                      </button>
-                    )}
-                    {canDelete() && (
-                      <button
-                        onClick={handleDelete}
-                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 last:rounded-b-md"
-                      >
-                        삭제
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
+              {isMenuOpen && (
+                <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-[100px]">
+                  <button
+                    onClick={handleEdit}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 first:rounded-t-md"
+                  >
+                    수정
+                  </button>
+                  <button
+                    onClick={handleHandover}
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    인계
+                  </button>
+                  <button
+                    onClick={handleShare}
+                    className="w-full text-left px-4 py-2 text-sm text-green-700 hover:bg-green-50"
+                  >
+                    공유
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 last:rounded-b-md"
+                  >
+                    삭제
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div className="space-y-2">
               {/* 기본 정보 */}

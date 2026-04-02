@@ -519,8 +519,19 @@ export default function TBMViewPage() {
             rel="noopener noreferrer"
             className="flex-1 bg-yellow-400 rounded-xl px-4 py-5 flex flex-col items-center justify-center text-center hover:bg-yellow-500 transition-colors"
           >
+            <img src="/카카오톡.png" alt="카카오톡" className="h-6 w-6 mb-1 rounded" />
             <p className="text-base font-bold text-gray-900">안전보건 위험신고</p>
-            <p className="mt-1 text-xs text-gray-700">콜센터 오픈챗팅방 참여</p>
+            <p className="mt-0.5 text-xs text-gray-700">콜센터 오픈챗팅방 참여</p>
+          </a>
+          <a
+            href="https://labor.moel.go.kr/saveWkplDclrCntr/riskSttnDclrStep1.do?type=1"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 bg-blue-500 rounded-xl px-4 py-5 flex flex-col items-center justify-center text-center text-white hover:bg-blue-600 transition-colors"
+          >
+            <img src="/대한민국.png" alt="노동부" className="h-6 w-6 mb-1" />
+            <p className="text-base font-bold">안전일터 신고센터</p>
+            <p className="mt-0.5 text-xs text-blue-100">(노동부)</p>
           </a>
         </div>
       </div>
