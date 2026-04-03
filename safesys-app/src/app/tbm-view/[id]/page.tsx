@@ -307,7 +307,7 @@ export default function TBMViewPage() {
     const select = document.querySelector('.goog-te-combo') as HTMLSelectElement | null
     if (!select) return false
     select.value = gtLang
-    select.dispatchEvent(new Event('change'))
+    select.dispatchEvent(new Event('change', { bubbles: true }))
     return true
   }, [])
 
@@ -402,8 +402,8 @@ export default function TBMViewPage() {
       <style>{`
         .goog-te-banner-frame { visibility: hidden !important; height: 0 !important; overflow: hidden !important; }
         body { top: 0 !important; }
-        .skiptranslate:not(.goog-te-banner-frame) { display: none !important; }
-        .goog-te-gadget { display: none !important; }
+        .skiptranslate:not(.goog-te-banner-frame) { visibility: hidden !important; position: absolute !important; height: 0 !important; overflow: hidden !important; }
+        .goog-te-gadget { visibility: hidden !important; position: absolute !important; height: 0 !important; overflow: hidden !important; }
       `}</style>
       <div id="google_translate_element" style={{ position: 'absolute', left: '-9999px', opacity: 0 }} />
       {/* 언어 변경 플로팅 버튼 — fixed, 내용 영역 우측 끝 기준 */}
