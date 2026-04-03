@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import html2canvas from 'html2canvas'
 import {
   Shield, AlertTriangle, Wrench, FileText,
-  Clock, Users, Truck, AlertOctagon, Loader2, X, Download
+  Clock, Users, Truck, AlertOctagon, Loader2, X, Download, Globe, ChevronDown, Copy, Check
 } from 'lucide-react'
 
 interface TBMViewData {
@@ -46,6 +46,8 @@ const languageOptions = [
   { value: 'km', label: '🇰🇭 ភាសាខ្មែរ (캄보디아어)' },
   { value: 'ne', label: '🇳🇵 नेपाली (네팔어)' },
   { value: 'uz', label: "🇺🇿 O'zbek (우즈베키스탄어)" },
+  { value: 'mn', label: '🇲🇳 Монгол (몽골어)' },
+  { value: 'ru', label: '🇷🇺 Русский (러시아어)' },
 ]
 
 export default function TBMViewPage() {
@@ -65,6 +67,37 @@ export default function TBMViewPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const pageRef = useRef<HTMLDivElement>(null)
   const [saving, setSaving] = useState(false)
+  // Google Translate 상태 (TTS와 별도)
+  const [pageLang, setPageLang] = useState('ko')
+  const [showLangDropdown, setShowLangDropdown] = useState(false)
+  const langDropdownRef = useRef<HTMLDivElement>(null)
+  const gtReady = useRef(false)
+  const pendingLang = useRef<string | null>(null)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [floatingRight, setFloatingRight] = useState<number | null>(null)
+
+  // 내용 영역(max-w-lg) 우측 끝 위치 추적
+  useEffect(() => {
+    const updatePosition = () => {
+      if (contentRef.current) {
+        const rect = contentRef.current.getBoundingClientRect()
+        setFloatingRight(window.innerWidth - rect.right + 8)
+      }
+    }
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    return () => window.removeEventListener('resize', updatePosition)
+  }, [data])
+
+  const handleCopy = (text: string, field: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(null), 1500)
+  }
+
+  // Google Translate가 DOM을 직접 번역하므로 t()는 원문 그대로 반환
+  const t = (_key: string, fallback: string) => fallback
 
   const handleSaveAsImage = useCallback(async () => {
     if (!pageRef.current || saving) return
@@ -258,6 +291,82 @@ export default function TBMViewPage() {
     setTranslatedText('')
   }
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (langDropdownRef.current && !langDropdownRef.current.contains(e.target as Node)) {
+        setShowLangDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Google Translate 위젯의 select를 조작하는 공통 함수
+  const applyGoogleTranslate = useCallback((lang: string) => {
+    const gtLang = lang === 'zh-cn' ? 'zh-CN' : lang === 'zh-tw' ? 'zh-TW' : lang
+    const select = document.querySelector('.goog-te-combo') as HTMLSelectElement | null
+    if (!select) return false
+    select.value = gtLang
+    select.dispatchEvent(new Event('change'))
+    return true
+  }, [])
+
+  // Google Translate 위젯 초기화
+  useEffect(() => {
+    ;(window as any).googleTranslateElementInit = () => {
+      new (window as any).google.translate.TranslateElement(
+        { pageLanguage: 'ko', autoDisplay: false },
+        'google_translate_element'
+      )
+      // 위젯 내부 select가 DOM에 삽입될 때까지 polling
+      const waitForCombo = setInterval(() => {
+        if (document.querySelector('.goog-te-combo')) {
+          clearInterval(waitForCombo)
+          gtReady.current = true
+          // 위젯 로드 전 선택된 언어가 있으면 즉시 적용
+          if (pendingLang.current && pendingLang.current !== 'ko') {
+            applyGoogleTranslate(pendingLang.current)
+            pendingLang.current = null
+          }
+        }
+      }, 200)
+    }
+    const script = document.createElement('script')
+    script.src = '//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit'
+    script.async = true
+    document.head.appendChild(script)
+    return () => { script.remove() }
+  }, [applyGoogleTranslate])
+
+  // Google Translate 언어 선택 핸들러 (TTS와 별도)
+  const handleLanguageChange = (lang: string) => {
+    setPageLang(lang)
+    setShowLangDropdown(false)
+
+    if (lang === 'ko') {
+      pendingLang.current = null
+      // 원본(한국어) 복원
+      const frame = document.querySelector('.goog-te-banner-frame') as HTMLIFrameElement | null
+      const innerDoc = frame?.contentDocument || frame?.contentWindow?.document
+      const restoreBtn = innerDoc?.querySelector('.goog-te-button button') as HTMLButtonElement | null
+      if (restoreBtn) {
+        restoreBtn.click()
+      } else {
+        document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/'
+        document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=' + window.location.hostname
+        window.location.reload()
+      }
+      return
+    }
+
+    // 위젯 준비되었으면 바로 적용, 아니면 대기열에 저장
+    if (gtReady.current) {
+      applyGoogleTranslate(lang)
+    } else {
+      pendingLang.current = lang
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -289,40 +398,82 @@ export default function TBMViewPage() {
 
   return (
     <div ref={pageRef} className="min-h-screen bg-gray-50">
+      {/* Google Translate 배너 숨김 + body top 보정 */}
+      <style>{`
+        .goog-te-banner-frame { visibility: hidden !important; height: 0 !important; overflow: hidden !important; }
+        body { top: 0 !important; }
+        .skiptranslate:not(.goog-te-banner-frame) { display: none !important; }
+        .goog-te-gadget { display: none !important; }
+      `}</style>
+      <div id="google_translate_element" style={{ position: 'absolute', left: '-9999px', opacity: 0 }} />
+      {/* 언어 변경 플로팅 버튼 — fixed, 내용 영역 우측 끝 기준 */}
+      <div
+        ref={langDropdownRef}
+        className="notranslate fixed"
+        style={{ zIndex: 99999, top: 14, right: floatingRight ?? 12 }}
+        data-html2canvas-ignore
+      >
+        <button
+          onClick={() => setShowLangDropdown(prev => !prev)}
+          className="flex items-center justify-center w-10 h-10 bg-white shadow-lg rounded-full text-lg hover:bg-gray-50 transition-colors border border-gray-200"
+          title="언어 변경"
+        >
+          {languageOptions.find(l => l.value === pageLang)?.label.split(' ')[0] ?? '🌐'}
+        </button>
+        {showLangDropdown && (
+          <div className="absolute top-full right-0 mt-1.5 w-52 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
+            <div className="px-3 py-2 bg-blue-50 border-b border-blue-100">
+              <p className="text-xs font-semibold text-blue-700">언어 선택 / Language</p>
+            </div>
+            <div className="max-h-72 overflow-y-auto">
+              {languageOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => handleLanguageChange(opt.value)}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${pageLang === opt.value ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700'}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* 헤더 */}
       <div className="bg-blue-600 text-white px-4 py-5">
         <div className="max-w-lg mx-auto flex items-center gap-3">
           <Shield className="h-7 w-7 flex-shrink-0" />
           <div>
             <p className="text-xs font-medium text-blue-200 uppercase tracking-wide">SafeSys</p>
-            <h1 className="text-lg font-bold leading-tight">AI TBM 안전교육 내용</h1>
+            <h1 className="text-lg font-bold leading-tight">{t('header', 'AI TBM 안전교육 내용')}</h1>
           </div>
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 py-6 space-y-4">
+      <div ref={contentRef} className="max-w-lg mx-auto px-4 py-6 space-y-4">
 
         {/* 기본정보 */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="flex items-center gap-2 px-4 py-3 bg-blue-50 border-b border-blue-100">
             <FileText className="h-4 w-4 text-blue-600" />
-            <h2 className="text-sm font-semibold text-blue-700">기본정보</h2>
+            <h2 className="text-sm font-semibold text-blue-700">{t('basicInfo', '기본정보')}</h2>
           </div>
           <div className="px-4 py-4 space-y-3">
             <div>
-              <p className="text-xs text-gray-500 mb-0.5">현장명</p>
+              <p className="text-xs text-gray-500 mb-0.5">{t('siteName', '현장명')}</p>
               <p className="text-sm font-semibold text-gray-900">{data.project_name}</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-xs text-gray-500 mb-0.5">교육일자</p>
+                <p className="text-xs text-gray-500 mb-0.5">{t('date', '교육일자')}</p>
                 <p className="text-sm font-medium text-gray-900">{data.meeting_date}</p>
               </div>
               {(data.education_start_time || data.education_end_time) && (
                 <div>
                   <div className="flex items-center gap-1 mb-0.5">
                     <Clock className="h-3 w-3 text-gray-400" />
-                    <p className="text-xs text-gray-500">교육시간</p>
+                    <p className="text-xs text-gray-500">{t('time', '교육시간')}</p>
                   </div>
                   <p className="text-sm font-medium text-gray-900">
                     {data.education_start_time || '--'} ~ {data.education_end_time || '--'}
@@ -335,7 +486,7 @@ export default function TBMViewPage() {
                 <div>
                   <div className="flex items-center gap-1 mb-0.5">
                     <Users className="h-3 w-3 text-gray-400" />
-                    <p className="text-xs text-gray-500">투입 인원</p>
+                    <p className="text-xs text-gray-500">{t('personnel', '투입 인원')}</p>
                   </div>
                   <p className="text-sm font-medium text-gray-900">{data.personnel_count}</p>
                 </div>
@@ -344,7 +495,7 @@ export default function TBMViewPage() {
                 <div>
                   <div className="flex items-center gap-1 mb-0.5">
                     <Truck className="h-3 w-3 text-gray-400" />
-                    <p className="text-xs text-gray-500">투입 장비</p>
+                    <p className="text-xs text-gray-500">{t('equipment', '투입 장비')}</p>
                   </div>
                   <p className="text-sm font-medium text-gray-900">{data.equipment_input}</p>
                 </div>
@@ -356,12 +507,24 @@ export default function TBMViewPage() {
         {/* 금일 작업내용 */}
         {data.today_work && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-100">
-              <Wrench className="h-4 w-4 text-gray-600" />
-              <h2 className="text-sm font-semibold text-gray-700">금일 작업내용</h2>
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Wrench className="h-4 w-4 text-gray-600" />
+                <h2 className="text-sm font-semibold text-gray-700">{t('todayWorkSection', '금일 작업내용')}</h2>
+              </div>
+              <button
+                onClick={() => handleCopy(data.today_work ?? '', 'today_work')}
+                className="p-1.5 rounded-md hover:bg-gray-200 transition-colors"
+                data-html2canvas-ignore
+                title="복사"
+              >
+                {copiedField === 'today_work'
+                  ? <Check className="h-3.5 w-3.5 text-green-500" />
+                  : <Copy className="h-3.5 w-3.5 text-gray-400" />}
+              </button>
             </div>
             <div className="px-4 py-4">
-              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{data.today_work}</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{t('today_work', data.today_work ?? '')}</p>
             </div>
           </div>
         )}
@@ -371,23 +534,23 @@ export default function TBMViewPage() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 bg-orange-50 border-b border-orange-100">
               <AlertTriangle className="h-4 w-4 text-orange-500" />
-              <h2 className="text-sm font-semibold text-orange-700">잠재위험요인 및 대책</h2>
+              <h2 className="text-sm font-semibold text-orange-700">{t('potentialRisks', '잠재위험요인 및 대책')}</h2>
             </div>
             <div className="px-4 py-4 space-y-3">
               {[
-                { risk: data.potential_risk_1, solution: data.solution_1, num: 1 },
-                { risk: data.potential_risk_2, solution: data.solution_2, num: 2 },
-                { risk: data.potential_risk_3, solution: data.solution_3, num: 3 },
+                { risk: data.potential_risk_1, solution: data.solution_1, rKey: 'potential_risk_1', sKey: 'solution_1', num: 1 },
+                { risk: data.potential_risk_2, solution: data.solution_2, rKey: 'potential_risk_2', sKey: 'solution_2', num: 2 },
+                { risk: data.potential_risk_3, solution: data.solution_3, rKey: 'potential_risk_3', sKey: 'solution_3', num: 3 },
               ].filter(item => item.risk).map(item => (
                 <div key={item.num} className="bg-orange-50 rounded-lg p-3">
                   <div className="flex items-start gap-2 mb-1.5">
                     <span className="flex-shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-orange-500 text-white text-xs font-bold">
                       {item.num}
                     </span>
-                    <p className="text-sm font-medium text-gray-900">{item.risk}</p>
+                    <p className="text-sm font-medium text-gray-900">{t(item.rKey, item.risk ?? '')}</p>
                   </div>
                   {item.solution && (
-                    <p className="text-sm text-orange-700 pl-7">→ {item.solution}</p>
+                    <p className="text-sm text-orange-700 pl-7">→ {t(item.sKey, item.solution)}</p>
                   )}
                 </div>
               ))}
@@ -400,19 +563,19 @@ export default function TBMViewPage() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border-b border-red-100">
               <AlertOctagon className="h-4 w-4 text-red-500" />
-              <h2 className="text-sm font-semibold text-red-700">중점위험요인</h2>
+              <h2 className="text-sm font-semibold text-red-700">{t('mainRisk', '중점위험요인')}</h2>
             </div>
             <div className="px-4 py-4 space-y-2">
               {data.main_risk_selection && (
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">위험요인</p>
-                  <p className="text-sm font-medium text-gray-900">{data.main_risk_selection}</p>
+                  <p className="text-xs text-gray-500 mb-0.5">{t('riskFactor', '위험요인')}</p>
+                  <p className="text-sm font-medium text-gray-900">{t('main_risk_selection', data.main_risk_selection)}</p>
                 </div>
               )}
               {data.main_risk_solution && (
                 <div>
-                  <p className="text-xs text-gray-500 mb-0.5">대책</p>
-                  <p className="text-sm text-gray-800">{data.main_risk_solution}</p>
+                  <p className="text-xs text-gray-500 mb-0.5">{t('measure', '대책')}</p>
+                  <p className="text-sm text-gray-800">{t('main_risk_solution', data.main_risk_solution)}</p>
                 </div>
               )}
             </div>
@@ -424,17 +587,21 @@ export default function TBMViewPage() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 bg-purple-50 border-b border-purple-100">
               <Shield className="h-4 w-4 text-purple-500" />
-              <h2 className="text-sm font-semibold text-purple-700">유해위험요소</h2>
+              <h2 className="text-sm font-semibold text-purple-700">{t('hazardFactors', '유해위험요소')}</h2>
             </div>
             <div className="px-4 py-4 space-y-2">
-              {[data.risk_factor_1, data.risk_factor_2, data.risk_factor_3]
-                .filter(Boolean)
-                .map((factor, idx) => (
+              {([
+                { val: data.risk_factor_1, key: 'risk_factor_1' },
+                { val: data.risk_factor_2, key: 'risk_factor_2' },
+                { val: data.risk_factor_3, key: 'risk_factor_3' },
+              ] as { val: string | undefined; key: string }[])
+                .filter(item => item.val)
+                .map((item, idx) => (
                   <div key={idx} className="flex items-start gap-2">
                     <span className="flex-shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-purple-100 text-purple-700 text-xs font-bold">
                       {idx + 1}
                     </span>
-                    <p className="text-sm text-gray-800">{factor}</p>
+                    <p className="text-sm text-gray-800">{t(item.key, item.val ?? '')}</p>
                   </div>
                 ))}
             </div>
@@ -446,10 +613,10 @@ export default function TBMViewPage() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 bg-green-50 border-b border-green-100">
               <FileText className="h-4 w-4 text-green-600" />
-              <h2 className="text-sm font-semibold text-green-700">기타 주의사항</h2>
+              <h2 className="text-sm font-semibold text-green-700">{t('otherRemarks', '기타 주의사항')}</h2>
             </div>
             <div className="px-4 py-4">
-              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{data.other_remarks}</p>
+              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{t('other_remarks', data.other_remarks ?? '')}</p>
             </div>
           </div>
         )}
@@ -458,7 +625,7 @@ export default function TBMViewPage() {
         {hasTTSContent && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
-              <h2 className="text-sm font-semibold text-gray-700">🌏 외국인 근로자 지원 (음성 읽기)</h2>
+              <h2 className="text-sm font-semibold text-gray-700">🌏 {t('foreignSupport', '외국인 근로자 지원 (음성 읽기)')}</h2>
               <span className="text-xs text-gray-400">powered by OpenAI TTS</span>
             </div>
             <div className="px-4 py-4">
