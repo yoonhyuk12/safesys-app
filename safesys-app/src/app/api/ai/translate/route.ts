@@ -15,6 +15,8 @@ const LANG_NAMES: Record<string, string> = {
   'km': 'ភាសាខ្មែរ',
   'ne': 'नेपाली',
   'uz': "O'zbek",
+  'mn': 'Монгол (Mongolian)',
+  'ru': 'Русский (Russian)',
 }
 
 export async function POST(request: NextRequest) {

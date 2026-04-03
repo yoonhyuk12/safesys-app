@@ -67,12 +67,13 @@ export default function TBMViewPage() {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const pageRef = useRef<HTMLDivElement>(null)
   const [saving, setSaving] = useState(false)
-  // Google Translate 상태 (TTS와 별도)
+  // 페이지 번역 상태 (TTS와 별도)
   const [pageLang, setPageLang] = useState('ko')
   const [showLangDropdown, setShowLangDropdown] = useState(false)
   const langDropdownRef = useRef<HTMLDivElement>(null)
-  const gtReady = useRef(false)
-  const pendingLang = useRef<string | null>(null)
+  const [translatedData, setTranslatedData] = useState<Record<string, string> | null>(null)
+  const [translating, setTranslating] = useState(false)
+  const translateCache = useRef<Record<string, Record<string, string>>>({})
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [floatingRight, setFloatingRight] = useState<number | null>(null)
@@ -96,8 +97,11 @@ export default function TBMViewPage() {
     setTimeout(() => setCopiedField(null), 1500)
   }
 
-  // Google Translate가 DOM을 직접 번역하므로 t()는 원문 그대로 반환
-  const t = (_key: string, fallback: string) => fallback
+  // 번역된 데이터가 있으면 해당 키의 번역을 반환, 없으면 원문 반환
+  const t = (key: string, fallback: string) => {
+    if (translatedData && translatedData[key]) return translatedData[key]
+    return fallback
+  }
 
   const handleSaveAsImage = useCallback(async () => {
     if (!pageRef.current || saving) return
@@ -301,70 +305,84 @@ export default function TBMViewPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Google Translate 위젯의 select를 조작하는 공통 함수
-  const applyGoogleTranslate = useCallback((lang: string) => {
-    const gtLang = lang === 'zh-cn' ? 'zh-CN' : lang === 'zh-tw' ? 'zh-TW' : lang
-    const select = document.querySelector('.goog-te-combo') as HTMLSelectElement | null
-    if (!select) return false
-    select.value = gtLang
-    select.dispatchEvent(new Event('change', { bubbles: true }))
-    return true
-  }, [])
-
-  // Google Translate 위젯 초기화
-  useEffect(() => {
-    ;(window as any).googleTranslateElementInit = () => {
-      new (window as any).google.translate.TranslateElement(
-        { pageLanguage: 'ko', autoDisplay: false },
-        'google_translate_element'
-      )
-      // 위젯 내부 select가 DOM에 삽입될 때까지 polling
-      const waitForCombo = setInterval(() => {
-        if (document.querySelector('.goog-te-combo')) {
-          clearInterval(waitForCombo)
-          gtReady.current = true
-          // 위젯 로드 전 선택된 언어가 있으면 즉시 적용
-          if (pendingLang.current && pendingLang.current !== 'ko') {
-            applyGoogleTranslate(pendingLang.current)
-            pendingLang.current = null
-          }
-        }
-      }, 200)
-    }
-    const script = document.createElement('script')
-    script.src = '//translate.google.com/translate_a/element.js?cb=googleTranslateElementInit'
-    script.async = true
-    document.head.appendChild(script)
-    return () => { script.remove() }
-  }, [applyGoogleTranslate])
-
-  // Google Translate 언어 선택 핸들러 (TTS와 별도)
-  const handleLanguageChange = (lang: string) => {
-    setPageLang(lang)
-    setShowLangDropdown(false)
-
+  // API 기반 페이지 번역 함수
+  const translatePage = useCallback(async (lang: string) => {
+    if (!data) return
     if (lang === 'ko') {
-      pendingLang.current = null
-      // 원본(한국어) 복원
-      const frame = document.querySelector('.goog-te-banner-frame') as HTMLIFrameElement | null
-      const innerDoc = frame?.contentDocument || frame?.contentWindow?.document
-      const restoreBtn = innerDoc?.querySelector('.goog-te-button button') as HTMLButtonElement | null
-      if (restoreBtn) {
-        restoreBtn.click()
-      } else {
-        document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/'
-        document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=' + window.location.hostname
-        window.location.reload()
-      }
+      setTranslatedData(null)
+      return
+    }
+    // 캐시된 번역이 있으면 즉시 사용
+    if (translateCache.current[lang]) {
+      setTranslatedData(translateCache.current[lang])
       return
     }
 
-    // 위젯 준비되었으면 바로 적용, 아니면 대기열에 저장
-    if (gtReady.current) {
-      applyGoogleTranslate(lang)
-    } else {
-      pendingLang.current = lang
+    setTranslating(true)
+    try {
+      const texts: Record<string, string> = {
+        header: 'AI TBM 안전교육 내용',
+        basicInfo: '기본정보',
+        siteName: '현장명',
+        date: '교육일자',
+        time: '교육시간',
+        personnel: '투입 인원',
+        equipment: '투입 장비',
+        todayWorkSection: '금일 작업내용',
+        potentialRisks: '잠재위험요인 및 대책',
+        mainRisk: '중점위험요인',
+        riskFactor: '위험요인',
+        measure: '대책',
+        hazardFactors: '유해위험요소',
+        otherRemarks: '기타 주의사항',
+        foreignSupport: '외국인 근로자 지원 (음성 읽기)',
+        saveImage: '이미지로 저장하기',
+        riskReport: '안전보건 위험신고',
+        reportCenter: '안전일터 신고센터',
+        callCenter: '콜센터 오픈챗팅방 참여',
+        laborMinistry: '(노동부)',
+      }
+      if (data.personnel_count) texts.personnel_count = data.personnel_count
+      if (data.equipment_input) texts.equipment_input = data.equipment_input
+      if (data.today_work) texts.today_work = data.today_work
+      if (data.potential_risk_1) texts.potential_risk_1 = data.potential_risk_1
+      if (data.solution_1) texts.solution_1 = data.solution_1
+      if (data.potential_risk_2) texts.potential_risk_2 = data.potential_risk_2
+      if (data.solution_2) texts.solution_2 = data.solution_2
+      if (data.potential_risk_3) texts.potential_risk_3 = data.potential_risk_3
+      if (data.solution_3) texts.solution_3 = data.solution_3
+      if (data.main_risk_selection) texts.main_risk_selection = data.main_risk_selection
+      if (data.main_risk_solution) texts.main_risk_solution = data.main_risk_solution
+      if (data.risk_factor_1) texts.risk_factor_1 = data.risk_factor_1
+      if (data.risk_factor_2) texts.risk_factor_2 = data.risk_factor_2
+      if (data.risk_factor_3) texts.risk_factor_3 = data.risk_factor_3
+      if (data.other_remarks) texts.other_remarks = data.other_remarks
+
+      const res = await fetch('/api/ai/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texts, language: lang }),
+      })
+
+      if (!res.ok) throw new Error('번역 실패')
+      const result = await res.json()
+      if (result.translated) {
+        translateCache.current[lang] = result.translated
+        setTranslatedData(result.translated)
+      }
+    } catch {
+      setPageLang('ko')
+      setTranslatedData(null)
+    } finally {
+      setTranslating(false)
     }
+  }, [data])
+
+  // 언어 선택 핸들러
+  const handleLanguageChange = (lang: string) => {
+    setPageLang(lang)
+    setShowLangDropdown(false)
+    translatePage(lang)
   }
 
   if (loading) {
@@ -398,27 +416,22 @@ export default function TBMViewPage() {
 
   return (
     <div ref={pageRef} className="min-h-screen bg-gray-50">
-      {/* Google Translate 배너 숨김 + body top 보정 */}
-      <style>{`
-        .goog-te-banner-frame { visibility: hidden !important; height: 0 !important; overflow: hidden !important; }
-        body { top: 0 !important; }
-        .skiptranslate:not(.goog-te-banner-frame) { visibility: hidden !important; position: absolute !important; height: 0 !important; overflow: hidden !important; }
-        .goog-te-gadget { visibility: hidden !important; position: absolute !important; height: 0 !important; overflow: hidden !important; }
-      `}</style>
-      <div id="google_translate_element" style={{ position: 'absolute', left: '-9999px', opacity: 0 }} />
       {/* 언어 변경 플로팅 버튼 — fixed, 내용 영역 우측 끝 기준 */}
       <div
         ref={langDropdownRef}
-        className="notranslate fixed"
+        className="fixed"
         style={{ zIndex: 99999, top: 14, right: floatingRight ?? 12 }}
         data-html2canvas-ignore
       >
         <button
-          onClick={() => setShowLangDropdown(prev => !prev)}
-          className="flex items-center justify-center w-10 h-10 bg-white shadow-lg rounded-full text-lg hover:bg-gray-50 transition-colors border border-gray-200"
+          onClick={() => !translating && setShowLangDropdown(prev => !prev)}
+          disabled={translating}
+          className="flex items-center justify-center w-10 h-10 bg-white shadow-lg rounded-full text-lg hover:bg-gray-50 transition-colors border border-gray-200 disabled:opacity-50"
           title="언어 변경"
         >
-          {languageOptions.find(l => l.value === pageLang)?.label.split(' ')[0] ?? '🌐'}
+          {translating
+            ? <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+            : languageOptions.find(l => l.value === pageLang)?.label.split(' ')[0] ?? '🌐'}
         </button>
         {showLangDropdown && (
           <div className="absolute top-full right-0 mt-1.5 w-52 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
@@ -439,6 +452,19 @@ export default function TBMViewPage() {
           </div>
         )}
       </div>
+
+      {/* 번역 중 로딩 오버레이 */}
+      {translating && (
+        <div className="fixed inset-0 z-[99998] flex items-center justify-center bg-black/20" data-html2canvas-ignore>
+          <div className="bg-white rounded-xl shadow-lg px-6 py-4 flex items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+            <div>
+              <p className="text-sm font-semibold text-gray-800">번역 중...</p>
+              <p className="text-xs text-gray-500">Translating...</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 헤더 */}
       <div className="bg-blue-600 text-white px-4 py-5">
@@ -488,7 +514,7 @@ export default function TBMViewPage() {
                     <Users className="h-3 w-3 text-gray-400" />
                     <p className="text-xs text-gray-500">{t('personnel', '투입 인원')}</p>
                   </div>
-                  <p className="text-sm font-medium text-gray-900">{data.personnel_count}</p>
+                  <p className="text-sm font-medium text-gray-900">{t('personnel_count', data.personnel_count)}</p>
                 </div>
               )}
               {data.equipment_input && (
@@ -497,7 +523,7 @@ export default function TBMViewPage() {
                     <Truck className="h-3 w-3 text-gray-400" />
                     <p className="text-xs text-gray-500">{t('equipment', '투입 장비')}</p>
                   </div>
-                  <p className="text-sm font-medium text-gray-900">{data.equipment_input}</p>
+                  <p className="text-sm font-medium text-gray-900">{t('equipment_input', data.equipment_input)}</p>
                 </div>
               )}
             </div>
@@ -678,7 +704,7 @@ export default function TBMViewPage() {
             className="flex-1 bg-green-600 rounded-xl px-4 py-5 flex flex-col items-center justify-center text-center text-white hover:bg-green-700 transition-colors disabled:opacity-50"
           >
             <Download className="h-5 w-5 mb-1" />
-            <p className="text-base font-bold">{saving ? '저장 중...' : '이미지로 저장하기'}</p>
+            <p className="text-base font-bold">{saving ? '저장 중...' : t('saveImage', '이미지로 저장하기')}</p>
           </button>
           <a
             href="https://open.kakao.com/o/gLKhuBfi"
@@ -687,8 +713,8 @@ export default function TBMViewPage() {
             className="flex-1 bg-yellow-400 rounded-xl px-4 py-5 flex flex-col items-center justify-center text-center hover:bg-yellow-500 transition-colors"
           >
             <img src="/카카오톡.png" alt="카카오톡" className="h-6 w-6 mb-1 rounded" />
-            <p className="text-base font-bold text-gray-900">안전보건 위험신고</p>
-            <p className="mt-0.5 text-xs text-gray-700">콜센터 오픈챗팅방 참여</p>
+            <p className="text-base font-bold text-gray-900">{t('riskReport', '안전보건 위험신고')}</p>
+            <p className="mt-0.5 text-xs text-gray-700">{t('callCenter', '콜센터 오픈챗팅방 참여')}</p>
           </a>
           <a
             href="https://labor.moel.go.kr/saveWkplDclrCntr/riskSttnDclrStep1.do?type=1"
@@ -697,8 +723,8 @@ export default function TBMViewPage() {
             className="flex-1 bg-blue-500 rounded-xl px-4 py-5 flex flex-col items-center justify-center text-center text-white hover:bg-blue-600 transition-colors"
           >
             <img src="/대한민국.png" alt="노동부" className="h-6 w-6 mb-1" />
-            <p className="text-base font-bold">안전일터 신고센터</p>
-            <p className="mt-0.5 text-xs text-blue-100">(노동부)</p>
+            <p className="text-base font-bold">{t('reportCenter', '안전일터 신고센터')}</p>
+            <p className="mt-0.5 text-xs text-blue-100">{t('laborMinistry', '(노동부)')}</p>
           </a>
         </div>
       </div>
