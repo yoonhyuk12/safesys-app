@@ -35,6 +35,7 @@ import SafetyNewWorkerOrientationView from '@/components/dashboard/SafetyNewWork
 import SafetyInspectionLedgerView from '@/components/dashboard/SafetyInspectionLedgerView'
 import BusinessMaterialView from '@/components/dashboard/BusinessMaterialView'
 import TBMChatBot from '@/components/ui/TBMChatBot'
+import BulkProjectUploadModal from '@/components/project/BulkProjectUploadModal'
 import officeLocationsData from '@/lib/office-locations.json'
 
 // JSX IntrinsicElements 선언: 빌드 도중 JSX 타입 미탐지 방지용 안전망
@@ -237,6 +238,9 @@ const Dashboard: React.FC = () => {
   const [quartersToggleMap, setQuartersToggleMap] = useState<Map<string, QuarterToggleState>>(new Map())
   const [isQuarterPanelOpen, setIsQuarterPanelOpen] = useState(false)
   const [isAddressUpdating, setIsAddressUpdating] = useState(false)
+  const [isBulkMenuOpen, setIsBulkMenuOpen] = useState(false)
+  const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false)
+  const bulkMenuRef = useRef<HTMLDivElement>(null)
 
   const [handoverModal, setHandoverModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
@@ -514,6 +518,17 @@ const Dashboard: React.FC = () => {
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // 복수추가 메뉴 외부 클릭 감지
+  useEffect(() => {
+    const handleBulkMenuClickOutside = (event: MouseEvent) => {
+      if (bulkMenuRef.current && !bulkMenuRef.current.contains(event.target as Node)) {
+        setIsBulkMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleBulkMenuClickOutside)
+    return () => document.removeEventListener('mousedown', handleBulkMenuClickOutside)
   }, [])
 
   // 사용자 프로젝트 목록 로드 (한번만 실행)
@@ -1779,6 +1794,10 @@ const Dashboard: React.FC = () => {
   }
 
   const handleProjectDelete = async (project: Project) => {
+    if (userProfile?.role !== '발주청') {
+      alert('프로젝트 삭제는 발주청에서만 가능합니다.\n발주청 담당자에게 삭제를 요청해 주세요.')
+      return
+    }
     setDeleteModal({
       isOpen: true,
       project
@@ -4199,13 +4218,33 @@ const Dashboard: React.FC = () => {
             </>
           )}
 
-          {/* 현장 등록 버튼 */}
-          <button
-            onClick={handleSiteRegistration}
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-12 h-12 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
-          >
-            <Plus className="h-6 w-6" />
-          </button>
+          {/* 현장 등록 버튼 (팝오버 메뉴) */}
+          <div className="relative" ref={bulkMenuRef}>
+            {isBulkMenuOpen && (
+              <div className="absolute bottom-14 right-0 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[140px] z-10">
+                <button
+                  onClick={() => { setIsBulkMenuOpen(false); handleSiteRegistration() }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  <Plus className="h-4 w-4" />
+                  단일추가
+                </button>
+                <button
+                  onClick={() => { setIsBulkMenuOpen(false); setIsBulkUploadModalOpen(true) }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  <FileDown className="h-4 w-4" />
+                  복수추가
+                </button>
+              </div>
+            )}
+            <button
+              onClick={() => setIsBulkMenuOpen(prev => !prev)}
+              className="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-12 h-12 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
+            >
+              <Plus className="h-6 w-6" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -4233,6 +4272,19 @@ const Dashboard: React.FC = () => {
         onClose={handleShareModalClose}
         onSuccess={handleShareModalClose}
         currentUserRole={userProfile?.role}
+      />
+
+      {/* 프로젝트 일괄 등록 모달 */}
+      <BulkProjectUploadModal
+        isOpen={isBulkUploadModalOpen}
+        onClose={() => setIsBulkUploadModalOpen(false)}
+        onComplete={() => {
+          if (userProfile?.role === '발주청') {
+            void loadBranchProjects()
+          } else {
+            void loadUserProjects()
+          }
+        }}
       />
 
       {/* 프로필 수정 모달 */}

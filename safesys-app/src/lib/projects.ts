@@ -114,6 +114,7 @@ export async function createProject(data: CreateProjectData): Promise<{ success:
       .from('projects')
       .insert({
         ...data,
+        is_active: { q1: false, q2: false, q3: false, q4: false, completed: false },
         created_by: user.id
       })
       .select('*')

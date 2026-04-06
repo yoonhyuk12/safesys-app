@@ -7,6 +7,7 @@ import { ArrowLeft, Building, Phone, MoreVertical, Copy, Check, Video } from 'lu
 import { Project, deleteProject } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import ProjectDeleteModal from '@/components/project/ProjectDeleteModal'
 import DocumentFolder from '@/components/project/DocumentFolder'
 import HeatWaveCheckModal from '@/components/project/HeatWaveCheckModal'
 import ProjectHandoverModal from '@/components/project/ProjectHandoverModal'
@@ -33,6 +34,7 @@ export default function ProjectDetailPage() {
   const [emailCopied, setEmailCopied] = useState(false)
   const [supervisorPhoneModal, setSupervisorPhoneModal] = useState<{ isOpen: boolean; phone: string; name: string; title: string }>({ isOpen: false, phone: '', name: '', title: '' })
   const [phoneCopied, setPhoneCopied] = useState(false)
+  const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [hqPendingCount, setHqPendingCount] = useState(0)
   const [safetyLedgerPendingCount, setSafetyLedgerPendingCount] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -190,15 +192,23 @@ export default function ProjectDetailPage() {
     setShareModal({ isOpen: false, project: null })
   }
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     setIsMenuOpen(false)
     if (!project) return
+    if (userProfile?.role !== '발주청') {
+      alert('프로젝트 삭제는 발주청에서만 가능합니다.\n발주청 담당자에게 삭제를 요청해 주세요.')
+      return
+    }
+    setDeleteModal({ isOpen: true, project })
+  }
 
-    const confirmed = confirm(`"${project.project_name}" 프로젝트를 삭제하시겠습니까?\n\n관련된 모든 점검 데이터도 함께 삭제됩니다.`)
-    if (!confirmed) return
+  const handleDeleteModalClose = () => {
+    setDeleteModal({ isOpen: false, project: null })
+  }
 
+  const handleDeleteConfirm = async (projectId: string) => {
     try {
-      const result = await deleteProject(project.id)
+      const result = await deleteProject(projectId)
       if (result.success) {
         alert('프로젝트가 삭제되었습니다.')
         router.push('/')
@@ -933,6 +943,13 @@ export default function ProjectDetailPage() {
         </div>
       )}
 
+      {/* 삭제 확인 모달 */}
+      <ProjectDeleteModal
+        isOpen={deleteModal.isOpen}
+        project={deleteModal.project}
+        onClose={handleDeleteModalClose}
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   )
-} 
+}
