@@ -86,6 +86,90 @@ const FIELD_KEYWORDS: Record<keyof ColumnMapping, string[]> = {
 
 const TEMPLATE_HEADERS = ['프로젝트명', '본부', '지사', '현장주소', '상세주소', '사업분류', '총사업비', '직급', '감독명', '감독연락처']
 
+// ─── Kakao Geocoding Helpers ────────────────────────────────────────
+
+/** 주소 전처리: 괄호, 전화번호, 다중 공백 제거 */
+function preprocessAddress(address: string): string {
+  return address
+    .trim()
+    .replace(/\([^)]*\)/g, '')      // 괄호 및 내용 제거
+    .replace(/（[^）]*）/g, '')      // 전각 괄호 제거
+    .replace(/\d{2,4}-\d{3,4}-\d{4}/g, '') // 전화번호 제거
+    .replace(/\s+/g, ' ')           // 다중 공백 → 하나
+    .trim()
+}
+
+/** 상위 주소 생성 (뒤에서부터 단어 제거, 최소 2단어 유지) */
+function generateParentAddresses(address: string): string[] {
+  const parts = address.split(' ').filter(p => p.length > 0)
+  const parents: string[] = []
+  for (let i = parts.length - 1; i >= 2; i--) {
+    const parent = parts.slice(0, i).join(' ')
+    if (parent.length > 5) parents.push(parent)
+  }
+  return parents
+}
+
+/** 카카오맵 Geocoder로 주소 → 좌표 변환 (유사 주소 매칭 + 상위 주소 폴백) */
+function kakaoGeocode(address: string): Promise<{ lat: number; lng: number } | null> {
+  const kakao = (window as any).kakao
+  return new Promise((resolve) => {
+    if (!kakao?.maps?.services) {
+      resolve(null)
+      return
+    }
+
+    const geocoder = new kakao.maps.services.Geocoder()
+    const cleaned = preprocessAddress(address)
+
+    if (!cleaned || cleaned.length < 3) {
+      resolve(null)
+      return
+    }
+
+    const isKoreaCoords = (lat: number, lng: number) => lat >= 33 && lat <= 43 && lng >= 124 && lng <= 132
+
+    // 1차: SIMILAR 모드로 검색
+    geocoder.addressSearch(cleaned, async (result: any[], status: any) => {
+      if (status === kakao.maps.services.Status.OK && result.length > 0) {
+        const lat = parseFloat(result[0].y)
+        const lng = parseFloat(result[0].x)
+        if (isKoreaCoords(lat, lng)) {
+          resolve({ lat, lng })
+          return
+        }
+      }
+
+      // 2차: 상위 주소 축약 재시도
+      const parentAddresses = generateParentAddresses(cleaned)
+      for (const parentAddr of parentAddresses) {
+        const parentResult = await new Promise<{ lat: number; lng: number } | null>((innerResolve) => {
+          geocoder.addressSearch(parentAddr, (res: any[], st: any) => {
+            if (st === kakao.maps.services.Status.OK && res.length > 0) {
+              const lat = parseFloat(res[0].y)
+              const lng = parseFloat(res[0].x)
+              innerResolve(isKoreaCoords(lat, lng) ? { lat, lng } : null)
+            } else {
+              innerResolve(null)
+            }
+          })
+        })
+        if (parentResult) {
+          resolve(parentResult)
+          return
+        }
+        // API 안정성 딜레이
+        await new Promise(r => setTimeout(r, 200))
+      }
+
+      resolve(null)
+    }, {
+      analyze_type: kakao.maps.services.AnalyzeType?.SIMILAR,
+      size: 10,
+    })
+  })
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 function autoMatchColumns(headers: string[]): ColumnMapping {
@@ -126,22 +210,82 @@ function downloadTemplate() {
   XLSX.writeFile(wb, '프로젝트_일괄등록_템플릿.xlsx')
 }
 
+/** 문자열 정규화: 공백, 가운뎃점(·), 쉼표 등 구분자 제거 후 비교용 문자열 반환 */
+function normalize(s: string): string {
+  return s.replace(/[\s·・,，.。\-_\/\\()（）]/g, '').trim()
+}
+
+/** 본부 퍼지 매칭: 정확 → 정규화 → 포함 순서 */
+function matchHq(input: string): string | null {
+  if (!input) return null
+  const trimmed = input.trim()
+  // 1) 정확 일치
+  if ((HEADQUARTERS_OPTIONS as readonly string[]).includes(trimmed)) return trimmed
+  // 2) 정규화 일치
+  const normInput = normalize(trimmed)
+  const found = HEADQUARTERS_OPTIONS.find(h => normalize(h) === normInput)
+  if (found) return found
+  // 3) 포함 매칭 (입력이 옵션에 포함되거나, 옵션이 입력에 포함)
+  const partial = HEADQUARTERS_OPTIONS.find(h =>
+    normalize(h).includes(normInput) || normInput.includes(normalize(h))
+  )
+  return partial || null
+}
+
+/** 지사 퍼지 매칭: 정확 → 정규화 → 접미어 '지사'/'본부' 추가 → 포함 순서 */
+function matchBranch(input: string, hq: string): string | null {
+  if (!input || !hq) return null
+  const branches = BRANCH_OPTIONS[hq]
+  if (!branches) return null
+  const trimmed = input.trim()
+  // 1) 정확 일치
+  if (branches.includes(trimmed)) return trimmed
+  // 2) 정규화 일치
+  const normInput = normalize(trimmed)
+  const found = branches.find(b => normalize(b) === normInput)
+  if (found) return found
+  // 3) 접미어 추가 시도 ('지사', '본부')
+  for (const suffix of ['지사', '본부']) {
+    const withSuffix = normInput.endsWith(suffix) ? normInput : normInput + suffix
+    const match = branches.find(b => normalize(b) === withSuffix)
+    if (match) return match
+  }
+  // 4) 포함 매칭 (가장 많이 겹치는 것 우선)
+  const partial = branches.find(b =>
+    normalize(b).includes(normInput) || normInput.includes(normalize(b))
+  )
+  return partial || null
+}
+
 function revalidateRow(row: RowData): string[] {
   const errors: string[] = []
   if (!row.project_name) errors.push('프로젝트명 누락')
   if (!row.managing_hq) errors.push('본부 누락')
   if (!row.managing_branch) errors.push('지사 누락')
   if (!row.site_address) errors.push('현장주소 누락')
-  if (row.managing_hq && !(HEADQUARTERS_OPTIONS as readonly string[]).includes(row.managing_hq)) {
-    errors.push('본부 불일치')
+
+  // 본부 퍼지 매칭
+  if (row.managing_hq) {
+    const matched = matchHq(row.managing_hq)
+    if (matched) {
+      row.managing_hq = matched
+    } else {
+      errors.push('본부 불일치')
+    }
   }
+
+  // 지사 퍼지 매칭
   if (row.managing_hq && row.managing_branch) {
     const branches = BRANCH_OPTIONS[row.managing_hq]
-    if (branches && !branches.includes(row.managing_branch)) {
-      errors.push('지사 불일치')
-    }
     if (!branches) {
       errors.push('지사 확인 불가')
+    } else {
+      const matched = matchBranch(row.managing_branch, row.managing_hq)
+      if (matched) {
+        row.managing_branch = matched
+      } else {
+        errors.push('지사 불일치')
+      }
     }
   }
   return errors
@@ -153,6 +297,7 @@ export default function BulkProjectUploadModal({ isOpen, onClose, onComplete }: 
   const [step, setStep] = useState<Step>('upload')
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const geocodeCacheRef = useRef<Record<string, { lat: number; lng: number } | null>>({})
 
   // Excel data
   const [fileName, setFileName] = useState('')
@@ -208,6 +353,7 @@ export default function BulkProjectUploadModal({ isOpen, onClose, onComplete }: 
       setProgressTotal(0)
       setProgressLog([])
       setResults({ success: 0, failed: 0 })
+      geocodeCacheRef.current = {}
     }
   }, [isOpen])
 
@@ -321,10 +467,12 @@ export default function BulkProjectUploadModal({ isOpen, onClose, onComplete }: 
     setRows(prev => prev.map((r, i) => {
       if (i !== idx) return r
       const updated = { ...r, [field]: value }
-      // When hq changes, reset branch if it doesn't belong
+      // When hq changes, reset branch if it doesn't match
       if (field === 'managing_hq') {
-        const branches = BRANCH_OPTIONS[value]
-        if (branches && !branches.includes(updated.managing_branch)) {
+        const matchedHq = matchHq(value) || value
+        updated.managing_hq = matchedHq
+        const branches = BRANCH_OPTIONS[matchedHq]
+        if (branches && !matchBranch(updated.managing_branch, matchedHq)) {
           updated.managing_branch = branches[0] || ''
         }
       }
@@ -347,16 +495,23 @@ export default function BulkProjectUploadModal({ isOpen, onClose, onComplete }: 
     setRows(prev => prev.map(r => r.errors.length === 0 ? { ...r, selected: !allSelected } : r))
   }
 
-  // ─── Geocoding ─────────────────────────────────────────────────────
+  // ─── Geocoding (카카오맵 Geocoder) ─────────────────────────────────
+
+  const geocodeSingleRow = async (address: string): Promise<{ lat: number; lng: number } | null> => {
+    const key = preprocessAddress(address)
+    if (geocodeCacheRef.current[key] !== undefined) return geocodeCacheRef.current[key]
+    const result = await kakaoGeocode(address)
+    geocodeCacheRef.current[key] = result
+    return result
+  }
 
   const geocodeRow = async (idx: number): Promise<void> => {
     setRows(prev => prev.map((r, i) => i === idx ? { ...r, geocodeStatus: 'searching', latitude: undefined, longitude: undefined } : r))
     try {
       const row = rows[idx]
-      const res = await fetch(`/api/geocoding?address=${encodeURIComponent(row.site_address)}`)
-      const data = await res.json()
-      if (data.success && data.coords) {
-        setRows(prev => prev.map((r, i) => i === idx ? { ...r, geocodeStatus: 'success', latitude: data.coords.lat, longitude: data.coords.lng } : r))
+      const result = await geocodeSingleRow(row.site_address)
+      if (result) {
+        setRows(prev => prev.map((r, i) => i === idx ? { ...r, geocodeStatus: 'success', latitude: result.lat, longitude: result.lng } : r))
       } else {
         setRows(prev => prev.map((r, i) => i === idx ? { ...r, geocodeStatus: 'failed' } : r))
       }
@@ -381,34 +536,28 @@ export default function BulkProjectUploadModal({ isOpen, onClose, onComplete }: 
       selectedIndices.includes(i) ? { ...r, geocodeStatus: 'searching', latitude: undefined, longitude: undefined } : r
     ))
 
-    // Process 2 at a time
-    for (let i = 0; i < selectedIndices.length; i += 2) {
-      const batch = selectedIndices.slice(i, i + 2)
-      const currentRows = rows // capture for address lookup
+    // 순차 처리 (카카오 API rate limit 준수, 한 건씩)
+    for (let i = 0; i < selectedIndices.length; i++) {
+      const rowIdx = selectedIndices[i]
+      const address = rows[rowIdx]?.site_address
 
-      const geoResults = await Promise.allSettled(
-        batch.map(rowIdx => {
-          const address = currentRows[rowIdx]?.site_address || rows[rowIdx]?.site_address
-          return fetch(`/api/geocoding?address=${encodeURIComponent(address)}`)
-            .then(res => res.json())
-            .catch(() => ({ success: false }))
-        })
-      )
+      const result = await geocodeSingleRow(address)
 
       setRows(prev => {
         const next = [...prev]
-        geoResults.forEach((res, batchIdx) => {
-          const rowIdx = batch[batchIdx]
-          if (rowIdx === undefined) return
-          if (res.status === 'fulfilled' && res.value?.success && res.value.coords) {
-            next[rowIdx] = { ...next[rowIdx], geocodeStatus: 'success', latitude: res.value.coords.lat, longitude: res.value.coords.lng }
-          } else {
-            next[rowIdx] = { ...next[rowIdx], geocodeStatus: 'failed' }
-          }
-        })
+        if (result) {
+          next[rowIdx] = { ...next[rowIdx], geocodeStatus: 'success', latitude: result.lat, longitude: result.lng }
+        } else {
+          next[rowIdx] = { ...next[rowIdx], geocodeStatus: 'failed' }
+        }
         return next
       })
-      setGeocodeProgress(Math.min(i + 2, selectedIndices.length))
+      setGeocodeProgress(i + 1)
+
+      // API 안정성 딜레이
+      if (i < selectedIndices.length - 1) {
+        await new Promise(r => setTimeout(r, 300))
+      }
     }
     setIsGeocoding(false)
   }
@@ -425,31 +574,31 @@ export default function BulkProjectUploadModal({ isOpen, onClose, onComplete }: 
       failedIndices.includes(i) ? { ...r, geocodeStatus: 'searching' } : r
     ))
 
-    for (let i = 0; i < failedIndices.length; i += 2) {
-      const batch = failedIndices.slice(i, i + 2)
+    // 실패 건은 캐시 제거 후 재시도
+    for (const idx of failedIndices) {
+      const key = preprocessAddress(rows[idx]?.site_address || '')
+      delete geocodeCacheRef.current[key]
+    }
 
-      const geoResults = await Promise.allSettled(
-        batch.map(rowIdx => {
-          const address = rows[rowIdx]?.site_address
-          return fetch(`/api/geocoding?address=${encodeURIComponent(address)}`)
-            .then(res => res.json())
-            .catch(() => ({ success: false }))
-        })
-      )
+    for (let i = 0; i < failedIndices.length; i++) {
+      const rowIdx = failedIndices[i]
+      const address = rows[rowIdx]?.site_address
+
+      const result = await geocodeSingleRow(address)
 
       setRows(prev => {
         const next = [...prev]
-        geoResults.forEach((res, batchIdx) => {
-          const rowIdx = batch[batchIdx]
-          if (rowIdx === undefined) return
-          if (res.status === 'fulfilled' && res.value?.success && res.value.coords) {
-            next[rowIdx] = { ...next[rowIdx], geocodeStatus: 'success', latitude: res.value.coords.lat, longitude: res.value.coords.lng }
-          } else {
-            next[rowIdx] = { ...next[rowIdx], geocodeStatus: 'failed' }
-          }
-        })
+        if (result) {
+          next[rowIdx] = { ...next[rowIdx], geocodeStatus: 'success', latitude: result.lat, longitude: result.lng }
+        } else {
+          next[rowIdx] = { ...next[rowIdx], geocodeStatus: 'failed' }
+        }
         return next
       })
+
+      if (i < failedIndices.length - 1) {
+        await new Promise(r => setTimeout(r, 300))
+      }
     }
     setIsGeocoding(false)
   }
@@ -840,11 +989,75 @@ export default function BulkProjectUploadModal({ isOpen, onClose, onComplete }: 
 
           {/* ═══ Step: Done ════════════════════════════════ */}
           {step === 'done' && (
-            <div className="text-center space-y-4 py-4">
-              <div className="space-y-2">
+            <div className="space-y-4 py-4">
+              <div className="text-center space-y-2">
                 <p className="text-lg"><span className="text-green-600 font-semibold">성공: {results.success}건</span></p>
-                {results.failed > 0 && <p className="text-red-600">등록 실패: {results.failed}건</p>}
+                {results.failed > 0 && <p className="text-red-600 font-semibold">실패: {results.failed}건</p>}
               </div>
+
+              {/* 실패 상세 목록 */}
+              {progressLog.some(l => !l.success) && (
+                <div className="border border-red-200 rounded-lg bg-red-50 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm font-medium text-red-800">실패 내역</p>
+                    <button
+                      onClick={() => {
+                        const failedLogs = progressLog.filter(l => !l.success)
+                        const excelRows = failedLogs.map(log => {
+                          const row = rows.find(r => r.rowIndex === log.rowIndex)
+                          return {
+                            '원본행': log.rowIndex,
+                            '프로젝트명': log.project_name,
+                            '본부': row?.managing_hq || '',
+                            '지사': row?.managing_branch || '',
+                            '현장주소': row?.site_address || '',
+                            '상세주소': row?.site_address_detail || '',
+                            '사업분류': row?.project_category || '',
+                            '총사업비': row?.total_budget || '',
+                            '감독명': row?.supervisor_name || '',
+                            '감독연락처': row?.supervisor_phone || '',
+                            '실패사유': log.error || '알 수 없음',
+                          }
+                        })
+                        const ws = XLSX.utils.json_to_sheet(excelRows)
+                        const wb = XLSX.utils.book_new()
+                        XLSX.utils.book_append_sheet(wb, ws, '실패목록')
+                        XLSX.writeFile(wb, `프로젝트_등록실패_${new Date().toISOString().slice(0, 10)}.xlsx`)
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 bg-white border border-red-300 rounded hover:bg-red-100 transition-colors"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      실패목록 다운로드
+                    </button>
+                  </div>
+                  <div className="max-h-48 overflow-auto space-y-1">
+                    {progressLog.filter(l => !l.success).map((log, i) => (
+                      <div key={i} className="flex items-start gap-2 text-sm">
+                        <X className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-medium text-gray-800">[{log.rowIndex}행] {log.project_name}</span>
+                          {log.error && <span className="text-red-600 ml-1">— {log.error}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 성공 목록 (접을 수 있게) */}
+              {progressLog.some(l => l.success) && (
+                <details className="border border-green-200 rounded-lg bg-green-50 p-3">
+                  <summary className="text-sm font-medium text-green-800 cursor-pointer">성공 내역 ({results.success}건)</summary>
+                  <div className="max-h-48 overflow-auto space-y-1 mt-2">
+                    {progressLog.filter(l => l.success).map((log, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <Check className="h-4 w-4 text-green-600 flex-shrink-0" />
+                        <span className="text-gray-700">[{log.rowIndex}행] {log.project_name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </div>
           )}
         </div>
