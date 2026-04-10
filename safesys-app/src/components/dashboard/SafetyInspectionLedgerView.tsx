@@ -12,6 +12,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
 import DownloadProgressModal from '@/components/ui/DownloadProgressModal'
 import { generateBulkSafetyInspectionPdf } from '@/lib/reports/safety-inspection-bulk-pdf'
+import { generateSpecialInspectionDocx } from '@/lib/reports/special-inspection-report-docx'
+import { supabase } from '@/lib/supabase'
 
 interface SafetyInspectionLedgerViewProps {
   loading: boolean
@@ -113,7 +115,7 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
     { value: '해빙기', label: '해빙기' },
     { value: '우기', label: '우기' },
     { value: '종합', label: '종합' },
-    { value: '특별', label: '특별' },
+    { value: '특별점검(안전혁신건설-287)', label: '특별점검(안전혁신건설-287)' },
   ]
 
   const HwpIcon = ({ className }: { className?: string }) => (
@@ -140,16 +142,19 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
         className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[120px] z-50 animate-in fade-in slide-in-from-top-1 duration-200"
       >
         <div className="px-3 py-1.5 text-[10px] font-bold text-teal-600 border-b border-gray-50 mb-1 uppercase tracking-wider">점검유형 선택</div>
-        {INSPECTION_TYPE_OPTIONS.map(opt => (
-          <button
-            key={opt.value}
-            onClick={(e) => { e.stopPropagation(); onSelect(opt.value) }}
-            className="w-full text-left px-3 py-2 text-xs hover:bg-teal-50 hover:text-teal-700 transition-colors text-gray-700 flex items-center justify-between group"
-          >
-            <span>{opt.label}</span>
-            <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-          </button>
-        ))}
+        {INSPECTION_TYPE_OPTIONS.map(opt => {
+          const isSpecialWord = type === 'bulkPdf' && opt.value === '특별점검(안전혁신건설-287)'
+          return (
+            <button
+              key={opt.value}
+              onClick={(e) => { e.stopPropagation(); onSelect(opt.value) }}
+              className="w-full text-left px-3 py-2 text-xs hover:bg-teal-50 hover:text-teal-700 transition-colors text-gray-700 flex items-center justify-between group"
+            >
+              <span>{opt.label}{isSpecialWord ? ' (Word)' : ''}</span>
+              <ChevronRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
+          )
+        })}
       </div>
     )
   }
@@ -225,6 +230,13 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
 
   const handleBulkPdfDownload = async (level: 'hq' | 'branch' | 'project', inspectionType?: string) => {
     if (!userProfile || bulkPdfLoading) return
+
+    // 특별점검 → Word 벌크 다운로드
+    if (inspectionType === '특별점검(안전혁신건설-287)') {
+      await handleBulkWordDownload(level)
+      return
+    }
+
     setBulkPdfLoading(true)
     try {
       // level에 따라 프로젝트 ID 목록 수집
@@ -263,6 +275,54 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
     } catch (err: any) {
       console.error('벌크 PDF 다운로드 실패:', err)
       alert(err.message || 'PDF 다운로드 중 오류가 발생했습니다.')
+    } finally {
+      setBulkPdfLoading(false)
+      setDownloadProgress(null)
+    }
+  }
+
+  const handleBulkWordDownload = async (level: 'hq' | 'branch' | 'project') => {
+    setBulkPdfLoading(true)
+    try {
+      const activeList = projects.filter(p => !isCompleted(p))
+      let targetProjects: typeof activeList = []
+
+      if (level === 'project' && selectedBranchForDetail) {
+        targetProjects = activeList.filter(p => p.managing_branch === selectedBranchForDetail)
+      } else if (level === 'branch' && selectedHqForDetail) {
+        targetProjects = activeList.filter(p => p.managing_hq === selectedHqForDetail)
+      } else {
+        targetProjects = activeList
+      }
+
+      const pIds = targetProjects.map(p => p.id)
+      if (pIds.length === 0) { alert('다운로드할 프로젝트가 없습니다.'); return }
+
+      // 특별점검 데이터 조회
+      const { data: inspections } = await supabase
+        .from('safety_inspections')
+        .select('*')
+        .in('project_id', pIds)
+        .eq('inspection_type', '특별점검(안전혁신건설-287)')
+        .order('inspection_date', { ascending: true })
+
+      if (!inspections || inspections.length === 0) {
+        alert('다운로드할 특별점검 데이터가 없습니다.')
+        return
+      }
+
+      setDownloadProgress({ current: 0, total: inspections.length, stage: '데이터 조회', title: '특별점검 Word 다운로드' })
+
+      // 건별로 Word 다운로드
+      for (let i = 0; i < inspections.length; i++) {
+        setDownloadProgress({ current: i + 1, total: inspections.length, stage: `${inspections[i].district_name || ''} 생성 중`, title: '특별점검 Word 다운로드' })
+        await generateSpecialInspectionDocx(inspections[i] as any)
+        // 다운로드 간 간격
+        await new Promise(r => setTimeout(r, 500))
+      }
+    } catch (err: any) {
+      console.error('벌크 Word 다운로드 실패:', err)
+      alert(err.message || 'Word 다운로드 중 오류가 발생했습니다.')
     } finally {
       setBulkPdfLoading(false)
       setDownloadProgress(null)
@@ -393,16 +453,18 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
         return
       }
 
+      const isSpecial = inspectionType === '특별점검(안전혁신건설-287)'
+      const prefix = isSpecial ? '특별점검현황' : '정기안전점검현황'
       let filename: string
       if (level === 'project' && selectedBranchForDetail) {
-        filename = `정기안전점검현황_${selectedBranchForDetail}.xlsx`
+        filename = `${prefix}_${selectedBranchForDetail}.xlsx`
       } else if (level === 'branch' && selectedHqForDetail) {
-        filename = `정기안전점검현황_${selectedHqForDetail}.xlsx`
+        filename = `${prefix}_${selectedHqForDetail}.xlsx`
       } else {
-        filename = `정기안전점검현황_전체.xlsx`
+        filename = `${prefix}_전체.xlsx`
       }
 
-      downloadSafetyInspectionLedgerExcel(result.data, filename)
+      downloadSafetyInspectionLedgerExcel(result.data, filename, inspectionType)
     } catch (err) {
       console.error('엑셀 다운로드 실패:', err)
       alert('엑셀 다운로드 중 오류가 발생했습니다.')
@@ -484,8 +546,8 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
         <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-red-700 bg-red-50/50" title="미조치">
           <div className="flex justify-center"><div className="relative"><ImageIcon className="h-3 sm:h-3.5 w-3 sm:w-3.5" /><X className="h-2.5 sm:h-3 w-2.5 sm:w-3 absolute -bottom-1 -right-1 text-red-500 scale-110 stroke-[3]" /></div></div>
         </th>
-        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-amber-700 bg-amber-50/50">
-          <div className="flex justify-center" title="미서명"><div className="relative"><PenTool className="h-3 sm:h-3.5 w-3 sm:w-3.5" /><X className="h-2.5 sm:h-3 w-2.5 sm:w-3 absolute -bottom-1 -right-1 text-red-500 scale-110 stroke-[3]" /></div></div>
+        <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-amber-700 bg-amber-50/50" title="미서명">
+          <div className="flex justify-center"><div className="relative"><PenTool className="h-3 sm:h-3.5 w-3 sm:w-3.5" /><X className="h-2.5 sm:h-3 w-2.5 sm:w-3 absolute -bottom-1 -right-1 text-red-500 scale-110 stroke-[3]" /></div></div>
         </th>
       </tr>
     </thead>
@@ -509,7 +571,7 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
       <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-amber-600 bg-amber-50/30 border-r-2 border-teal-200">{subtotal.comprehensiveUnsigned > 0 ? subtotal.comprehensiveUnsigned : '-'}</td>
       <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-blue-700 bg-blue-50/30">{subtotal.specialCount > 0 ? subtotal.specialCount : '-'}</td>
       <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-red-600 bg-red-50/30">{subtotal.specialUnresolved > 0 ? subtotal.specialUnresolved : '-'}</td>
-      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-amber-600 bg-amber-50/30">{subtotal.specialUnsigned > 0 ? subtotal.specialUnsigned : '-'}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-2 text-[10px] sm:text-sm text-center text-gray-300">-</td>
     </tr>
   )
 
@@ -536,7 +598,7 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
       <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center border-r-2 border-gray-300">{stats.comprehensiveUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.comprehensiveUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
       <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center">{stats.specialCount > 0 ? <span className="text-gray-900 font-medium">{stats.specialCount}</span> : <span className="text-gray-300">-</span>}</td>
       <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center">{stats.specialUnresolved > 0 ? <span className="text-red-500 font-bold">{stats.specialUnresolved}</span> : <span className="text-gray-300">-</span>}</td>
-      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center">{stats.specialUnsigned > 0 ? <span className="text-amber-500 font-bold">{stats.specialUnsigned}</span> : <span className="text-gray-300">-</span>}</td>
+      <td className="px-1 sm:px-2 py-1.5 sm:py-3 text-[10px] sm:text-sm text-center"><span className="text-gray-300">-</span></td>
     </>
   )
 

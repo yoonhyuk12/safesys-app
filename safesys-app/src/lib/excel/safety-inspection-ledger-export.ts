@@ -65,6 +65,30 @@ const COLUMNS = [
   { header: '비고', key: 'note', width: 15 },
 ]
 
+// ── 특별점검(안전혁신건설-287) 전용 컬럼 ──
+// 대분류 4개 × (지적1 + 조치1) = 8개 컬럼
+const SPECIAL_COLUMNS = [
+  { header: '본부', key: 'hq', width: 15 },
+  { header: '지사', key: 'branch', width: 15 },
+  { header: '사업분류', key: 'category', width: 15 },
+  { header: '프로젝트명', key: 'projectName', width: 30 },
+  { header: '지구명', key: 'districtName', width: 20 },
+  { header: '점검일', key: 'inspectionDate', width: 14 },
+  { header: '점검반', key: 'inspectionTeam', width: 20 },
+  { header: '지적사항', key: 'sp_gaF', width: 30 },  // 가. 사전조사 및 작업 전 점검
+  { header: '조치사항', key: 'sp_gaA', width: 30 },
+  { header: '지적사항', key: 'sp_naF', width: 30 },  // 나. 가설통로의 구조
+  { header: '조치사항', key: 'sp_naA', width: 30 },
+  { header: '지적사항', key: 'sp_daF', width: 30 },  // 다. 사다리식 통로의 구조
+  { header: '조치사항', key: 'sp_daA', width: 30 },
+  { header: '지적사항', key: 'sp_raF', width: 30 },  // 라. 기타점검사항
+  { header: '조치사항', key: 'sp_raA', width: 30 },
+  { header: '조치결과(소계)', key: 'resultTotal', width: 14 },
+  { header: '조치완료', key: 'actionDone', width: 10 },
+  { header: '조치중', key: 'actionInProgress', width: 10 },
+  { header: '비고', key: 'note', width: 15 },
+]
+
 function formatDate(dateStr: string): string {
   if (!dateStr) return ''
   const d = new Date(dateStr)
@@ -77,6 +101,60 @@ function getAdditionalFinding(it: { item: string; action: string } | undefined):
 }
 function getAdditionalAction(it: { item: string; action: string } | undefined): string {
   return (it && it.action && it.action !== '해당없음') ? it.action : ''
+}
+
+/** 카테고리별 지적/조치를 줄바꿈으로 합침 (조치가 '해당없음'이 아닌 항목만) */
+function joinCategoryFindings(items: { item: string; action: string }[]): { finding: string; action: string } {
+  const active = items.filter(i => i.action && i.action !== '해당없음')
+  return {
+    finding: active.map(i => i.item).filter(Boolean).join('\n'),
+    action: active.map(i => i.action).filter(Boolean).join('\n'),
+  }
+}
+
+/** 특별점검 행 데이터를 컬럼 순서 배열로 반환 */
+function buildSpecialRowArray(item: SafetyInspectionDetailForExcel): (string | number)[] {
+  const addItems = item.additional_items || []
+
+  const ga = joinCategoryFindings(addItems.filter(i => i.category === '가. 사전조사 및 작업 전 점검'))
+  const na = joinCategoryFindings(addItems.filter(i => i.category === '나. 가설통로의 구조'))
+  const da = joinCategoryFindings(addItems.filter(i => i.category === '다. 사다리식 통로의 구조'))
+  const ra = joinCategoryFindings(addItems.filter(i => i.category === '라. 기타점검사항'))
+
+  const allFindings = addItems.filter(i => i.action && i.action !== '해당없음')
+  const doneCount = allFindings.filter(i => (i as any).after_photo_url && (i as any).after_photo_url.trim() !== '' && (i as any).after_photo_url !== 'N/A').length
+
+  let teamStr = ''
+  const ins = item as any
+  const fmtPos = (p: string) => p && /^\d+$/.test(p) ? `${p}급` : p
+  if (ins.signatures?.length) {
+    teamStr = ins.signatures
+      .filter((s: any) => s.role === '점검자')
+      .map((s: any) => `${fmtPos(s.position || '')} ${s.name}`.trim())
+      .filter(Boolean).join(', ')
+  }
+  if (!teamStr) teamStr = ins.inspection_team || ''
+
+  // SPECIAL_COLUMNS 순서: 본부,지사,사업분류,프로젝트명,지구명,점검일,점검반, 가지적,가조치, 나지적,나조치, 다지적,다조치, 라지적,라조치, 소계,완료,조치중,비고
+  const dn = item.district_name || ''
+  const distShort = dn.indexOf(' ') > 0 ? dn.substring(0, dn.indexOf(' ')) : dn.substring(0, 5)
+  return [
+    item.managing_hq,
+    item.managing_branch,
+    item.project_category,
+    item.project_name,
+    distShort,
+    formatDate(item.inspection_date),
+    teamStr,
+    ga.finding, ga.action,
+    na.finding, na.action,
+    da.finding, da.action,
+    ra.finding, ra.action,
+    allFindings.length > 0 ? `${allFindings.length}건` : '',
+    doneCount > 0 ? `${doneCount}건` : '',
+    (allFindings.length - doneCount) > 0 ? `${allFindings.length - doneCount}건` : '',
+    '',
+  ]
 }
 
 function buildRow(item: SafetyInspectionDetailForExcel) {
@@ -151,34 +229,36 @@ function buildRow(item: SafetyInspectionDetailForExcel) {
   }
 }
 
-function applyHeaderStyle(row: ExcelJS.Row) {
-  row.eachCell((cell) => {
+function applyHeaderStyle(row: ExcelJS.Row, colCount?: number) {
+  const cnt = colCount || row.cellCount
+  for (let c = 1; c <= cnt; c++) {
+    const cell = row.getCell(c)
     cell.fill = headerFill
     cell.border = allBorders
     cell.font = { bold: true, size: 10, name: '맑은 고딕' }
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
-  })
+  }
   row.height = 30
 }
 
-function applyDataStyle(row: ExcelJS.Row) {
-  row.eachCell((cell, colNumber) => {
+function applyDataStyle(row: ExcelJS.Row, colCount: number) {
+  for (let c = 1; c <= colCount; c++) {
+    const cell = row.getCell(c)
     cell.border = allBorders
     cell.font = { size: 10, name: '맑은 고딕' }
     cell.alignment = { vertical: 'middle', wrapText: true }
-    // 숫자/날짜 관련 컬럼은 가운데 정렬
-    if (colNumber === 6) cell.alignment = { horizontal: 'center', vertical: 'middle' }
-    if (colNumber >= 39 && colNumber <= 42) cell.alignment = { horizontal: 'center', vertical: 'middle' }
-  })
+    if (c === 6) cell.alignment = { horizontal: 'center', vertical: 'middle' }
+  }
 }
 
-function applySubtotalStyle(row: ExcelJS.Row) {
-  row.eachCell((cell) => {
+function applySubtotalStyle(row: ExcelJS.Row, colCount: number) {
+  for (let c = 1; c <= colCount; c++) {
+    const cell = row.getCell(c)
     cell.fill = subtotalFill
     cell.border = allBorders
     cell.font = { bold: true, size: 10, name: '맑은 고딕' }
     cell.alignment = { horizontal: 'center', vertical: 'middle' }
-  })
+  }
   row.height = 22
 }
 
@@ -188,8 +268,11 @@ function applySubtotalStyle(row: ExcelJS.Row) {
  */
 export function downloadSafetyInspectionLedgerExcel(
   data: SafetyInspectionDetailForExcel[],
-  filename?: string
+  filename?: string,
+  inspectionType?: string
 ) {
+  const isSpecial = inspectionType === '특별점검(안전혁신건설-287)'
+  const cols = isSpecial ? SPECIAL_COLUMNS : COLUMNS
   const workbook = new ExcelJS.Workbook()
 
   // 본부별 그룹핑
@@ -214,12 +297,41 @@ export function downloadSafetyInspectionLedgerExcel(
 
     const sheetName = hq.length > 31 ? hq.slice(0, 31) : hq
     const worksheet = workbook.addWorksheet(sheetName)
-    worksheet.columns = COLUMNS.map(c => ({ key: c.key, width: c.width }))
+    worksheet.columns = cols.map(c => ({ key: c.key, width: c.width }))
+
+    if (isSpecial) {
+      // ── 특별점검 헤더 (2행) ──
+      // 컬럼: 1~7 기본 | 8~9 가 | 10~11 나 | 12~13 다 | 14~15 라 | 16~19 소계
+      const catRow = worksheet.getRow(1)
+      ;[1, 2, 3, 4, 5, 6, 7].forEach(c => { catRow.getCell(c).value = cols[c - 1].header })
+      catRow.getCell(8).value = '가. 사전조사 및\n작업 전 점검'
+      catRow.getCell(10).value = '나. 가설통로의\n구조'
+      catRow.getCell(12).value = '다. 사다리식\n통로의 구조'
+      catRow.getCell(14).value = '라. 기타\n점검사항'
+      for (let c = 16; c <= 19; c++) { catRow.getCell(c).value = cols[c - 1].header }
+      applyHeaderStyle(catRow, cols.length)
+      catRow.height = 36
+
+      const headerRow = worksheet.getRow(2)
+      for (let c = 8; c <= 15; c++) { headerRow.getCell(c).value = cols[c - 1].header }
+      applyHeaderStyle(headerRow, cols.length)
+
+      // 좌측 세로 병합 (1~7열)
+      ;[1, 2, 3, 4, 5, 6, 7].forEach(c => worksheet.mergeCells(1, c, 2, c))
+      // 우측 세로 병합 (16~19열)
+      for (let c = 16; c <= 19; c++) worksheet.mergeCells(1, c, 2, c)
+      // 카테고리 가로 병합 (각 2컬럼)
+      worksheet.mergeCells(1, 8, 1, 9)    // 가
+      worksheet.mergeCells(1, 10, 1, 11)  // 나
+      worksheet.mergeCells(1, 12, 1, 13)  // 다
+      worksheet.mergeCells(1, 14, 1, 15)  // 라
+    } else {
+    // ── 기존 해빙기/우기/종합 헤더 ──
 
     // 1행: 카테고리 그룹 헤더
     const catRow = worksheet.getRow(1)
       // 좌측 비그룹 컬럼 (1-6) — 세로 병합 예정이므로 여기에 값 설정
-      ;[1, 2, 3, 4, 5, 6].forEach(c => { catRow.getCell(c).value = COLUMNS[c - 1].header })
+      ;[1, 2, 3, 4, 5, 6].forEach(c => { catRow.getCell(c).value = cols[c - 1].header })
     // 가~마 카테고리 그룹 헤더
     catRow.getCell(7).value = '가. 안전관리 5대 핵심항목 이행 여부'
     catRow.getCell(13).value = '나. 중점사항'
@@ -234,13 +346,13 @@ export function downloadSafetyInspectionLedgerExcel(
     catRow.getCell(33).value = '(품질, 환경, 기타)'
 
     // 우측 비그룹 컬럼 (39-43) — 세로 병합 예정
-    for (let c = 39; c <= 43; c++) { catRow.getCell(c).value = COLUMNS[c - 1].header }
+    for (let c = 39; c <= 43; c++) { catRow.getCell(c).value = cols[c - 1].header }
     applyHeaderStyle(catRow)
     catRow.height = 32
 
     // 2행: 가~아 그룹 및 안전/기타 내 개별 컬럼 헤더
     const headerRow = worksheet.getRow(2)
-    for (let c = 7; c <= 38; c++) { headerRow.getCell(c).value = COLUMNS[c - 1].header }
+    for (let c = 7; c <= 38; c++) { headerRow.getCell(c).value = cols[c - 1].header }
     applyHeaderStyle(headerRow)
 
       // 셀 병합
@@ -260,6 +372,7 @@ export function downloadSafetyInspectionLedgerExcel(
 
     worksheet.mergeCells(1, 27, 1, 32)  // 안전분야 (6컬럼)
     worksheet.mergeCells(1, 33, 1, 38)  // 품질/환경/기타 분야 (6컬럼)
+    } // end else (기존 헤더)
 
     // 지사별 정렬
     const branchOrder = BRANCH_OPTIONS[hq as keyof typeof BRANCH_OPTIONS] || []
@@ -296,52 +409,59 @@ export function downloadSafetyInspectionLedgerExcel(
 
     // 소계 행 먼저 (전체)
     // 데이터 먼저 모두 계산
-    const allRows: { row: ReturnType<typeof buildRow>; branch: string }[] = []
+    const allRows: { row: Record<string, any> | (string | number)[]; branch: string }[] = []
     for (const branch of sortedBranches) {
       const branchItems = branchGroups.get(branch) || []
       branchItems.forEach(item => {
-        allRows.push({ row: buildRow(item), branch })
+        allRows.push({ row: isSpecial ? buildSpecialRowArray(item) : buildRow(item), branch })
       })
     }
 
     // 전체 소계 계산
     allRows.forEach(({ row }) => {
-      const rc = parseInt(row.resultTotal) || 0
-      const dc = parseInt(row.actionDone) || 0
-      const ip = parseInt(row.actionInProgress) || 0
-      totalResultCount += rc
-      totalDoneCount += dc
-      totalInProgressCount += ip
+      // 배열인 경우 (특별점검): 소계 인덱스는 뒤에서 4,3,2번째
+      if (Array.isArray(row)) {
+        const rc = parseInt(String(row[row.length - 4])) || 0
+        const dc = parseInt(String(row[row.length - 3])) || 0
+        const ip = parseInt(String(row[row.length - 2])) || 0
+        totalResultCount += rc; totalDoneCount += dc; totalInProgressCount += ip
+      } else {
+        const rc = parseInt(row.resultTotal) || 0
+        const dc = parseInt(row.actionDone) || 0
+        const ip = parseInt(row.actionInProgress) || 0
+        totalResultCount += rc; totalDoneCount += dc; totalInProgressCount += ip
+      }
     })
 
     // 전체 소계 행
-    const subtotalRow = worksheet.addRow({
-      hq: '소계',
-      branch: `${allRows.length}건`,
-      category: '',
-      projectName: '',
-      districtName: '',
-      inspectionDate: '',
-      core1Finding: '', core1Action: '', core2Finding: '', core2Action: '', core3Finding: '', core3Action: '',
-      naFinding: '', naAction: '', daFinding: '', daAction: '', raFinding: '', raAction: '', maFinding: '', maAction: '',
-      baFinding: '', baAction: '', saFinding: '', saAction: '', ahFinding: '', ahAction: '',
-      safetyFinding1: '', safetyAction1: '', safetyFinding2: '', safetyAction2: '', safetyFinding3: '', safetyAction3: '',
-      otherFinding1: '', otherAction1: '', otherFinding2: '', otherAction2: '', otherFinding3: '', otherAction3: '',
-      resultTotal: totalResultCount > 0 ? `${totalResultCount}건` : '',
-      actionDone: totalDoneCount > 0 ? `${totalDoneCount}건` : '',
-      actionInProgress: totalInProgressCount > 0 ? `${totalInProgressCount}건` : '',
-      actionDueDate: '',
-      note: '',
-    })
-    applySubtotalStyle(subtotalRow)
+    let subtotalRow: ExcelJS.Row
+    if (isSpecial) {
+      // 배열: 19컬럼 (SPECIAL_COLUMNS)
+      const arr: (string | number)[] = new Array(cols.length).fill('')
+      arr[0] = '소계'; arr[1] = `${allRows.length}건`
+      arr[cols.length - 4] = totalResultCount > 0 ? `${totalResultCount}건` : ''
+      arr[cols.length - 3] = totalDoneCount > 0 ? `${totalDoneCount}건` : ''
+      arr[cols.length - 2] = totalInProgressCount > 0 ? `${totalInProgressCount}건` : ''
+      subtotalRow = worksheet.addRow(arr)
+    } else {
+      const subtotalData: Record<string, any> = {
+        hq: '소계', branch: `${allRows.length}건`,
+        resultTotal: totalResultCount > 0 ? `${totalResultCount}건` : '',
+        actionDone: totalDoneCount > 0 ? `${totalDoneCount}건` : '',
+        actionInProgress: totalInProgressCount > 0 ? `${totalInProgressCount}건` : '',
+        note: '',
+      }
+      subtotalRow = worksheet.addRow(subtotalData)
+    }
+    applySubtotalStyle(subtotalRow, cols.length)
 
     // 데이터 행 출력
     for (const branch of sortedBranches) {
       const branchItems = branchGroups.get(branch) || []
       branchItems.forEach(item => {
-        const rowData = buildRow(item)
+        const rowData = isSpecial ? buildSpecialRowArray(item) : buildRow(item)
         const dataRow = worksheet.addRow(rowData)
-        applyDataStyle(dataRow)
+        applyDataStyle(dataRow, cols.length)
       })
     }
   }

@@ -1498,7 +1498,7 @@ export interface SafetyInspectionCountByProject {
   comprehensive_unresolved: number // 종합 미조치
   comprehensive_unsigned: number   // 종합 미서명
 
-  special_count: number   // 특별 점검
+  special_count: number   // 특별점검(안전혁신건설-287)
   special_unresolved: number // 특별 미조치
   special_unsigned: number   // 특별 미서명
 }
@@ -1577,6 +1577,7 @@ export async function getSafetyInspectionCountsByUserBranch(
           project_id,
           inspection_type,
           signatures,
+          additional_items,
           safety_inspection_results (findings, action_items, photo_url, after_photo_url)
         `)
         .in('project_id', batchIds)
@@ -1654,10 +1655,19 @@ export async function getSafetyInspectionCountsByUserBranch(
           existing.comprehensive.total += 1
           if (isUnresolved) existing.comprehensive.unresolved += 1
           if (isUnsigned) existing.comprehensive.unsigned += 1
-        } else if (type === '특별') {
+        } else if (type === '특별점검(안전혁신건설-287)') {
           existing.special.total += 1
-          if (isUnresolved) existing.special.unresolved += 1
-          if (isUnsigned) existing.special.unsigned += 1
+          // 특별점검: additional_items에서 지적사항(action !== '해당없음')에 조치사진 미등록 여부 판단
+          let specialUnresolved = false
+          if (ins.additional_items && Array.isArray(ins.additional_items)) {
+            specialUnresolved = ins.additional_items.some((item: any) => {
+              if (!item.action || item.action === '해당없음') return false
+              const hasAfterPhoto = item.after_photo_url && item.after_photo_url.trim() !== '' && item.after_photo_url !== 'N/A'
+              return !hasAfterPhoto
+            })
+          }
+          if (specialUnresolved) existing.special.unresolved += 1
+          // 특별점검은 서명이 없으므로 미서명 카운트 제외
         }
 
         statsMap.set(ins.project_id, existing)
@@ -1772,7 +1782,7 @@ export async function getSafetyInspectionDetailsForExcel(
     // 2. 점검 목록 조회
     let inspQuery = supabase
       .from('safety_inspections')
-      .select('id, project_id, inspection_date, inspection_type, district_name, supervisor_name, additional_items')
+      .select('id, project_id, inspection_date, inspection_type, inspection_team, district_name, supervisor_name, additional_items, signatures')
       .in('project_id', projectIds)
     if (inspectionType) inspQuery = inspQuery.eq('inspection_type', inspectionType)
     const { data: inspections, error: inspError } = await inspQuery
@@ -1813,6 +1823,8 @@ export async function getSafetyInspectionDetailsForExcel(
         inspection_date: ins.inspection_date || '',
         inspection_type: ins.inspection_type || '',
         supervisor_name: ins.supervisor_name || null,
+        inspection_team: (ins as any).inspection_team || null,
+        signatures: (ins as any).signatures || null,
         additional_items: (ins as any).additional_items || null,
         results: (resultsMap.get(ins.id) || []).map(r => ({
           field_item: r.field_item || '안전',

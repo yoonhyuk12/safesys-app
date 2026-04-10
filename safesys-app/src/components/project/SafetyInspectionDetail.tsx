@@ -127,6 +127,99 @@ export default function SafetyInspectionDetail({ inspectionId, project, onClose,
                         </div>
                     </section>
 
+                    {inspection.inspection_type === '특별점검(안전혁신건설-287)' ? (
+                    <>
+                    {/* 특별점검: 2. 지적사항 */}
+                    <section>
+                        <h3 className="text-base font-bold text-gray-800 mb-3 border-b pb-2">2. 지적사항</h3>
+                        {(() => {
+                            const items = (inspection.additional_items as any[] || [])
+                            const findings = items.filter((item: any) => item.action && item.action !== '해당없음')
+                            if (findings.length === 0) {
+                                return <p className="text-sm text-gray-400">지적사항 없음</p>
+                            }
+                            // 카테고리별 그룹핑
+                            const grouped: Record<string, any[]> = {}
+                            findings.forEach((item: any) => {
+                                if (!grouped[item.category]) grouped[item.category] = []
+                                grouped[item.category].push(item)
+                            })
+                            return (
+                                <div className="space-y-4">
+                                    {Object.entries(grouped).map(([category, catItems]) => (
+                                        <div key={category}>
+                                            <h4 className="text-sm font-semibold text-gray-700 mb-2 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100">{category}</h4>
+                                            <div className="space-y-3 pl-1">
+                                                {catItems.map((item: any, i: number) => (
+                                                    <div key={i} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                                        <div className="flex flex-col md:flex-row gap-4">
+                                                            <div className="md:w-1/3 shrink-0 space-y-2">
+                                                                <div className="text-sm font-medium text-gray-800">
+                                                                    {item.custom && item.item ? item.item : item.item || '-'}
+                                                                </div>
+                                                                {item.photo_url ? (
+                                                                    <img src={item.photo_url} alt="지적사항" className="w-full h-36 object-cover rounded-lg border cursor-pointer hover:opacity-90" onClick={() => setEnlargedPhoto(item.photo_url)} />
+                                                                ) : (
+                                                                    <div className="w-full h-24 bg-gray-50 border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center text-gray-400 text-xs">사진 없음</div>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex flex-col md:flex-row md:w-2/3 gap-3">
+                                                                <div className="flex-1 bg-red-50/50 rounded-lg p-3 border border-red-100">
+                                                                    <h4 className="text-xs font-semibold text-red-600 mb-2 border-b border-red-200 pb-1">조치내용</h4>
+                                                                    <p className="text-sm text-gray-800">{item.action || '-'}</p>
+                                                                </div>
+                                                                {item.after_photo_url && item.after_photo_url !== 'N/A' && (
+                                                                    <div className="flex-1">
+                                                                        <h4 className="text-xs font-semibold text-blue-600 mb-2">조치 후 사진</h4>
+                                                                        <img src={item.after_photo_url} alt="조치 후" className="w-full h-36 object-cover rounded-lg border cursor-pointer hover:opacity-90" onClick={() => setEnlargedPhoto(item.after_photo_url)} />
+                                                                    </div>
+                                                                )}
+                                                                {item.after_photo_url === 'N/A' && (
+                                                                    <div className="flex-1 flex items-center justify-center bg-gray-50 rounded-lg border border-gray-200 p-3">
+                                                                        <span className="text-xs text-gray-400 font-medium">조치 후 사진: 해당 없음</span>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )
+                        })()}
+                    </section>
+
+                    {/* 특별점검: 3. 현장점검 사진 (지적사항 없는 경우) */}
+                    {photos.length > 0 && (
+                    <section>
+                        <h3 className="text-base font-bold text-gray-800 mb-3 border-b pb-2">3. 현장점검 조치사진</h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                            {photos.filter((p: any) => p.photo_type === 'site_before').map((p: any, i: number) => (
+                                <div key={i} className="space-y-1">
+                                    <img src={p.photo_url} alt={p.description || `현장점검 ${i + 1}`}
+                                        className="w-full h-40 object-cover rounded-lg border cursor-pointer hover:opacity-90"
+                                        onClick={() => setEnlargedPhoto(p.photo_url)} />
+                                    {p.description && <p className="text-xs text-gray-500">{p.description}</p>}
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+                    )}
+
+                    {/* 특별점검: 점검표 PDF 링크 */}
+                    <section>
+                        <h3 className="text-base font-bold text-gray-800 mb-3 border-b pb-2">점검표</h3>
+                        <a href="/특별점검(안혁건-287) 점검표.pdf" target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-lg text-orange-700 text-sm font-medium hover:bg-orange-100 transition-colors">
+                            <FileText className="h-4 w-4" />
+                            특별점검(안혁건-287) 점검표
+                        </a>
+                    </section>
+                    </>
+                    ) : (
+                    <>
                     {/* 2. 점검결과 */}
                     <section>
                         <h3 className="text-base font-bold text-gray-800 mb-3 border-b pb-2">2. 점검결과</h3>
@@ -246,6 +339,8 @@ export default function SafetyInspectionDetail({ inspectionId, project, onClose,
                             <p className="text-sm text-gray-400">등록된 서명이 없습니다.</p>
                         )}
                     </section>
+                    </>
+                    )}
                 </div>
             </div>
 

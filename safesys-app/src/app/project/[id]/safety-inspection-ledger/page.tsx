@@ -11,6 +11,7 @@ import SafetyInspectionForm from '../../../../components/project/SafetyInspectio
 import SafetyInspectionDetail from '../../../../components/project/SafetyInspectionDetail'
 import ImageEditor from '../../../../components/ui/ImageEditor'
 import { generateSafetyInspectionReportPdf } from '../../../../lib/reports/safety-inspection-report-pdf'
+import { generateSpecialInspectionDocx } from '../../../../lib/reports/special-inspection-report-docx'
 
 export interface SafetyInspection {
   id: string
@@ -33,6 +34,7 @@ export interface SafetyInspection {
   created_by: string
   created_at: string
   updated_at: string
+  additional_items?: any[] | null
   results?: SafetyInspectionResult[]
   site_before_photo?: string | null
 }
@@ -59,7 +61,7 @@ export interface SafetyInspectionPhoto {
   sort_order: number
 }
 
-const INSPECTION_TYPES = ['해빙기', '우기', '종합', '특별'] as const
+const INSPECTION_TYPES = ['해빙기', '우기', '종합', '특별점검(안전혁신건설-287)'] as const
 
 export default function SafetyInspectionLedgerPage() {
   const { user, loading: authLoading } = useAuth()
@@ -71,8 +73,11 @@ export default function SafetyInspectionLedgerPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [inspections, setInspections] = useState<SafetyInspection[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<string>('해빙기')
+  const [activeTab, setActiveTab] = useState<string>('전체')
   const [showForm, setShowForm] = useState(false)
+  const [formReadOnly, setFormReadOnly] = useState(false)
+  const [showTypeSelect, setShowTypeSelect] = useState(false)
+  const [initialInspectionType, setInitialInspectionType] = useState<string | null>(null)
   const [showDetail, setShowDetail] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -264,6 +269,61 @@ export default function SafetyInspectionLedgerPage() {
     setUploadingResultId(null)
   }
 
+  // 특별점검: additional_items 내 항목 업데이트 헬퍼
+  const updateSpecialItem = async (inspectionId: string, itemIndex: number, updates: Record<string, any>) => {
+    const ins = inspections.find(i => i.id === inspectionId)
+    if (!ins?.additional_items) return
+    const updatedItems = [...ins.additional_items]
+    updatedItems[itemIndex] = { ...updatedItems[itemIndex], ...updates }
+    await (supabase.from('safety_inspections') as any)
+      .update({ additional_items: updatedItems })
+      .eq('id', inspectionId)
+    await loadInspections()
+  }
+
+  const handleSpecialAfterPhotoUpload = async (inspectionId: string, itemIndex: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingResultId(`${inspectionId}-${itemIndex}`)
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+      const fileName = `${projectId}/${Date.now()}_special_after_${itemIndex}_${encodeURIComponent(safeName)}`
+      const { data, error } = await supabase.storage.from('safety-inspection-photos').upload(fileName, file)
+      if (!error && data) {
+        const { data: urlData } = supabase.storage.from('safety-inspection-photos').getPublicUrl(data.path)
+        await updateSpecialItem(inspectionId, itemIndex, { after_photo_url: urlData.publicUrl })
+      }
+    } catch (err) {
+      console.error(err)
+      alert('업로드 중 오류가 발생했습니다.')
+    }
+    setUploadingResultId(null)
+    e.target.value = ''
+  }
+
+  const toggleSpecialNotApplicable = async (inspectionId: string, itemIndex: number, currentValue: string | null | undefined) => {
+    setUploadingResultId(`${inspectionId}-${itemIndex}`)
+    try {
+      await updateSpecialItem(inspectionId, itemIndex, { after_photo_url: currentValue === 'N/A' ? null : 'N/A' })
+    } catch (err) {
+      console.error(err)
+    }
+    setUploadingResultId(null)
+  }
+
+  const removeSpecialAfterPhoto = async (inspectionId: string, itemIndex: number, photoUrl: string) => {
+    setUploadingResultId(`${inspectionId}-${itemIndex}`)
+    try {
+      const path = photoUrl.split('/safety-inspection-photos/')[1]
+      if (path) await supabase.storage.from('safety-inspection-photos').remove([path])
+      await updateSpecialItem(inspectionId, itemIndex, { after_photo_url: null })
+    } catch (err) {
+      console.error(err)
+      alert('삭제에 실패했습니다.')
+    }
+    setUploadingResultId(null)
+  }
+
   // 사진 메뉴 외부 클릭 시 닫기
   useEffect(() => {
     if (!photoMenuOpen) return
@@ -304,7 +364,7 @@ export default function SafetyInspectionLedgerPage() {
     setEditingImage(null)
   }
 
-  const filteredInspections = inspections.filter(i => i.inspection_type === activeTab)
+  const filteredInspections = activeTab === '전체' ? inspections : inspections.filter(i => i.inspection_type === activeTab)
 
   if (authLoading) {
     return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>
@@ -331,6 +391,18 @@ export default function SafetyInspectionLedgerPage() {
         {/* 탭 & 버튼 */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('전체')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === '전체'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'bg-white/10 text-white/70 hover:bg-white/20'
+                }`}
+            >
+              전체
+              <span className="ml-1.5 text-xs opacity-75">
+                ({inspections.length})
+              </span>
+            </button>
             {INSPECTION_TYPES.map(type => (
               <button
                 key={type}
@@ -340,7 +412,7 @@ export default function SafetyInspectionLedgerPage() {
                   : 'bg-white/10 text-white/70 hover:bg-white/20'
                   }`}
               >
-                {type}
+                {type === '특별점검(안전혁신건설-287)' ? '특별' : type}
                 <span className="ml-1.5 text-xs opacity-75">
                   ({inspections.filter(i => i.inspection_type === type).length})
                 </span>
@@ -348,7 +420,7 @@ export default function SafetyInspectionLedgerPage() {
             ))}
           </div>
           <button
-            onClick={() => { setEditingId(null); setShowForm(true) }}
+            onClick={() => { setEditingId(null); setShowTypeSelect(true) }}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm whitespace-nowrap shadow-sm hover:shadow"
           >
             <Plus className="h-4 w-4" />
@@ -367,7 +439,7 @@ export default function SafetyInspectionLedgerPage() {
             <p className="text-gray-600 text-lg font-medium mb-1">등록된 {activeTab} 점검이 없습니다.</p>
             <p className="text-gray-400 text-sm mb-6">버튼을 눌러 첫 점검을 등록해보세요.</p>
             <button
-              onClick={() => { setEditingId(null); setShowForm(true) }}
+              onClick={() => { setEditingId(null); setShowTypeSelect(true) }}
               className="flex items-center gap-2 px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm hover:shadow"
             >
               <Plus className="h-5 w-5" />
@@ -389,11 +461,203 @@ export default function SafetyInspectionLedgerPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {filteredInspections.map(ins => {
-                    const rowCount = Math.max(1, ins.results?.length || 1)
+                    const isSpecial = ins.inspection_type === '특별점검(안전혁신건설-287)'
+                    const specialFindings = isSpecial && ins.additional_items
+                      ? (ins.additional_items as any[]).map((item, idx) => ({ ...item, _origIndex: idx })).filter(item => item.action && item.action !== '해당없음')
+                      : []
+                    const rowCount = isSpecial
+                      ? Math.max(1, specialFindings.length)
+                      : Math.max(1, ins.results?.length || 1)
 
                     return (
                       <React.Fragment key={ins.id}>
-                        {ins.results && ins.results.length > 0 ? (
+                        {/* 특별점검: additional_items 기반 렌더링 */}
+                        {isSpecial ? (
+                          specialFindings.length > 0 ? (
+                            specialFindings.map((item, i) => (
+                              <tr key={`${ins.id}-special-${i}`} className="hover:bg-gray-50 bg-white group">
+                                {i === 0 && (
+                                  <>
+                                    <td rowSpan={rowCount} className="px-2 py-3 text-center align-middle border-r border-gray-100">
+                                      <span className="inline-flex flex-col items-center px-2 py-0.5 rounded text-[11px] font-medium bg-orange-100 text-orange-800">
+                                        <span>특별점검</span>
+                                        <span className="text-[10px] opacity-75">(안전혁신건설-287)</span>
+                                      </span>
+                                    </td>
+                                    <td rowSpan={rowCount} className="px-2 py-3 text-center align-middle border-r border-gray-100">
+                                      <div className="flex flex-col items-center gap-2">
+                                        <div className="w-24 h-16 bg-gray-50 border border-dashed border-gray-200 rounded flex items-center justify-center text-gray-400 text-[10px]">(지적사진 대체)</div>
+                                        <div className="text-gray-900 font-medium text-xs whitespace-nowrap">
+                                          {ins.inspection_date ? ins.inspection_date.substring(2) : ''}
+                                        </div>
+                                        <div className="text-xs text-gray-600 line-clamp-2 leading-snug" title={ins.inspection_team || ''}>
+                                          {ins.inspection_team || '-'}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </>
+                                )}
+                                <td className="px-3 py-3 text-xs border-l border-gray-100 align-top w-[30%]">
+                                  <div className="flex flex-col gap-2 items-center">
+                                    {item.photo_url ? (
+                                      <div className="w-full flex justify-center">
+                                        <div className="relative w-32 h-24">
+                                          <img src={item.photo_url} alt="지적사항" className="w-full h-full object-cover rounded border cursor-pointer" onClick={() => window.open(item.photo_url, '_blank')} />
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="w-full flex justify-center">
+                                        <div className="w-32 h-24 bg-gray-50 border border-dashed border-gray-200 rounded flex items-center justify-center text-gray-400 text-xs">사진 없음</div>
+                                      </div>
+                                    )}
+                                    <div className="w-full text-left bg-gray-50 p-2 rounded">
+                                      <strong className="text-red-600 break-keep mr-1">[{item.category}]</strong>
+                                      <span className="text-gray-700 break-words leading-relaxed">{item.custom && item.item ? item.item : item.item || '-'}</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 text-xs border-l border-gray-100 relative group/photo align-top w-[30%]">
+                                  <div className="flex flex-col gap-2 items-center">
+                                    {item.after_photo_url === 'N/A' ? (
+                                      <div className="w-full flex justify-center">
+                                        <div className="flex flex-col items-center gap-2">
+                                          <div className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 border border-gray-300 rounded text-xs text-gray-500">
+                                            <Ban className="h-3.5 w-3.5" />
+                                            <span className="font-medium">해당 없음</span>
+                                          </div>
+                                          <button
+                                            onClick={() => toggleSpecialNotApplicable(ins.id, item._origIndex, item.after_photo_url)}
+                                            disabled={uploadingResultId === `${ins.id}-${item._origIndex}`}
+                                            className="text-[10px] text-blue-500 hover:text-blue-700 hover:underline transition-colors disabled:opacity-50"
+                                          >취소</button>
+                                        </div>
+                                      </div>
+                                    ) : item.after_photo_url ? (
+                                      <div className="w-full flex justify-center">
+                                        <div className="relative w-32 h-24">
+                                          <img src={item.after_photo_url} alt="조치 후" className="w-full h-full object-cover rounded border cursor-pointer" onClick={() => window.open(item.after_photo_url, '_blank')} />
+                                          <div className="absolute -top-2 -right-2 z-10">
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setPhotoMenuOpen(photoMenuOpen === `special-after-${ins.id}-${i}` ? null : `special-after-${ins.id}-${i}`) }}
+                                              className="p-1.5 bg-black/50 hover:bg-black/70 text-white rounded-full opacity-0 group-hover/photo:opacity-100 transition-opacity scale-90 shadow-md"
+                                            >
+                                              <MoreVertical className="h-3.5 w-3.5" />
+                                            </button>
+                                            {photoMenuOpen === `special-after-${ins.id}-${i}` && (
+                                              <div className="absolute right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[110px] z-20">
+                                                <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); removeSpecialAfterPhoto(ins.id, item._origIndex, item.after_photo_url); setPhotoMenuOpen(null) }}
+                                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
+                                                  <Trash2 className="h-3.5 w-3.5" /> 삭제
+                                                </button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="w-full flex justify-center">
+                                        <div className="flex gap-1.5">
+                                          <label className="flex flex-col items-center justify-center border border-gray-300 rounded px-3 py-2 hover:bg-green-50 hover:border-green-400 cursor-pointer text-xs text-gray-600 transition-colors">
+                                            {uploadingResultId === `${ins.id}-${item._origIndex}` ? (
+                                              <LoadingSpinner />
+                                            ) : (
+                                              <>
+                                                <Plus className="h-4 w-4 mb-0.5 text-green-500" />
+                                                <span className="font-medium text-[10px]">추가</span>
+                                              </>
+                                            )}
+                                            <input type="file" accept="image/*" onChange={e => handleSpecialAfterPhotoUpload(ins.id, item._origIndex, e)} className="hidden" disabled={uploadingResultId === `${ins.id}-${item._origIndex}`} />
+                                          </label>
+                                          <button
+                                            onClick={() => toggleSpecialNotApplicable(ins.id, item._origIndex, item.after_photo_url)}
+                                            disabled={uploadingResultId === `${ins.id}-${item._origIndex}`}
+                                            className="flex flex-col items-center justify-center border border-gray-300 rounded px-3 py-2 hover:bg-gray-100 hover:border-gray-400 text-xs text-gray-600 transition-colors disabled:opacity-50"
+                                          >
+                                            <Ban className="h-4 w-4 mb-0.5 text-gray-400" />
+                                            <span className="font-medium text-[10px]">해당없음</span>
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
+                                    <div className="w-full text-left bg-blue-50 p-2 rounded">
+                                      <strong className="text-blue-600 break-keep mr-1">[조치]</strong>
+                                      <span className="text-gray-700 break-words leading-relaxed">{item.action || '-'}</span>
+                                    </div>
+                                  </div>
+                                </td>
+                                {i === 0 && (
+                                  <td rowSpan={rowCount} className="px-2 py-3 text-center align-middle border-l border-gray-100">
+                                    <div className="flex flex-row gap-1 items-center justify-center">
+                                      <button onClick={() => { setEditingId(ins.id); setFormReadOnly(true); setShowForm(true) }} title="상세보기" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-colors">
+                                        <Eye className="h-4 w-4" />
+                                      </button>
+                                      <button onClick={() => generateSpecialInspectionDocx(ins as any)} title="Word 보고서" className="p-1.5 text-blue-700 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-colors text-[11px] font-bold">
+                                        W
+                                      </button>
+                                      <button onClick={() => { setEditingId(ins.id); setFormReadOnly(false); setShowForm(true) }} title="수정" className="p-1.5 text-orange-600 hover:bg-orange-50 rounded border border-transparent hover:border-orange-100 transition-colors">
+                                        <Edit2 className="h-4 w-4" />
+                                      </button>
+                                      {deleteConfirmId === ins.id ? (
+                                        <div className="flex items-center gap-1">
+                                          <button onClick={() => handleDelete(ins.id)} className="px-1.5 py-1 text-[10px] bg-red-600 hover:bg-red-700 text-white rounded">확인</button>
+                                          <button onClick={() => setDeleteConfirmId(null)} className="px-1.5 py-1 text-[10px] bg-gray-200 hover:bg-gray-300 text-gray-700 rounded">취소</button>
+                                        </div>
+                                      ) : (
+                                        <button onClick={() => setDeleteConfirmId(ins.id)} title="삭제" className="p-1.5 text-red-500 hover:bg-red-50 rounded border border-transparent hover:border-red-100 transition-colors">
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                )}
+                              </tr>
+                            ))
+                          ) : (
+                            <tr className="hover:bg-gray-50 bg-white">
+                              <td className="px-2 py-3 text-center align-middle border-r border-gray-100">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-orange-100 text-orange-800 break-keep">
+                                  특별점검
+                                </span>
+                              </td>
+                              <td className="px-2 py-3 text-center align-middle border-r border-gray-100">
+                                <div className="flex flex-col items-center gap-2">
+                                  <div className="w-24 h-16 bg-gray-50 border border-dashed border-gray-200 rounded flex items-center justify-center text-gray-400 text-[10px]">안혁건-287</div>
+                                  <div className="text-gray-900 font-medium text-xs whitespace-nowrap">
+                                    {ins.inspection_date ? ins.inspection_date.substring(2) : ''}
+                                  </div>
+                                  <div className="text-xs text-gray-600 line-clamp-2 leading-snug" title={ins.inspection_team || ''}>
+                                    {ins.inspection_team || '-'}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="px-3 py-3 text-center align-middle text-xs text-gray-400 border-l border-gray-100">지적사항 없음</td>
+                              <td className="px-3 py-3 text-center align-middle text-gray-300 border-l border-gray-100">-</td>
+                              <td className="px-2 py-3 text-center align-middle border-l border-gray-100">
+                                <div className="flex flex-row gap-1 items-center justify-center">
+                                  <button onClick={() => { setEditingId(ins.id); setFormReadOnly(true); setShowForm(true) }} title="상세보기" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-colors">
+                                    <Eye className="h-4 w-4" />
+                                  </button>
+                                  <button onClick={() => generateSpecialInspectionDocx(ins as any)} title="Word 보고서" className="p-1.5 text-blue-700 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-colors text-[11px] font-bold">
+                                    W
+                                  </button>
+                                  <button onClick={() => { setEditingId(ins.id); setFormReadOnly(false); setShowForm(true) }} title="수정" className="p-1.5 text-orange-600 hover:bg-orange-50 rounded border border-transparent hover:border-orange-100 transition-colors">
+                                    <Edit2 className="h-4 w-4" />
+                                  </button>
+                                  {deleteConfirmId === ins.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <button onClick={() => handleDelete(ins.id)} className="px-1.5 py-1 text-[10px] bg-red-600 hover:bg-red-700 text-white rounded">확인</button>
+                                      <button onClick={() => setDeleteConfirmId(null)} className="px-1.5 py-1 text-[10px] bg-gray-200 hover:bg-gray-300 text-gray-700 rounded">취소</button>
+                                    </div>
+                                  ) : (
+                                    <button onClick={() => setDeleteConfirmId(ins.id)} title="삭제" className="p-1.5 text-red-500 hover:bg-red-50 rounded border border-transparent hover:border-red-100 transition-colors">
+                                      <Trash2 className="h-4 w-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        ) : ins.results && ins.results.length > 0 ? (
                           ins.results.map((r, i) => (
                             <tr key={r.id} className="hover:bg-gray-50 bg-white group">
                               {i === 0 && (
@@ -422,7 +686,7 @@ export default function SafetyInspectionLedgerPage() {
                               )}
 
                               <td className="px-3 py-3 text-xs border-l border-gray-100 align-top w-[30%]">
-                                <div className="flex flex-col gap-2">
+                                <div className="flex flex-col gap-2 items-center">
                                   {r.photo_url ? (
                                     <div className="w-full flex justify-center">
                                       <div className="relative w-32 h-24 group/before">
@@ -434,7 +698,7 @@ export default function SafetyInspectionLedgerPage() {
                                       <div className="w-32 h-24 bg-gray-50 border border-dashed border-gray-200 rounded flex items-center justify-center text-gray-400 text-xs">사진 없음</div>
                                     </div>
                                   )}
-                                  <div className="text-left bg-gray-50 p-2 rounded">
+                                  <div className="w-full text-left bg-gray-50 p-2 rounded">
                                     <strong className="text-red-600 break-keep mr-1">[지적]</strong>
                                     <span className="text-gray-700 break-words leading-relaxed">{r.findings || '-'}</span>
                                   </div>
@@ -442,7 +706,7 @@ export default function SafetyInspectionLedgerPage() {
                               </td>
 
                               <td className="px-3 py-3 text-xs border-l border-gray-100 relative group/photo align-top w-[30%]">
-                                <div className="flex flex-col gap-2">
+                                <div className="flex flex-col gap-2 items-center">
                                   {r.after_photo_url === 'N/A' ? (
                                     <div className="w-full flex justify-center">
                                       <div className="flex flex-col items-center gap-2">
@@ -512,7 +776,7 @@ export default function SafetyInspectionLedgerPage() {
                                     </div>
                                   )}
                                   {editingActionId === r.id ? (
-                                    <div className="bg-blue-50 p-2 rounded flex flex-col gap-2 relative">
+                                    <div className="w-full bg-blue-50 p-2 rounded flex flex-col gap-2 relative">
                                       <textarea
                                         autoFocus
                                         className="w-full text-xs p-2 border border-blue-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none bg-white"
@@ -529,7 +793,7 @@ export default function SafetyInspectionLedgerPage() {
                                     </div>
                                   ) : (
                                     <div
-                                      className="text-left bg-blue-50 p-2 rounded relative group/action cursor-pointer hover:bg-blue-100 transition-colors min-h-[38px] border border-transparent hover:border-blue-200"
+                                      className="w-full text-left bg-blue-50 p-2 rounded relative group/action cursor-pointer hover:bg-blue-100 transition-colors min-h-[38px] border border-transparent hover:border-blue-200"
                                       onClick={() => { setEditingActionId(r.id); setTempActionText(r.action_items || '') }}
                                     >
                                       <strong className="text-blue-600 break-keep mr-1">[조치]</strong>
@@ -632,14 +896,45 @@ export default function SafetyInspectionLedgerPage() {
         )}
       </main>
 
+      {/* 점검 유형 선택 모달 */}
+      {showTypeSelect && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-1">새 점검 등록</h3>
+            <p className="text-sm text-gray-500 mb-5">등록할 점검 유형을 선택하세요.</p>
+            <div className="grid grid-cols-2 gap-3">
+              {INSPECTION_TYPES.map(type => (
+                <button
+                  key={type}
+                  onClick={() => {
+                    setInitialInspectionType(type)
+                    setShowTypeSelect(false)
+                    setShowForm(true)
+                  }}
+                  className="flex flex-col items-center gap-2 px-4 py-5 border-2 border-gray-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-colors text-sm font-medium text-gray-700 hover:text-blue-700"
+                >
+                  <FileText className="h-6 w-6 text-gray-400" />
+                  {type}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setShowTypeSelect(false)} className="mt-4 w-full py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+              취소
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 등록/수정 모달 */}
       {showForm && (
         <SafetyInspectionForm
           projectId={projectId}
           project={project}
           editingId={editingId}
-          onClose={() => { setShowForm(false); setEditingId(null) }}
-          onSaved={() => { setShowForm(false); setEditingId(null); loadInspections() }}
+          initialInspectionType={initialInspectionType}
+          readOnly={formReadOnly}
+          onClose={() => { setShowForm(false); setEditingId(null); setInitialInspectionType(null); setFormReadOnly(false) }}
+          onSaved={() => { setShowForm(false); setEditingId(null); setInitialInspectionType(null); setFormReadOnly(false); loadInspections() }}
         />
       )}
 

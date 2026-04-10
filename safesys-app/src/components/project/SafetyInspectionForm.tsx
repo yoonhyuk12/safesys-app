@@ -12,6 +12,8 @@ interface Props {
     projectId: string
     project: Project | null
     editingId: string | null
+    initialInspectionType?: string | null
+    readOnly?: boolean
     onClose: () => void
     onSaved: () => void
 }
@@ -37,7 +39,7 @@ interface PhotoItem {
     preview?: string
 }
 
-const INSPECTION_TYPES = ['해빙기', '우기', '종합', '특별'] as const
+const INSPECTION_TYPES = ['해빙기', '우기', '종합', '특별점검(안전혁신건설-287)'] as const
 const PHOTO_TYPE_LABELS: Record<string, string> = {
     site_before: '점검 전경',
     finding_before: '지적사항 (조치 전)',
@@ -81,7 +83,32 @@ const THAW_SEASON_ITEMS = [
     { category: '아. (품질)가설기자재 품질관리비 반영 및 반입 전 성능확인 검사 여부', item: '3. 기타', action: '해당없음' }
 ]
 
-export default function SafetyInspectionForm({ projectId, project, editingId, onClose, onSaved }: Props) {
+const SPECIAL_INSPECTION_ITEMS: { category: string; item: string; action: string; custom?: boolean }[] = [
+    { category: '가. 사전조사 및 작업 전 점검', item: '1. 작업 전 위험성평가 및 TBM 미실시', action: '해당없음' },
+    { category: '가. 사전조사 및 작업 전 점검', item: '2. 변형, 손상 등 작업 전 사전조사 미실시', action: '해당없음' },
+    { category: '가. 사전조사 및 작업 전 점검', item: '', action: '해당없음', custom: true },
+    { category: '나. 가설통로의 구조', item: '1. 가설통로 설치 불량(흔들림, 미고정 등)', action: '해당없음' },
+    { category: '나. 가설통로의 구조', item: '2. 경사로 부적정 설치(30도 초과)', action: '해당없음' },
+    { category: '나. 가설통로의 구조', item: '3. 손잡이 미설치', action: '해당없음' },
+    { category: '나. 가설통로의 구조', item: '4. 안전난간 미설치', action: '해당없음' },
+    { category: '나. 가설통로의 구조', item: '5. 발판 파손·변형 또는 오염물 미제거', action: '해당없음' },
+    { category: '나. 가설통로의 구조', item: '6. 통로에 자재 등 적치물 방치', action: '해당없음' },
+    { category: '나. 가설통로의 구조', item: '7. 계단 하부 낙하물 방지 미조치', action: '해당없음' },
+    { category: '나. 가설통로의 구조', item: '8. 통로안내표시 미설치', action: '해당없음' },
+    { category: '나. 가설통로의 구조', item: '', action: '해당없음', custom: true },
+    { category: '다. 사다리식 통로의 구조', item: '1. 사다리식 통로 설치 불량(흔들림, 미고정 등)', action: '해당없음' },
+    { category: '다. 사다리식 통로의 구조', item: '2. 사다리 폭 30cm 미만', action: '해당없음' },
+    { category: '다. 사다리식 통로의 구조', item: '3. 넘어짐·미끄러짐 방지 미조치(아웃트리거 등)', action: '해당없음' },
+    { category: '다. 사다리식 통로의 구조', item: '4. 기울기 미준수(75도 초과)', action: '해당없음' },
+    { category: '다. 사다리식 통로의 구조', item: '5. 발판 파손·변형 또는 오염물 미제거', action: '해당없음' },
+    { category: '다. 사다리식 통로의 구조', item: '6. 고정식 사다리식 통로 등받이울 미설치', action: '해당없음' },
+    { category: '다. 사다리식 통로의 구조', item: '7. 사다리 상단 내민길이 60cm 미만', action: '해당없음' },
+    { category: '다. 사다리식 통로의 구조', item: '', action: '해당없음', custom: true },
+    { category: '라. 기타점검사항', item: '1. 지정된 통로 외 이동', action: '해당없음' },
+    { category: '라. 기타점검사항', item: '', action: '해당없음', custom: true },
+]
+
+export default function SafetyInspectionForm({ projectId, project, editingId, initialInspectionType, readOnly, onClose, onSaved }: Props) {
     const { user } = useAuth()
     const fileInputRef = useRef<HTMLInputElement>(null)
     const [step, setStep] = useState(1)
@@ -89,7 +116,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
     const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
     // 점검개요
-    const [inspectionType, setInspectionType] = useState<string>('해빙기')
+    const [inspectionType, setInspectionType] = useState<string>(initialInspectionType || '해빙기')
     const [inspectionDate, setInspectionDate] = useState(new Date().toISOString().split('T')[0])
     const [managementEntity, setManagementEntity] = useState('')
     const [districtName, setDistrictName] = useState('')
@@ -138,6 +165,8 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
     const [photoMenuOpen, setPhotoMenuOpen] = useState<string | null>(null) // "result-{index}" or "photo-{globalIndex}"
     const [editingImage, setEditingImage] = useState<{ url: string; type: 'result' | 'photo'; index: number } | null>(null)
 
+    const isSpecialInspection = inspectionType === '특별점검(안전혁신건설-287)'
+
     // 사진 메뉴 외부 클릭 시 닫기
     useEffect(() => {
         if (!photoMenuOpen) return
@@ -146,10 +175,22 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
         return () => document.removeEventListener('click', handler)
     }, [photoMenuOpen])
 
-    // 해빙기 추가 점검 항목 초기화
+    // 추가 점검 항목 초기화 (해빙기/특별점검) — 유형 변경 시 리셋
     useEffect(() => {
-        if (!editingId && inspectionType === '해빙기' && additionalItems.length === 0) {
-            setAdditionalItems(JSON.parse(JSON.stringify(THAW_SEASON_ITEMS)))
+        if (!editingId) {
+            if (inspectionType === '해빙기') {
+                setAdditionalItems(JSON.parse(JSON.stringify(THAW_SEASON_ITEMS)))
+                setCoreItemSlots([null, null, null])
+                setSelectedSingleItems(new Map())
+            } else if (isSpecialInspection) {
+                setAdditionalItems(JSON.parse(JSON.stringify(SPECIAL_INSPECTION_ITEMS)))
+                setCoreItemSlots([null, null, null])
+                setSelectedSingleItems(new Map())
+            } else {
+                setAdditionalItems([])
+                setCoreItemSlots([null, null, null])
+                setSelectedSingleItems(new Map())
+            }
         }
     }, [inspectionType, editingId])
 
@@ -268,6 +309,12 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                 if (missingItems.length > 0) {
                     loadedItems = [...loadedItems, ...JSON.parse(JSON.stringify(missingItems))]
                 }
+            } else if (inspection.inspection_type === '특별점검(안전혁신건설-287)') {
+                const existingCategories = new Set(loadedItems.map((item: any) => item.category))
+                const missingItems = SPECIAL_INSPECTION_ITEMS.filter(item => !existingCategories.has(item.category))
+                if (missingItems.length > 0) {
+                    loadedItems = [...loadedItems, ...JSON.parse(JSON.stringify(missingItems))]
+                }
             }
 
             setAdditionalItems(loadedItems)
@@ -285,6 +332,10 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
             setSelectedSingleItems(singleSelected)
         } else if (inspection.inspection_type === '해빙기') {
             setAdditionalItems(JSON.parse(JSON.stringify(THAW_SEASON_ITEMS)))
+            setCoreItemSlots([null, null, null])
+            setSelectedSingleItems(new Map())
+        } else if (inspection.inspection_type === '특별점검(안전혁신건설-287)') {
+            setAdditionalItems(JSON.parse(JSON.stringify(SPECIAL_INSPECTION_ITEMS)))
             setCoreItemSlots([null, null, null])
             setSelectedSingleItems(new Map())
         }
@@ -365,6 +416,38 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
             idx === null ? next.delete(category) : next.set(category, idx)
             return next
         })
+    }
+
+    const handleAdditionalItemPhotoUpload = async (itemIndex: number, e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        setUploadingPhoto(true)
+        const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
+        const fileName = `${projectId}/${Date.now()}_additional_${itemIndex}_${encodeURIComponent(safeName)}`
+        const { data, error } = await supabase.storage
+            .from('safety-inspection-photos')
+            .upload(fileName, file)
+        if (!error && data) {
+            const { data: urlData } = supabase.storage
+                .from('safety-inspection-photos')
+                .getPublicUrl(data.path)
+            const newItems = [...additionalItems]
+            ;(newItems[itemIndex] as any).photo_url = urlData.publicUrl
+            setAdditionalItems(newItems)
+        }
+        setUploadingPhoto(false)
+        e.target.value = ''
+    }
+
+    const removeAdditionalItemPhoto = async (itemIndex: number) => {
+        const photoUrl = (additionalItems[itemIndex] as any).photo_url
+        if (photoUrl) {
+            const path = photoUrl.split('/safety-inspection-photos/')[1]
+            if (path) await supabase.storage.from('safety-inspection-photos').remove([path])
+        }
+        const newItems = [...additionalItems]
+        ;(newItems[itemIndex] as any).photo_url = ''
+        setAdditionalItems(newItems)
     }
 
     const handleResultPhotoUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -470,6 +553,16 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                         if (oldPath) await supabase.storage.from('safety-inspection-photos').remove([oldPath])
                     }
                     updateResult(editingImage.index, 'photo_url', urlData.publicUrl)
+                } else if ((editingImage.type as string) === 'additional') {
+                    // 추가 점검 항목 사진 편집
+                    const oldUrl = (additionalItems[editingImage.index] as any).photo_url
+                    if (oldUrl) {
+                        const oldPath = oldUrl.split('/safety-inspection-photos/')[1]
+                        if (oldPath) await supabase.storage.from('safety-inspection-photos').remove([oldPath])
+                    }
+                    const newItems = [...additionalItems]
+                    ;(newItems[editingImage.index] as any).photo_url = urlData.publicUrl
+                    setAdditionalItems(newItems)
                 } else if (editingImage.type === 'photo') {
                     // 기존 사진 스토리지에서 삭제
                     const oldUrl = photos[editingImage.index].photo_url
@@ -519,7 +612,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                 supervisor_name: supervisorName || null,
                 inspector_opinion: inspectorOpinion || null,
                 good_example_content: goodExampleContent || null,
-                additional_items: inspectionType === '해빙기' ? additionalItems : null,
+                additional_items: (inspectionType === '해빙기' || isSpecialInspection) ? additionalItems : null,
                 signatures: signatures,
                 created_by: user.id,
                 updated_at: new Date().toISOString()
@@ -528,9 +621,11 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
             let inspectionId = editingId
 
             if (editingId) {
-                await (supabase.from('safety_inspections') as any).update(inspectionData).eq('id', editingId)
+                const { error: updateError } = await (supabase.from('safety_inspections') as any).update(inspectionData).eq('id', editingId)
+                if (updateError) throw new Error(`수정 실패: ${updateError.message}`)
             } else {
-                const { data } = await (supabase.from('safety_inspections') as any).insert(inspectionData).select('id').single()
+                const { data, error: insertError } = await (supabase.from('safety_inspections') as any).insert(inspectionData).select('id').single()
+                if (insertError) throw new Error(`등록 실패: ${insertError.message}`)
                 if (data) inspectionId = data.id
             }
 
@@ -727,14 +822,17 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                 {/* 헤더 */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
                     <h2 className="text-lg font-bold text-gray-900">
-                        {editingId ? '점검 수정' : '새 점검 등록'}
+                        {readOnly ? '점검 상세보기' : editingId ? '점검 수정' : '새 점검 등록'}
                     </h2>
                     <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X className="h-5 w-5 text-gray-500" /></button>
                 </div>
 
                 {/* 스텝 인디케이터 */}
                 <div className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-50 border-b">
-                    {['점검개요', '점검결과 및 사진', '점검자 의견 및 서명', ...(inspectionType === '해빙기' ? ['추가 점검 항목'] : [])].map((label, i) => (
+                    {(isSpecialInspection
+                        ? ['점검개요', '지적사항']
+                        : ['점검개요', '점검결과 및 사진', '점검자 의견 및 서명', ...(inspectionType === '해빙기' ? ['추가 점검 항목'] : [])]
+                    ).map((label, i) => (
                         <button
                             key={i}
                             onClick={() => setStep(i + 1)}
@@ -880,10 +978,11 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                         </div>
                     )}
 
-                    {/* Step 2: 점검결과 및 사진 */}
-                    {step === 2 && (
+                    {/* Step 2: 점검결과 및 사진 (특별점검 제외) */}
+                    {step === 2 && !isSpecialInspection && (
                         <div className="space-y-6">
-                            {/* 1. 점검 전경업로드 영역 */}
+                            {/* 1. 점검 전경업로드 영역 (특별점검 제외) */}
+                            {!isSpecialInspection && (
                             <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
                                 <h3 className="text-[15px] font-bold text-gray-800 mb-4 flex items-center gap-2">
                                     <span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">1</span>
@@ -898,9 +997,18 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                 </div>
                                 {renderPhotoGroup('site_before', '점검 전경')}
                             </div>
+                            )}
 
                             {/* 점검표 PDF 링크 */}
                             <div className="flex flex-col sm:flex-row gap-2">
+                                {isSpecialInspection ? (
+                                <a href="/특별점검(안혁건-287) 점검표.pdf" target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-lg text-orange-700 text-sm font-medium hover:bg-orange-100 transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z" /></svg>
+                                    특별점검(안혁건-287) 점검표
+                                </a>
+                                ) : (
+                                <>
                                 <a href="https://drive.google.com/file/d/1NxRogH08nc_eWHj3Uzc3I5mfnIXt1aSb/view?usp=drive_link" target="_blank" rel="noopener noreferrer"
                                     className="flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-medium hover:bg-red-100 transition-colors">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z" /></svg>
@@ -911,6 +1019,8 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z" /></svg>
                                     점검표 (품질·환경분야)
                                 </a>
+                                </>
+                                )}
                             </div>
 
                             {/* 2. 지적사항 및 수범사례 영역 */}
@@ -1010,8 +1120,8 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                         </div>
                     )}
 
-                    {/* Step 3: 점검자 의견 (및 수범사례) */}
-                    {step === 3 && (
+                    {/* Step 3: 점검자 의견 (및 수범사례) - 특별점검 제외 */}
+                    {step === 3 && !isSpecialInspection && (
                         <div className="space-y-6">
                             {/* 종합결과 의견 */}
                             <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
@@ -1275,13 +1385,13 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                         </div>
                     )}
 
-                    {/* Step 4: 추가 점검 항목 (해빙기 등) */}
-                    {step === 4 && inspectionType === '해빙기' && (
+                    {/* Step 2/4: 추가 점검 항목 (특별점검은 Step 2, 해빙기는 Step 4) */}
+                    {((step === 4 && inspectionType === '해빙기') || (step === 2 && isSpecialInspection)) && (
                         <div className="space-y-6">
                             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 md:p-5">
                                 <h3 className="text-[15px] font-bold text-gray-800 mb-4 flex items-center gap-2">
-                                    <span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">4</span>
-                                    추가 점검 항목
+                                    <span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">{isSpecialInspection ? 2 : 4}</span>
+                                    {isSpecialInspection ? '지적사항' : '추가 점검 항목'}
                                     <span className="text-sm font-normal text-gray-500 ml-2">(미 해당시 공란 가능)</span>
                                 </h3>
                                 {/* Mobile View (Card Layout) */}
@@ -1305,18 +1415,34 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                                     </div>
                                                     <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm flex flex-col gap-3">
                                                         <div>
-                                                            <span className="block text-[11px] font-semibold text-gray-500 mb-1">점검항목 선택</span>
+                                                            <span className="block text-[11px] font-semibold text-gray-500 mb-1">지적사항 선택</span>
                                                             <select
                                                                 value={selectedIdx !== undefined ? String(selectedIdx) : ''}
                                                                 onChange={(e) => selectSingleItem(category, e.target.value === '' ? null : Number(e.target.value))}
                                                                 className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none"
                                                             >
-                                                                <option value="">항목 선택...</option>
+                                                                <option value="">(해당없음)</option>
                                                                 {items.map((item: any) => (
-                                                                    <option key={item.originalIndex} value={String(item.originalIndex)}>{item.item}</option>
+                                                                    <option key={item.originalIndex} value={String(item.originalIndex)}>{(item as any).custom ? '직접 입력' : item.item}</option>
                                                                 ))}
                                                             </select>
                                                         </div>
+                                                        {selectedItem && (selectedItem as any).custom && (
+                                                            <div className="border-t border-gray-100 pt-2">
+                                                                <span className="block mb-1 text-[11px] font-semibold text-gray-500">지적사항 직접 입력</span>
+                                                                <input
+                                                                    type="text"
+                                                                    value={selectedItem.item}
+                                                                    onChange={(e) => {
+                                                                        const newItems = [...additionalItems];
+                                                                        newItems[selectedItem.originalIndex].item = e.target.value;
+                                                                        setAdditionalItems(newItems);
+                                                                    }}
+                                                                    className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none transition-colors"
+                                                                    placeholder="지적사항을 입력하세요"
+                                                                />
+                                                            </div>
+                                                        )}
                                                         {selectedItem && (
                                                             <div className="border-t border-gray-100 pt-2">
                                                                 <span className="block mb-1 text-[11px] font-semibold text-gray-500">조치내용</span>
@@ -1347,6 +1473,46 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                                                 />
                                                             </div>
                                                         )}
+                                                        {isSpecialInspection && selectedItem && (
+                                                            <div className="border-t border-gray-100 pt-2">
+                                                                <span className="block mb-1 text-[11px] font-semibold text-gray-500">지적사항 사진</span>
+                                                                {(selectedItem as any).photo_url ? (
+                                                                    <div className="relative group w-full h-32">
+                                                                        <img src={(selectedItem as any).photo_url} alt="지적사항" className="w-full h-full object-cover rounded-lg border border-gray-200 bg-gray-50" />
+                                                                        <div className="absolute top-1 right-1 z-10">
+                                                                            <button
+                                                                                onClick={(e) => { e.stopPropagation(); setPhotoMenuOpen(photoMenuOpen === `additional-m-${selectedItem.originalIndex}` ? null : `additional-m-${selectedItem.originalIndex}`) }}
+                                                                                className="p-1 bg-black/50 hover:bg-black/70 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                                                                            >
+                                                                                <MoreVertical className="h-3.5 w-3.5" />
+                                                                            </button>
+                                                                            {photoMenuOpen === `additional-m-${selectedItem.originalIndex}` && (
+                                                                                <div className="absolute right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[100px] z-20">
+                                                                                    <button onClick={() => { setEditingImage({ url: (selectedItem as any).photo_url, type: 'additional' as any, index: selectedItem.originalIndex }); setPhotoMenuOpen(null) }}
+                                                                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-100 transition-colors">
+                                                                                        <Crop className="h-3.5 w-3.5" /> 크롭/회전
+                                                                                    </button>
+                                                                                    <button onClick={() => { removeAdditionalItemPhoto(selectedItem.originalIndex); setPhotoMenuOpen(null) }}
+                                                                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
+                                                                                        <Trash2 className="h-3.5 w-3.5" /> 삭제
+                                                                                    </button>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg h-24 cursor-pointer hover:bg-gray-50 transition-colors">
+                                                                        {uploadingPhoto ? <span className="text-xs text-gray-500">업로드중...</span> : (
+                                                                            <>
+                                                                                <Upload className="h-5 w-5 text-gray-400 mb-1" />
+                                                                                <span className="text-xs font-medium text-gray-500">사진 추가</span>
+                                                                            </>
+                                                                        )}
+                                                                        <input type="file" accept="image/*" onChange={e => handleAdditionalItemPhotoUpload(selectedItem.originalIndex, e)} className="hidden" disabled={uploadingPhoto} />
+                                                                    </label>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )
@@ -1373,7 +1539,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                                                     onChange={(e) => setCoreSlot(slotIndex, e.target.value === '' ? null : Number(e.target.value))}
                                                                     className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none"
                                                                 >
-                                                                    <option value="">항목 선택...</option>
+                                                                    <option value="">(해당없음)</option>
                                                                     {items.map((item: any) => (
                                                                         <option key={item.originalIndex} value={String(item.originalIndex)} disabled={usedIndices.includes(item.originalIndex)}>
                                                                             {item.item}
@@ -1440,7 +1606,8 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                                     const selectedIdx = selectedSingleItems.get(category)
                                                     const selectedItem = selectedIdx !== undefined ? items.find((i: any) => i.originalIndex === selectedIdx) : null
                                                     return (
-                                                        <tr key={`cat-${category}`} className="hover:bg-gray-50/50">
+                                                        <React.Fragment key={`cat-${category}`}>
+                                                        <tr className="hover:bg-gray-50/50">
                                                             <td className="py-2 px-4 border border-gray-200 text-left font-semibold text-gray-800 align-middle bg-gray-50/70 break-keep w-[20%]">
                                                                 {category}
                                                             </td>
@@ -1450,11 +1617,24 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                                                     onChange={(e) => selectSingleItem(category, e.target.value === '' ? null : Number(e.target.value))}
                                                                     className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none"
                                                                 >
-                                                                    <option value="">항목 선택...</option>
+                                                                    <option value="">(해당없음)</option>
                                                                     {items.map((item: any) => (
-                                                                        <option key={item.originalIndex} value={String(item.originalIndex)}>{item.item}</option>
+                                                                        <option key={item.originalIndex} value={String(item.originalIndex)}>{(item as any).custom ? '직접 입력' : item.item}</option>
                                                                     ))}
                                                                 </select>
+                                                                {selectedItem && (selectedItem as any).custom && (
+                                                                    <input
+                                                                        type="text"
+                                                                        value={selectedItem.item}
+                                                                        onChange={(e) => {
+                                                                            const newItems = [...additionalItems];
+                                                                            newItems[selectedItem.originalIndex].item = e.target.value;
+                                                                            setAdditionalItems(newItems);
+                                                                        }}
+                                                                        className="w-full mt-1.5 px-2 py-1.5 border border-orange-300 rounded text-sm bg-orange-50 shadow-sm focus:ring-1 focus:border-orange-500 outline-none"
+                                                                        placeholder="지적사항을 입력하세요"
+                                                                    />
+                                                                )}
                                                             </td>
                                                             <td className="py-1.5 px-2 border border-gray-200 w-[30%]">
                                                                 {selectedItem ? (
@@ -1488,6 +1668,51 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                                                 )}
                                                             </td>
                                                         </tr>
+                                                        {isSpecialInspection && selectedItem && (
+                                                        <tr key={`photo-${category}`}>
+                                                            <td colSpan={3} className="py-2 px-4 border border-gray-200 bg-gray-50/30">
+                                                                <div className="flex items-start gap-3">
+                                                                    <span className="text-[11px] font-semibold text-gray-500 pt-1 shrink-0">지적사항 사진</span>
+                                                                    {(selectedItem as any).photo_url ? (
+                                                                        <div className="relative group w-32 h-20">
+                                                                            <img src={(selectedItem as any).photo_url} alt="지적사항" className="w-full h-full object-cover rounded border border-gray-200 bg-gray-50" />
+                                                                            <div className="absolute top-0.5 right-0.5 z-10">
+                                                                                <button
+                                                                                    onClick={(e) => { e.stopPropagation(); setPhotoMenuOpen(photoMenuOpen === `additional-d-${selectedItem.originalIndex}` ? null : `additional-d-${selectedItem.originalIndex}`) }}
+                                                                                    className="p-1 bg-black/50 hover:bg-black/70 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                                                                                >
+                                                                                    <MoreVertical className="h-3 w-3" />
+                                                                                </button>
+                                                                                {photoMenuOpen === `additional-d-${selectedItem.originalIndex}` && (
+                                                                                    <div className="absolute right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[100px] z-20">
+                                                                                        <button onClick={() => { setEditingImage({ url: (selectedItem as any).photo_url, type: 'additional' as any, index: selectedItem.originalIndex }); setPhotoMenuOpen(null) }}
+                                                                                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-100 transition-colors">
+                                                                                            <Crop className="h-3.5 w-3.5" /> 크롭/회전
+                                                                                        </button>
+                                                                                        <button onClick={() => { removeAdditionalItemPhoto(selectedItem.originalIndex); setPhotoMenuOpen(null) }}
+                                                                                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
+                                                                                            <Trash2 className="h-3.5 w-3.5" /> 삭제
+                                                                                        </button>
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    ) : (
+                                                                        <label className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded w-32 h-20 cursor-pointer hover:bg-gray-50 transition-colors">
+                                                                            {uploadingPhoto ? <span className="text-[11px] text-gray-500">업로드중...</span> : (
+                                                                                <>
+                                                                                    <Upload className="h-4 w-4 text-gray-400 mb-0.5" />
+                                                                                    <span className="text-[11px] text-gray-500">사진 추가</span>
+                                                                                </>
+                                                                            )}
+                                                                            <input type="file" accept="image/*" onChange={e => handleAdditionalItemPhotoUpload(selectedItem.originalIndex, e)} className="hidden" disabled={uploadingPhoto} />
+                                                                        </label>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                        )}
+                                                        </React.Fragment>
                                                     )
                                                 }
                                                 const filledCount = coreItemSlots.filter(v => v !== null).length
@@ -1511,7 +1736,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                                                     onChange={(e) => setCoreSlot(slotIndex, e.target.value === '' ? null : Number(e.target.value))}
                                                                     className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none"
                                                                 >
-                                                                    <option value="">항목 선택...</option>
+                                                                    <option value="">(해당없음)</option>
                                                                     {items.map((item: any) => (
                                                                         <option key={item.originalIndex} value={String(item.originalIndex)} disabled={usedIndices.includes(item.originalIndex)}>
                                                                             {item.item}
@@ -1558,6 +1783,68 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                     </table>
                                 </div>
                             </div>
+
+                            {/* 3. 현장점검 조치사진 — 지적사항이 하나도 없을 때만 표시 */}
+                            {isSpecialInspection && selectedSingleItems.size === 0 && (
+                            <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 md:p-5 mt-6">
+                                <h3 className="text-[15px] font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                    <span className="bg-green-100 text-green-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">3</span>
+                                    현장점검 조치사진
+                                    <span className="text-sm font-normal text-gray-500 ml-2">(지적사항 없는 경우)</span>
+                                </h3>
+                                <div className="flex gap-3 mb-2">
+                                    <label className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg py-4 hover:bg-gray-50 cursor-pointer transition-colors">
+                                        <Upload className="h-5 w-5 text-gray-400 mb-1" />
+                                        <span className="text-[13px] text-gray-600 font-medium">현장점검 사진 업로드</span>
+                                        <input type="file" accept="image/*" multiple onChange={e => handlePhotoUploadType(e, 'site_before')} className="hidden" disabled={uploadingPhoto} />
+                                    </label>
+                                </div>
+                                {photos.filter(p => p.photo_type === 'site_before').length > 0 && (
+                                    <div className="border rounded-lg p-3 bg-white mt-3">
+                                        <h4 className="text-[13px] font-semibold text-gray-700 mb-2">현장점검 사진 ({photos.filter(p => p.photo_type === 'site_before').length}장)</h4>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                            {photos.filter(p => p.photo_type === 'site_before').map((photo, i) => {
+                                                const globalIdx = photos.indexOf(photo)
+                                                return (
+                                                    <div key={i} className="relative group">
+                                                        <img src={photo.photo_url} alt={photo.description || `현장점검 ${i + 1}`}
+                                                            className="w-full h-24 object-cover rounded-lg border bg-gray-50" />
+                                                        <div className="absolute top-1 right-1 z-10">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); setPhotoMenuOpen(photoMenuOpen === `site-${globalIdx}` ? null : `site-${globalIdx}`) }}
+                                                                className="p-1 bg-black/50 hover:bg-black/70 text-white rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                                                            >
+                                                                <MoreVertical className="h-3.5 w-3.5" />
+                                                            </button>
+                                                            {photoMenuOpen === `site-${globalIdx}` && (
+                                                                <div className="absolute right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-200 py-1 min-w-[100px] z-20">
+                                                                    <button onClick={() => { setEditingImage({ url: photo.photo_url, type: 'photo', index: globalIdx }); setPhotoMenuOpen(null) }}
+                                                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-700 hover:bg-gray-100 transition-colors">
+                                                                        <Crop className="h-3.5 w-3.5" /> 크롭/회전
+                                                                    </button>
+                                                                    <button onClick={() => { removePhoto(globalIdx); setPhotoMenuOpen(null) }}
+                                                                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors">
+                                                                        <Trash2 className="h-3.5 w-3.5" /> 삭제
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                        <input type="text" value={photo.description}
+                                                            onChange={e => {
+                                                                const updated = [...photos]
+                                                                updated[globalIdx].description = e.target.value
+                                                                setPhotos(updated)
+                                                            }}
+                                                            placeholder="설명 (선택)"
+                                                            className="mt-1 w-full px-2 py-1 border border-gray-200 rounded text-xs focus:outline-none focus:border-blue-400" />
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -1573,10 +1860,25 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                         )}
                     </div>
                     <div className="flex gap-3">
+                        {readOnly ? (
+                            <>
+                            {step < (inspectionType === '해빙기' ? 4 : isSpecialInspection ? 2 : 3) && (
+                                <button onClick={() => setStep(step + 1)}
+                                    className="px-6 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm">
+                                    다음 단계 →
+                                </button>
+                            )}
+                            <button onClick={onClose}
+                                className="px-6 py-2 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors shadow-sm">
+                                닫기
+                            </button>
+                            </>
+                        ) : (
+                        <>
                         <button onClick={onClose} title="취소" className="flex items-center justify-center w-10 h-10 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                             <X className="h-5 w-5" />
                         </button>
-                        {step < (inspectionType === '해빙기' ? 4 : 3) ? (
+                        {step < (inspectionType === '해빙기' ? 4 : isSpecialInspection ? 2 : 3) ? (
                             <button onClick={() => setStep(step + 1)}
                                 className="px-6 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm">
                                 다음 단계 →
@@ -1590,6 +1892,8 @@ export default function SafetyInspectionForm({ projectId, project, editingId, on
                                     <Save className="h-5 w-5" />
                                 )}
                             </button>
+                        )}
+                        </>
                         )}
                     </div>
                 </div>
