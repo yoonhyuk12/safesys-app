@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { X, Plus, Trash2, Upload, Image as ImageIcon, Save, MoreVertical, Crop, RotateCw } from 'lucide-react'
+import { X, Plus, Trash2, Upload, Image as ImageIcon, Save, MoreVertical, Crop, RotateCw, FileText } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import SignatureCanvas from 'react-signature-canvas'
 import { useAuth } from '@/contexts/AuthContext'
@@ -1389,10 +1389,25 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                     {((step === 4 && inspectionType === '해빙기') || (step === 2 && isSpecialInspection)) && (
                         <div className="space-y-6">
                             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 md:p-5">
-                                <h3 className="text-[15px] font-bold text-gray-800 mb-4 flex items-center gap-2">
+                                <h3 className="text-[15px] font-bold text-gray-800 mb-4 flex flex-wrap items-center gap-2">
                                     <span className="bg-blue-100 text-blue-700 w-6 h-6 rounded-full flex items-center justify-center text-sm">{isSpecialInspection ? 2 : 4}</span>
                                     {isSpecialInspection ? '지적사항' : '추가 점검 항목'}
                                     <span className="text-sm font-normal text-gray-500 ml-2">(미 해당시 공란 가능)</span>
+                                    {isSpecialInspection && (
+                                        <>
+                                            <span className="basis-full h-0 md:hidden" aria-hidden="true" />
+                                            <a
+                                                href="/특별점검(안혁건-287) 점검표.pdf"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="ml-auto md:ml-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
+                                                title="특별점검 체크리스트 PDF 새 창에서 열기"
+                                            >
+                                                <FileText className="h-3.5 w-3.5" />
+                                                체크리스트(PDF)
+                                            </a>
+                                        </>
+                                    )}
                                 </h3>
                                 {/* Mobile View (Card Layout) */}
                                 <div className="block md:hidden space-y-4">
@@ -1423,23 +1438,23 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                                                             >
                                                                 <option value="">(해당없음)</option>
                                                                 {items.map((item: any) => (
-                                                                    <option key={item.originalIndex} value={String(item.originalIndex)}>{(item as any).custom ? '직접 입력' : item.item}</option>
+                                                                    <option key={item.originalIndex} value={String(item.originalIndex)}>{(item as any).custom ? '직접 입력(2건 이상)' : item.item}</option>
                                                                 ))}
                                                             </select>
                                                         </div>
                                                         {selectedItem && (selectedItem as any).custom && (
                                                             <div className="border-t border-gray-100 pt-2">
                                                                 <span className="block mb-1 text-[11px] font-semibold text-gray-500">지적사항 직접 입력</span>
-                                                                <input
-                                                                    type="text"
+                                                                <textarea
+                                                                    rows={2}
                                                                     value={selectedItem.item}
                                                                     onChange={(e) => {
                                                                         const newItems = [...additionalItems];
                                                                         newItems[selectedItem.originalIndex].item = e.target.value;
                                                                         setAdditionalItems(newItems);
                                                                     }}
-                                                                    className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none transition-colors"
-                                                                    placeholder="지적사항을 입력하세요"
+                                                                    className="w-full px-2 py-2 border border-gray-300 rounded-md text-sm bg-white shadow-sm focus:ring-1 focus:border-blue-500 outline-none transition-colors resize-y"
+                                                                    placeholder="지적사항을 입력하세요 (2건 이상은 줄바꿈으로 구분)"
                                                                 />
                                                             </div>
                                                         )}
@@ -1619,20 +1634,20 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                                                                 >
                                                                     <option value="">(해당없음)</option>
                                                                     {items.map((item: any) => (
-                                                                        <option key={item.originalIndex} value={String(item.originalIndex)}>{(item as any).custom ? '직접 입력' : item.item}</option>
+                                                                        <option key={item.originalIndex} value={String(item.originalIndex)}>{(item as any).custom ? '직접 입력(2건 이상)' : item.item}</option>
                                                                     ))}
                                                                 </select>
                                                                 {selectedItem && (selectedItem as any).custom && (
-                                                                    <input
-                                                                        type="text"
+                                                                    <textarea
+                                                                        rows={2}
                                                                         value={selectedItem.item}
                                                                         onChange={(e) => {
                                                                             const newItems = [...additionalItems];
                                                                             newItems[selectedItem.originalIndex].item = e.target.value;
                                                                             setAdditionalItems(newItems);
                                                                         }}
-                                                                        className="w-full mt-1.5 px-2 py-1.5 border border-orange-300 rounded text-sm bg-orange-50 shadow-sm focus:ring-1 focus:border-orange-500 outline-none"
-                                                                        placeholder="지적사항을 입력하세요"
+                                                                        className="w-full mt-1.5 px-2 py-1.5 border border-orange-300 rounded text-sm bg-orange-50 shadow-sm focus:ring-1 focus:border-orange-500 outline-none resize-y"
+                                                                        placeholder="지적사항을 입력하세요 (2건 이상은 줄바꿈으로 구분)"
                                                                     />
                                                                 )}
                                                             </td>
