@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Activity, Calendar, Users, FileText, ChevronRight, AlertTriangle, Building2, Eye, Video, RefreshCw, ArrowUp, Phone, Copy, X, CheckCircle, Trash2, Download, FileSpreadsheet } from 'lucide-react'
+import { Activity, Calendar, Users, FileText, ChevronRight, AlertTriangle, Building2, Eye, Video, RefreshCw, ArrowUp, Phone, Copy, X, CheckCircle, Trash2, Download, FileSpreadsheet, MessageSquare, Check } from 'lucide-react'
 import KakaoMap from '@/components/ui/KakaoMap'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import NavigationSelector from '@/components/ui/NavigationSelector'
@@ -71,6 +71,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
     name: '',
     phone: ''
   })
+  const [smsCopied, setSmsCopied] = useState(false)
   // 삭제 모드 관련 state
   const [deleteMode, setDeleteMode] = useState(false)
   const [selectedForDeletion, setSelectedForDeletion] = useState<Set<string>>(new Set())
@@ -1631,9 +1632,61 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
               <h4 className="text-sm font-medium text-gray-900">
-                {selectedBranch}
+                TBM
               </h4>
               <div className="flex items-center gap-2">
+                {/* 단체문자 버튼 - 지사 선택 시 해당 지사 TBM 소장 전원에게 */}
+                {!deleteMode && (() => {
+                  const phoneNumbers = tbmRecords
+                    .map(r => r.contact)
+                    .filter((p): p is string => !!p && p.trim().length > 0)
+                    .map(p => p.replace(/[^0-9+]/g, ''))
+                    .filter(p => p.length > 0)
+                    .filter((v, i, a) => a.indexOf(v) === i)
+                  if (phoneNumbers.length === 0) return null
+                  const smsBody = '안녕하세요 TBM 소장님, 안전작업 부탁드립니다. https://safesys.vercel.app/'
+                  const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent)
+                  const smsHref = `sms:${phoneNumbers.join(',')}${isIOS ? '&' : '?'}body=${encodeURIComponent(smsBody)}`
+                  return (
+                    <>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const text = `${phoneNumbers.join(',')}\n\n[문자 내용]\n${smsBody}`
+                          try {
+                            await navigator.clipboard.writeText(text)
+                            setSmsCopied(true)
+                            setTimeout(() => setSmsCopied(false), 2000)
+                          } catch {
+                            const textarea = document.createElement('textarea')
+                            textarea.value = text
+                            document.body.appendChild(textarea)
+                            textarea.select()
+                            document.execCommand('copy')
+                            document.body.removeChild(textarea)
+                            setSmsCopied(true)
+                            setTimeout(() => setSmsCopied(false), 2000)
+                          }
+                        }}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium shadow-sm transition-colors ${
+                          smsCopied ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                        }`}
+                        title={`연락처 ${phoneNumbers.length}건 + 문자내용 복사`}
+                      >
+                        {smsCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        <span className="hidden lg:inline">{smsCopied ? '복사됨' : `복사(${phoneNumbers.length})`}</span>
+                      </button>
+                      <a
+                        href={smsHref}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 shadow-sm transition-colors"
+                        title="TBM 소장님들께 단체문자 보내기"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                        <span className="hidden lg:inline">단체문자</span>
+                      </a>
+                    </>
+                  )
+                })()}
                 {/* 삭제 모드 버튼 */}
                 {deleteMode ? (
                   <>
@@ -1693,12 +1746,18 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                     </button>
                   </>
                 )}
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="text-xs text-gray-600 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                />
+                <div className="relative">
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="text-xs bg-white border border-gray-300 rounded pl-2 pr-1 py-1 w-[90px] focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [&::-webkit-datetime-edit]:opacity-0"
+                    style={{ color: 'transparent' }}
+                  />
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-600 pointer-events-none tabular-nums">
+                    {selectedDate ? selectedDate.slice(2).replace(/-/g, '.') : ''}
+                  </span>
+                </div>
                 {selectedBranch && userProfile?.branch_division?.endsWith('본부') && (
                   <button
                     type="button"
@@ -2129,9 +2188,59 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
               <div className="py-2 px-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
                 <h4 className="text-sm font-medium text-gray-900">
-                  작업 현황
+                  TBM
                 </h4>
                 <div className="flex items-center gap-2">
+                  {/* 단체문자 버튼 (모바일) */}
+                  {(() => {
+                    const phoneNumbers = tbmRecords
+                      .map(r => r.contact)
+                      .filter((p): p is string => !!p && p.trim().length > 0)
+                      .map(p => p.replace(/[^0-9+]/g, ''))
+                      .filter(p => p.length > 0)
+                      .filter((v, i, a) => a.indexOf(v) === i)
+                    if (phoneNumbers.length === 0) return null
+                    const smsBody = '안녕하세요 TBM 소장님, 안전작업 부탁드립니다. https://safesys.vercel.app/'
+                    const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent)
+                    const smsHref = `sms:${phoneNumbers.join(',')}${isIOS ? '&' : '?'}body=${encodeURIComponent(smsBody)}`
+                    return (
+                      <>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const text = `${phoneNumbers.join(',')}\n\n[문자 내용]\n${smsBody}`
+                            try {
+                              await navigator.clipboard.writeText(text)
+                              setSmsCopied(true)
+                              setTimeout(() => setSmsCopied(false), 2000)
+                            } catch {
+                              const textarea = document.createElement('textarea')
+                              textarea.value = text
+                              document.body.appendChild(textarea)
+                              textarea.select()
+                              document.execCommand('copy')
+                              document.body.removeChild(textarea)
+                              setSmsCopied(true)
+                              setTimeout(() => setSmsCopied(false), 2000)
+                            }
+                          }}
+                          className={`inline-flex items-center justify-center p-1.5 rounded-md shadow-sm transition-colors ${
+                            smsCopied ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                          }`}
+                          title={`연락처 ${phoneNumbers.length}건 + 문자내용 복사`}
+                        >
+                          {smsCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        </button>
+                        <a
+                          href={smsHref}
+                          className="inline-flex items-center justify-center p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 shadow-sm transition-colors"
+                          title={`TBM 소장님들께 단체문자 보내기 (${phoneNumbers.length}건)`}
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                        </a>
+                      </>
+                    )
+                  })()}
                   {/* 엑셀 다운로드 버튼 (모바일) - 본부 단위에서만 표시 */}
                   {selectedHq && !selectedBranch && (
                     <button
@@ -2203,12 +2312,18 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                       </>
                     )
                   )}
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    className="text-xs text-gray-600 bg-white border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                  />
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="text-xs bg-white border border-gray-300 rounded pl-2 pr-1 py-1 w-[90px] focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [&::-webkit-datetime-edit]:opacity-0"
+                      style={{ color: 'transparent' }}
+                    />
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-600 pointer-events-none tabular-nums">
+                      {selectedDate ? selectedDate.slice(2).replace(/-/g, '.') : ''}
+                    </span>
+                  </div>
                   {selectedHq && !selectedBranch && userProfile?.branch_division?.endsWith('본부') && (
                     <button
                       type="button"
@@ -2731,6 +2846,58 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                       )}
                     </h4>
                     <div className="flex items-center gap-3">
+                      {/* 단체문자 버튼 - 현재 조회중인 TBM 기록 소장 전원에게 문자 */}
+                      {(() => {
+                        const phoneNumbers = tbmRecords
+                          .map(r => r.contact)
+                          .filter((p): p is string => !!p && p.trim().length > 0)
+                          .map(p => p.replace(/[^0-9+]/g, ''))
+                          .filter(p => p.length > 0)
+                          .filter((v, i, a) => a.indexOf(v) === i)
+                        if (phoneNumbers.length === 0) return null
+                        const smsBody = '안녕하세요 TBM 소장님, 안전작업 부탁드립니다. https://safesys.vercel.app/'
+                        const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent)
+                        const smsHref = `sms:${phoneNumbers.join(',')}${isIOS ? '&' : '?'}body=${encodeURIComponent(smsBody)}`
+                        return (
+                          <>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const text = `${phoneNumbers.join(',')}\n\n[문자 내용]\n${smsBody}`
+                                try {
+                                  await navigator.clipboard.writeText(text)
+                                  setSmsCopied(true)
+                                  setTimeout(() => setSmsCopied(false), 2000)
+                                } catch {
+                                  const textarea = document.createElement('textarea')
+                                  textarea.value = text
+                                  document.body.appendChild(textarea)
+                                  textarea.select()
+                                  document.execCommand('copy')
+                                  document.body.removeChild(textarea)
+                                  setSmsCopied(true)
+                                  setTimeout(() => setSmsCopied(false), 2000)
+                                }
+                              }}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium shadow-sm transition-colors ${
+                                smsCopied ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                              }`}
+                              title={`연락처 ${phoneNumbers.length}건 + 문자내용 복사`}
+                            >
+                              {smsCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                              {smsCopied ? '복사됨' : `복사(${phoneNumbers.length})`}
+                            </button>
+                            <a
+                              href={smsHref}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 shadow-sm transition-colors"
+                              title="TBM 소장님들께 단체문자 보내기"
+                            >
+                              <MessageSquare className="h-4 w-4" />
+                              단체문자
+                            </a>
+                          </>
+                        )
+                      })()}
                       {/* 엑셀 다운로드 버튼 - 본부 단위에서만 표시 */}
                       {selectedHq && !selectedBranch && (
                         <button
