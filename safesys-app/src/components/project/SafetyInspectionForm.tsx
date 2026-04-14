@@ -108,6 +108,58 @@ const SPECIAL_INSPECTION_ITEMS: { category: string; item: string; action: string
     { category: '라. 기타점검사항', item: '', action: '해당없음', custom: true },
 ]
 
+const RAINY_SEASON_ITEMS: { category: string; item: string; action: string; custom?: boolean }[] = [
+    { category: '가. 중점사항', item: '1. 현장 정리·정돈 여부', action: '해당없음' },
+    { category: '가. 중점사항', item: '2. 안전시설물 설치 여부 및 상태', action: '해당없음' },
+    { category: '가. 중점사항', item: '3. 우기대비 안전관리계획 작성 및 이행', action: '해당없음' },
+    { category: '가. 중점사항', item: '4. 우기 이전 시공완료 및 활용가능 여부', action: '해당없음' },
+    { category: '가. 중점사항', item: '5. 감전사고 예방 전기시설 관리 상태', action: '해당없음' },
+    { category: '가. 중점사항', item: '6. 주변 배수시설 정비 등 주변정리', action: '해당없음' },
+    { category: '나. 토공사', item: '1. 굴착·토사운반 등 건설기계 작업시 안전조치', action: '해당없음' },
+    { category: '나. 토공사', item: '2. 굴착면 주변 안전조치', action: '해당없음' },
+    { category: '나. 토공사', item: '3. 사면 붕괴 예방조치 실시 여부', action: '해당없음' },
+    { category: '나. 토공사', item: '4. 표면수 유입방지 조치 여부', action: '해당없음' },
+    { category: '나. 토공사', item: '5. 굴착면 기울기 준수 여부', action: '해당없음' },
+    { category: '다. 가설공사', item: '1. 가설구조물 시공 상세도면 작성 유무', action: '해당없음' },
+    { category: '다. 가설공사', item: '2. 허용 적재하중 초과 여부', action: '해당없음' },
+    { category: '다. 가설공사', item: '3. 폭우·강풍 등에 대비한 고정 여부', action: '해당없음' },
+    { category: '다. 가설공사', item: '4. 비계 또는 거푸집동바리 등 설치상태 이상 유무', action: '해당없음' },
+    { category: '다. 가설공사', item: '5. 흙막이시설 이상유무', action: '해당없음' },
+    { category: '라. 지반 및 주변시설', item: '1. 침하 등 변형 여부 미점검', action: '해당없음' },
+    { category: '라. 지반 및 주변시설', item: '2. 차량 및 건설기계 등 전도방지조치 실시 여부', action: '해당없음' },
+    { category: '라. 지반 및 주변시설', item: '3. 공사용 가설도로 상태 불량', action: '해당없음' },
+    { category: '라. 지반 및 주변시설', item: '4. 지하매설물 보호조치 미흡', action: '해당없음' },
+    { category: '라. 지반 및 주변시설', item: '5. 강풍 대비 시설물 적재물 등 결속 및 보강 미흡', action: '해당없음' },
+    { category: '라. 지반 및 주변시설', item: '6. 현장주변 공중을 위한 안전조치 미실시', action: '해당없음' },
+    { category: '마. 안전관리 5대 핵심항목 이행 여부', item: '1. 작업 전 근로자 대상 TBM 실시', action: '해당없음' },
+    { category: '마. 안전관리 5대 핵심항목 이행 여부', item: '2. 신규근로자 작업 전 현장 둘러보기', action: '해당없음' },
+    { category: '마. 안전관리 5대 핵심항목 이행 여부', item: '3. 건설기계 주변 접근금지', action: '해당없음' },
+    { category: '마. 안전관리 5대 핵심항목 이행 여부', item: '4. 개인보호구 착용', action: '해당없음' },
+    { category: '마. 안전관리 5대 핵심항목 이행 여부', item: '5. 안전보건표지의 설치·부착', action: '해당없음' },
+    { category: '바. 기타사항', item: '', action: '해당없음', custom: true },
+    { category: '사. (품질) 자재', item: '1. 주요자재 덮개 미설치', action: '해당없음' },
+    { category: '사. (품질) 자재', item: '2. 이격 거리 미준수', action: '해당없음' },
+    { category: '아. (품질) 가설공사', item: '1. 거푸집 존치기간 미준수', action: '해당없음' },
+    { category: '아. (품질) 가설공사', item: '2. 흙막이 시설 변형', action: '해당없음' },
+    { category: '아. (품질) 가설공사', item: '3. 지표수 현장 내 유입', action: '해당없음' },
+    { category: '아. (품질) 가설공사', item: '4. 손상 가설물 재료 사용', action: '해당없음' },
+    { category: '자. (품질) 구조물', item: '1. 시공이음부 누수', action: '해당없음' },
+    { category: '자. (품질) 구조물', item: '2. 배수공 뚫림', action: '해당없음' },
+    { category: '자. (품질) 구조물', item: '3. 수로관(흄관) 이음부 누수', action: '해당없음' },
+    { category: '자. (품질) 구조물', item: '4. 호안공 천단콘크리트 미타설', action: '해당없음' },
+    { category: '자. (품질) 구조물', item: '5. 호안공 체인 미체결', action: '해당없음' },
+    { category: '자. (품질) 구조물', item: '6. 레미콘 품질확보 미실시', action: '해당없음' },
+    { category: '자. (품질) 구조물', item: '7. 레미콘 공장점검 미실시', action: '해당없음' },
+    { category: '차. (품질) 토공', item: '1. 구조물 되메움 다짐 불량', action: '해당없음' },
+    { category: '차. (품질) 토공', item: '2. 터파기/사면 부위 등 우수배제 미조치', action: '해당없음' },
+    { category: '차. (품질) 토공', item: '3. 적정 함수비 미확보', action: '해당없음' },
+    { category: '차. (품질) 토공', item: '4. 배수로 굴착시 말단부부터 시점방향으로 미굴착', action: '해당없음' },
+    { category: '카. (품질) 기타', item: '1. 계측 및 계측관리 미실시', action: '해당없음' },
+    { category: '카. (품질) 기타', item: '2. 강우시 콘크리트 타설중지 기준 미수립', action: '해당없음' },
+    { category: '카. (품질) 기타', item: '3. 위험구간 사전점검 계획 미수립', action: '해당없음' },
+    { category: '카. (품질) 기타', item: '4. 우기 대비 교육 실시 여부', action: '해당없음' },
+]
+
 export default function SafetyInspectionForm({ projectId, project, editingId, initialInspectionType, readOnly, onClose, onSaved }: Props) {
     const { user } = useAuth()
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -180,6 +232,10 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
         if (!editingId) {
             if (inspectionType === '해빙기') {
                 setAdditionalItems(JSON.parse(JSON.stringify(THAW_SEASON_ITEMS)))
+                setCoreItemSlots([null, null, null])
+                setSelectedSingleItems(new Map())
+            } else if (inspectionType === '우기') {
+                setAdditionalItems(JSON.parse(JSON.stringify(RAINY_SEASON_ITEMS)))
                 setCoreItemSlots([null, null, null])
                 setSelectedSingleItems(new Map())
             } else if (isSpecialInspection) {
@@ -309,6 +365,12 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                 if (missingItems.length > 0) {
                     loadedItems = [...loadedItems, ...JSON.parse(JSON.stringify(missingItems))]
                 }
+            } else if (inspection.inspection_type === '우기') {
+                const existingCategories = new Set(loadedItems.map((item: any) => item.category))
+                const missingItems = RAINY_SEASON_ITEMS.filter(item => !existingCategories.has(item.category))
+                if (missingItems.length > 0) {
+                    loadedItems = [...loadedItems, ...JSON.parse(JSON.stringify(missingItems))]
+                }
             } else if (inspection.inspection_type === '특별점검(안전혁신건설-287)') {
                 const existingCategories = new Set(loadedItems.map((item: any) => item.category))
                 const missingItems = SPECIAL_INSPECTION_ITEMS.filter(item => !existingCategories.has(item.category))
@@ -322,7 +384,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
             let slotIdx = 0
             const singleSelected = new Map<string, number>()
             loadedItems.forEach((item: any, idx: number) => {
-                if (item.category === '가. 안전관리 5대 핵심항목 이행 여부') {
+                if (item.category.includes('5대 핵심항목') && inspection.inspection_type !== '우기') {
                     if (item.action && item.action !== '해당없음' && slotIdx < 3) slots[slotIdx++] = idx
                 } else if (item.action && item.action !== '해당없음' && !singleSelected.has(item.category)) {
                     singleSelected.set(item.category, idx)
@@ -332,6 +394,10 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
             setSelectedSingleItems(singleSelected)
         } else if (inspection.inspection_type === '해빙기') {
             setAdditionalItems(JSON.parse(JSON.stringify(THAW_SEASON_ITEMS)))
+            setCoreItemSlots([null, null, null])
+            setSelectedSingleItems(new Map())
+        } else if (inspection.inspection_type === '우기') {
+            setAdditionalItems(JSON.parse(JSON.stringify(RAINY_SEASON_ITEMS)))
             setCoreItemSlots([null, null, null])
             setSelectedSingleItems(new Map())
         } else if (inspection.inspection_type === '특별점검(안전혁신건설-287)') {
@@ -612,7 +678,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                 supervisor_name: supervisorName || null,
                 inspector_opinion: inspectorOpinion || null,
                 good_example_content: goodExampleContent || null,
-                additional_items: (inspectionType === '해빙기' || isSpecialInspection) ? additionalItems : null,
+                additional_items: (inspectionType === '해빙기' || inspectionType === '우기' || isSpecialInspection) ? additionalItems : null,
                 signatures: signatures,
                 created_by: user.id,
                 updated_at: new Date().toISOString()
@@ -831,7 +897,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                 <div className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-50 border-b">
                     {(isSpecialInspection
                         ? ['점검개요', '지적사항']
-                        : ['점검개요', '점검결과 및 사진', '점검자 의견 및 서명', ...(inspectionType === '해빙기' ? ['추가 점검 항목'] : [])]
+                        : ['점검개요', '점검결과 및 사진', '점검자 의견 및 서명', ...((inspectionType === '해빙기' || inspectionType === '우기') ? ['추가 점검 항목'] : [])]
                     ).map((label, i) => (
                         <button
                             key={i}
@@ -1007,6 +1073,19 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z" /></svg>
                                     특별점검(안혁건-287) 점검표
                                 </a>
+                                ) : inspectionType === '우기' ? (
+                                <>
+                                <a href="https://drive.google.com/file/d/1OIifXpbHmu2yDTvR9dkHYnTEKfcT87ni/view?usp=drive_link" target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm font-medium hover:bg-red-100 transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z" /></svg>
+                                    점검표 (안전분야)
+                                </a>
+                                <a href="https://drive.google.com/file/d/1qfdWjPS0yjFYFO9DhJfx005Z7HSojXXG/view?usp=drive_link" target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm font-medium hover:bg-green-100 transition-colors">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z" /></svg>
+                                    점검표 (품질·환경분야)
+                                </a>
+                                </>
                                 ) : (
                                 <>
                                 <a href="https://drive.google.com/file/d/1NxRogH08nc_eWHj3Uzc3I5mfnIXt1aSb/view?usp=drive_link" target="_blank" rel="noopener noreferrer"
@@ -1385,8 +1464,8 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                         </div>
                     )}
 
-                    {/* Step 2/4: 추가 점검 항목 (특별점검은 Step 2, 해빙기는 Step 4) */}
-                    {((step === 4 && inspectionType === '해빙기') || (step === 2 && isSpecialInspection)) && (
+                    {/* Step 2/4: 추가 점검 항목 (특별점검은 Step 2, 해빙기/우기는 Step 4) */}
+                    {((step === 4 && (inspectionType === '해빙기' || inspectionType === '우기')) || (step === 2 && isSpecialInspection)) && (
                         <div className="space-y-6">
                             <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 md:p-5">
                                 <h3 className="text-[15px] font-bold text-gray-800 mb-4 flex flex-wrap items-center gap-2">
@@ -1416,7 +1495,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                                         acc[current.category].push({ ...current, originalIndex: idx });
                                         return acc;
                                     }, {} as Record<string, any[]>)).map(([category, items]) => {
-                                        const isCoreCategory = category === '가. 안전관리 5대 핵심항목 이행 여부'
+                                        const isCoreCategory = category.includes('5대 핵심항목') && inspectionType !== '우기'
                                         if (!isCoreCategory) {
                                             const selectedIdx = selectedSingleItems.get(category)
                                             const selectedItem = selectedIdx !== undefined ? items.find((i: any) => i.originalIndex === selectedIdx) : null
@@ -1616,7 +1695,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                                                 acc[current.category].push({ ...current, originalIndex: idx });
                                                 return acc;
                                             }, {} as Record<string, any[]>)).map(([category, items]) => {
-                                                const isCoreCategory = category === '가. 안전관리 5대 핵심항목 이행 여부'
+                                                const isCoreCategory = category.includes('5대 핵심항목') && inspectionType !== '우기'
                                                 if (!isCoreCategory) {
                                                     const selectedIdx = selectedSingleItems.get(category)
                                                     const selectedItem = selectedIdx !== undefined ? items.find((i: any) => i.originalIndex === selectedIdx) : null
@@ -1877,7 +1956,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                     <div className="flex gap-3">
                         {readOnly ? (
                             <>
-                            {step < (inspectionType === '해빙기' ? 4 : isSpecialInspection ? 2 : 3) && (
+                            {step < ((inspectionType === '해빙기' || inspectionType === '우기') ? 4 : isSpecialInspection ? 2 : 3) && (
                                 <button onClick={() => setStep(step + 1)}
                                     className="px-6 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm">
                                     다음 단계 →
@@ -1893,7 +1972,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                         <button onClick={onClose} title="취소" className="flex items-center justify-center w-10 h-10 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                             <X className="h-5 w-5" />
                         </button>
-                        {step < (inspectionType === '해빙기' ? 4 : isSpecialInspection ? 2 : 3) ? (
+                        {step < ((inspectionType === '해빙기' || inspectionType === '우기') ? 4 : isSpecialInspection ? 2 : 3) ? (
                             <button onClick={() => setStep(step + 1)}
                                 className="px-6 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm">
                                 다음 단계 →
