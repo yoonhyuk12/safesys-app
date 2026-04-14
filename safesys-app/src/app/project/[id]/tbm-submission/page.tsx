@@ -934,29 +934,36 @@ export default function TBMSubmissionPage() {
         </div>
       )}
 
-      {/* 업데이트 안내 모달 */}
+      {/* 5대 핵심 안전수칙 모달 */}
       {showUpdateNotice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={handleCloseUpdateNotice}>
           <div
             className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6 flex flex-col items-center gap-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-purple-100">
-              <span className="text-2xl">📋</span>
+            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100">
+              <span className="text-2xl">⚠️</span>
             </div>
             <div className="text-center">
-              <p className="text-xs font-semibold text-purple-600 uppercase tracking-widest mb-1">업데이트 안내</p>
+              <p className="text-xs font-semibold text-red-600 uppercase tracking-widest mb-1">안전 공지</p>
               <p className="text-base font-bold text-gray-900 leading-snug">
-                &ldquo;임시저장&rdquo;을 통해<br />TBM 교육을 미리 준비하세요!
+                5대 핵심 안전수칙
               </p>
             </div>
-            <p className="text-sm text-gray-500 text-center leading-relaxed">
-              사무실에서 작업내용·교육내용을 미리 입력하고,<br />
-              현장에서 사진·서명만 추가하여 제출하세요.
+            <ol className="w-full text-sm font-bold text-gray-900 leading-relaxed space-y-1.5 pl-1">
+              <li><span className="text-red-600">1.</span> TBM 실시 철저</li>
+              <li><span className="text-red-600">2.</span> 신규근로자 작업전 현장 둘러보기</li>
+              <li><span className="text-red-600">3.</span> 건설기계 주변 접근금지, 신호수 배치</li>
+              <li><span className="text-red-600">4.</span> 개인보호구 착용 철저</li>
+              <li><span className="text-red-600">5.</span> 안전보건표지 설치</li>
+            </ol>
+            <p className="text-xs text-gray-600 text-center leading-relaxed border-t border-gray-200 pt-3 w-full">
+              특수계약 조건에 따라 위 내용 불이행시<br />
+              <span className="font-semibold text-red-600">작업중지</span> 될 수 있습니다.
             </p>
             <button
               onClick={handleCloseUpdateNotice}
-              className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-xl transition-colors"
+              className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-xl transition-colors"
             >
               확인
             </button>
