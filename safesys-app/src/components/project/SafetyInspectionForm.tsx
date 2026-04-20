@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { X, Plus, Trash2, Upload, Image as ImageIcon, Save, MoreVertical, Crop, RotateCw, FileText } from 'lucide-react'
+import { X, Plus, Trash2, Upload, Image as ImageIcon, Save, MoreVertical, Crop, RotateCw, FileText, ArrowRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import SignatureCanvas from 'react-signature-canvas'
 import { useAuth } from '@/contexts/AuthContext'
@@ -1969,24 +1969,24 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                             </>
                         ) : (
                         <>
-                        <button onClick={onClose} title="취소" className="flex items-center justify-center w-10 h-10 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+                        <button onClick={onClose} title="닫기"
+                            className="flex items-center justify-center w-10 h-10 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors shadow-sm">
                             <X className="h-5 w-5" />
                         </button>
-                        {step < ((inspectionType === '해빙기' || inspectionType === '우기') ? 4 : isSpecialInspection ? 2 : 3) ? (
-                            <button onClick={() => setStep(step + 1)}
-                                className="px-6 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm">
-                                다음 단계 →
-                            </button>
-                        ) : (
-                            <button onClick={handleSave} disabled={saving} title={editingId ? '수정 완료' : '등록 완료'}
-                                className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50">
-                                {saving ? (
-                                    <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                    <Save className="h-5 w-5" />
-                                )}
+                        {step < ((inspectionType === '해빙기' || inspectionType === '우기') ? 4 : isSpecialInspection ? 2 : 3) && (
+                            <button onClick={() => setStep(step + 1)} title="다음 단계"
+                                className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+                                <ArrowRight className="h-5 w-5" />
                             </button>
                         )}
+                        <button onClick={handleSave} disabled={saving} title={editingId ? '저장' : '등록'}
+                            className="flex items-center justify-center w-10 h-10 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50">
+                            {saving ? (
+                                <div className="h-5 w-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <Save className="h-5 w-5" />
+                            )}
+                        </button>
                         </>
                         )}
                     </div>

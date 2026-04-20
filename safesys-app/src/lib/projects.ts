@@ -1487,18 +1487,24 @@ export interface SafetyInspectionCountByProject {
   inspection_count: number
 
   thawing_count: number   // 해빙기 점검
+  thawing_findings: number   // 해빙기 일반 지적건수 (safety_inspection_results)
+  thawing_additional_findings: number // 해빙기 추가 점검 항목 지적건수
   thawing_unresolved: number // 해빙기 미조치
   thawing_unsigned: number   // 해빙기 미서명
 
   rainy_count: number     // 우기 점검
+  rainy_findings: number     // 우기 일반 지적건수
+  rainy_additional_findings: number // 우기 추가 점검 항목 지적건수
   rainy_unresolved: number   // 우기 미조치
   rainy_unsigned: number     // 우기 미서명
 
   comprehensive_count: number // 종합 점검
+  comprehensive_findings: number // 종합 지적건수
   comprehensive_unresolved: number // 종합 미조치
   comprehensive_unsigned: number   // 종합 미서명
 
   special_count: number   // 특별점검(안전혁신건설-287)
+  special_findings: number   // 특별 지적건수
   special_unresolved: number // 특별 미조치
   special_unsigned: number   // 특별 미서명
 }
@@ -1608,10 +1614,10 @@ export async function getSafetyInspectionCountsByUserBranch(
       ; (inspections || []).forEach((ins: any) => {
         const existing = statsMap.get(ins.project_id) || {
           total: 0,
-          thawing: { total: 0, unresolved: 0, unsigned: 0 },
-          rainy: { total: 0, unresolved: 0, unsigned: 0 },
-          comprehensive: { total: 0, unresolved: 0, unsigned: 0 },
-          special: { total: 0, unresolved: 0, unsigned: 0 }
+          thawing: { total: 0, findings: 0, additionalFindings: 0, unresolved: 0, unsigned: 0 },
+          rainy: { total: 0, findings: 0, additionalFindings: 0, unresolved: 0, unsigned: 0 },
+          comprehensive: { total: 0, findings: 0, unresolved: 0, unsigned: 0 },
+          special: { total: 0, findings: 0, unresolved: 0, unsigned: 0 }
         }
         existing.total += 1
         const type = (ins.inspection_type || '').trim()
@@ -1619,17 +1625,20 @@ export async function getSafetyInspectionCountsByUserBranch(
         // 미조치 판단: 실제 지적사항이 있는 항목에 대해 조치 후 사진(after_photo_url)이 미등록이면 미조치
         // 실제 지적 = photo_url(지적사진)이 있거나, findings 텍스트가 단순 "양호/이상없음" 등이 아닌 경우
         const NO_FINDING_KEYWORDS = ['양호', '적정', '이상없음', '이상 없음', '지적없음', '지적 없음', '해당없음', '해당 없음', '없음', '특이사항 없음', '특이사항없음']
+        const isRealFinding = (r: any): boolean => {
+          if (r.photo_url && r.photo_url.trim() !== '') return true
+          const f = (r.findings || '').trim()
+          if (f && !NO_FINDING_KEYWORDS.includes(f)) return true
+          return false
+        }
+        let findingsCount = 0
         let isUnresolved = false
         if (ins.safety_inspection_results && Array.isArray(ins.safety_inspection_results)) {
+          findingsCount = ins.safety_inspection_results.filter(isRealFinding).length
           isUnresolved = ins.safety_inspection_results.some((r: any) => {
+            if (!isRealFinding(r)) return false
             const hasAfterPhoto = r.after_photo_url && r.after_photo_url.trim() !== ''
-            if (hasAfterPhoto) return false
-            // 지적사진이 있으면 실제 지적
-            if (r.photo_url && r.photo_url.trim() !== '') return true
-            // 지적사진 없지만 findings 텍스트가 실제 지적내용이면 미조치
-            const f = (r.findings || '').trim()
-            if (f && !NO_FINDING_KEYWORDS.includes(f)) return true
-            return false
+            return !hasAfterPhoto
           })
         }
 
@@ -1643,29 +1652,43 @@ export async function getSafetyInspectionCountsByUserBranch(
           }
         }
 
+        // 해빙기/우기 추가 점검 항목: action이 있고 '해당없음'이 아닌 항목을 지적으로 카운트
+        let additionalFindings = 0
+        if ((type === '해빙기' || type === '우기') && ins.additional_items && Array.isArray(ins.additional_items)) {
+          additionalFindings = ins.additional_items.filter((item: any) => item.action && item.action !== '해당없음').length
+        }
+
         if (type === '해빙기') {
           existing.thawing.total += 1
+          existing.thawing.findings += findingsCount
+          existing.thawing.additionalFindings += additionalFindings
           if (isUnresolved) existing.thawing.unresolved += 1
           if (isUnsigned) existing.thawing.unsigned += 1
         } else if (type === '우기') {
           existing.rainy.total += 1
+          existing.rainy.findings += findingsCount
+          existing.rainy.additionalFindings += additionalFindings
           if (isUnresolved) existing.rainy.unresolved += 1
           if (isUnsigned) existing.rainy.unsigned += 1
         } else if (type === '종합') {
           existing.comprehensive.total += 1
+          existing.comprehensive.findings += findingsCount
           if (isUnresolved) existing.comprehensive.unresolved += 1
           if (isUnsigned) existing.comprehensive.unsigned += 1
         } else if (type === '특별점검(안전혁신건설-287)') {
           existing.special.total += 1
-          // 특별점검: additional_items에서 지적사항(action !== '해당없음')에 조치사진 미등록 여부 판단
+          // 특별점검: additional_items에서 지적사항(action !== '해당없음') 개수 및 조치사진 미등록 여부 판단
+          let specialFindings = 0
           let specialUnresolved = false
           if (ins.additional_items && Array.isArray(ins.additional_items)) {
-            specialUnresolved = ins.additional_items.some((item: any) => {
-              if (!item.action || item.action === '해당없음') return false
+            const realItems = ins.additional_items.filter((item: any) => item.action && item.action !== '해당없음')
+            specialFindings = realItems.length
+            specialUnresolved = realItems.some((item: any) => {
               const hasAfterPhoto = item.after_photo_url && item.after_photo_url.trim() !== '' && item.after_photo_url !== 'N/A'
               return !hasAfterPhoto
             })
           }
+          existing.special.findings += specialFindings
           if (specialUnresolved) existing.special.unresolved += 1
           // 특별점검은 서명이 없으므로 미서명 카운트 제외
         }
@@ -1676,10 +1699,10 @@ export async function getSafetyInspectionCountsByUserBranch(
     const inspectionCounts: SafetyInspectionCountByProject[] = activeProjects.map(p => {
       const stats = statsMap.get(p.id) || {
         total: 0,
-        thawing: { total: 0, unresolved: 0, unsigned: 0 },
-        rainy: { total: 0, unresolved: 0, unsigned: 0 },
-        comprehensive: { total: 0, unresolved: 0, unsigned: 0 },
-        special: { total: 0, unresolved: 0, unsigned: 0 }
+        thawing: { total: 0, findings: 0, additionalFindings: 0, unresolved: 0, unsigned: 0 },
+        rainy: { total: 0, findings: 0, additionalFindings: 0, unresolved: 0, unsigned: 0 },
+        comprehensive: { total: 0, findings: 0, unresolved: 0, unsigned: 0 },
+        special: { total: 0, findings: 0, unresolved: 0, unsigned: 0 }
       }
       return {
         project_id: p.id,
@@ -1688,15 +1711,21 @@ export async function getSafetyInspectionCountsByUserBranch(
         managing_branch: p.managing_branch || '',
         inspection_count: stats.total,
         thawing_count: stats.thawing.total,
+        thawing_findings: stats.thawing.findings,
+        thawing_additional_findings: stats.thawing.additionalFindings,
         thawing_unresolved: stats.thawing.unresolved,
         thawing_unsigned: stats.thawing.unsigned,
         rainy_count: stats.rainy.total,
+        rainy_findings: stats.rainy.findings,
+        rainy_additional_findings: stats.rainy.additionalFindings,
         rainy_unresolved: stats.rainy.unresolved,
         rainy_unsigned: stats.rainy.unsigned,
         comprehensive_count: stats.comprehensive.total,
+        comprehensive_findings: stats.comprehensive.findings,
         comprehensive_unresolved: stats.comprehensive.unresolved,
         comprehensive_unsigned: stats.comprehensive.unsigned,
         special_count: stats.special.total,
+        special_findings: stats.special.findings,
         special_unresolved: stats.special.unresolved,
         special_unsigned: stats.special.unsigned,
       }

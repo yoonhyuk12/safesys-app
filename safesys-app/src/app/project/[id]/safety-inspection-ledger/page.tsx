@@ -486,7 +486,11 @@ export default function SafetyInspectionLedgerPage() {
                                     </td>
                                     <td rowSpan={rowCount} className="px-2 py-3 text-center align-middle border-r border-gray-100">
                                       <div className="flex flex-col items-center gap-2">
-                                        <div className="w-24 h-16 bg-gray-50 border border-dashed border-gray-200 rounded flex items-center justify-center text-gray-400 text-[10px]">(지적사진 대체)</div>
+                                        {ins.site_before_photo ? (
+                                          <img src={ins.site_before_photo} alt="전경사진" className="w-24 h-16 object-cover rounded border cursor-pointer" onClick={() => window.open(ins.site_before_photo!, '_blank')} />
+                                        ) : (
+                                          <div className="w-24 h-16 bg-gray-50 border border-dashed border-gray-200 rounded flex items-center justify-center text-gray-400 text-[10px]">사진 없음</div>
+                                        )}
                                         <div className="text-gray-900 font-medium text-xs whitespace-nowrap">
                                           {ins.inspection_date ? ins.inspection_date.substring(2) : ''}
                                         </div>
@@ -621,7 +625,11 @@ export default function SafetyInspectionLedgerPage() {
                               </td>
                               <td className="px-2 py-3 text-center align-middle border-r border-gray-100">
                                 <div className="flex flex-col items-center gap-2">
-                                  <div className="w-24 h-16 bg-gray-50 border border-dashed border-gray-200 rounded flex items-center justify-center text-gray-400 text-[10px]">안혁건-287</div>
+                                  {ins.site_before_photo ? (
+                                    <img src={ins.site_before_photo} alt="전경사진" className="w-24 h-16 object-cover rounded border cursor-pointer" onClick={() => window.open(ins.site_before_photo!, '_blank')} />
+                                  ) : (
+                                    <div className="w-24 h-16 bg-gray-50 border border-dashed border-gray-200 rounded flex items-center justify-center text-gray-400 text-[10px]">사진 없음</div>
+                                  )}
                                   <div className="text-gray-900 font-medium text-xs whitespace-nowrap">
                                     {ins.inspection_date ? ins.inspection_date.substring(2) : ''}
                                   </div>
