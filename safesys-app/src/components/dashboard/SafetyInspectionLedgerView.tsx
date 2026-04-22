@@ -313,20 +313,28 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
         .select('*, safety_inspection_photos(*)')
         .in('project_id', pIds)
         .eq('inspection_type', '특별점검(안전혁신건설-287)')
-        .order('inspection_date', { ascending: true })
 
       if (!inspections || inspections.length === 0) {
         alert('다운로드할 특별점검 데이터가 없습니다.')
         return
       }
 
-      setDownloadProgress({ current: 0, total: inspections.length, stage: '데이터 조회', title: '특별점검 Word 다운로드' })
+      // 프로젝트 순서대로 정렬 (같은 프로젝트는 점검일 오름차순)
+      const projectOrder = new Map<string, number>(pIds.map((id, i) => [id, i]))
+      const sortedInspections = [...inspections].sort((a: any, b: any) => {
+        const oa = projectOrder.get(a.project_id) ?? Number.MAX_SAFE_INTEGER
+        const ob = projectOrder.get(b.project_id) ?? Number.MAX_SAFE_INTEGER
+        if (oa !== ob) return oa - ob
+        return (a.inspection_date || '').localeCompare(b.inspection_date || '')
+      })
+
+      setDownloadProgress({ current: 0, total: sortedInspections.length, stage: '데이터 조회', title: '특별점검 Word 다운로드' })
 
       const safeScope = scopeLabel.replace(/[\\/:*?"<>|]/g, '_')
       const fileName = `특별점검_통합_${safeScope}_${selectedYear}.docx`
 
       await generateSpecialInspectionDocxBulk(
-        inspections as any,
+        sortedInspections as any,
         fileName,
         (current, total, title) => {
           setDownloadProgress({ current, total, stage: `${title || ''} 생성 중`, title: '특별점검 Word 다운로드' })
