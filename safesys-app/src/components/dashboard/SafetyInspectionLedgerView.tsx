@@ -319,12 +319,15 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
         return
       }
 
-      // 프로젝트 순서대로 정렬 (같은 프로젝트는 점검일 오름차순)
-      const projectOrder = new Map<string, number>(pIds.map((id, i) => [id, i]))
+      // 프로젝트명 가나다 순 정렬 (같은 프로젝트는 점검일 오름차순)
+      const nameByProject = new Map<string, string>(
+        targetProjects.map(p => [p.id, p.project_name || ''])
+      )
       const sortedInspections = [...inspections].sort((a: any, b: any) => {
-        const oa = projectOrder.get(a.project_id) ?? Number.MAX_SAFE_INTEGER
-        const ob = projectOrder.get(b.project_id) ?? Number.MAX_SAFE_INTEGER
-        if (oa !== ob) return oa - ob
+        const na = nameByProject.get(a.project_id) || ''
+        const nb = nameByProject.get(b.project_id) || ''
+        const cmp = na.localeCompare(nb, 'ko')
+        if (cmp !== 0) return cmp
         return (a.inspection_date || '').localeCompare(b.inspection_date || '')
       })
 
