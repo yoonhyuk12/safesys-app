@@ -319,21 +319,22 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
         return
       }
 
-      // 프로젝트 리스트 순 정렬: 지사(가나다) → 지사 내 display_order → 프로젝트명(가나다) → 점검일
-      const projectInfo = new Map<string, { branch: string; order: number; name: string }>(
-        targetProjects.map(p => [p.id, {
-          branch: p.managing_branch || '',
-          order: typeof p.display_order === 'number' ? p.display_order : Number.MAX_SAFE_INTEGER,
-          name: p.project_name || '',
-        }])
+      // 프로젝트 테이블(프로젝트명 컬럼)과 동일한 순서로 정렬
+      // UI: inspection_count desc. 동수는 프로젝트명(가나다), 같은 프로젝트는 점검일 오름차순
+      const projectInfo = new Map<string, { count: number; name: string }>(
+        targetProjects.map(p => {
+          const ic: any = inspectionCounts.find(c => c.project_id === p.id)
+          return [p.id, {
+            count: ic?.inspection_count || 0,
+            name: p.project_name || '',
+          }]
+        })
       )
       const sortedInspections = [...inspections].sort((a: any, b: any) => {
         const pa = projectInfo.get(a.project_id)
         const pb = projectInfo.get(b.project_id)
         if (!pa || !pb) return 0
-        const branchCmp = pa.branch.localeCompare(pb.branch, 'ko')
-        if (branchCmp !== 0) return branchCmp
-        if (pa.order !== pb.order) return pa.order - pb.order
+        if (pa.count !== pb.count) return pb.count - pa.count
         const nameCmp = pa.name.localeCompare(pb.name, 'ko')
         if (nameCmp !== 0) return nameCmp
         return (a.inspection_date || '').localeCompare(b.inspection_date || '')
