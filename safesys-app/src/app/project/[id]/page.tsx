@@ -99,13 +99,28 @@ export default function ProjectDetailPage() {
       // 안전점검 관리대장 조치 후 사진 미등록 건수 조회
       const { data: safetyInspections } = await supabase
         .from('safety_inspections')
-        .select('id, safety_inspection_results(id, after_photo_url)')
+        .select('id, inspection_type, additional_items, safety_inspection_results(id, findings, after_photo_url)')
         .eq('project_id', projectId)
 
       if (safetyInspections) {
+        const isPendingPhoto = (after: any) => {
+          if (after === 'N/A') return false
+          if (!after) return true
+          return typeof after === 'string' && after.trim() === ''
+        }
         const pendingPhotoCount = (safetyInspections as any[]).reduce((count: number, ins: any) => {
+          if (ins.inspection_type === '특별점검(안전혁신건설-287)') {
+            const items = Array.isArray(ins.additional_items) ? ins.additional_items : []
+            const pending = items.filter((it: any) => it && it.action && it.action !== '해당없음' && isPendingPhoto(it.after_photo_url)).length
+            return count + pending
+          }
           const results = ins.safety_inspection_results || []
-          return count + results.filter((r: any) => !r.after_photo_url || r.after_photo_url.trim() === '').length
+          const pending = results.filter((r: any) => {
+            const hasFindings = typeof r.findings === 'string' && r.findings.trim() !== ''
+            if (!hasFindings) return false
+            return isPendingPhoto(r.after_photo_url)
+          }).length
+          return count + pending
         }, 0)
         setSafetyLedgerPendingCount(pendingPhotoCount)
       }

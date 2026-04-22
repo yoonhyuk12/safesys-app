@@ -1276,14 +1276,29 @@ const Dashboard: React.FC = () => {
         // 안전점검 미조치 건수 조회 (내 프로젝트 + 공유받은 프로젝트)
         const { data: safetyInspections } = await (supabase as any)
           .from('safety_inspections')
-          .select('project_id, id, safety_inspection_results(id, after_photo_url)')
+          .select('project_id, id, inspection_type, additional_items, safety_inspection_results(id, findings, after_photo_url)')
           .in('project_id', projectIds)
 
         if (safetyInspections) {
+          const isPendingPhoto = (after: any) => {
+            if (after === 'N/A') return false
+            if (!after) return true
+            return typeof after === 'string' && after.trim() === ''
+          }
           const sCounts: Record<string, number> = {}
           safetyInspections.forEach((ins: any) => {
-            const results = ins.safety_inspection_results || []
-            const pending = results.filter((r: any) => !r.after_photo_url || r.after_photo_url.trim() === '').length
+            let pending = 0
+            if (ins.inspection_type === '특별점검(안전혁신건설-287)') {
+              const items = Array.isArray(ins.additional_items) ? ins.additional_items : []
+              pending = items.filter((it: any) => it && it.action && it.action !== '해당없음' && isPendingPhoto(it.after_photo_url)).length
+            } else {
+              const results = ins.safety_inspection_results || []
+              pending = results.filter((r: any) => {
+                const hasFindings = typeof r.findings === 'string' && r.findings.trim() !== ''
+                if (!hasFindings) return false
+                return isPendingPhoto(r.after_photo_url)
+              }).length
+            }
             if (pending > 0) {
               sCounts[ins.project_id] = (sCounts[ins.project_id] || 0) + pending
             }
@@ -1342,14 +1357,29 @@ const Dashboard: React.FC = () => {
           // 안전점검 미조치 건수 조회
           const { data: safetyInspections } = await (supabase as any)
             .from('safety_inspections')
-            .select('project_id, id, safety_inspection_results(id, after_photo_url)')
+            .select('project_id, id, inspection_type, additional_items, safety_inspection_results(id, findings, after_photo_url)')
             .in('project_id', projectIds)
 
           if (safetyInspections) {
+            const isPendingPhoto = (after: any) => {
+              if (after === 'N/A') return false
+              if (!after) return true
+              return typeof after === 'string' && after.trim() === ''
+            }
             const sCounts: Record<string, number> = {}
             safetyInspections.forEach((ins: any) => {
-              const results = ins.safety_inspection_results || []
-              const pending = results.filter((r: any) => !r.after_photo_url || r.after_photo_url.trim() === '').length
+              let pending = 0
+              if (ins.inspection_type === '특별점검(안전혁신건설-287)') {
+                const items = Array.isArray(ins.additional_items) ? ins.additional_items : []
+                pending = items.filter((it: any) => it && it.action && it.action !== '해당없음' && isPendingPhoto(it.after_photo_url)).length
+              } else {
+                const results = ins.safety_inspection_results || []
+                pending = results.filter((r: any) => {
+                  const hasFindings = typeof r.findings === 'string' && r.findings.trim() !== ''
+                  if (!hasFindings) return false
+                  return isPendingPhoto(r.after_photo_url)
+                }).length
+              }
               if (pending > 0) {
                 sCounts[ins.project_id] = (sCounts[ins.project_id] || 0) + pending
               }
