@@ -22,6 +22,7 @@ interface InspectionData {
   supervisor_name: string | null
   additional_items?: any[] | null
   signatures?: any[]
+  safety_inspection_photos?: any[] | null
 }
 
 // ── helpers ──
@@ -130,9 +131,15 @@ const W_PHOTO = [1260, 3330, 1620, 3570]
 
 // ── Main ──
 
-export async function generateSpecialInspectionDocx(inspection: InspectionData): Promise<void> {
+type DocxSection = { properties: any; children: (Paragraph | Table)[] }
+
+const DEFAULT_PAGE_MARGIN = { top: 1440, bottom: 1440, left: 1080, right: 1080 }
+
+async function buildInspectionSections(inspection: InspectionData, photos?: any[]): Promise<DocxSection[]> {
   const items: any[] = inspection.additional_items || []
   const findings = items.filter((it: any) => it.action && it.action !== '해당없음')
+  const allPhotos: any[] = photos || inspection.safety_inspection_photos || []
+  const sitePhotos = allPhotos.filter((p: any) => p.photo_type === 'site_before')
 
   const grouped: Record<string, any[]> = {}
   for (const item of items) {
@@ -286,7 +293,7 @@ export async function generateSpecialInspectionDocx(inspection: InspectionData):
   // ═══════════════════════════════════════
   // Photo pages (each finding = 1 page)
   // ═══════════════════════════════════════
-  const photoSections: { children: (Paragraph | Table)[] }[] = []
+  const photoSections: DocxSection[] = []
 
   for (const f of findings) {
     const ft = f.item || ''
@@ -352,29 +359,102 @@ export async function generateSpecialInspectionDocx(inspection: InspectionData):
     }))
 
     photoSections.push({
-      properties: { page: { margin: { top: 1440, bottom: 1440, left: 1080, right: 1080 } } },
+      properties: { page: { margin: DEFAULT_PAGE_MARGIN } },
       children,
     })
   }
 
   // ═══════════════════════════════════════
-  // Build & download
+  // 지적사항이 없는 경우 전경 사진 사진대지 (2장씩 한 페이지)
   // ═══════════════════════════════════════
-  const doc = new Document({
-    sections: [
-      { properties: { page: { margin: { top: 1440, bottom: 1440, left: 1080, right: 1080 } } }, children: page1 },
-      ...photoSections,
-    ],
-  })
+  if (findings.length === 0 && sitePhotos.length > 0) {
+    const P = W_PHOTO
+    const pageCount = Math.ceil(sitePhotos.length / 2)
 
+    for (let pg = 0; pg < pageCount; pg++) {
+      const children: (Paragraph | Table)[] = []
+
+      children.push(new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 100 },
+        children: [new TextRun({ text: '건설현장 점검사진', bold: true, size: 28, font: FONT, underline: {} })],
+      }))
+
+      for (let slot = 0; slot < 2; slot++) {
+        const photo = sitePhotos[pg * 2 + slot]
+        const has = !!photo?.photo_url
+
+        if (slot > 0) {
+          children.push(new Paragraph({ spacing: { before: 40, after: 40 } }))
+        }
+
+        children.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          layout: TableLayoutType.FIXED,
+          rows: [
+            new TableRow({ height: { value: ROW_H_PHOTO_HDR, rule: HeightRule.ATLEAST }, children: [
+              hCell('지구명', { width: P[0] }),
+              dCell(has ? dist : '', { width: P[1] }),
+              hCell('공사감독원', { width: P[2] }),
+              dCell(has ? supervisorFull : '', { width: P[3] }),
+            ] }),
+            new TableRow({ height: { value: ROW_H_PHOTO_HDR, rule: HeightRule.ATLEAST }, children: [
+              hCell('일  시', { width: P[0] }),
+              dCell(has ? fmtDate(inspection.inspection_date) : '', { width: P[1] }),
+              hCell('설  명', { width: P[2] }),
+              dCell(has ? (photo?.description || '점검 전경사진') : '', { width: P[3], align: AlignmentType.LEFT }),
+            ] }),
+            new TableRow({ height: { value: ROW_H_PHOTO, rule: HeightRule.EXACT }, children: [
+              await buildPhotoCell(has ? photo.photo_url : null, 4),
+            ] }),
+          ],
+        }))
+      }
+
+      photoSections.push({
+        properties: { page: { margin: DEFAULT_PAGE_MARGIN } },
+        children,
+      })
+    }
+  }
+
+  return [
+    { properties: { page: { margin: DEFAULT_PAGE_MARGIN } }, children: page1 },
+    ...photoSections,
+  ]
+}
+
+async function downloadDocx(sections: DocxSection[], fileName: string): Promise<void> {
+  const doc = new Document({ sections })
   const blob = await Packer.toBlob(doc)
-  const dateStr = (inspection.inspection_date || '').replace(/-/g, '')
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `특별점검_${dateStr}.docx`
+  a.download = fileName
   a.click()
   setTimeout(() => URL.revokeObjectURL(url), 3000)
+}
+
+export async function generateSpecialInspectionDocx(inspection: InspectionData, photos?: any[]): Promise<void> {
+  const sections = await buildInspectionSections(inspection, photos)
+  const dateStr = (inspection.inspection_date || '').replace(/-/g, '')
+  await downloadDocx(sections, `특별점검_${dateStr}.docx`)
+}
+
+export async function generateSpecialInspectionDocxBulk(
+  inspections: InspectionData[],
+  fileName: string,
+  onProgress?: (current: number, total: number, title?: string) => void,
+): Promise<void> {
+  const allSections: DocxSection[] = []
+  for (let i = 0; i < inspections.length; i++) {
+    const ins = inspections[i]
+    onProgress?.(i + 1, inspections.length, ins.district_name || '')
+    const sections = await buildInspectionSections(ins)
+    allSections.push(...sections)
+  }
+  if (allSections.length === 0) return
+  await downloadDocx(allSections, fileName)
 }
 
 // ── 사진 셀 ──

@@ -12,7 +12,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
 import DownloadProgressModal from '@/components/ui/DownloadProgressModal'
 import { generateBulkSafetyInspectionPdf } from '@/lib/reports/safety-inspection-bulk-pdf'
-import { generateSpecialInspectionDocx } from '@/lib/reports/special-inspection-report-docx'
+import { generateSpecialInspectionDocxBulk } from '@/lib/reports/special-inspection-report-docx'
 import { supabase } from '@/lib/supabase'
 
 interface SafetyInspectionLedgerViewProps {
@@ -292,11 +292,14 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
     try {
       const activeList = projects.filter(p => !isCompleted(p))
       let targetProjects: typeof activeList = []
+      let scopeLabel = '전체'
 
       if (level === 'project' && selectedBranchForDetail) {
         targetProjects = activeList.filter(p => p.managing_branch === selectedBranchForDetail)
+        scopeLabel = selectedBranchForDetail
       } else if (level === 'branch' && selectedHqForDetail) {
         targetProjects = activeList.filter(p => p.managing_hq === selectedHqForDetail)
+        scopeLabel = selectedHqForDetail
       } else {
         targetProjects = activeList
       }
@@ -304,10 +307,10 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
       const pIds = targetProjects.map(p => p.id)
       if (pIds.length === 0) { alert('다운로드할 프로젝트가 없습니다.'); return }
 
-      // 특별점검 데이터 조회
+      // 특별점검 데이터 조회 (전경 사진 포함)
       const { data: inspections } = await supabase
         .from('safety_inspections')
-        .select('*')
+        .select('*, safety_inspection_photos(*)')
         .in('project_id', pIds)
         .eq('inspection_type', '특별점검(안전혁신건설-287)')
         .order('inspection_date', { ascending: true })
@@ -319,13 +322,16 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
 
       setDownloadProgress({ current: 0, total: inspections.length, stage: '데이터 조회', title: '특별점검 Word 다운로드' })
 
-      // 건별로 Word 다운로드
-      for (let i = 0; i < inspections.length; i++) {
-        setDownloadProgress({ current: i + 1, total: inspections.length, stage: `${inspections[i].district_name || ''} 생성 중`, title: '특별점검 Word 다운로드' })
-        await generateSpecialInspectionDocx(inspections[i] as any)
-        // 다운로드 간 간격
-        await new Promise(r => setTimeout(r, 500))
-      }
+      const safeScope = scopeLabel.replace(/[\\/:*?"<>|]/g, '_')
+      const fileName = `특별점검_통합_${safeScope}_${selectedYear}.docx`
+
+      await generateSpecialInspectionDocxBulk(
+        inspections as any,
+        fileName,
+        (current, total, title) => {
+          setDownloadProgress({ current, total, stage: `${title || ''} 생성 중`, title: '특별점검 Word 다운로드' })
+        },
+      )
     } catch (err: any) {
       console.error('벌크 Word 다운로드 실패:', err)
       alert(err.message || 'Word 다운로드 중 오류가 발생했습니다.')
