@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import TermsAndConditions from '@/components/auth/TermsAndConditions'
 import ShieldIcon from '@/components/ui/ShieldIcon'
+import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 // 현재 약관 버전 (날짜 형식)
 const CONSENT_VERSION = '2026-01-05'
@@ -90,6 +91,8 @@ export default function TermsPage() {
               이미 계정이 있으신가요? 로그인
             </button>
           </div>
+
+          <CopyrightNotice />
         </div>
       </div>
     </div>

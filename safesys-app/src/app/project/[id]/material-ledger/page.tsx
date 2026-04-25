@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignaturePad from '@/components/ui/SignaturePad'
 import { downloadMaterialLedgerExcel } from '@/lib/excel/material-ledger-export'
+import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 // ── 타입 ──
 
@@ -1468,7 +1469,7 @@ export default function MaterialLedgerPage() {
   const emptySlots = totalSlots - materials.length - 1 // -1 for add button
 
   return (
-    <div className="min-h-screen" style={{
+    <div className="min-h-screen flex flex-col" style={{
       background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0d0d15 50%, #000000 100%)'
     }}>
       {/* 드래그 중 흔들림 애니메이션 */}
@@ -1567,7 +1568,7 @@ export default function MaterialLedgerPage() {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-4">
+      <main className="flex-1 w-full max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-4">
         {/* 호라드릭 큐브 프레임 */}
         <div className="relative">
           {/* 외곽 장식 프레임 */}
@@ -1743,6 +1744,10 @@ export default function MaterialLedgerPage() {
           </p>
         </div>
       </main>
+
+      <footer className="w-full px-4 py-6 [&_p]:!text-amber-200/60 [&_p:first-child]:!text-amber-100/80" style={{ fontFamily: 'serif' }}>
+        <CopyrightNotice withDivider={false} />
+      </footer>
 
       {/* 자재 등록 모달 - 디아블로 스타일 */}
       {isMaterialModalOpen && (

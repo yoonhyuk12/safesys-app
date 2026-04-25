@@ -6,6 +6,7 @@ import { signUp, SignUpData, ConsentData, checkEmailExists } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
 import ShieldIcon from '@/components/ui/ShieldIcon'
+import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 // IP 주소 가져오기 (외부 API 사용)
 const getClientIP = async (): Promise<string | null> => {
@@ -637,6 +638,8 @@ const SignUpForm: React.FC = () => {
               </button>
             </div>
           </form>
+
+          <CopyrightNotice />
         </div>
       </div>
     </div>

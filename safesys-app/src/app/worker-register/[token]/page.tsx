@@ -11,6 +11,7 @@ import HealthQuestionnaire from '@/components/worker-consent/HealthQuestionnaire
 import SafetyPledge from '@/components/worker-consent/SafetyPledge'
 import type { PrivacyManager, HealthQuestionnaireData, SafetyEquipmentData } from '@/components/worker-consent/types'
 import { createDefaultHealthData, createDefaultSafetyEquipment } from '@/components/worker-consent/types'
+import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 interface TokenData {
   id: string
@@ -473,7 +474,8 @@ export default function WorkerSelfRegisterPage() {
 
   // 유효한 토큰 - 등록 폼 표시
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex flex-col">
+      <div className="flex-1 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl max-w-md w-full overflow-hidden">
         {/* 헤더 */}
         <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-6 text-white">
@@ -790,6 +792,11 @@ export default function WorkerSelfRegisterPage() {
           isSaving={submitting}
         />
       )}
+      </div>
+
+      <footer className="w-full px-4 py-6 [&_p]:!text-blue-200/70 [&_p:first-child]:!text-blue-100">
+        <CopyrightNotice withDivider={false} />
+      </footer>
     </div>
   )
 }

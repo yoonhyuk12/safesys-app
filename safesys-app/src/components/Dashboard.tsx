@@ -18,6 +18,7 @@ import KakaoMap from '@/components/ui/KakaoMap'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import ProfileEditModal from '@/components/auth/ProfileEditModal'
 import PWAInstallButtonHeader from '@/components/common/PWAInstallButtonHeader'
+import CopyrightNotice from '@/components/common/CopyrightNotice'
 import TBMStatus from '@/components/project/TBMStatus'
 import ClientMapView from '@/components/dashboard/ClientMapView'
 import TBMContainer from '@/components/dashboard/TBMContainer'
@@ -4033,7 +4034,7 @@ const Dashboard: React.FC = () => {
   )
 
   return (
-    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
+    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex flex-col">
       {/* 헤더 */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl lg:max-w-none mx-auto px-4 sm:px-6 lg:px-4">
@@ -4120,7 +4121,7 @@ const Dashboard: React.FC = () => {
       </header>
 
       {/* 메인 콘텐츠 */}
-      <main className="max-w-7xl lg:max-w-none mx-auto py-6 sm:px-6 lg:px-4">
+      <main className="flex-1 w-full max-w-7xl lg:max-w-none mx-auto py-6 sm:px-6 lg:px-4">
         <div className="px-4 py-6 sm:px-0 lg:px-0">
           {userProfile?.role === '발주청'
             ? (
@@ -4162,6 +4163,10 @@ const Dashboard: React.FC = () => {
           }
         </div>
       </main>
+
+      <footer className="w-full px-4 py-6 [&_p]:!text-blue-200/70 [&_p:first-child]:!text-blue-100">
+        <CopyrightNotice withDivider={false} />
+      </footer>
 
       {/* 플로팅 버튼들 - 리스트 보기에서만 표시 */}
       {viewMode === 'list' && (

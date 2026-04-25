@@ -12,6 +12,7 @@ import SafetyInspectionDetail from '../../../../components/project/SafetyInspect
 import ImageEditor from '../../../../components/ui/ImageEditor'
 import { generateSafetyInspectionReportPdf } from '../../../../lib/reports/safety-inspection-report-pdf'
 import { generateSpecialInspectionDocx } from '../../../../lib/reports/special-inspection-report-docx'
+import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 export interface SafetyInspection {
   id: string
@@ -372,7 +373,7 @@ export default function SafetyInspectionLedgerPage() {
   if (!user) { router.push('/login'); return null }
 
   return (
-    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
+    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex flex-col">
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl lg:max-w-none mx-auto px-4 sm:px-6 lg:px-4">
           <div className="flex items-center justify-between h-16">
@@ -387,7 +388,7 @@ export default function SafetyInspectionLedgerPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl lg:max-w-none mx-auto py-6 px-4 sm:px-6 lg:px-4">
+      <main className="flex-1 w-full max-w-7xl lg:max-w-none mx-auto py-6 px-4 sm:px-6 lg:px-4">
         {/* 탭 & 버튼 */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex gap-2">
@@ -977,6 +978,10 @@ export default function SafetyInspectionLedgerPage() {
           </div>
         </div>
       )}
+
+      <footer className="w-full px-4 py-6 [&_p]:!text-blue-200/70 [&_p:first-child]:!text-blue-100">
+        <CopyrightNotice withDivider={false} />
+      </footer>
     </div>
   )
 }

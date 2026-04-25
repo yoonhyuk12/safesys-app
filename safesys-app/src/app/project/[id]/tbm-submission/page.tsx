@@ -11,6 +11,7 @@ import TBMSubmissionModal from '@/components/project/TBMSubmissionModal'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateTBMSubmissionReport, generateTBMSubmissionBulkReport, TBMSubmissionFormData } from '@/lib/reports/tbm-submission-report'
 import { downloadTBMSubmissionExcel, downloadTBMSubmissionBulkExcel } from '@/lib/excel/tbm-submission-export'
+import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 interface TBMSubmission {
   id: string
@@ -487,7 +488,7 @@ export default function TBMSubmissionPage() {
     : 0
 
   return (
-    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
+    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex flex-col">
       {/* 헤더 */}
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -509,7 +510,7 @@ export default function TBMSubmissionPage() {
       </header>
 
       {/* 메인 컨텐츠 */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* 좌측: 캘린더 */}
           <div className="lg:col-span-2">
@@ -859,6 +860,10 @@ export default function TBMSubmissionPage() {
           </div>
         </div>
       </main>
+
+      <footer className="w-full px-4 py-6 [&_p]:!text-blue-200/70 [&_p:first-child]:!text-blue-100">
+        <CopyrightNotice withDivider={false} />
+      </footer>
 
       {bulkDownloadingFormat && (
         <div className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[1px] flex items-center justify-center px-4">

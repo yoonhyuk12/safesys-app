@@ -1,12 +1,13 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Mail, Lock, Eye, EyeOff, Share2, Phone } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, Share2, Phone, ChevronDown } from 'lucide-react'
 import { signIn } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 import FindIdModal from './FindIdModal'
 import FindPasswordModal from './FindPasswordModal'
 import PWAInstallButton from '../common/PWAInstallButton'
+import CopyrightNotice from '../common/CopyrightNotice'
 
 // 방패 아이콘 컴포넌트
 const ShieldIcon = () => (
@@ -36,6 +37,7 @@ const LoginForm: React.FC = () => {
   const [error, setError] = useState('')
   const [showFindIdModal, setShowFindIdModal] = useState(false)
   const [showFindPasswordModal, setShowFindPasswordModal] = useState(false)
+  const [showContacts, setShowContacts] = useState(false)
 
   // 공유 기능
   const handleShare = async () => {
@@ -282,16 +284,31 @@ const LoginForm: React.FC = () => {
               >
                 계정이 없으신가요? 회원가입
               </button>
-              <div className="mt-3 text-xs text-gray-500 flex justify-center text-left">
-                <div className="inline-block space-y-1">
-                  <div className="flex items-center gap-1"><span className="w-8">문의 :</span> <span>경기 윤혁 차장</span> <a href="tel:01026765472" className="text-gray-500 hover:text-blue-500 transition-colors" title="010-2676-5472"><Phone className="w-3.5 h-3.5" /></a></div>
-                  <div className="flex items-center gap-1"><span className="w-8"></span> <span>충남 임원일 차장</span> <a href="tel:01047581293" className="text-gray-500 hover:text-blue-500 transition-colors" title="010-4758-1293"><Phone className="w-3.5 h-3.5" /></a></div>
-                  <div className="flex items-center gap-1"><span className="w-8"></span> <span>경북 이준엽 과장</span> <a href="tel:01064405054" className="text-gray-500 hover:text-blue-500 transition-colors" title="010-6440-5054"><Phone className="w-3.5 h-3.5" /></a></div>
-                  <div className="flex items-center gap-1"><span className="w-8"></span> <span>강원 배환성 차장</span> <a href="tel:01089521521" className="text-gray-500 hover:text-blue-500 transition-colors" title="010-8952-1521"><Phone className="w-3.5 h-3.5" /></a></div>
-                </div>
+              <div className="mt-3 text-xs text-gray-500">
+                <button
+                  type="button"
+                  onClick={() => setShowContacts(prev => !prev)}
+                  className="inline-flex items-center gap-1 text-gray-500 hover:text-blue-600 transition-colors"
+                  aria-expanded={showContacts}
+                >
+                  <span>문의처 {showContacts ? '닫기' : '펼치기'}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showContacts ? 'rotate-180' : ''}`} />
+                </button>
+                {showContacts && (
+                  <div className="mt-2 flex justify-center text-left">
+                    <div className="inline-block space-y-1">
+                      <div className="flex items-center gap-1"><span className="w-8">문의 :</span> <span>경기 윤혁 차장</span> <a href="tel:01026765472" className="text-gray-500 hover:text-blue-500 transition-colors" title="010-2676-5472"><Phone className="w-3.5 h-3.5" /></a></div>
+                      <div className="flex items-center gap-1"><span className="w-8"></span> <span>충남 임원일 차장</span> <a href="tel:01047581293" className="text-gray-500 hover:text-blue-500 transition-colors" title="010-4758-1293"><Phone className="w-3.5 h-3.5" /></a></div>
+                      <div className="flex items-center gap-1"><span className="w-8"></span> <span>경북 이준엽 과장</span> <a href="tel:01064405054" className="text-gray-500 hover:text-blue-500 transition-colors" title="010-6440-5054"><Phone className="w-3.5 h-3.5" /></a></div>
+                      <div className="flex items-center gap-1"><span className="w-8"></span> <span>강원 배환성 차장</span> <a href="tel:01089521521" className="text-gray-500 hover:text-blue-500 transition-colors" title="010-8952-1521"><Phone className="w-3.5 h-3.5" /></a></div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </form>
+
+          <CopyrightNotice />
         </div>
 
         {/* 아이디 찾기 모달 */}

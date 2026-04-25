@@ -1758,7 +1758,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                     {selectedDate ? selectedDate.slice(2).replace(/-/g, '.') : ''}
                   </span>
                 </div>
-                {selectedBranch && userProfile?.branch_division?.endsWith('본부') && (
+                {selectedBranch && (userProfile?.branch_division?.endsWith('본부') || userProfile?.branch_division?.endsWith('본사')) && (
                   <button
                     type="button"
                     onClick={() => {
@@ -2324,7 +2324,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                       {selectedDate ? selectedDate.slice(2).replace(/-/g, '.') : ''}
                     </span>
                   </div>
-                  {selectedHq && !selectedBranch && userProfile?.branch_division?.endsWith('본부') && (
+                  {selectedHq && !selectedBranch && (userProfile?.branch_division?.endsWith('본부') || userProfile?.branch_division?.endsWith('본사')) && (
                     <button
                       type="button"
                       onClick={() => {
@@ -2994,7 +2994,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                           className="border border-gray-300 rounded-md px-2 py-1 text-xs bg-white text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                         />
                       </div>
-                      {selectedHq && !selectedBranch && userProfile?.branch_division?.endsWith('본부') && (
+                      {selectedHq && !selectedBranch && (userProfile?.branch_division?.endsWith('본부') || userProfile?.branch_division?.endsWith('본사')) && (
                         <button
                           type="button"
                           onClick={() => {

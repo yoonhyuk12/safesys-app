@@ -7,6 +7,7 @@ import { ArrowLeft, Plus, FileText, Calendar, User, Building2, CheckCircle, XCir
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import jsPDF from 'jspdf'
+import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 // 체크리스트 항목 표시 순서 및 라벨 정의
 const CHECKLIST_DISPLAY_ORDER: { key: string; label: string }[] = [
@@ -465,7 +466,7 @@ export default function SafeDocumentsPage() {
   }
 
   return (
-    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
+    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex flex-col">
       {/* 헤더 */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-4">
@@ -492,7 +493,7 @@ export default function SafeDocumentsPage() {
       </header>
 
       {/* 메인 콘텐츠 */}
-      <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {/* 파일철 외곽 */}
         <div className="p-2 lg:p-6 rounded-lg shadow-lg" style={{ backgroundColor: 'rgb(88, 190, 213)' }}>
           {/* 파일철 내부 */}
@@ -933,6 +934,10 @@ export default function SafeDocumentsPage() {
           </div>
         )}
       </main>
+
+      <footer className="w-full px-4 py-6 [&_p]:!text-blue-200/70 [&_p:first-child]:!text-blue-100">
+        <CopyrightNotice withDivider={false} />
+      </footer>
     </div>
   )
 }

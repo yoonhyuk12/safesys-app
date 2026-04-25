@@ -15,6 +15,7 @@ interface ExtendedProject extends Project {
 }
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 interface ManagerInspectionRecord {
   id: string
@@ -1446,7 +1447,7 @@ export default function ManagerInspectionPage() {
   }
 
   return (
-    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
+    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex flex-col">
       {/* 헤더 */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl lg:max-w-none mx-auto px-4 sm:px-6 lg:px-4">
@@ -1471,7 +1472,7 @@ export default function ManagerInspectionPage() {
       </header>
 
       {/* 메인 콘텐츠 - 펼쳐진 파일철 */}
-      <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {/* 파일철 외곽 */}
         <div className="p-2 lg:p-6 rounded-lg shadow-lg" style={{ backgroundColor: 'rgb(88, 190, 213)' }}>
           {/* 파일철 내부 */}
@@ -3460,6 +3461,10 @@ export default function ManagerInspectionPage() {
           </div>
         </div>
       )}
+
+      <footer className="w-full px-4 py-6 [&_p]:!text-blue-200/70 [&_p:first-child]:!text-blue-100">
+        <CopyrightNotice withDivider={false} />
+      </footer>
     </div>
   )
 }

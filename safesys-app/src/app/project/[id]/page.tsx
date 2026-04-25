@@ -13,6 +13,7 @@ import HeatWaveCheckModal from '@/components/project/HeatWaveCheckModal'
 import ProjectHandoverModal from '@/components/project/ProjectHandoverModal'
 import ProjectShareModal from '@/components/project/ProjectShareModal'
 import PWAInstallButtonHeader from '@/components/common/PWAInstallButtonHeader'
+import CopyrightNotice from '@/components/common/CopyrightNotice'
 import NavigationSelector from '@/components/ui/NavigationSelector'
 
 export default function ProjectDetailPage() {
@@ -442,7 +443,7 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
+    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex flex-col">
       {/* 헤더 */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl lg:max-w-none mx-auto px-4 sm:px-6 lg:px-4">
@@ -480,7 +481,7 @@ export default function ProjectDetailPage() {
       </header>
 
       {/* 메인 콘텐츠 */}
-      <main className="max-w-7xl lg:max-w-none mx-auto py-6 sm:px-6 lg:px-4">
+      <main className="flex-1 w-full max-w-7xl lg:max-w-none mx-auto py-6 sm:px-6 lg:px-4">
         <div className="px-4 py-6 sm:px-0 lg:px-0">
           {/* 프로젝트 정보 */}
           <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative">
@@ -871,6 +872,10 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       </main>
+
+      <footer className="w-full px-4 py-6 [&_p]:!text-blue-200/70 [&_p:first-child]:!text-blue-100">
+        <CopyrightNotice withDivider={false} />
+      </footer>
 
       {/* 폭염대비 점검 모달 */}
       {project && (
