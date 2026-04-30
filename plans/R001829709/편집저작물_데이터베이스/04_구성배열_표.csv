@@ -1,0 +1,20 @@
+PDCA단계,그룹순서,서류순번,서류명,색상카테고리,배경색RGB,상태,연결방식,경로/URL,하단라벨
+P (계획),1,P-1,안전서류관리,Pink (분홍),"rgb(215,170,175)",활성,내부라우팅,/project/{id}/safe-documents,안전
+P (계획),1,P-2,시공서류관리,Pink (분홍),"rgb(215,170,175)",활성,외부URL,Google Forms,안전
+P (계획),1,P-3,품질서류관리,Pink (분홍),"rgb(215,170,175)",활성,외부URL,Google Forms,안전
+P (계획),1,P-4,위험성평가 AI GPT,Pink (분홍),"rgb(215,170,175)",활성,외부URL,ChatGPT GPTs,안전
+P (계획),1,P-5,(AI) 수시 위험성 평가,Gray (회색),"bg-gray-200",준비중,내부라우팅,/project/{id}/risk-assessment,안전
+D (실행),2,D-1,일일안전교육 (AI TBM일지),Yellow (노랑),"bg-yellow-100",활성(공사중지시 비활성),내부라우팅,/project/{id}/tbm-submission,안전
+D (실행),2,D-2,신규근로자 현장안내,Yellow (노랑),"bg-yellow-100",활성,내부라우팅,/project/{id}/new-worker-orientation,안전
+D (실행),2,D-3,근로자 관리대장,Yellow (노랑),"bg-yellow-100",활성,내부라우팅,/project/{id}/worker-management,안전
+D (실행),2,D-4,폭염대비점검,Yellow (노랑),"bg-yellow-100",활성(공사중지시 비활성),내부라우팅,/project/{id}/heatwave,안전
+D (실행),2,D-5,자재 수불부,Yellow (노랑),"bg-yellow-100",활성,내부라우팅,/project/{id}/material-ledger,사업
+D (실행),2,D-6,위험공종 작업허가제 (PTW),Gray (회색),"bg-gray-200",준비중,내부라우팅,/project/{id}/ptw,안전
+C (점검),3,C-1,(본부) 안전점검,Sky (하늘),"rgb(88,190,213)",활성+뱃지카운트,내부라우팅,/project/{id}/headquarters-inspection,안전
+C (점검),3,C-2,(지사) 안전점검,Sky (하늘),"rgb(88,190,213)",활성(조건부 표시),내부라우팅,/project/{id}/manager-inspection,안전
+C (점검),3,C-3,정기점검 (해빙·우기·종합·특별),Sky (하늘),"rgb(88,190,213)",활성+뱃지카운트,내부라우팅,/project/{id}/safety-inspection-ledger,안전
+C (점검),3,C-4,안전점검 GPT,Sky (하늘),"rgb(88,190,213)",활성,외부URL,ChatGPT GPTs,안전
+C (점검),3,C-5,(AI) 일일안전점검,Gray (회색),"bg-gray-200",준비중,내부라우팅,/project/{id}/daily-inspection,안전
+A (조치),4,A-1,관리자 TBM 활동 점검,Lime (연두),"rgb(180,205,100)",활성,내부라우팅,/project/{id}/tbm-safety-inspection,안전
+A (조치),4,A-2,휴일작업 관리대장,Gray (회색),"bg-gray-200",준비중,내부라우팅,/project/{id}/holiday-work,안전
+A (조치),4,A-3,(자동) 지적사항 관리대장,Gray (회색),"bg-gray-200",준비중,내부라우팅,/project/{id}/issue-management,안전
