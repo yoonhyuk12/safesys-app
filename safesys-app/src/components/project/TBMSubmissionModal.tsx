@@ -401,17 +401,18 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
     const baseName = fileName.replace(/\.[^.]+$/, '')
     const sanitized = baseName
       .normalize('NFKC')
-      .replace(/[^\p{L}\p{N}_-]+/gu, '_')
+      .replace(/[^a-zA-Z0-9_-]+/g, '_')
       .replace(/^_+|_+$/g, '')
 
     return sanitized || 'photo'
   }
 
   const uploadToStorage = async (file: File | Blob, folder: string, fileName: string): Promise<string> => {
-    const fileExt = fileName.split('.').pop() || 'jpg'
+    const rawExt = fileName.split('.').pop() || 'jpg'
+    const safeExt = rawExt.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'jpg'
     const safeBaseName = sanitizeStorageBaseName(fileName)
     const randomToken = Math.random().toString(36).substring(2, 8)
-    const filePath = `${folder}/${Date.now()}_${randomToken}_${safeBaseName}.${fileExt}`
+    const filePath = `${folder}/${Date.now()}_${randomToken}_${safeBaseName}.${safeExt}`
 
     const { data, error } = await supabase.storage
       .from('tbm-photos')
