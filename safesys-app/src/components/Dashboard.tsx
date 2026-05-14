@@ -217,13 +217,34 @@ const Dashboard: React.FC = () => {
   const [orientationStats, setOrientationStats] = useState<{ project_id: string; project_name: string; orientation_count: number; worker_count: number }[]>([])
   const [orientationDataLoading, setOrientationDataLoading] = useState(false)
   const [inspectionDataLoading, setInspectionDataLoading] = useState(false)
-  const [cardDataLoading, setCardDataLoading] = useState(false)
   // 카드 건수 전용 상태 (메인 /safe 페이지에서 경량 조회용)
   const [heatWaveCount, setHeatWaveCount] = useState<number>(0)
   const [managerInspectionCount, setManagerInspectionCount] = useState<number>(0)
   const [headquartersInspectionCount, setHeadquartersInspectionCount] = useState<number>(0)
   const [tbmSafetyInspectionCount, setTbmSafetyInspectionCount] = useState<number>(0)
   const [safeDocumentInspectionCount, setSafeDocumentInspectionCount] = useState<number>(0)
+  // 안전현황 카드별 조회 상태 (조회 버튼 클릭 시에만 데이터 로딩)
+  type SafetyCardKey = 'tbmSafety' | 'safeDocument' | 'worker' | 'orientation' | 'safetyInspection' | 'manager' | 'headquarters' | 'heatwave'
+  const [inquiredCards, setInquiredCards] = useState<Record<SafetyCardKey, boolean>>({
+    tbmSafety: false,
+    safeDocument: false,
+    worker: false,
+    orientation: false,
+    safetyInspection: false,
+    manager: false,
+    headquarters: false,
+    heatwave: false,
+  })
+  const [loadingCards, setLoadingCards] = useState<Record<SafetyCardKey, boolean>>({
+    tbmSafety: false,
+    safeDocument: false,
+    worker: false,
+    orientation: false,
+    safetyInspection: false,
+    manager: false,
+    headquarters: false,
+    heatwave: false,
+  })
   const [isAccountDeleteModalOpen, setIsAccountDeleteModalOpen] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
@@ -251,7 +272,6 @@ const Dashboard: React.FC = () => {
   const isViewModeInitialized = useRef(false)
   const isSelectionInitialized = useRef(false)
   const lastHeatWaveParams = useRef<{ date: string; hq: string; branch: string; viewMode: string } | null>(null)
-  const lastCardDataParams = useRef<{ date: string; quarter: string; hq: string; branch: string } | null>(null)
   const lastManagerParams = useRef<{ quarter: string; hq: string; branch: string } | null>(null)
   const lastHeadquartersParams = useRef<{ quarter: string; hq: string; branch: string } | null>(null)
   const lastTBMParams = useRef<{ hq: string; branch: string } | null>(null)
@@ -989,12 +1009,15 @@ const Dashboard: React.FC = () => {
   }, [user, userProfile, selectedSafetyCard, selectedHq, selectedBranch, safetyInspectionYear, safetyInspectionCounts.length, loadInspectionData])
 
   // 신규근로자 현장안내 데이터 로드 (안전현황 진입 시 카드 숫자 표시용)
+  // 메인 /safe 페이지에서는 카드별 조회 버튼으로만 로딩 → 메인에서는 차단, 상세 카드(orientation) 진입시에만 동작
   const lastOrientationParams = useRef<{ hq: string; branch: string } | null>(null)
   useEffect(() => {
     if (!(user && userProfile && userProfile.role === '발주청' && viewMode === 'safety')) {
       return
     }
     if (!isSelectionInitialized.current) return
+    // 메인 /safe (selectedSafetyCard === null)에서는 자동 로드 차단 - 카드의 조회 버튼으로만 로드
+    if (!selectedSafetyCard) return
 
     const currentParams = { hq: selectedHq || '', branch: selectedBranch || '' }
     if (lastOrientationParams.current &&
@@ -1068,7 +1091,101 @@ const Dashboard: React.FC = () => {
     }
 
     loadOrientationData()
-  }, [user, userProfile, viewMode, selectedHq, selectedBranch, orientationStats.length, projects])
+  }, [user, userProfile, viewMode, selectedHq, selectedBranch, orientationStats.length, projects, selectedSafetyCard])
+
+  // 안전현황 메인의 개별 카드 조회 함수 (조회 버튼 클릭 시 해당 카드 데이터만 로드)
+  const inquireCard = async (key: SafetyCardKey) => {
+    if (!userProfile) return
+    if (loadingCards[key]) return
+    setLoadingCards(prev => ({ ...prev, [key]: true }))
+    try {
+      switch (key) {
+        case 'heatwave': {
+          const r = await getHeatWaveCheckCountByUserBranch(userProfile, selectedDate, selectedHq, selectedBranch)
+          if (r.success) setHeatWaveCount(r.count)
+          break
+        }
+        case 'manager': {
+          const r = await getManagerInspectionCountByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch)
+          if (r.success) setManagerInspectionCount(r.count)
+          break
+        }
+        case 'headquarters': {
+          const r = await getHeadquartersInspectionCountByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch)
+          if (r.success) setHeadquartersInspectionCount(r.count)
+          break
+        }
+        case 'tbmSafety': {
+          const r = await getTBMSafetyInspectionCountByUserBranch(userProfile, selectedHq, selectedBranch, selectedDate, selectedDate)
+          if (r.success) setTbmSafetyInspectionCount(r.count)
+          break
+        }
+        case 'safeDocument': {
+          const r = await getSafeDocumentInspectionCountByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch)
+          if (r.success) setSafeDocumentInspectionCount(r.count)
+          break
+        }
+        case 'worker': {
+          const r = await getWorkerCountsByUserBranch(userProfile, selectedHq, selectedBranch)
+          if (r.success && r.workerCounts) setWorkerCounts(r.workerCounts)
+          break
+        }
+        case 'safetyInspection': {
+          const r = await getSafetyInspectionCountsByUserBranch(userProfile, selectedHq, selectedBranch, safetyInspectionYear)
+          if (r.success && r.inspectionCounts) setSafetyInspectionCounts(r.inspectionCounts)
+          break
+        }
+        case 'orientation': {
+          const activeProjectIds = projects.filter(p => {
+            if (p.is_active === undefined || p.is_active === null) return true
+            if (typeof p.is_active === 'boolean') return p.is_active
+            if (typeof p.is_active === 'object') return !(p.is_active as any).completed
+            return true
+          }).map(p => p.id)
+          if (activeProjectIds.length === 0) {
+            setOrientationStats([])
+            break
+          }
+          const { data, error } = await (supabase as any)
+            .from('new_worker_orientations')
+            .select('project_id, workers')
+            .in('project_id', activeProjectIds)
+          if (error) {
+            setOrientationStats([])
+            break
+          }
+          const statsMap = new Map<string, { orientation_count: number; worker_count: number }>()
+          ;(data || []).forEach((record: any) => {
+            const pid = record.project_id
+            const existing = statsMap.get(pid) || { orientation_count: 0, worker_count: 0 }
+            existing.orientation_count += 1
+            const workers = record.workers || []
+            const filledWorkers = workers.filter((w: any) => w.name && w.name.trim() !== '')
+            existing.worker_count += filledWorkers.length
+            statsMap.set(pid, existing)
+          })
+          const result = projects
+            .filter(p => activeProjectIds.includes(p.id))
+            .map(p => {
+              const s = statsMap.get(p.id) || { orientation_count: 0, worker_count: 0 }
+              return {
+                project_id: p.id,
+                project_name: p.project_name,
+                orientation_count: s.orientation_count,
+                worker_count: s.worker_count,
+              }
+            })
+          setOrientationStats(result)
+          break
+        }
+      }
+      setInquiredCards(prev => ({ ...prev, [key]: true }))
+    } catch (e) {
+      console.error('카드 조회 실패:', key, e)
+    } finally {
+      setLoadingCards(prev => ({ ...prev, [key]: false }))
+    }
+  }
 
   // 사업현황 진입 시 자급자재 데이터 로드
   const lastMaterialParams = useRef<{ hq: string; branch: string } | null>(null)
@@ -1110,122 +1227,8 @@ const Dashboard: React.FC = () => {
     loadMapInspectionData()
   }, [user, userProfile, viewMode, selectedQuarter, selectedHq, selectedBranch])
 
-  // 안전현황 모드일 때 카드용 기본 데이터 로드 (안전현황 메인에서만)
-  useEffect(() => {
-    // 발주청의 본부/지사 기본값 세팅이 끝나기 전에는 집계 로딩 금지
-    if (userProfile?.role === '발주청' && !isSelectionInitialized.current) return
-    if (DEBUG_LOGS) console.log('🔍 카드용 데이터 로딩 조건 확인:', {
-      user: !!user,
-      userProfile: !!userProfile,
-      role: userProfile?.role,
-      viewMode,
-      selectedSafetyCard,
-      shouldLoad: !!(user && userProfile && userProfile.role === '발주청' && viewMode === 'safety' && !selectedSafetyCard)
-    })
-
-    // 경로가 상세 카드 경로(/safe/manager, /safe/headquarters, /safe/heatwave, /safe/tbm 등)인 경우 메인 카드 집계 로딩을 차단
-    const isCardDetailRoute = (() => {
-      if (!pathname) return false
-      const segments = pathname.split('/').filter(Boolean)
-      if (segments[0] !== 'safe') return false
-      const card = segments[1] === 'branch' ? segments[3] : segments[1]
-      return card === 'heatwave' || card === 'manager' || card === 'headquarters' || card === 'tbm' || card === 'worker' || card === 'safetyInspection'
-    })()
-    if (isCardDetailRoute) {
-      if (DEBUG_LOGS) console.log('❌ 상세 카드 경로 감지 - 메인 카드 데이터 로딩 차단:', pathname)
-      return
-    }
-
-    if (!(user && userProfile && userProfile.role === '발주청' && viewMode === 'safety' && !selectedSafetyCard)) {
-      if (DEBUG_LOGS) console.log('❌ 카드용 데이터 로딩 조건 불만족 - 스킵')
-      return
-    }
-
-    // 특정 카드가 이미 선택된 상태면 절대 실행하지 않음 (추가 안전장치)
-    if (selectedSafetyCard !== null) {
-      if (DEBUG_LOGS) console.log('❌ 특정 카드가 선택된 상태 - 카드용 데이터 로딩 차단:', selectedSafetyCard)
-      return
-    }
-
-    const currentCardParams = {
-      date: selectedDate,
-      quarter: selectedQuarter,
-      hq: selectedHq || '',
-      branch: selectedBranch || ''
-    }
-
-    // 이미 동일한 파라미터로 로딩했는지 확인
-    if (lastCardDataParams.current &&
-      lastCardDataParams.current.date === currentCardParams.date &&
-      lastCardDataParams.current.quarter === currentCardParams.quarter &&
-      lastCardDataParams.current.hq === currentCardParams.hq &&
-      lastCardDataParams.current.branch === currentCardParams.branch) {
-      console.log('✅ 카드 건수 데이터 이미 로딩됨. 중복 실행 방지:', currentCardParams)
-      return
-    }
-
-    console.log('🏠 안전현황 메인 - 카드 건수 표시용 경량 데이터 로딩 시작')
-    lastCardDataParams.current = currentCardParams
-
-    // 안전현황 메인에서는 카드 건수 표시를 위해 카운트만 조회 (경량 쿼리)
-    const loadCardData = async () => {
-      try {
-        setCardDataLoading(true)
-        const [hwCountResult, mgCountResult, hqCountResult, tbmCountResult, sdCountResult, workerResult, safetyInspResult] = await Promise.all([
-          getHeatWaveCheckCountByUserBranch(userProfile, selectedDate, selectedHq, selectedBranch),
-          getManagerInspectionCountByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch),
-          getHeadquartersInspectionCountByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch),
-          getTBMSafetyInspectionCountByUserBranch(userProfile, selectedHq, selectedBranch, selectedDate, selectedDate),
-          getSafeDocumentInspectionCountByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch),
-          getWorkerCountsByUserBranch(userProfile, selectedHq, selectedBranch),
-          getSafetyInspectionCountsByUserBranch(userProfile, selectedHq, selectedBranch, safetyInspectionYear)
-        ])
-
-        if (hwCountResult.success) {
-          setHeatWaveCount(hwCountResult.count)
-          console.log('✅ 폭염점검:', hwCountResult.count, '건')
-        }
-
-        if (mgCountResult.success) {
-          setManagerInspectionCount(mgCountResult.count)
-          console.log('✅ 관리자점검:', mgCountResult.count, '건')
-        }
-
-        if (hqCountResult.success) {
-          setHeadquartersInspectionCount(hqCountResult.count)
-          console.log('✅ 본부불시점검:', hqCountResult.count, '건')
-        }
-
-        if (tbmCountResult.success) {
-          setTbmSafetyInspectionCount(tbmCountResult.count)
-          console.log('✅ TBM안전활동점검:', tbmCountResult.count, '건')
-        }
-
-        if (sdCountResult.success) {
-          setSafeDocumentInspectionCount(sdCountResult.count)
-          console.log('✅ 안전서류점검:', sdCountResult.count, '건')
-        }
-
-        if (workerResult.success && workerResult.workerCounts) {
-          setWorkerCounts(workerResult.workerCounts)
-          console.log('✅ 근로자등록현황:', workerResult.workerCounts.reduce((s: number, w: WorkerCountByProject) => s + w.worker_count, 0), '명')
-        }
-
-        if (safetyInspResult.success && safetyInspResult.inspectionCounts) {
-          setSafetyInspectionCounts(safetyInspResult.inspectionCounts)
-          console.log('✅ 정기안전점검:', safetyInspResult.inspectionCounts.reduce((s: number, c: SafetyInspectionCountByProject) => s + c.inspection_count, 0), '건')
-        }
-
-        console.log('🏠 안전현황 메인 카드 건수 로딩 완료')
-      } catch (err) {
-        console.error('카드 건수 데이터 로드 실패:', err)
-      } finally {
-        setCardDataLoading(false)
-      }
-    }
-
-    loadCardData()
-  }, [user, userProfile, viewMode, selectedDate, selectedQuarter, selectedHq, selectedBranch, selectedSafetyCard, safetyInspectionYear])
+  // 안전현황 메인 카드 데이터 자동 일괄조회는 비활성화됨.
+  // 사용자가 각 카드의 "조회" 버튼을 누를 때 inquireCard() 함수로 개별 로딩.
 
   const loadUserProjects = async () => {
     if (!user) return
@@ -3207,10 +3210,17 @@ const Dashboard: React.FC = () => {
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">TBM 안전활동점검</h4>
                     <div className="text-xs text-gray-600">
-                      {cardDataLoading ? (
+                      {loadingCards.tbmSafety ? (
                         <div className="flex justify-center my-1">
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-200 border-t-blue-600"></div>
                         </div>
+                      ) : !inquiredCards.tbmSafety ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); inquireCard('tbmSafety') }}
+                          className="mt-1 px-2 py-1 text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100"
+                        >
+                          조회
+                        </button>
                       ) : (
                         <>
                           <div className="text-sm font-semibold text-blue-600 mb-0.5">
@@ -3254,10 +3264,17 @@ const Dashboard: React.FC = () => {
                     <h4 className="text-xs font-medium text-gray-900 mb-1">안전서류 점검</h4>
                     <div className="text-xs text-gray-600">
                       <div className="text-[10px] text-gray-500 mb-0.5">(분기당 점검 건수)</div>
-                      {cardDataLoading ? (
+                      {loadingCards.safeDocument ? (
                         <div className="flex justify-center my-1">
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-purple-200 border-t-purple-600"></div>
                         </div>
+                      ) : !inquiredCards.safeDocument ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); inquireCard('safeDocument') }}
+                          className="mt-1 px-2 py-1 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded hover:bg-purple-100"
+                        >
+                          조회
+                        </button>
                       ) : (
                         <div className="text-sm font-semibold text-purple-600 mb-0.5">
                           {safeDocumentInspectionCount}건
@@ -3284,10 +3301,17 @@ const Dashboard: React.FC = () => {
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">근로자 등록현황</h4>
                     <div className="text-xs text-gray-600">
-                      {cardDataLoading ? (
+                      {loadingCards.worker ? (
                         <div className="flex justify-center my-1">
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-cyan-200 border-t-cyan-600"></div>
                         </div>
+                      ) : !inquiredCards.worker ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); inquireCard('worker') }}
+                          className="mt-1 px-2 py-1 text-[11px] font-medium text-cyan-700 bg-cyan-50 border border-cyan-200 rounded hover:bg-cyan-100"
+                        >
+                          조회
+                        </button>
                       ) : (
                         <>
                           <div className="text-sm font-semibold text-cyan-600 mb-0.5">
@@ -3313,10 +3337,17 @@ const Dashboard: React.FC = () => {
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">신규근로자 현장안내</h4>
                     <div className="text-xs text-gray-600">
-                      {cardDataLoading ? (
+                      {loadingCards.orientation ? (
                         <div className="flex justify-center my-1">
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-emerald-200 border-t-emerald-600"></div>
                         </div>
+                      ) : !inquiredCards.orientation ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); inquireCard('orientation') }}
+                          className="mt-1 px-2 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100"
+                        >
+                          조회
+                        </button>
                       ) : (
                         <>
                           <div className="text-sm font-semibold text-emerald-600 mb-0.5">
@@ -3346,10 +3377,17 @@ const Dashboard: React.FC = () => {
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">정기안전점검</h4>
                     <div className="text-xs text-gray-600">
-                      {cardDataLoading ? (
+                      {loadingCards.safetyInspection ? (
                         <div className="flex justify-center my-1">
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-teal-200 border-t-teal-600"></div>
                         </div>
+                      ) : !inquiredCards.safetyInspection ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); inquireCard('safetyInspection') }}
+                          className="mt-1 px-2 py-1 text-[11px] font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded hover:bg-teal-100"
+                        >
+                          조회
+                        </button>
                       ) : (
                         <>
                           <div className="text-sm font-semibold text-teal-600 mb-0.5">
@@ -3375,10 +3413,17 @@ const Dashboard: React.FC = () => {
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">(지사) 관리자 점검</h4>
                     <div className="text-xs text-gray-600">
-                      {cardDataLoading ? (
+                      {loadingCards.manager ? (
                         <div className="flex justify-center my-1">
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-200 border-t-blue-600"></div>
                         </div>
+                      ) : !inquiredCards.manager ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); inquireCard('manager') }}
+                          className="mt-1 px-2 py-1 text-[11px] font-medium text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100"
+                        >
+                          조회
+                        </button>
                       ) : (
                         <>
                           <div className="text-sm font-semibold text-blue-600 mb-0.5">
@@ -3408,10 +3453,17 @@ const Dashboard: React.FC = () => {
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">(본부) 불시 점검</h4>
                     <div className="text-xs text-gray-600">
-                      {cardDataLoading ? (
+                      {loadingCards.headquarters ? (
                         <div className="flex justify-center my-1">
                           <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-200 border-t-blue-600"></div>
                         </div>
+                      ) : !inquiredCards.headquarters ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); inquireCard('headquarters') }}
+                          className="mt-1 px-2 py-1 text-[11px] font-medium text-orange-700 bg-orange-50 border border-orange-200 rounded hover:bg-orange-100"
+                        >
+                          조회
+                        </button>
                       ) : (
                         <>
                           <div className="text-sm font-semibold text-blue-600 mb-0.5">
@@ -3440,10 +3492,17 @@ const Dashboard: React.FC = () => {
                       <Thermometer className="h-4 w-4 text-red-600" />
                     </div>
                     <h4 className="text-xs font-medium text-gray-900 mb-1">폭염대비점검</h4>
-                    {cardDataLoading ? (
+                    {loadingCards.heatwave ? (
                       <div className="flex justify-center my-1">
                         <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-200 border-t-red-600"></div>
                       </div>
+                    ) : !inquiredCards.heatwave ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); inquireCard('heatwave') }}
+                        className="mt-1 px-2 py-1 text-[11px] font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100"
+                      >
+                        조회
+                      </button>
                     ) : (
                       <div className="text-xs text-gray-600">
                         <div className="text-sm font-semibold text-blue-600 mb-0.5">
