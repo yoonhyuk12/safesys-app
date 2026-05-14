@@ -744,8 +744,8 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
     costs: 'all',
     description: 
       '• 양식 : ' + 
-      '<a href="https://drive.google.com/file/d/128Jr9GoqNpjXQogn0t6OQYVT7SRqVrs7/view?usp=sharing" ' + 
-      'target="_blank" class="text-blue-600 hover:underline">25년 산업안전보건법령 요지.hwp</a><br />' + 
+      '<a href="https://drive.google.com/file/d/1PzP-hsoA1Nb8EAApwaEZj7o5_fajo0rT/view?usp=drive_link" ' +
+      'target="_blank" class="text-blue-600 hover:underline">26년 산업안전보건법령 요지.pdf</a><br />' +
       '• 양식 : ' + 
       '<a href="https://drive.google.com/file/d/1zq1jB2hiv7JlH7OFFoGRb-Sd4MfPaZv8/view?usp=drive_link" ' + 
       'target="_blank" class="text-blue-600 hover:underline">안전보건표지 받기</a><br />' +
