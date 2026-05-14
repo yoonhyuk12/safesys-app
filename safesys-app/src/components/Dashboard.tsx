@@ -75,6 +75,9 @@ const Dashboard: React.FC = () => {
   const [tbmProgressPercentage, setTbmProgressPercentage] = useState<number>(100)
   const [tbmTimeRemaining, setTbmTimeRemaining] = useState<number>(15 * 60)
   const [tbmManualRefresh, setTbmManualRefresh] = useState<(() => Promise<void>) | null>(null)
+  // 진행바 리셋(0% → 100%) 순간 역방향 애니메이션을 막기 위한 플래그
+  const [tbmProgressInstantReset, setTbmProgressInstantReset] = useState<boolean>(false)
+  const prevTbmProgressRef = useRef<number>(100)
   // TBM 데이터 상태 (map 페이지용)
   const [tbmRecordsForMap, setTbmRecordsForMap] = useState<TBMRecord[]>([])
   const [tbmLoadingForMap, setTbmLoadingForMap] = useState<boolean>(false)
@@ -91,6 +94,18 @@ const Dashboard: React.FC = () => {
     else if (path === '/tbm') next = 'tbm'
     setViewMode(next)
   }, [pathname])
+
+  // 진행바가 위로 크게 뛸 때(0% → 100% 리셋) 트랜지션을 1프레임만 끔
+  useEffect(() => {
+    const prev = prevTbmProgressRef.current
+    if (tbmProgressPercentage - prev > 20) {
+      setTbmProgressInstantReset(true)
+      const id = requestAnimationFrame(() => setTbmProgressInstantReset(false))
+      prevTbmProgressRef.current = tbmProgressPercentage
+      return () => cancelAnimationFrame(id)
+    }
+    prevTbmProgressRef.current = tbmProgressPercentage
+  }, [tbmProgressPercentage])
   const [selectedHq, setSelectedHq] = useState<string>('') // 선택된 본부
   const [selectedBranch, setSelectedBranch] = useState<string>('') // 선택된 지사
   const [searchQuery, setSearchQuery] = useState<string>('') // 목록 검색어
@@ -2686,7 +2701,7 @@ const Dashboard: React.FC = () => {
                 }}
               >
                 <div
-                  className="h-full bg-gradient-to-r from-blue-400 to-blue-500 transition-all duration-1000 ease-linear group-hover:from-blue-500 group-hover:to-blue-600 rounded-b-lg"
+                  className={`h-full bg-gradient-to-r from-blue-400 to-blue-500 group-hover:from-blue-500 group-hover:to-blue-600 rounded-b-lg ${tbmProgressInstantReset ? '' : 'transition-all duration-1000 ease-linear'}`}
                   style={{ width: `${tbmProgressPercentage}%` }}
                 />
               </div>

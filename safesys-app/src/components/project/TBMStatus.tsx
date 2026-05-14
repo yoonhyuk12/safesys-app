@@ -128,6 +128,12 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
   const [timeRemaining, setTimeRemaining] = useState<number>(15 * 60) // 15분 = 900초
   const [progressPercentage, setProgressPercentage] = useState<number>(100)
 
+  // 새로고침 동작 함수들을 ref로 보관 (타이머가 deps 변화로 재시작되지 않도록 안정화)
+  const loadAllTBMDataRef = useRef<(force?: boolean, resetInterval?: boolean) => Promise<void>>()
+  const filterTBMDataRef = useRef<() => void>()
+  const loadTbmSafetyInspectionsRef = useRef<() => Promise<void>>()
+  const checkSessionRef = useRef<() => Promise<boolean>>()
+
   // onProgressUpdate ref 업데이트
   useEffect(() => {
     onProgressUpdateRef.current = onProgressUpdate
@@ -790,99 +796,76 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
     filterTBMData()
   }, [loadAllTBMData, filterTBMData, checkSession])
 
-  // 프로그레스 타이머 시작 함수
+  // 최신 fetch 함수를 ref에 동기화 (타이머가 deps 변화로 재시작되지 않도록)
+  useEffect(() => {
+    loadAllTBMDataRef.current = loadAllTBMData
+    filterTBMDataRef.current = filterTBMData
+    loadTbmSafetyInspectionsRef.current = loadTbmSafetyInspections
+    checkSessionRef.current = checkSession
+  }, [loadAllTBMData, filterTBMData, loadTbmSafetyInspections, checkSession])
+
+  // 프로그레스 타이머 시작 함수 — UI 전용 (데이터 fetch는 startAutoRefresh가 단독으로 담당)
   const startProgressTimer = useCallback(() => {
-    // 기존 타이머 정리
     if (progressTimerRef.current) {
       clearInterval(progressTimerRef.current)
     }
 
-    // 프로그레스 바 초기화
-    setTimeRemaining(15 * 60) // 15분 = 900초
+    setTimeRemaining(15 * 60)
     setProgressPercentage(100)
 
-    // 초기화는 useEffect에서 별도로 처리하므로 여기서는 호출하지 않음
-
-    // 1초마다 업데이트
     progressTimerRef.current = setInterval(() => {
       setTimeRemaining(prev => {
         const newTime = prev - 1
         if (newTime <= 0) {
-          // 타이머 완료 시 데이터 새로고침 실행
-          checkSession().then(async (hasValidSession) => {
-            if (hasValidSession) {
-              try {
-                await loadAllTBMData(true, false)
-                filterTBMData()
-                // TBM 확인 컬럼 데이터도 함께 새로고침
-                await loadTbmSafetyInspections()
-              } catch (error) {
-                console.error('프로그레스 타이머 새로고침 중 오류:', error)
-              }
-            }
-          })
-          // 타이머 재시작
-          setTimeRemaining(15 * 60)
+          // 진행바만 리셋 (데이터 fetch는 startAutoRefresh 타이머가 단독으로 처리)
           setProgressPercentage(100)
-          // ref를 통해 최신 콜백 호출 (비동기로 처리하여 렌더링 중 호출 방지)
           if (onProgressUpdateRef.current) {
             requestAnimationFrame(() => {
-              if (onProgressUpdateRef.current) {
-                onProgressUpdateRef.current(100, 15 * 60)
-              }
+              onProgressUpdateRef.current?.(100, 15 * 60)
             })
           }
           return 15 * 60
         }
 
-        // 퍼센테지 업데이트 (15분 = 900초 기준)
         const percentage = (newTime / (15 * 60)) * 100
         setProgressPercentage(percentage)
-        // Dashboard로 프로그레스 업데이트 전달 (비동기로 처리하여 렌더링 중 호출 방지)
         if (onProgressUpdateRef.current) {
           requestAnimationFrame(() => {
-            if (onProgressUpdateRef.current) {
-              onProgressUpdateRef.current(percentage, newTime)
-            }
+            onProgressUpdateRef.current?.(percentage, newTime)
           })
         }
-
         return newTime
       })
     }, 1000)
 
-    console.log('TBM 프로그레스 타이머 시작 (15분 간격)')
-  }, [loadAllTBMData, filterTBMData, loadTbmSafetyInspections, checkSession])
+    console.log('TBM 프로그레스 타이머 시작 (UI 전용, 15분 간격)')
+  }, [])
 
-  // 자동 새로고침 시작 함수
+  // 자동 새로고침 시작 함수 — ref 경유 호출로 deps를 비워 타이머 안정화
   const startAutoRefresh = useCallback(() => {
-    // 기존 interval 정리
     if (intervalRef.current) {
       clearInterval(intervalRef.current)
     }
 
-    // 15분(900000ms)마다 데이터 새로고침
     intervalRef.current = setInterval(async () => {
       console.log('TBM 데이터 자동 새로고침 실행')
 
-      // 세션 체크 먼저 수행
-      const hasValidSession = await checkSession()
+      const hasValidSession = await checkSessionRef.current?.()
       if (!hasValidSession) {
         return
       }
 
       try {
-        await loadAllTBMData(true, false) // force=true, resetInterval=false
-        filterTBMData() // 새로고침 후 현재 필터 적용
-        // TBM 확인 컬럼 데이터도 함께 새로고침
-        await loadTbmSafetyInspections()
+        await loadAllTBMDataRef.current?.(true, false)
+        filterTBMDataRef.current?.()
+        await loadTbmSafetyInspectionsRef.current?.()
       } catch (error) {
         console.error('자동 새로고침 중 오류:', error)
       }
-    }, 15 * 60 * 1000) // 15분
+    }, 15 * 60 * 1000)
 
     console.log('TBM 자동 새로고침 타이머 시작 (15분 간격)')
-  }, [loadAllTBMData, filterTBMData, loadTbmSafetyInspections, checkSession])
+  }, [])
 
   // TBM 안전활동 점검 데이터 로드 (날짜 변경 시)
   useEffect(() => {
@@ -962,10 +945,18 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
         stopAutoRefresh()
         stopProgressTimer()
       } else {
-        // 페이지가 다시 활성화되면 세션 체크 후 타이머 재시작
-        console.log('페이지 활성화 - 세션 체크 후 TBM 자동 새로고침 재시작')
+        // 페이지가 다시 활성화되면 세션 체크 후 데이터 즉시 새로고침 + 타이머 재시작
+        console.log('페이지 활성화 - 세션 체크 후 TBM 데이터 새로고침 및 타이머 재시작')
         const hasValidSession = await checkSession()
         if (hasValidSession) {
+          // stale 데이터를 즉시 갱신 (탭 백그라운드 동안 누락된 새로고침 보정)
+          try {
+            await loadAllTBMDataRef.current?.(true, false)
+            filterTBMDataRef.current?.()
+            await loadTbmSafetyInspectionsRef.current?.()
+          } catch (error) {
+            console.error('페이지 활성화 시 새로고침 중 오류:', error)
+          }
           startAutoRefresh()
           startProgressTimer()
           // 초기 프로그레스 바 업데이트는 다음 프레임에 실행 (렌더링 중 호출 방지)
