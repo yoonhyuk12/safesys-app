@@ -534,7 +534,7 @@ export default function TBMSubmissionPage() {
                     <ChevronRight className="h-5 w-5" />
                   </button>
                 </div>
-                <div className="flex items-center justify-center sm:justify-end gap-2">
+                <div className="flex items-center justify-end gap-2">
                   <a
                     href="https://drive.google.com/file/d/1kfxEvhRvn2CO1nPQnaatiBgVe_ggwHgr/view?usp=drive_link"
                     target="_blank"
