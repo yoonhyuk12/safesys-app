@@ -315,8 +315,8 @@ export default function WorkerRegistrationModal({
       setOcrLoading(true)
       setOcrSuccess(false)
 
-      // OCR 가독성을 위해 비교적 큰 1600px / 0.8 품질로 압축 (그래도 보통 1MB 미만)
-      const compressedFile = await compressImage(file, 1600, 0.8)
+      // A4 1/4 사이즈 인쇄 기준 + OCR 가독성: 1000px / 0.75 품질로 압축
+      const compressedFile = await compressImage(file, 1000, 0.75)
       setCardFile(compressedFile)
 
       const base64Image = await readFileAsDataUrl(compressedFile)
@@ -371,8 +371,8 @@ export default function WorkerRegistrationModal({
 
     try {
       setError('')
-      // 신분증은 A4 반페이지에 표시되므로 1200px / 0.7 품질로 강하게 압축
-      const compressedFile = await compressImage(file, 1200, 0.7)
+      // 신분증은 A4 1/4 사이즈에 표시되므로 800px / 0.7 품질로 강하게 압축
+      const compressedFile = await compressImage(file, 800, 0.7)
       setIdCardFile(compressedFile)
 
       const dataUrl = await readFileAsDataUrl(compressedFile)
@@ -654,8 +654,8 @@ export default function WorkerRegistrationModal({
       const sourceFile = new File([blob], `edited_${Date.now()}.jpg`, { type: 'image/jpeg' })
       const compressedFile =
         target === 'card'
-          ? await compressImage(sourceFile, 1600, 0.8)
-          : await compressImage(sourceFile, 1200, 0.7)
+          ? await compressImage(sourceFile, 1000, 0.75)
+          : await compressImage(sourceFile, 800, 0.7)
 
       const base64 = await readFileAsDataUrl(compressedFile)
 
