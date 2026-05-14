@@ -613,12 +613,12 @@ export default function TBMSubmissionPage() {
                     >
                       <div className={`text-sm font-medium ${isPrintSelected ? 'text-amber-900 font-bold' : isSelected ? 'text-blue-900 font-bold' : ''}`}>{day}</div>
                       {submittedCount > 0 && (
-                        <div className={`text-xs mt-1 ${isPrintSelected ? 'text-amber-700 font-semibold' : isSelected ? 'text-blue-700 font-semibold' : 'text-green-600'}`}>
+                        <div className={`hidden sm:block text-xs mt-1 ${isPrintSelected ? 'text-amber-700 font-semibold' : isSelected ? 'text-blue-700 font-semibold' : 'text-green-600'}`}>
                           {submittedCount}건
                         </div>
                       )}
                       {draftCount > 0 && (
-                        <div className="text-xs text-purple-600">
+                        <div className="hidden sm:block text-xs text-purple-600">
                           {draftCount}건(임시)
                         </div>
                       )}
