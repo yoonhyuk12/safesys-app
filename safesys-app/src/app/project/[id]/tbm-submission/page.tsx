@@ -606,7 +606,7 @@ export default function TBMSubmissionPage() {
                         ${!isPrintSelected && isSelected ? 'border-blue-600 bg-blue-100 ring-2 ring-blue-500' : ''}
                         ${!isPrintSelected && !isSelected && isToday ? 'border-blue-500 bg-blue-50' : ''}
                         ${!isPrintSelected && !isSelected && !isToday ? 'border-gray-200 hover:border-gray-300' : ''}
-                        ${!isPrintSelected && !isSelected && submittedCount > 0 ? 'bg-green-50' : ''}
+                        ${!isPrintSelected && !isSelected && submittedCount > 0 ? 'bg-green-200' : ''}
                         ${!isPrintSelected && !isSelected && submittedCount === 0 && draftCount > 0 ? 'bg-purple-50/60' : ''}
                         ${!isPrintSelected && !isSelected && total === 0 ? 'hover:bg-gray-50' : ''}
                       `}
