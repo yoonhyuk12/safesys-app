@@ -516,23 +516,25 @@ export default function TBMSubmissionPage() {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-lg shadow p-6">
               {/* 월 네비게이션 */}
-              <div className="flex items-center justify-between mb-6">
-                <button
-                  onClick={handlePrevMonth}
-                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <h2 className="text-lg font-semibold">
-                  {currentMonth.getFullYear()}년 {currentMonth.getMonth() + 1}월
-                </h2>
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+                <div className="flex items-center justify-center sm:justify-start gap-2">
+                  <button
+                    onClick={handlePrevMonth}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <h2 className="text-lg font-semibold">
+                    {currentMonth.getFullYear()}년 {currentMonth.getMonth() + 1}월
+                  </h2>
                   <button
                     onClick={handleNextMonth}
                     className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                   >
                     <ChevronRight className="h-5 w-5" />
                   </button>
+                </div>
+                <div className="flex items-center justify-center sm:justify-end gap-2">
                   <a
                     href="https://drive.google.com/file/d/1kfxEvhRvn2CO1nPQnaatiBgVe_ggwHgr/view?usp=drive_link"
                     target="_blank"
