@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Calendar, ChevronLeft, ChevronRight, ExternalLink, X, Download, Trash2, Printer, QrCode } from 'lucide-react'
+import { ArrowLeft, Plus, Calendar, ChevronLeft, ChevronRight, ExternalLink, X, Download, Trash2, Printer, QrCode, BookOpen } from 'lucide-react'
 import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -533,6 +533,15 @@ export default function TBMSubmissionPage() {
                   >
                     <ChevronRight className="h-5 w-5" />
                   </button>
+                  <a
+                    href="https://drive.google.com/file/d/1kfxEvhRvn2CO1nPQnaatiBgVe_ggwHgr/view?usp=drive_link"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-lg transition-colors hover:bg-gray-100 text-gray-700 inline-flex items-center"
+                    title="TBM 이행가이드 보기"
+                  >
+                    <BookOpen className="h-5 w-5" />
+                  </a>
                   <button
                     onClick={togglePrintMode}
                     className={`p-2 rounded-lg transition-colors ${isPrintMode
