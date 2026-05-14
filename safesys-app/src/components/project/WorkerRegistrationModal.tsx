@@ -237,6 +237,69 @@ export default function WorkerRegistrationModal({
     setFormData(prev => ({ ...prev, [name]: value }))
   }
 
+  // 이미지 압축 헬퍼: A4 반페이지 인쇄 기준으로 최대한 압축 후 JPEG File 반환
+  const compressImage = async (
+    file: File | Blob,
+    maxWidth: number,
+    quality: number
+  ): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      const objectUrl = URL.createObjectURL(file)
+
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl)
+
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d')
+        if (!ctx) {
+          reject(new Error('Canvas context를 생성할 수 없습니다.'))
+          return
+        }
+
+        let { width, height } = img
+        const scale = Math.min(1, maxWidth / width)
+        width = Math.round(width * scale)
+        height = Math.round(height * scale)
+
+        canvas.width = width
+        canvas.height = height
+        ctx.fillStyle = '#FFFFFF'
+        ctx.fillRect(0, 0, width, height)
+        ctx.drawImage(img, 0, 0, width, height)
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error('이미지 압축 실패: blob 생성 불가'))
+              return
+            }
+            const baseName =
+              (file as File).name?.replace(/\.[^.]+$/, '') || `image_${Date.now()}`
+            resolve(new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' }))
+          },
+          'image/jpeg',
+          quality
+        )
+      }
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl)
+        reject(new Error('이미지 로드 실패'))
+      }
+      img.src = objectUrl
+    })
+  }
+
+  const readFileAsDataUrl = (file: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (event) => resolve(event.target?.result as string)
+      reader.onerror = () => reject(new Error('파일 읽기 실패'))
+      reader.readAsDataURL(file)
+    })
+  }
+
   // 이미지 파일 처리 (OCR)
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -247,58 +310,49 @@ export default function WorkerRegistrationModal({
       return
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError('이미지 크기는 10MB 이하여야 합니다.')
-      return
-    }
-
     try {
       setError('')
       setOcrLoading(true)
       setOcrSuccess(false)
-      setCardFile(file)
 
-      const reader = new FileReader()
-      reader.onload = async (event) => {
-        const base64Image = event.target?.result as string
-        setCardImage(base64Image)
+      // OCR 가독성을 위해 비교적 큰 1600px / 0.8 품질로 압축 (그래도 보통 1MB 미만)
+      const compressedFile = await compressImage(file, 1600, 0.8)
+      setCardFile(compressedFile)
 
-        try {
-          const response = await fetch('/api/ai/ocr-card', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: base64Image })
-          })
+      const base64Image = await readFileAsDataUrl(compressedFile)
+      setCardImage(base64Image)
 
-          const data = await response.json()
+      try {
+        const response = await fetch('/api/ai/ocr-card', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64Image })
+        })
 
-          if (!response.ok || !data.success) {
-            setError(data.error || '카드 인식에 실패했습니다.')
-            setOcrLoading(false)
-            return
-          }
+        const data = await response.json()
 
-          setFormData(prev => ({
-            ...prev,
-            name: data.data.name || prev.name,
-            birth_date: data.data.birth_date || prev.birth_date,
-            registration_number: data.data.registration_number || prev.registration_number,
-            completion_date: data.data.completion_date || prev.completion_date
-          }))
-
-          setOcrSuccess(true)
-        } catch (err) {
-          console.error('OCR 오류:', err)
-          setError('카드 인식 중 오류가 발생했습니다.')
-        } finally {
-          setOcrLoading(false)
+        if (!response.ok || !data.success) {
+          setError(data.error || '카드 인식에 실패했습니다.')
+          return
         }
-      }
 
-      reader.readAsDataURL(file)
+        setFormData(prev => ({
+          ...prev,
+          name: data.data.name || prev.name,
+          birth_date: data.data.birth_date || prev.birth_date,
+          registration_number: data.data.registration_number || prev.registration_number,
+          completion_date: data.data.completion_date || prev.completion_date
+        }))
+
+        setOcrSuccess(true)
+      } catch (err) {
+        console.error('OCR 오류:', err)
+        setError('카드 인식 중 오류가 발생했습니다.')
+      }
     } catch (err) {
       console.error('이미지 처리 오류:', err)
       setError('이미지 처리 중 오류가 발생했습니다.')
+    } finally {
       setOcrLoading(false)
     }
 
@@ -306,7 +360,7 @@ export default function WorkerRegistrationModal({
   }
 
   // 신분증 이미지 선택 처리
-  const handleIdCardSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleIdCardSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -315,18 +369,18 @@ export default function WorkerRegistrationModal({
       return
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError('이미지 크기는 10MB 이하여야 합니다.')
-      return
-    }
+    try {
+      setError('')
+      // 신분증은 A4 반페이지에 표시되므로 1200px / 0.7 품질로 강하게 압축
+      const compressedFile = await compressImage(file, 1200, 0.7)
+      setIdCardFile(compressedFile)
 
-    setIdCardFile(file)
-
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      setIdCardImage(event.target?.result as string)
+      const dataUrl = await readFileAsDataUrl(compressedFile)
+      setIdCardImage(dataUrl)
+    } catch (err) {
+      console.error('이미지 처리 오류:', err)
+      setError('이미지 처리 중 오류가 발생했습니다.')
     }
-    reader.readAsDataURL(file)
 
     e.target.value = ''
   }
@@ -593,24 +647,32 @@ export default function WorkerRegistrationModal({
     }
   }
 
-  // 이미지 편집 저장
-  const handleImageEditorSave = (blob: Blob) => {
-    const file = new File([blob], `edited_${Date.now()}.jpg`, { type: 'image/jpeg' })
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string
-      if (editingImage === 'card') {
+  // 이미지 편집 저장 (편집 결과도 동일하게 압축)
+  const handleImageEditorSave = async (blob: Blob) => {
+    try {
+      const target = editingImage
+      const sourceFile = new File([blob], `edited_${Date.now()}.jpg`, { type: 'image/jpeg' })
+      const compressedFile =
+        target === 'card'
+          ? await compressImage(sourceFile, 1600, 0.8)
+          : await compressImage(sourceFile, 1200, 0.7)
+
+      const base64 = await readFileAsDataUrl(compressedFile)
+
+      if (target === 'card') {
         setCardImage(base64)
-        setCardFile(file)
+        setCardFile(compressedFile)
         setCardRotation(0)
-      } else if (editingImage === 'idCard') {
+      } else if (target === 'idCard') {
         setIdCardImage(base64)
-        setIdCardFile(file)
+        setIdCardFile(compressedFile)
         setIdCardRotation(0)
       }
       setEditingImage(null)
+    } catch (err) {
+      console.error('이미지 편집 저장 오류:', err)
+      setError('이미지 처리 중 오류가 발생했습니다.')
     }
-    reader.readAsDataURL(blob)
   }
 
   const handleClose = () => {
