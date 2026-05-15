@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Calendar, ChevronLeft, ChevronRight, ExternalLink, X, Download, Trash2, Printer, QrCode, BookOpen } from 'lucide-react'
+import { ArrowLeft, Plus, Calendar, ChevronLeft, ChevronRight, ExternalLink, X, Download, Trash2, Printer, QrCode, BookOpen, Youtube } from 'lucide-react'
 import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -535,6 +535,15 @@ export default function TBMSubmissionPage() {
                   </button>
                 </div>
                 <div className="flex items-center justify-end gap-2">
+                  <a
+                    href="https://youtu.be/8_UIFQ-m860?si=jY36VtMwvw6Ps_9h"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 rounded-lg transition-colors hover:bg-red-50 text-red-600 inline-flex items-center"
+                    title="TBM 영상 보기"
+                  >
+                    <Youtube className="h-5 w-5" />
+                  </a>
                   <a
                     href="https://drive.google.com/file/d/1kfxEvhRvn2CO1nPQnaatiBgVe_ggwHgr/view?usp=drive_link"
                     target="_blank"
