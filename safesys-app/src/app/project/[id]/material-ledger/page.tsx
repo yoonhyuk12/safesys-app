@@ -12,11 +12,27 @@ import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 // ── 타입 ──
 
+const gemPalette = [
+  { name: '루비', color: 'from-red-600 to-red-900', border: 'border-red-400' },
+  { name: '에메랄드', color: 'from-green-500 to-green-800', border: 'border-green-400' },
+  { name: '사파이어', color: 'from-blue-500 to-blue-800', border: 'border-blue-400' },
+  { name: '토파즈', color: 'from-amber-400 to-amber-700', border: 'border-amber-300' },
+  { name: '자수정', color: 'from-purple-500 to-purple-800', border: 'border-purple-400' },
+  { name: '다이아', color: 'from-gray-300 to-gray-600', border: 'border-gray-300' },
+  { name: '루벨', color: 'from-pink-400 to-pink-700', border: 'border-pink-400' },
+  { name: '아쿠아', color: 'from-cyan-400 to-cyan-700', border: 'border-cyan-400' },
+  { name: '가넷', color: 'from-orange-500 to-orange-800', border: 'border-orange-400' },
+]
+
+
 interface Material {
   id: string
   name: string
   unit: string
   rows: MaterialRow[]
+  sortOrder?: number
+  colorIndex?: number
+  realOrder?: number
 }
 
 interface MaterialRow {
@@ -52,9 +68,38 @@ interface RowFormData {
 // 숫자에 1000단위 콤마 포맷
 function formatNumber(value: string): string {
   if (!value || value === '-') return value
-  const num = parseFloat(value.replace(/,/g, ''))
-  if (isNaN(num)) return value
-  return num.toLocaleString()
+  
+  // 콤마 제거
+  const cleanValue = value.replace(/,/g, '')
+  
+  // 숫자가 아니면 그대로 반환
+  if (isNaN(Number(cleanValue))) return value
+  
+  const parts = cleanValue.split('.')
+  const rawInteger = parts[0]
+  
+  let integerPart = ''
+  if (rawInteger === '') {
+    integerPart = ''
+  } else if (rawInteger === '-') {
+    integerPart = '-'
+  } else {
+    const parsed = parseFloat(rawInteger)
+    if (isNaN(parsed)) {
+      integerPart = rawInteger
+    } else {
+      integerPart = parsed.toLocaleString()
+      if (rawInteger.startsWith('-') && !integerPart.startsWith('-')) {
+        integerPart = '-' + integerPart
+      }
+    }
+  }
+  
+  if (parts.length > 1) {
+    return `${integerPart}.${parts[1]}`
+  }
+  
+  return integerPart
 }
 
 // 콤마 제거 (저장용)
@@ -90,7 +135,7 @@ export default function MaterialLedgerPage() {
 
   // 자재 등록 모달
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false)
-  const [materialForm, setMaterialForm] = useState<{ name: string; unit: string }>({ name: '', unit: '' })
+  const [materialForm, setMaterialForm] = useState<{ name: string; unit: string; colorIndex: number }>({ name: '', unit: '', colorIndex: 0 })
 
   // 내역 등록/수정 모달
   const [isRowModalOpen, setIsRowModalOpen] = useState(false)
@@ -99,7 +144,7 @@ export default function MaterialLedgerPage() {
 
   // 자재명/규격 수정 모달
   const [isMaterialEditModalOpen, setIsMaterialEditModalOpen] = useState(false)
-  const [materialEditForm, setMaterialEditForm] = useState<{ name: string; unit: string }>({ name: '', unit: '' })
+  const [materialEditForm, setMaterialEditForm] = useState<{ name: string; unit: string; colorIndex: number }>({ name: '', unit: '', colorIndex: 0 })
 
   // 감독 서명 모드
   const [signatureMode, setSignatureMode] = useState(false)
@@ -152,12 +197,26 @@ export default function MaterialLedgerPage() {
       }
 
       // 내역 조회
-      const matList: Material[] = (materialsData || []).map((m: any) => ({
-        id: m.id,
-        name: m.name,
-        unit: m.unit || '',
-        rows: [],
-      }))
+      const matList: Material[] = (materialsData || []).map((m: any, idx: number) => {
+        const val = m.sort_order || 0
+        let colorIndex = idx % 9
+        let realOrder = val
+        if (val >= 1000) {
+          colorIndex = Math.floor(val / 1000) - 1
+          realOrder = val % 1000
+        }
+        if (colorIndex < 0 || colorIndex >= 9) colorIndex = 0
+        return {
+          id: m.id,
+          name: m.name,
+          unit: m.unit || '',
+          rows: [],
+          sortOrder: val,
+          colorIndex,
+          realOrder
+        }
+      })
+      matList.sort((a: any, b: any) => (a.realOrder || 0) - (b.realOrder || 0))
 
       if (matList.length > 0) {
         const matIds = matList.map(m => m.id)
@@ -227,6 +286,8 @@ export default function MaterialLedgerPage() {
   const handleAddMaterial = async () => {
     if (!materialForm.name.trim()) return
     try {
+      const realOrder = materials.length + 1
+      const encodedSortOrder = (materialForm.colorIndex + 1) * 1000 + realOrder
       const { data, error: insertError } = await supabase
         .from('materials')
         .insert({
@@ -234,13 +295,21 @@ export default function MaterialLedgerPage() {
           name: materialForm.name.trim(),
           unit: materialForm.unit.trim() || null,
           created_by: user?.id,
-          sort_order: materials.length + 1,
+          sort_order: encodedSortOrder,
         })
         .select()
         .single()
       if (insertError) throw insertError
-      setMaterials(prev => [...prev, { id: data.id, name: data.name, unit: data.unit || '', rows: [] }])
-      setMaterialForm({ name: '', unit: '' })
+      setMaterials(prev => [...prev, {
+        id: data.id,
+        name: data.name,
+        unit: data.unit || '',
+        rows: [],
+        sortOrder: data.sort_order,
+        colorIndex: materialForm.colorIndex,
+        realOrder
+      }])
+      setMaterialForm({ name: '', unit: '', colorIndex: Math.floor(Math.random() * gemPalette.length) })
       setIsMaterialModalOpen(false)
     } catch (err: any) {
       console.error('자재 등록 실패:', err)
@@ -260,9 +329,12 @@ export default function MaterialLedgerPage() {
       if (deleteError) throw deleteError
       const remaining = materials.filter(m => m.id !== id)
       setMaterials(remaining)
-      // 삭제 후 순서 재정렬
+      // 삭제 후 순서 재정렬 및 인코딩
       for (let i = 0; i < remaining.length; i++) {
-        await supabase.from('materials').update({ sort_order: i + 1 }).eq('id', remaining[i].id)
+        const item = remaining[i] as any
+        const newRealOrder = i + 1
+        const newEncoded = ((item.colorIndex ?? 0) + 1) * 1000 + newRealOrder
+        await supabase.from('materials').update({ sort_order: newEncoded }).eq('id', item.id)
       }
     } catch (err: any) {
       console.error('자재 삭제 실패:', err)
@@ -274,24 +346,40 @@ export default function MaterialLedgerPage() {
 
   const openMaterialEditModal = () => {
     if (!selectedMaterial) return
-    setMaterialEditForm({ name: selectedMaterial.name, unit: selectedMaterial.unit })
+    const selMat = selectedMaterial as any
+    setMaterialEditForm({
+      name: selMat.name,
+      unit: selMat.unit,
+      colorIndex: selMat.colorIndex !== undefined ? selMat.colorIndex : 0
+    })
     setIsMaterialEditModalOpen(true)
   }
 
   const handleUpdateMaterial = async () => {
     if (!selectedMaterial || !materialEditForm.name.trim()) return
     try {
+      const selMat = selectedMaterial as any
+      const realOrder = selMat.realOrder || 1
+      const newEncoded = (materialEditForm.colorIndex + 1) * 1000 + realOrder
       const { error: updateError } = await supabase
         .from('materials')
         .update({
           name: materialEditForm.name.trim(),
           unit: materialEditForm.unit.trim() || null,
+          sort_order: newEncoded,
         })
         .eq('id', selectedMaterial.id)
       if (updateError) throw updateError
       setMaterials(prev => prev.map(m =>
         m.id === selectedMaterial.id
-          ? { ...m, name: materialEditForm.name.trim(), unit: materialEditForm.unit.trim() }
+          ? {
+              ...m,
+              name: materialEditForm.name.trim(),
+              unit: materialEditForm.unit.trim(),
+              sortOrder: newEncoded,
+              colorIndex: materialEditForm.colorIndex,
+              realOrder
+            } as any
           : m
       ))
       setIsMaterialEditModalOpen(false)
@@ -752,13 +840,27 @@ export default function MaterialLedgerPage() {
     const newMaterials = [...materials]
     const [moved] = newMaterials.splice(fromIndex, 1)
     newMaterials.splice(toIndex, 0, moved)
-    setMaterials(newMaterials)
+    
+    // 로컬의 realOrder, sortOrder 도 업데이트해준다.
+    const updatedMaterials = newMaterials.map((m, i) => {
+      const realOrder = i + 1
+      const colorIndex = (m as any).colorIndex ?? 0
+      const sortOrder = (colorIndex + 1) * 1000 + realOrder
+      return {
+        ...m,
+        realOrder,
+        sortOrder,
+      } as Material
+    })
+    setMaterials(updatedMaterials)
 
     // DB 순서 업데이트
     try {
-      const updates = newMaterials.map((m, i) => ({ id: m.id, sort_order: i + 1 }))
-      for (const u of updates) {
-        await supabase.from('materials').update({ sort_order: u.sort_order }).eq('id', u.id)
+      for (const m of updatedMaterials) {
+        await supabase
+          .from('materials')
+          .update({ sort_order: m.sortOrder })
+          .eq('id', m.id)
       }
     } catch (err) {
       console.error('순서 저장 실패:', err)
@@ -1247,7 +1349,7 @@ export default function MaterialLedgerPage() {
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      inputMode="numeric"
+                      inputMode="decimal"
                       value={formatNumber(rowForm.orderQty)}
                       onChange={e => setRowForm(p => ({ ...p, orderQty: stripComma(e.target.value) }))}
                       placeholder="수량 입력"
@@ -1288,7 +1390,7 @@ export default function MaterialLedgerPage() {
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      inputMode="numeric"
+                      inputMode="decimal"
                       value={formatNumber(rowForm.receiveQty)}
                       onChange={e => handleReceiveQtyChange(stripComma(e.target.value))}
                       placeholder="수량 입력"
@@ -1309,7 +1411,7 @@ export default function MaterialLedgerPage() {
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      inputMode="numeric"
+                      inputMode="decimal"
                       value={formatNumber(rowForm.passQtyCurrent)}
                       onChange={e => handlePassQtyChange(stripComma(e.target.value))}
                       placeholder="수량 입력"
@@ -1385,7 +1487,7 @@ export default function MaterialLedgerPage() {
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
-                      inputMode="numeric"
+                      inputMode="decimal"
                       value={formatNumber(rowForm.releaseQty)}
                       onChange={e => setRowForm(p => ({ ...p, releaseQty: stripComma(e.target.value) }))}
                       placeholder="수량 입력"
@@ -1442,6 +1544,182 @@ export default function MaterialLedgerPage() {
             </div>
           </div>
         )}
+
+        {/* 자재명/규격 수정 모달 */}
+        {isMaterialEditModalOpen && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setIsMaterialEditModalOpen(false)}>
+            <div
+              className="max-w-sm w-full rounded-lg overflow-hidden"
+              onClick={e => e.stopPropagation()}
+              style={{
+                background: 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 50%, #12121a 100%)',
+                border: '3px solid #4a3a28',
+                boxShadow: 'inset 0 0 40px rgba(0,0,0,0.8), 0 10px 40px rgba(0,0,0,0.9)'
+              }}
+            >
+              <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
+                boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
+              }} />
+
+              <div className="flex items-center justify-between px-5 py-3" style={{
+                background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)',
+                borderBottom: '2px solid #5a4a35'
+              }}>
+                <h3 className="text-base font-bold text-amber-100" style={{ fontFamily: 'serif', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                  ⚔ 자재 수정
+                </h3>
+                <button onClick={() => setIsMaterialEditModalOpen(false)} className="text-amber-200/50 hover:text-amber-200 transition-colors">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="px-5 py-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                    자재명 <span className="text-amber-200/60 text-xs ml-1">(의무사항)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={materialEditForm.name}
+                    onChange={e => setMaterialEditForm(p => ({ ...p, name: e.target.value }))}
+                    className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                    style={{
+                      background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                      border: '2px solid #4a4a55',
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                    }}
+                  />
+                </div>
+
+                <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
+
+                <div>
+                  <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                    단위 <span className="text-amber-200/60 text-xs ml-1">(의무사항)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={materialEditForm.unit}
+                    onChange={e => setMaterialEditForm(p => ({ ...p, unit: e.target.value }))}
+                    placeholder="예: 포, m³, EA"
+                    className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                    style={{
+                      background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                      border: '2px solid #4a4a55',
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                    }}
+                  />
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {['ton', 'kg', 'm³', 'm²', 'm', '포', '대', 'EA', '본', '세트', '장'].map(u => (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => setMaterialEditForm(p => ({ ...p, unit: u }))}
+                        className="px-2.5 py-1 text-xs transition-all duration-200"
+                        style={{
+                          background: materialEditForm.unit === u
+                            ? 'linear-gradient(180deg, #8b0000 0%, #5a0000 100%)'
+                            : 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
+                          border: materialEditForm.unit === u ? '1px solid #aa2020' : '1px solid #4a4a55',
+                          borderRadius: '4px',
+                          color: materialEditForm.unit === u ? '#fca5a5' : '#a8a8b0',
+                          boxShadow: materialEditForm.unit === u ? '0 0 10px rgba(139,0,0,0.5)' : 'none'
+                        }}
+                      >
+                        {u}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
+
+                {/* 배치 아이콘 배경색(보석) 선택 */}
+                <div>
+                  <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                    보석 색상 <span className="text-amber-200/50 text-xs ml-1">(선택사항)</span>
+                  </label>
+                  <div className="grid grid-cols-5 gap-2 p-2 rounded" style={{
+                    background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                    border: '2px solid #4a4a55',
+                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                  }}>
+                    {gemPalette.map((gem, index) => {
+                      const isSelected = materialEditForm.colorIndex === index
+                      return (
+                        <button
+                          key={gem.name}
+                          type="button"
+                          onClick={() => setMaterialEditForm(p => ({ ...p, colorIndex: index }))}
+                          className={`w-full aspect-square rounded relative flex flex-col items-center justify-center transition-all ${
+                            isSelected ? 'scale-110 z-10' : 'hover:scale-105'
+                          }`}
+                          title={gem.name}
+                        >
+                          {isSelected && (
+                            <div className="absolute -inset-1 rounded animate-pulse" style={{
+                              border: '2px solid #f5d78e',
+                              boxShadow: '0 0 10px #f5d78e, inset 0 0 5px #f5d78e'
+                            }} />
+                          )}
+                          <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${gem.color} ${gem.border} border flex items-center justify-center shadow-md`}
+                            style={{
+                              boxShadow: isSelected ? '0 0 15px rgba(255,255,255,0.4)' : 'none'
+                            }}
+                          >
+                            <div className="absolute top-1 left-2 w-1.5 h-1.5 bg-white/40 rounded-full blur-[0.5px]" />
+                            {isSelected && <Check className="h-4 w-4 text-white drop-shadow-md" />}
+                          </div>
+                          <span className="text-[10px] text-amber-200/70 mt-1 truncate max-w-full px-1">{gem.name}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 px-5 py-4" style={{
+                background: 'linear-gradient(180deg, #2a2520 0%, #1a1510 100%)',
+                borderTop: '2px solid #5a4a35'
+              }}>
+                <button
+                  onClick={() => setIsMaterialEditModalOpen(false)}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105"
+                  style={{
+                    background: 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
+                    border: '2px solid #4a4a55',
+                    borderRadius: '6px',
+                    color: '#a8a8b0',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)'
+                  }}
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleUpdateMaterial}
+                  disabled={!materialEditForm.name.trim()}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                  style={{
+                    background: materialEditForm.name.trim()
+                      ? 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)'
+                      : 'linear-gradient(180deg, #3a3a40 0%, #25252a 100%)',
+                    border: '2px solid #6a5a40',
+                    borderRadius: '6px',
+                    color: '#f5d78e',
+                    boxShadow: materialEditForm.name.trim() ? '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)' : 'none',
+                    fontFamily: 'serif'
+                  }}
+                >
+                  ⚔ 수정
+                </button>
+              </div>
+
+              <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
+                boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
+              }} />
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -1449,7 +1727,7 @@ export default function MaterialLedgerPage() {
   // ── 대시보드 (호라드릭 큐브 스타일) ──
 
   // 자재 타입에 따른 아이콘 색상 (보석/룬 스타일)
-  const getMaterialGemStyle = (name: string, index: number) => {
+  const getMaterialGemStyle = (name: string, index: number, colorIndex?: number) => {
     const gemStyles = [
       { bg: 'from-red-600 to-red-900', glow: 'shadow-red-500/50', border: 'border-red-400' },        // 루비
       { bg: 'from-green-500 to-green-800', glow: 'shadow-green-500/50', border: 'border-green-400' }, // 에메랄드
@@ -1461,7 +1739,8 @@ export default function MaterialLedgerPage() {
       { bg: 'from-cyan-400 to-cyan-700', glow: 'shadow-cyan-500/50', border: 'border-cyan-400' },     // 시안
       { bg: 'from-orange-500 to-orange-800', glow: 'shadow-orange-500/50', border: 'border-orange-400' }, // 오렌지
     ]
-    return gemStyles[index % gemStyles.length]
+    const finalIndex = colorIndex !== undefined && colorIndex >= 0 && colorIndex < gemStyles.length ? colorIndex : index
+    return gemStyles[finalIndex % gemStyles.length]
   }
 
   // 빈 슬롯 생성 (8x4 그리드 = 32슬롯, 최소 표시)
@@ -1512,7 +1791,7 @@ export default function MaterialLedgerPage() {
         const mat = materials.find(m => m.id === draggingMaterialId)
         if (!mat) return null
         const idx = materials.findIndex(m => m.id === draggingMaterialId)
-        const gemStyle = getMaterialGemStyle(mat.name, idx)
+        const gemStyle = getMaterialGemStyle(mat.name, idx, mat.colorIndex)
         return (
           <div
             className="fixed z-50 pointer-events-none"
@@ -1607,7 +1886,7 @@ export default function MaterialLedgerPage() {
                   </div>
                   <p className="text-amber-200/50 mb-6" style={{ fontFamily: 'serif' }}>보관창이 비어있습니다</p>
                   <button
-                    onClick={() => { setMaterialForm({ name: '', unit: '' }); setIsMaterialModalOpen(true) }}
+                    onClick={() => { setMaterialForm({ name: '', unit: '', colorIndex: Math.floor(Math.random() * gemPalette.length) }); setIsMaterialModalOpen(true) }}
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-amber-100 font-medium transition-all hover:scale-105"
                     style={{
                       background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
@@ -1624,7 +1903,7 @@ export default function MaterialLedgerPage() {
                 /* 자재 인벤토리 그리드 (호라드릭 큐브 스타일) */
                 <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1">
                   {materials.map((mat, idx) => {
-                    const gemStyle = getMaterialGemStyle(mat.name, idx)
+                    const gemStyle = getMaterialGemStyle(mat.name, idx, mat.colorIndex)
                     const isDragging = draggingMaterialId === mat.id
                     const isDropTarget = dropTargetIndex === idx && !isDragging
                     return (
@@ -1697,7 +1976,7 @@ export default function MaterialLedgerPage() {
 
                   {/* 자재 추가 슬롯 */}
                   <button
-                    onClick={() => { setMaterialForm({ name: '', unit: '' }); setIsMaterialModalOpen(true) }}
+                    onClick={() => { setMaterialForm({ name: '', unit: '', colorIndex: Math.floor(Math.random() * gemPalette.length) }); setIsMaterialModalOpen(true) }}
                     className="w-full aspect-square rounded transition-all duration-200 hover:scale-105 group"
                     style={{
                       background: 'linear-gradient(180deg, #2a2a32 0%, #1a1a22 100%)',
@@ -1787,7 +2066,7 @@ export default function MaterialLedgerPage() {
               {/* 자재명 입력 */}
               <div>
                 <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
-                  자재명 <span className="text-red-400">*</span>
+                  자재명 <span className="text-amber-200/60 text-xs ml-1">(의무사항)</span>
                 </label>
                 <input
                   type="text"
@@ -1831,7 +2110,7 @@ export default function MaterialLedgerPage() {
               {/* 단위 입력 */}
               <div>
                 <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
-                  단위
+                  단위 <span className="text-amber-200/60 text-xs ml-1">(의무사항)</span>
                 </label>
                 <input
                   type="text"
@@ -1865,6 +2144,51 @@ export default function MaterialLedgerPage() {
                       {u}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
+
+              {/* 배치 아이콘 배경색(보석) 선택 */}
+              <div>
+                <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                  보석 색상 <span className="text-amber-200/50 text-xs ml-1">(선택사항)</span>
+                </label>
+                <div className="grid grid-cols-5 gap-2 p-2 rounded" style={{
+                  background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                  border: '2px solid #4a4a55',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                }}>
+                  {gemPalette.map((gem, index) => {
+                    const isSelected = materialForm.colorIndex === index
+                    return (
+                      <button
+                        key={gem.name}
+                        type="button"
+                        onClick={() => setMaterialForm(p => ({ ...p, colorIndex: index }))}
+                        className={`w-full aspect-square rounded relative flex flex-col items-center justify-center transition-all ${
+                          isSelected ? 'scale-110 z-10' : 'hover:scale-105'
+                        }`}
+                        title={gem.name}
+                      >
+                        {isSelected && (
+                          <div className="absolute -inset-1 rounded animate-pulse" style={{
+                            border: '2px solid #f5d78e',
+                            boxShadow: '0 0 10px #f5d78e, inset 0 0 5px #f5d78e'
+                          }} />
+                        )}
+                        <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${gem.color} ${gem.border} border flex items-center justify-center shadow-md`}
+                          style={{
+                            boxShadow: isSelected ? '0 0 15px rgba(255,255,255,0.4)' : 'none'
+                          }}
+                        >
+                          <div className="absolute top-1 left-2 w-1.5 h-1.5 bg-white/40 rounded-full blur-[0.5px]" />
+                          {isSelected && <Check className="h-4 w-4 text-white drop-shadow-md" />}
+                        </div>
+                        <span className="text-[10px] text-amber-200/70 mt-1 truncate max-w-full px-1">{gem.name}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
@@ -1944,7 +2268,7 @@ export default function MaterialLedgerPage() {
 
             <div className="px-5 py-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>자재명</label>
+                <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>자재명 <span className="text-amber-200/60 text-xs ml-1">(의무사항)</span></label>
                 <input
                   type="text"
                   value={materialEditForm.name}
@@ -1961,7 +2285,7 @@ export default function MaterialLedgerPage() {
               <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
 
               <div>
-                <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>단위</label>
+                <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>단위 <span className="text-amber-200/60 text-xs ml-1">(의무사항)</span></label>
                 <input
                   type="text"
                   value={materialEditForm.unit}
@@ -1994,6 +2318,51 @@ export default function MaterialLedgerPage() {
                       {u}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
+
+              {/* 배치 아이콘 배경색(보석) 선택 */}
+              <div>
+                <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                  보석 색상 <span className="text-amber-200/50 text-xs ml-1">(선택사항)</span>
+                </label>
+                <div className="grid grid-cols-5 gap-2 p-2 rounded" style={{
+                  background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                  border: '2px solid #4a4a55',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                }}>
+                  {gemPalette.map((gem, index) => {
+                    const isSelected = materialEditForm.colorIndex === index
+                    return (
+                      <button
+                        key={gem.name}
+                        type="button"
+                        onClick={() => setMaterialEditForm(p => ({ ...p, colorIndex: index }))}
+                        className={`w-full aspect-square rounded relative flex flex-col items-center justify-center transition-all ${
+                          isSelected ? 'scale-110 z-10' : 'hover:scale-105'
+                        }`}
+                        title={gem.name}
+                      >
+                        {isSelected && (
+                          <div className="absolute -inset-1 rounded animate-pulse" style={{
+                            border: '2px solid #f5d78e',
+                            boxShadow: '0 0 10px #f5d78e, inset 0 0 5px #f5d78e'
+                          }} />
+                        )}
+                        <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${gem.color} ${gem.border} border flex items-center justify-center shadow-md`}
+                          style={{
+                            boxShadow: isSelected ? '0 0 15px rgba(255,255,255,0.4)' : 'none'
+                          }}
+                        >
+                          <div className="absolute top-1 left-2 w-1.5 h-1.5 bg-white/40 rounded-full blur-[0.5px]" />
+                          {isSelected && <Check className="h-4 w-4 text-white drop-shadow-md" />}
+                        </div>
+                        <span className="text-[10px] text-amber-200/70 mt-1 truncate max-w-full px-1">{gem.name}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             </div>
