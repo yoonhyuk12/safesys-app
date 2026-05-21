@@ -252,6 +252,8 @@ export interface ChecklistItem {
   readonly dependsOn?: DependsOnType;
   readonly subItems?: readonly SubChecklistItem[];
   readonly description?: string;
+  readonly image?: string;
+  readonly imageAlt?: string;
 }
 
 // Type Guards
@@ -392,8 +394,10 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
      '• 관련 : <a href="https://drive.google.com/file/d/16Fy_Ar29hTS2VQtvsFTmaJDpiB_b1pP4/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">공사 건설공사 안전관리지침 제13조(위험 공정 작업 허가제)</a><br />' + 
      '• 양식 : <a href="https://drive.google.com/file/d/1CYTtVxB3em4l2AMKXhZuf4jTZbNq8029/view?usp=drive_link" ' + 
      'target="_blank" class="text-blue-600 hover:underline">위험공종작업허가제.hwp(양식)</a><br />'+
-      '• 양식 : <a href="https://drive.google.com/file/d/1mDa_55DtxWbW_kiRid06gnvIGSOjn7ga/view?usp=drive_link" ' + 
-     'target="_blank" class="text-blue-600 hover:underline">위험공종작업허가 이행확인.hwp(양식)</a><br />'
+      '• 양식 : <a href="https://drive.google.com/file/d/1mDa_55DtxWbW_kiRid06gnvIGSOjn7ga/view?usp=drive_link" ' +
+     'target="_blank" class="text-blue-600 hover:underline">위험공종작업허가 이행확인.hwp(양식)</a><br />',
+    image: '/사전작업허가제.png',
+    imageAlt: '위험공종 안전 실명제 표지판 및 안전게시판 예시'
   },
   '작업계획서': {
     states: ['공사중'] as const,
@@ -438,8 +442,8 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '<a href="https://drive.google.com/file/d/1zEvWUThxJvdNHsmF_ird8r0RhueWdFnc/view?usp=drive_link" ' + 
       'target="_blank" class="text-blue-600 hover:underline">건진법 안전관리비 사용내역서</a><br />' + 
       '• 관련 : ' + 
-      '<a href="https://www.law.go.kr/%ED%96%89%EC%A0%95%EA%B7%9C%EC%B9%99/%EA%B1%B4%EC%84%A4%EA%B3%B5%EC%82%AC%EC%95%88%EC%A0%84%EA%B4%80%EB%A6%AC%EC%97%85%EB%AC%B4%EC%88%98%ED%96%89%EC%A7%80%EC%B9%A8/(2022-791,20221220)/%EC%A0%9C52%EC%A1%B0" ' + 
-      'target="_blank" class="text-blue-600 hover:underline">건설공사 안전관리 업무수행 지침-국토부</a><br />' + 
+      '<a href="https://www.law.go.kr/%ED%96%89%EC%A0%95%EA%B7%9C%EC%B9%99/%EA%B1%B4%EC%84%A4%EA%B3%B5%EC%82%AC%EC%95%88%EC%A0%84%EA%B4%80%EB%A6%AC%EC%97%85%EB%AC%B4%EC%88%98%ED%96%89%EC%A7%80%EC%B9%A8/%EC%A0%9C52%EC%A1%B0" ' +
+      'target="_blank" class="text-blue-600 hover:underline">건설공사 안전관리 업무수행 지침-국토부</a><br />' +
       '• 참고 : ' + 
       '<a href="https://drive.google.com/file/d/1zlKR1rIqBdBB67u1wGCDCnwuBA624ZLh/view?usp=drivesdk" ' + 
       'target="_blank" class="text-blue-600 hover:underline">건진법 안전관리비 사용항목</a><br />' + 
@@ -453,8 +457,8 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '<a href="https://drive.google.com/file/d/1Eh8HpgeW3a5-uhaTlwR1uxX4SSgzzwbP/view?usp=drive_link" ' + 
       'target="_blank" class="text-blue-600 hover:underline">산업안전보건관리비 집행(양식)</a><br />' + 
       '• 관련 : ' + 
-      '<a href="https://www.law.go.kr/%ED%96%89%EC%A0%95%EA%B7%9C%EC%B9%99/%EA%B1%B4%EC%84%A4%EC%97%85%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EA%B4%80%EB%A6%AC%EB%B9%84%EA%B3%84%EC%83%81%EB%B0%8F%EC%82%AC%EC%9A%A9%EA%B8%B0%EC%A4%80/(2024-53,20240919)/%EC%A0%9C9%EC%A1%B0" ' + 
-      'target="_blank" class="text-blue-600 hover:underline">건설업 산업안전보건관리비 계상 및 사용기준 제9조</a><br />' + 
+      '<a href="https://www.law.go.kr/%ED%96%89%EC%A0%95%EA%B7%9C%EC%B9%99/%EA%B1%B4%EC%84%A4%EC%97%85%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EA%B4%80%EB%A6%AC%EB%B9%84%EA%B3%84%EC%83%81%EB%B0%8F%EC%82%AC%EC%9A%A9%EA%B8%B0%EC%A4%80/%EC%A0%9C9%EC%A1%B0" ' +
+      'target="_blank" class="text-blue-600 hover:underline">건설업 산업안전보건관리비 계상 및 사용기준 제9조</a><br />' +
       '• 참고 : ' + 
       '<a href="https://www.law.go.kr/lsLinkCommonInfo.do?lspttninfSeq=75381&chrClsCd=010202" ' + 
       'target="_blank" class="text-blue-600 hover:underline">산업안전보건법 시행령 제18조(안전관리자의 업무 등)</a><br />' + 
@@ -593,10 +597,14 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '• 지원 : ' + 
       '<a href="https://kras.kosha.or.kr/sitemap" ' + 
       'target="_blank" class="text-blue-600 hover:underline">위험성평가 지원 시스템</a><br />' + 
-      '• AI 도움 : ' + 
-      '<a href="https://chatgpt.com/g/g-uhvOsghT3-hangugnongeocongongsa-wiheomseongpyeongga-jagseong-ai" ' + 
-      'target="_blank" class="text-blue-600 hover:underline">위험성평가 GPTS AI</a>'
-  },  
+      '• AI 도움 : ' +
+      '<a href="https://chatgpt.com/g/g-uhvOsghT3-hangugnongeocongongsa-wiheomseongpyeongga-jagseong-ai" ' +
+      'target="_blank" class="text-blue-600 hover:underline">위험성평가 GPTS AI</a><br />' +
+      '• 과태료 (산업안전보건법 제175조) :<br />' +
+      '&nbsp;&nbsp;- 미실시 → 1,000만 원 이하<br />' +
+      '&nbsp;&nbsp;- 근로자 미참여·미통지 → 500만 원 이하<br />' +
+      '&nbsp;&nbsp;- 기록·보존 미이행 → 300만 원 이하'
+  },
   'TBM실시(일일안전보건교육)': {
     states: ['공사중'] as const,
     costs: 'all',
@@ -749,12 +757,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '• 양식 : ' + 
       '<a href="https://drive.google.com/file/d/1zq1jB2hiv7JlH7OFFoGRb-Sd4MfPaZv8/view?usp=drive_link" ' + 
       'target="_blank" class="text-blue-600 hover:underline">안전보건표지 받기</a><br />' +
-      '• 관련 : ' + 
-      '<a href="https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EB%B2%95/(20240517,19591,20230808)/%EC%A0%9C34%EC%A1%B0" ' + 
-      'target="_blank" class="text-blue-600 hover:underline">산업안전보건법 제34조(법령 요지 등의 게시 등)</a><br />' + 
-      '• 관련 : ' + 
-      '<a href="https://www.law.go.kr/LSW//lsLinkCommonInfo.do?lsJoLnkSeq=1024053091&chrClsCd=010202&ancYnChk=" ' + 
-      'target="_blank" class="text-blue-600 hover:underline">산업안전보건법 시행규칙 제39조(안전보건표지의 종류·형태 및 용도·설치)</a><br />' + 
+      '• 관련 : ' +
+      '<a href="https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EB%B2%95/%EC%A0%9C34%EC%A1%B0" ' +
+      'target="_blank" class="text-blue-600 hover:underline">산업안전보건법 제34조(법령 요지 등의 게시 등)</a><br />' +
+      '• 관련 : ' +
+      '<a href="https://www.law.go.kr/%EB%B2%95%EB%A0%B9/%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EB%B2%95%20%EC%8B%9C%ED%96%89%EA%B7%9C%EC%B9%99/%EC%A0%9C39%EC%A1%B0" ' +
+      'target="_blank" class="text-blue-600 hover:underline">산업안전보건법 시행규칙 제39조(안전보건표지의 종류·형태 및 용도·설치)</a><br />' +
       '• 법령요지 게시 내용:<br />' + 
       '  - 산업안전보건법령 요지<br />' + 
       '  - 안전보건관리규정<br />' + 
@@ -789,8 +797,8 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '• 관련 : <a href="https://www.law.go.kr/lsBylInfoPLinkR.do?lsiSeq=264011&lsNm=%EA%B1%B4%EC%84%A4%EA%B8%B0%EC%88%A0+' + 
       '%EC%A7%84%ED%9D%A5%EB%B2%95+%EC%8B%9C%ED%96%89%EA%B7%9C%EC%B9%99&bylNo=0007&bylBrNo=00&bylCls=BE&bylEfYd=20240801&bylEfYdYn=Y" ' + 
       'target="_blank" class="text-blue-600 hover:underline">건설기술진흥법 제58조(안전관리계획의수립기준) 별표7</a><br />' + 
-      '• 관련 : <a href="https://www.law.go.kr/법령/산업안전보건법/(20240517,19591,20230808)/제64조" ' + 
-      'target="_blank" class="text-blue-600 hover:underline">산업안전보건법 제64조(도급에 따른 사업재해 예방조치) 1항 5호</a><br />' + 
+      '• 관련 : <a href="https://www.law.go.kr/법령/산업안전보건법/제64조" ' +
+      'target="_blank" class="text-blue-600 hover:underline">산업안전보건법 제64조(도급에 따른 사업재해 예방조치) 1항 5호</a><br />' +
       '• 다운로드 : <a href="https://drive.google.com/file/d/1cBgksOH21gggdYUF6dodOJo9I0YdSAwd/view?usp=drive_link" ' + 
       'target="_blank" class="text-blue-600 hover:underline">비상대응훈련결과_양식.hwp</a><br />' + 
       '• 다운로드 : <a href="https://drive.google.com/file/d/1qnlYbYYbIyEWOjtHZ7w-9zmMiIs7C7b5/view?usp=drive_link" ' + 
@@ -809,8 +817,8 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '• 대상 : 모든 건설현장<br />' + 
       '• 점검시기 : 폭염,한파 특보 발효시<br />' + 
       '• 관련 : ' + 
-      '<a href="https://www.law.go.kr/법령/산업안전보건법/(20250601,20522,20241022)/제39조" ' + 
-      'target="_blank" class="text-blue-600 hover:underline">산업안전보건법 제39조(보건조치) 제1항 제7호</a><br />' + 
+      '<a href="https://www.law.go.kr/법령/산업안전보건법/제39조" ' +
+      'target="_blank" class="text-blue-600 hover:underline">산업안전보건법 제39조(보건조치) 제1항 제7호</a><br />' +
       '• 2시간점검표 : ' + 
       '<a href="https://drive.google.com/file/d/1ho6Ngse3Azz4LkSUjB_12IcYwtxT5rJw/view?usp=drive_link" ' + 
       'target="_blank" class="text-blue-600 hover:underline">체감31도이상시 점검표</a><br />' + 

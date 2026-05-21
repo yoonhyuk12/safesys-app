@@ -732,11 +732,8 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
                 안전점검 알림을 받을 텔레그램 채팅 ID를 입력하세요 (복수 입력 시 쉼표로 구분)
               </p>
               <div className="mt-1 flex flex-col gap-1">
-                <a href="https://t.me/Getmyid_Work_Bot" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
-                  📋 텔레그램 채팅 ID 확인하기 (t.me/Getmyid_Work_Bot)
-                </a>
                 <a href="https://t.me/KRCSafe_bot" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
-                  🔔 안전알림 봇 등록하기 (t.me/KRCSafe_bot)
+                  🔔 안전알림 봇 등록하기 (t.me/KRCSafe_bot) — 사전에 텔레그램 설치 필요
                 </a>
               </div>
             </div>

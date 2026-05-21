@@ -995,6 +995,15 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
                             </div>
                           </div>
                         )}
+                        {item.image && (
+                          <div className="mb-3">
+                            <img
+                              src={item.image}
+                              alt={item.imageAlt || key}
+                              className="w-[30%] h-auto rounded-md border border-gray-200 bg-white"
+                            />
+                          </div>
+                        )}
                         {item.subItems ? (
                           <div className="overflow-x-auto">
                             <table className="w-full border-collapse">
