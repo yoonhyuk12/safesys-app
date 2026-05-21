@@ -116,10 +116,26 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
   });
   const [currentIncompleteIndex, setCurrentIncompleteIndex] = useState<number>(0);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
+  const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // 이미지 미리보기 — ESC 키로 닫기 및 배경 스크롤 잠금
+  useEffect(() => {
+    if (!previewImage) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreviewImage(null);
+    };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [previewImage]);
 
   // 로컬 스토리지에서 폼 데이터 복원
   useEffect(() => {
@@ -997,11 +1013,21 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
                         )}
                         {item.image && (
                           <div className="mb-3">
-                            <img
-                              src={item.image}
-                              alt={item.imageAlt || key}
-                              className="w-[30%] h-auto rounded-md border border-gray-200 bg-white"
-                            />
+                            <button
+                              type="button"
+                              onClick={() => setPreviewImage({ src: item.image!, alt: item.imageAlt || key })}
+                              className="block w-[70%] sm:w-[30%] rounded-md border border-gray-200 bg-white overflow-hidden cursor-zoom-in hover:opacity-90 transition-opacity"
+                              aria-label="이미지 확대 보기"
+                            >
+                              <img
+                                src={item.image}
+                                alt={item.imageAlt || key}
+                                className="w-full h-auto block"
+                              />
+                              <span className="block text-[10px] text-gray-500 text-center py-0.5 border-t border-gray-100">
+                                탭하여 확대
+                              </span>
+                            </button>
                           </div>
                         )}
                         {item.subItems ? (
@@ -1176,6 +1202,30 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
           </div>
         </div>
       </div>
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewImage(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="이미지 확대 보기"
+        >
+          <button
+            type="button"
+            onClick={() => setPreviewImage(null)}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/90 text-gray-800 text-xl font-bold flex items-center justify-center shadow-lg hover:bg-white"
+            aria-label="닫기"
+          >
+            ×
+          </button>
+          <img
+            src={previewImage.src}
+            alt={previewImage.alt}
+            className="max-w-full max-h-full object-contain rounded-md"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </>
   );
 };
