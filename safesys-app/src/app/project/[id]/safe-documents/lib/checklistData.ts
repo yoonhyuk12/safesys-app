@@ -598,8 +598,8 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '<a href="https://kras.kosha.or.kr/sitemap" ' + 
       'target="_blank" class="text-blue-600 hover:underline">위험성평가 지원 시스템</a><br />' + 
       '• AI 도움 : ' +
-      '<a href="https://chatgpt.com/g/g-uhvOsghT3-hangugnongeocongongsa-wiheomseongpyeongga-jagseong-ai" ' +
-      'target="_blank" class="text-blue-600 hover:underline">위험성평가 GPTS AI</a><br />' +
+      '<a href="#" data-risk-chooser="true" ' +
+      'class="text-blue-600 hover:underline cursor-pointer">위험성평가 GPTS AI</a><br />' +
       '• 과태료 (산업안전보건법 제175조) :<br />' +
       '&nbsp;&nbsp;- 미실시 → 1,000만 원 이하<br />' +
       '&nbsp;&nbsp;- 근로자 미참여·미통지 → 500만 원 이하<br />' +

@@ -38,7 +38,21 @@ export default function ProjectDetailPage() {
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [hqPendingCount, setHqPendingCount] = useState(0)
   const [safetyLedgerPendingCount, setSafetyLedgerPendingCount] = useState(0)
+  const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+
+  const RISK_ASSESSMENT_GPTS_URL = 'https://chatgpt.com/g/g-uhvOsghT3-hangugnongeocongongsa-wiheomseongpyeongga-jagseong-ai'
+  const RISK_ASSESSMENT_AI_EXCEL_URL = 'https://airiskdocu.vercel.app/'
+
+  const openRiskAssessmentTool = (url: string, withSiteName = false) => {
+    setRiskAssessmentChooserOpen(false)
+    let finalUrl = url
+    if (withSiteName && project?.project_name) {
+      const params = new URLSearchParams({ siteName: project.project_name })
+      finalUrl = `${url}${url.includes('?') ? '&' : '?'}${params.toString()}`
+    }
+    window.open(finalUrl, '_blank', 'noopener,noreferrer')
+  }
 
   useEffect(() => {
     if (user && projectId) {
@@ -701,7 +715,7 @@ export default function ProjectDetailPage() {
                   title="위험성평가 AI GPT"
                   year={new Date().getFullYear().toString()}
                   isActive={false}
-                  externalUrl="https://chatgpt.com/g/g-uhvOsghT3-hangugnongeocongongsa-wiheomseongpyeongga-jagseong-ai"
+                  onClick={() => setRiskAssessmentChooserOpen(true)}
                   pdcaCategory="P"
                 />
                 <DocumentFolder
@@ -970,6 +984,47 @@ export default function ProjectDetailPage() {
         onClose={handleDeleteModalClose}
         onConfirm={handleDeleteConfirm}
       />
+
+      {/* 위험성평가 도구 선택 모달 */}
+      {riskAssessmentChooserOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={() => setRiskAssessmentChooserOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">위험성평가 AI 도구 선택</h3>
+              <p className="text-sm text-gray-500">사용할 도구를 선택해주세요</p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                onClick={() => openRiskAssessmentTool(RISK_ASSESSMENT_GPTS_URL)}
+                className="w-full flex flex-col items-start gap-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-left"
+              >
+                <span className="font-semibold">GPTS</span>
+                <span className="text-xs text-blue-100">ChatGPT 기반 위험성평가 작성 AI</span>
+              </button>
+              <button
+                onClick={() => openRiskAssessmentTool(RISK_ASSESSMENT_AI_EXCEL_URL, true)}
+                className="w-full flex flex-col items-start gap-1 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-left"
+              >
+                <span className="font-semibold">AI 엑셀 작성</span>
+                <span className="text-xs text-emerald-100">위험성평가서 자동 작성 및 엑셀 다운로드</span>
+              </button>
+              <button
+                onClick={() => setRiskAssessmentChooserOpen(false)}
+                className="w-full px-4 py-3 text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -117,6 +117,30 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
   const [currentIncompleteIndex, setCurrentIncompleteIndex] = useState<number>(0);
   const [expandedDescriptions, setExpandedDescriptions] = useState<Record<string, boolean>>({});
   const [previewImage, setPreviewImage] = useState<{ src: string; alt: string } | null>(null);
+  const [riskChooserOpen, setRiskChooserOpen] = useState(false);
+
+  const RISK_ASSESSMENT_GPTS_URL = 'https://chatgpt.com/g/g-uhvOsghT3-hangugnongeocongongsa-wiheomseongpyeongga-jagseong-ai';
+  const RISK_ASSESSMENT_AI_EXCEL_URL = 'https://airiskdocu.vercel.app/';
+
+  const openRiskAssessmentTool = (url: string, withSiteName = false) => {
+    setRiskChooserOpen(false);
+    let finalUrl = url;
+    if (withSiteName && formData.projectName) {
+      const params = new URLSearchParams({ siteName: formData.projectName });
+      finalUrl = `${url}${url.includes('?') ? '&' : '?'}${params.toString()}`;
+    }
+    window.open(finalUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleDescriptionClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    const trigger = target.closest('[data-risk-chooser="true"]');
+    if (trigger) {
+      e.preventDefault();
+      setRiskChooserOpen(true);
+    }
+  };
+
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
@@ -992,7 +1016,7 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
                           )}
                         </div>
                         {item.description && (
-                          <div className="relative mb-2">
+                          <div className="relative mb-2" onClick={handleDescriptionClick}>
                             <div className="relative">
                               <p
                                 className={`text-sm text-gray-600 whitespace-pre-wrap ${!expandedDescriptions[key] ? 'line-clamp-4' : ''}`}
@@ -1224,6 +1248,48 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
             className="max-w-full max-h-full object-contain rounded-md"
             onClick={(e) => e.stopPropagation()}
           />
+        </div>
+      )}
+      {riskChooserOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[10000]"
+          onClick={() => setRiskChooserOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-center mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">위험성평가 AI 도구 선택</h3>
+              <p className="text-sm text-gray-500">사용할 도구를 선택해주세요</p>
+            </div>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => openRiskAssessmentTool(RISK_ASSESSMENT_GPTS_URL)}
+                className="w-full flex flex-col items-start gap-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-left"
+              >
+                <span className="font-semibold">GPTS</span>
+                <span className="text-xs text-blue-100">ChatGPT 기반 위험성평가 작성 AI</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openRiskAssessmentTool(RISK_ASSESSMENT_AI_EXCEL_URL, true)}
+                className="w-full flex flex-col items-start gap-1 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-left"
+              >
+                <span className="font-semibold">AI 엑셀 작성</span>
+                <span className="text-xs text-emerald-100">위험성평가서 자동 작성 및 엑셀 다운로드</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setRiskChooserOpen(false)}
+                className="w-full px-4 py-3 text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>
