@@ -32,6 +32,11 @@ interface ManagerInspectionRecord {
   disaster_prevention_risk_factors_json?: any[]
   remarks?: string
   created_at: string
+  form_data?: {
+    risk_assessment_photo_2?: string
+    disaster_prevention_report_photo_2?: string
+    [key: string]: any
+  }
   user_profiles?: {
     full_name: string
   }
@@ -71,7 +76,11 @@ export default function ManagerInspectionPage() {
         detail_work: '',
         risk_factor: '',
         details: '',
-        implementation: 'yes' as 'yes' | 'no'
+        implementation: 'yes' as 'yes' | 'no',
+        photo_1: '' as string,
+        photo_2: '' as string,
+        photo_1_file: null as File | null,
+        photo_2_file: null as File | null
       }
     ],
     disaster_prevention_risk_factors: [
@@ -79,7 +88,11 @@ export default function ManagerInspectionPage() {
         detail_work: '',
         risk_factor: '',
         details: '',
-        implementation: 'yes' as 'yes' | 'no'
+        implementation: 'yes' as 'yes' | 'no',
+        photo_1: '' as string,
+        photo_2: '' as string,
+        photo_1_file: null as File | null,
+        photo_2_file: null as File | null
       }
     ]
   })
@@ -110,7 +123,8 @@ export default function ManagerInspectionPage() {
   // 크롭 관련 상태
   const [showCropModal, setShowCropModal] = useState(false)
   const [cropImageSrc, setCropImageSrc] = useState<string>('')
-  const [cropPhotoType, setCropPhotoType] = useState<'inspection' | 'risk_assessment' | 'disaster_prevention'>('inspection')
+  const [cropPhotoType, setCropPhotoType] = useState<'inspection' | 'risk_assessment' | 'disaster_prevention' | 'factor_photo'>('inspection')
+  const [cropFactorTarget, setCropFactorTarget] = useState<{ tab: 'risk' | 'disaster'; index: number; slot: 1 | 2 } | null>(null)
   const [cropArea, setCropArea] = useState({ x: 0, y: 0, width: 100, height: 100 }) // 퍼센트 값
   const [isDragging, setIsDragging] = useState<'tl' | 'br' | null>(null) // 좌측상단(tl), 우측하단(br)
   const cropContainerRef = useRef<HTMLDivElement>(null)
@@ -385,7 +399,7 @@ export default function ManagerInspectionPage() {
     }
   }
 
-  // 크롭 모달 열기
+  // 크롭 모달 열기 (기본/탭레벨 사진)
   const openCropModal = (photoType: 'inspection' | 'risk_assessment' | 'disaster_prevention') => {
     let src = ''
     if (photoType === 'inspection') {
@@ -395,12 +409,28 @@ export default function ManagerInspectionPage() {
     } else {
       src = newRecord.disaster_prevention_report_photo_preview
     }
-    
+
     if (!src) return
-    
+
     setCropImageSrc(src)
     setCropPhotoType(photoType)
-    setCropArea({ x: 0, y: 0, width: 100, height: 100 }) // 초기에는 전체 영역
+    setCropFactorTarget(null)
+    setCropArea({ x: 0, y: 0, width: 100, height: 100 })
+    setShowCropModal(true)
+  }
+
+  // 크롭 모달 열기 (위험요인 카드 내 사진)
+  const openFactorCropModal = (tab: 'risk' | 'disaster', index: number, slot: 1 | 2) => {
+    const factors = tab === 'risk' ? newRecord.risk_factors : newRecord.disaster_prevention_risk_factors
+    const factor = factors[index]
+    if (!factor) return
+    const src = slot === 1 ? factor.photo_1 : factor.photo_2
+    if (!src) return
+
+    setCropImageSrc(src)
+    setCropPhotoType('factor_photo')
+    setCropFactorTarget({ tab, index, slot })
+    setCropArea({ x: 0, y: 0, width: 100, height: 100 })
     setShowCropModal(true)
   }
 
@@ -464,6 +494,21 @@ export default function ManagerInspectionPage() {
                 risk_assessment_photo: resized,
                 risk_assessment_photo_preview: previewUrl
               })
+            } else if (cropPhotoType === 'factor_photo' && cropFactorTarget) {
+              const { tab, index, slot } = cropFactorTarget
+              const factorsKey = tab === 'risk' ? 'risk_factors' : 'disaster_prevention_risk_factors'
+              const updatedFactors = [...newRecord[factorsKey]]
+              const target = updatedFactors[index]
+              if (target) {
+                const prevPreview = slot === 1 ? target.photo_1 : target.photo_2
+                if (prevPreview && prevPreview.startsWith('blob:')) URL.revokeObjectURL(prevPreview)
+                if (slot === 1) {
+                  updatedFactors[index] = { ...target, photo_1: previewUrl, photo_1_file: resized }
+                } else {
+                  updatedFactors[index] = { ...target, photo_2: previewUrl, photo_2_file: resized }
+                }
+                setNewRecord({ ...newRecord, [factorsKey]: updatedFactors })
+              }
             } else {
               if (newRecord.disaster_prevention_report_photo_preview && newRecord.disaster_prevention_report_photo_preview.startsWith('blob:')) {
                 URL.revokeObjectURL(newRecord.disaster_prevention_report_photo_preview)
@@ -1083,6 +1128,78 @@ export default function ManagerInspectionPage() {
           }
         }
 
+        // 3-1. 위험요인별 사진 업로드 (risk_factors)
+        const uploadedRiskFactors = await Promise.all(dataToUse.risk_factors.map(async (factor: any, idx: number) => {
+          let p1 = factor.photo_1 || ''
+          let p2 = factor.photo_2 || ''
+          if (factor.photo_1_file) {
+            try {
+              const ext = factor.photo_1_file.name.split('.').pop()
+              const fileName = `${inspectionId}_risk_factor_${idx}_p1_${Date.now()}.${ext}`
+              const { error: uploadError } = await supabase.storage.from('inspection-photos').upload(fileName, factor.photo_1_file, { cacheControl: '3600', upsert: false })
+              if (!uploadError) {
+                const { data: { publicUrl } } = supabase.storage.from('inspection-photos').getPublicUrl(fileName)
+                p1 = publicUrl
+              }
+            } catch (e) { console.error('위험요인 사진1 업로드 실패:', e) }
+          }
+          if (factor.photo_2_file) {
+            try {
+              const ext = factor.photo_2_file.name.split('.').pop()
+              const fileName = `${inspectionId}_risk_factor_${idx}_p2_${Date.now()}.${ext}`
+              const { error: uploadError } = await supabase.storage.from('inspection-photos').upload(fileName, factor.photo_2_file, { cacheControl: '3600', upsert: false })
+              if (!uploadError) {
+                const { data: { publicUrl } } = supabase.storage.from('inspection-photos').getPublicUrl(fileName)
+                p2 = publicUrl
+              }
+            } catch (e) { console.error('위험요인 사진2 업로드 실패:', e) }
+          }
+          return {
+            detail_work: factor.detail_work || '',
+            risk_factor: factor.risk_factor || '',
+            details: factor.details || '',
+            implementation: factor.implementation || 'yes',
+            photo_1: p1 && !p1.startsWith('blob:') ? p1 : '',
+            photo_2: p2 && !p2.startsWith('blob:') ? p2 : ''
+          }
+        }))
+
+        // 3-2. 위험요인별 사진 업로드 (disaster_prevention_risk_factors)
+        const uploadedDisasterFactors = await Promise.all(dataToUse.disaster_prevention_risk_factors.map(async (factor: any, idx: number) => {
+          let p1 = factor.photo_1 || ''
+          let p2 = factor.photo_2 || ''
+          if (factor.photo_1_file) {
+            try {
+              const ext = factor.photo_1_file.name.split('.').pop()
+              const fileName = `${inspectionId}_disaster_factor_${idx}_p1_${Date.now()}.${ext}`
+              const { error: uploadError } = await supabase.storage.from('inspection-photos').upload(fileName, factor.photo_1_file, { cacheControl: '3600', upsert: false })
+              if (!uploadError) {
+                const { data: { publicUrl } } = supabase.storage.from('inspection-photos').getPublicUrl(fileName)
+                p1 = publicUrl
+              }
+            } catch (e) { console.error('재해예방 사진1 업로드 실패:', e) }
+          }
+          if (factor.photo_2_file) {
+            try {
+              const ext = factor.photo_2_file.name.split('.').pop()
+              const fileName = `${inspectionId}_disaster_factor_${idx}_p2_${Date.now()}.${ext}`
+              const { error: uploadError } = await supabase.storage.from('inspection-photos').upload(fileName, factor.photo_2_file, { cacheControl: '3600', upsert: false })
+              if (!uploadError) {
+                const { data: { publicUrl } } = supabase.storage.from('inspection-photos').getPublicUrl(fileName)
+                p2 = publicUrl
+              }
+            } catch (e) { console.error('재해예방 사진2 업로드 실패:', e) }
+          }
+          return {
+            detail_work: factor.detail_work || '',
+            risk_factor: factor.risk_factor || '',
+            details: factor.details || '',
+            implementation: factor.implementation || 'yes',
+            photo_1: p1 && !p1.startsWith('blob:') ? p1 : '',
+            photo_2: p2 && !p2.startsWith('blob:') ? p2 : ''
+          }
+        }))
+
         // 4. 데이터베이스 업데이트
         const { data: updatedData, error: updateError } = await supabase
           .from('manager_inspections')
@@ -1094,8 +1211,8 @@ export default function ManagerInspectionPage() {
             risk_assessment_photo: riskAssessmentPhotoUrl,
             disaster_prevention_report_photo: disasterPreventionPhotoUrl,
             signature: signatureData || signature || null,
-            risk_factors_json: dataToUse.risk_factors,
-            disaster_prevention_risk_factors_json: dataToUse.disaster_prevention_risk_factors,
+            risk_factors_json: uploadedRiskFactors,
+            disaster_prevention_risk_factors_json: uploadedDisasterFactors,
             remarks: (signatureData !== null && signatureData) ? dataToUse.remarks : (dataToUse.remarks || '서명X'),
             updated_at: new Date().toISOString()
           })
@@ -1142,7 +1259,11 @@ export default function ManagerInspectionPage() {
               detail_work: '',
               risk_factor: '',
               details: '',
-              implementation: 'yes'
+              implementation: 'yes',
+              photo_1: '',
+              photo_2: '',
+              photo_1_file: null,
+              photo_2_file: null
             }
           ],
           disaster_prevention_risk_factors: [
@@ -1150,7 +1271,11 @@ export default function ManagerInspectionPage() {
               detail_work: '',
               risk_factor: '',
               details: '',
-              implementation: 'yes'
+              implementation: 'yes',
+              photo_1: '',
+              photo_2: '',
+              photo_1_file: null,
+              photo_2_file: null
             }
           ]
         })
@@ -1230,7 +1355,7 @@ export default function ManagerInspectionPage() {
         try {
           const fileExt = dataToUse.disaster_prevention_report_photo.name.split('.').pop()
           const fileName = `${inspectionId}_disaster_prevention.${fileExt}`
-          
+
           const { data: uploadData, error: uploadError } = await supabase.storage
             .from('inspection-photos')
             .upload(fileName, dataToUse.disaster_prevention_report_photo, {
@@ -1244,7 +1369,7 @@ export default function ManagerInspectionPage() {
             const { data: { publicUrl } } = supabase.storage
               .from('inspection-photos')
               .getPublicUrl(fileName)
-            
+
             disasterPreventionPhotoUrl = publicUrl
             console.log('재해예방기술지도 보고서 사진 업로드 성공:', fileName)
           }
@@ -1252,6 +1377,78 @@ export default function ManagerInspectionPage() {
           console.error('재해예방기술지도 보고서 사진 업로드 오류:', error)
         }
       }
+
+      // 3-1. 위험요인별 사진 업로드 (risk_factors)
+      const uploadedRiskFactors = await Promise.all(dataToUse.risk_factors.map(async (factor: any, idx: number) => {
+        let p1 = factor.photo_1 || ''
+        let p2 = factor.photo_2 || ''
+        if (factor.photo_1_file) {
+          try {
+            const ext = factor.photo_1_file.name.split('.').pop()
+            const fileName = `${inspectionId}_risk_factor_${idx}_p1.${ext}`
+            const { error: uploadError } = await supabase.storage.from('inspection-photos').upload(fileName, factor.photo_1_file, { cacheControl: '3600', upsert: false })
+            if (!uploadError) {
+              const { data: { publicUrl } } = supabase.storage.from('inspection-photos').getPublicUrl(fileName)
+              p1 = publicUrl
+            }
+          } catch (e) { console.error('위험요인 사진1 업로드 실패:', e) }
+        }
+        if (factor.photo_2_file) {
+          try {
+            const ext = factor.photo_2_file.name.split('.').pop()
+            const fileName = `${inspectionId}_risk_factor_${idx}_p2.${ext}`
+            const { error: uploadError } = await supabase.storage.from('inspection-photos').upload(fileName, factor.photo_2_file, { cacheControl: '3600', upsert: false })
+            if (!uploadError) {
+              const { data: { publicUrl } } = supabase.storage.from('inspection-photos').getPublicUrl(fileName)
+              p2 = publicUrl
+            }
+          } catch (e) { console.error('위험요인 사진2 업로드 실패:', e) }
+        }
+        return {
+          detail_work: factor.detail_work || '',
+          risk_factor: factor.risk_factor || '',
+          details: factor.details || '',
+          implementation: factor.implementation || 'yes',
+          photo_1: p1 && !p1.startsWith('blob:') ? p1 : '',
+          photo_2: p2 && !p2.startsWith('blob:') ? p2 : ''
+        }
+      }))
+
+      // 3-2. 위험요인별 사진 업로드 (disaster_prevention_risk_factors)
+      const uploadedDisasterFactors = await Promise.all(dataToUse.disaster_prevention_risk_factors.map(async (factor: any, idx: number) => {
+        let p1 = factor.photo_1 || ''
+        let p2 = factor.photo_2 || ''
+        if (factor.photo_1_file) {
+          try {
+            const ext = factor.photo_1_file.name.split('.').pop()
+            const fileName = `${inspectionId}_disaster_factor_${idx}_p1.${ext}`
+            const { error: uploadError } = await supabase.storage.from('inspection-photos').upload(fileName, factor.photo_1_file, { cacheControl: '3600', upsert: false })
+            if (!uploadError) {
+              const { data: { publicUrl } } = supabase.storage.from('inspection-photos').getPublicUrl(fileName)
+              p1 = publicUrl
+            }
+          } catch (e) { console.error('재해예방 사진1 업로드 실패:', e) }
+        }
+        if (factor.photo_2_file) {
+          try {
+            const ext = factor.photo_2_file.name.split('.').pop()
+            const fileName = `${inspectionId}_disaster_factor_${idx}_p2.${ext}`
+            const { error: uploadError } = await supabase.storage.from('inspection-photos').upload(fileName, factor.photo_2_file, { cacheControl: '3600', upsert: false })
+            if (!uploadError) {
+              const { data: { publicUrl } } = supabase.storage.from('inspection-photos').getPublicUrl(fileName)
+              p2 = publicUrl
+            }
+          } catch (e) { console.error('재해예방 사진2 업로드 실패:', e) }
+        }
+        return {
+          detail_work: factor.detail_work || '',
+          risk_factor: factor.risk_factor || '',
+          details: factor.details || '',
+          implementation: factor.implementation || 'yes',
+          photo_1: p1 && !p1.startsWith('blob:') ? p1 : '',
+          photo_2: p2 && !p2.startsWith('blob:') ? p2 : ''
+        }
+      }))
 
       // 4. 데이터베이스에 저장
       console.log('데이터베이스 저장 데이터:', {
@@ -1280,8 +1477,8 @@ export default function ManagerInspectionPage() {
           risk_assessment_photo: riskAssessmentPhotoUrl,
           disaster_prevention_report_photo: disasterPreventionPhotoUrl,
           signature: signatureData || signature || null,
-          risk_factors_json: dataToUse.risk_factors,
-          disaster_prevention_risk_factors_json: dataToUse.disaster_prevention_risk_factors,
+          risk_factors_json: uploadedRiskFactors,
+          disaster_prevention_risk_factors_json: uploadedDisasterFactors,
           remarks: (signatureData !== null && signatureData) ? dataToUse.remarks : (dataToUse.remarks || '서명X')
         })
         .select()
@@ -1337,7 +1534,11 @@ export default function ManagerInspectionPage() {
             detail_work: '',
             risk_factor: '',
             details: '',
-            implementation: 'yes'
+            implementation: 'yes',
+            photo_1: '',
+            photo_2: '',
+            photo_1_file: null,
+            photo_2_file: null
           }
         ],
         disaster_prevention_risk_factors: [
@@ -1345,7 +1546,11 @@ export default function ManagerInspectionPage() {
             detail_work: '',
             risk_factor: '',
             details: '',
-            implementation: 'yes'
+            implementation: 'yes',
+            photo_1: '',
+            photo_2: '',
+            photo_1_file: null,
+            photo_2_file: null
           }
         ]
       })
@@ -1442,6 +1647,111 @@ export default function ManagerInspectionPage() {
             </div>
           </div>
         </main>
+      </div>
+    )
+  }
+
+  // 위험요인 카드 내 사진 슬롯 렌더링 (사진 1 또는 사진 2)
+  const renderFactorPhotoSlot = (tab: 'risk' | 'disaster', index: number, slot: 1 | 2) => {
+    const factorsKey = tab === 'risk' ? 'risk_factors' : 'disaster_prevention_risk_factors'
+    const factors = newRecord[factorsKey]
+    const factor = factors[index]
+    if (!factor) return null
+    const preview = slot === 1 ? factor.photo_1 : factor.photo_2
+    const colorClass = tab === 'risk' ? 'hover:border-blue-500 hover:text-blue-600' : 'hover:border-orange-500 hover:text-orange-600'
+
+    const updateFactor = (patch: { preview?: string; file?: File | null }) => {
+      const updated = [...factors]
+      const current = { ...updated[index] }
+      if (slot === 1) {
+        if (patch.preview !== undefined) current.photo_1 = patch.preview
+        if (patch.file !== undefined) current.photo_1_file = patch.file
+      } else {
+        if (patch.preview !== undefined) current.photo_2 = patch.preview
+        if (patch.file !== undefined) current.photo_2_file = patch.file
+      }
+      updated[index] = current
+      setNewRecord({ ...newRecord, [factorsKey]: updated })
+    }
+
+    return (
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">사진 {slot}</label>
+        <label className={`w-full p-3 border border-dashed border-gray-300 rounded-lg ${colorClass} hover:bg-white transition-colors flex items-center justify-center text-gray-600 cursor-pointer`}>
+          <Camera className="h-6 w-6" />
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={async (e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              if (file.size > 20 * 1024 * 1024) {
+                alert(`${file.name}은(는) 20MB를 초과합니다.`)
+                e.target.value = ''
+                return
+              }
+              let processed: File = file
+              if (file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name)) {
+                processed = await resizeImageToJpeg(file, 960, 720, 1.00)
+              }
+              const previewUrl = URL.createObjectURL(processed)
+              if (preview && preview.startsWith('blob:')) URL.revokeObjectURL(preview)
+              updateFactor({ preview: previewUrl, file: processed })
+              e.target.value = ''
+            }}
+          />
+        </label>
+        {preview && (
+          <div className="mt-2">
+            <div className="w-full h-40 border rounded overflow-hidden bg-white relative">
+              <img src={preview} alt={`주요위험요인 #${index + 1} 사진 ${slot}`} className="w-full h-full object-contain" />
+              <div className="absolute top-1 right-1 flex gap-1">
+                <button
+                  type="button"
+                  className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
+                  title="시계방향 회전"
+                  onClick={async () => {
+                    const currentFile = slot === 1 ? factor.photo_1_file : factor.photo_2_file
+                    if (currentFile) {
+                      const rotated = await rotateImageFile(currentFile, 'cw')
+                      const previewUrl = URL.createObjectURL(rotated)
+                      if (preview && preview.startsWith('blob:')) URL.revokeObjectURL(preview)
+                      updateFactor({ preview: previewUrl, file: rotated })
+                    } else if (preview) {
+                      const result = await rotateImageFromUrl(preview, 'cw')
+                      if (result) updateFactor({ preview: result.previewUrl, file: result.file })
+                    }
+                  }}
+                >
+                  <RotateCw className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
+                  title="크롭"
+                  onClick={() => openFactorCropModal(tab, index, slot)}
+                >
+                  <Crop className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
+                  title="삭제"
+                  onClick={() => {
+                    setDeleteConfirmCallback(() => () => {
+                      if (preview && preview.startsWith('blob:')) URL.revokeObjectURL(preview)
+                      updateFactor({ preview: '', file: null })
+                    })
+                    setShowDeleteConfirm(true)
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -1699,6 +2009,7 @@ export default function ManagerInspectionPage() {
                             <th className="border border-gray-300 p-1 text-center font-bold text-xs">일자</th>
                             <th className="border border-gray-300 p-1 text-center font-bold text-xs">점검자</th>
                             <th className="border border-gray-300 p-1 text-center font-bold text-xs whitespace-nowrap">주요위험요인<br/>(개수)</th>
+                            <th className="border border-gray-300 p-1 text-center font-bold text-xs whitespace-nowrap">사진 업로드<br/>(위험성/예방대책)</th>
                             <th className="border border-gray-300 p-1 text-center font-bold text-xs">
                               {isDownloadMode ? '선택' : isDeleteMode ? '삭제' : isSignatureMode ? '서명' : isEditMode ? '수정' : '비고'}
                             </th>
@@ -1729,6 +2040,11 @@ export default function ManagerInspectionPage() {
                                     }).length
                                     : 0
                                   const isRiskFactorMissing = riskFactorCount === 0
+                                  const countPhotos = (arr: any) => Array.isArray(arr)
+                                    ? arr.reduce((sum: number, f: any) => sum + (f?.photo_1 && String(f.photo_1).trim() ? 1 : 0) + (f?.photo_2 && String(f.photo_2).trim() ? 1 : 0), 0)
+                                    : 0
+                                  const riskPhotoCount = countPhotos(record.risk_factors_json)
+                                  const disasterPhotoCount = countPhotos((record as any).disaster_prevention_risk_factors_json)
                                   return (
                                   <tr
                                     key={record.id}
@@ -1742,19 +2058,19 @@ export default function ManagerInspectionPage() {
                                       setShowAddForm(true)
                                       setSelectedRecord(null)
                                       
-                                      // 기존 데이터를 폼에 로드
-                                      const loadedRiskFactors = record.risk_factors_json || [{
-                                        detail_work: '',
-                                        risk_factor: '',
-                                        details: '',
-                                        implementation: 'yes' as 'yes' | 'no'
-                                      }]
-                                      const loadedDisasterPreventionFactors = (record as any).disaster_prevention_risk_factors_json || [{
-                                        detail_work: '',
-                                        risk_factor: '',
-                                        details: '',
-                                        implementation: 'yes' as 'yes' | 'no'
-                                      }]
+                                      // 기존 데이터를 폼에 로드 (factor에 photo 필드 보강)
+                                      const hydrate = (arr: any[] | null | undefined) => (arr && arr.length > 0 ? arr : [{}]).map((f: any) => ({
+                                        detail_work: f?.detail_work || '',
+                                        risk_factor: f?.risk_factor || '',
+                                        details: f?.details ?? f?.reduction_measure ?? '',
+                                        implementation: (f?.implementation === 'no' ? 'no' : 'yes') as 'yes' | 'no',
+                                        photo_1: f?.photo_1 || '',
+                                        photo_2: f?.photo_2 || '',
+                                        photo_1_file: null as File | null,
+                                        photo_2_file: null as File | null
+                                      }))
+                                      const loadedRiskFactors = hydrate(record.risk_factors_json)
+                                      const loadedDisasterPreventionFactors = hydrate((record as any).disaster_prevention_risk_factors_json)
                                       setNewRecord({
                                         inspection_date: record.inspection_date,
                                         construction_supervisor: record.construction_supervisor || '',
@@ -1778,7 +2094,13 @@ export default function ManagerInspectionPage() {
                                   >
                                     <td className="border border-gray-300 p-2 text-center">{inspectionRecords.length - (startIndex + index)}</td>
                                     <td className="border border-gray-300 p-2 text-center">
-                                      {new Date(record.inspection_date).toLocaleDateString('ko-KR')}
+                                      {(() => {
+                                        const d = new Date(record.inspection_date)
+                                        const yy = String(d.getFullYear()).slice(-2)
+                                        const mm = String(d.getMonth() + 1).padStart(2, '0')
+                                        const dd = String(d.getDate()).padStart(2, '0')
+                                        return `${yy}.${mm}.${dd}`
+                                      })()}
                                     </td>
                                     <td className="border border-gray-300 p-2 text-center">
                                       {record.inspector_name || '-'}
@@ -1791,6 +2113,11 @@ export default function ManagerInspectionPage() {
                                       }`}
                                     >
                                       {isRiskFactorMissing ? '-' : `${riskFactorCount}개`}
+                                    </td>
+                                    <td className="border border-gray-300 p-2 text-center text-xs whitespace-nowrap">
+                                      <span className={riskPhotoCount > 0 ? 'text-blue-700 font-semibold' : 'text-gray-400'}>{riskPhotoCount}</span>
+                                      <span className="text-gray-400 mx-1">/</span>
+                                      <span className={disasterPhotoCount > 0 ? 'text-orange-700 font-semibold' : 'text-gray-400'}>{disasterPhotoCount}</span>
                                     </td>
                                     <td className="border border-gray-300 p-2 text-center">
                                       {isDownloadMode ? (
@@ -1858,6 +2185,7 @@ export default function ManagerInspectionPage() {
                                     <td className="border border-gray-300 p-2 h-10 text-center">
                                       {/* 빈 행은 연번 표시하지 않음 */}
                                     </td>
+                                    <td className="border border-gray-300 p-2 text-center">-</td>
                                     <td className="border border-gray-300 p-2 text-center">-</td>
                                     <td className="border border-gray-300 p-2 text-center">-</td>
                                     <td className="border border-gray-300 p-2 text-center">-</td>
@@ -2050,43 +2378,17 @@ export default function ManagerInspectionPage() {
                             </div>
                           </div>
 
-                          <div className="grid grid-cols-3 gap-4">
-                            <div className="border border-gray-200 rounded-lg bg-white p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-gray-900">점검사진</h4>
-                              </div>
-                              {selectedRecord.inspection_photo ? (
-                                <div className="w-full h-48 bg-black border rounded flex items-center justify-center">
-                                  <img src={selectedRecord.inspection_photo} alt="점검사진" className="max-w-full max-h-full object-contain" />
-                                </div>
-                              ) : (
-                                <div className="w-full h-48 flex items-center justify-center text-gray-300 border rounded bg-black">이미지 없음</div>
-                              )}
+                          <div className="border border-gray-200 rounded-lg bg-white p-4 mb-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <h4 className="font-semibold text-gray-900">점검사진</h4>
                             </div>
-                            <div className="border border-gray-200 rounded-lg bg-white p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-gray-900">위험성평가 사진</h4>
+                            {selectedRecord.inspection_photo ? (
+                              <div className="w-full h-48 bg-black border rounded flex items-center justify-center">
+                                <img src={selectedRecord.inspection_photo} alt="점검사진" className="max-w-full max-h-full object-contain" />
                               </div>
-                              {selectedRecord.risk_assessment_photo ? (
-                                <div className="w-full h-48 bg-black border rounded flex items-center justify-center">
-                                  <img src={selectedRecord.risk_assessment_photo} alt="위험성평가 사진" className="max-w-full max-h-full object-contain" />
-                                </div>
-                              ) : (
-                                <div className="w-full h-48 flex items-center justify-center text-gray-300 border rounded bg-black">이미지 없음</div>
-                              )}
-                            </div>
-                            <div className="border border-gray-200 rounded-lg bg-white p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-gray-900">재해예방기술지도 보고서 사진</h4>
-                              </div>
-                              {selectedRecord.disaster_prevention_report_photo ? (
-                                <div className="w-full h-48 bg-black border rounded flex items-center justify-center">
-                                  <img src={selectedRecord.disaster_prevention_report_photo} alt="재해예방기술지도 보고서 사진" className="max-w-full max-h-full object-contain" />
-                                </div>
-                              ) : (
-                                <div className="w-full h-48 flex items-center justify-center text-gray-300 border rounded bg-black">이미지 없음</div>
-                              )}
-                            </div>
+                            ) : (
+                              <div className="w-full h-48 flex items-center justify-center text-gray-300 border rounded bg-black">이미지 없음</div>
+                            )}
                           </div>
 
                           <div className="grid grid-cols-2 gap-4">
@@ -2096,10 +2398,29 @@ export default function ManagerInspectionPage() {
                                 <div className="space-y-3">
                                   {selectedRecord.risk_factors_json.map((factor: any, idx: number) => (
                                     <div key={idx} className="border border-gray-200 rounded p-3 bg-gray-50">
+                                      <div className="text-sm font-medium text-gray-800 mb-1">주요위험요인 #{idx + 1}</div>
                                       <div className="text-sm text-gray-700"><span className="text-gray-500">세부작업:</span> {factor.detail_work || '-'}</div>
                                       <div className="text-sm text-gray-700"><span className="text-gray-500">유해위험요인:</span> {factor.risk_factor || '-'}</div>
                                       <div className="text-sm text-gray-700"><span className="text-gray-500">위험성 감소대책:</span> {factor.details || '-'}</div>
                                       <div className="text-sm text-gray-700"><span className="text-gray-500">이행여부:</span> {factor.implementation === 'no' ? '부' : '여'}</div>
+                                      {(factor.photo_1 || factor.photo_2) && (
+                                        <div className="grid grid-cols-2 gap-2 mt-2">
+                                          {factor.photo_1 ? (
+                                            <div className="w-full h-32 bg-black border rounded flex items-center justify-center">
+                                              <img src={factor.photo_1} alt={`주요위험요인 #${idx + 1} 사진 1`} className="max-w-full max-h-full object-contain" />
+                                            </div>
+                                          ) : (
+                                            <div className="w-full h-32 flex items-center justify-center text-gray-300 border rounded bg-black text-xs">사진 1 없음</div>
+                                          )}
+                                          {factor.photo_2 ? (
+                                            <div className="w-full h-32 bg-black border rounded flex items-center justify-center">
+                                              <img src={factor.photo_2} alt={`주요위험요인 #${idx + 1} 사진 2`} className="max-w-full max-h-full object-contain" />
+                                            </div>
+                                          ) : (
+                                            <div className="w-full h-32 flex items-center justify-center text-gray-300 border rounded bg-black text-xs">사진 2 없음</div>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -2113,10 +2434,29 @@ export default function ManagerInspectionPage() {
                                 <div className="space-y-3">
                                   {(selectedRecord as any).disaster_prevention_risk_factors_json.map((factor: any, idx: number) => (
                                     <div key={idx} className="border border-gray-200 rounded p-3 bg-gray-50">
+                                      <div className="text-sm font-medium text-gray-800 mb-1">주요위험요인 #{idx + 1}</div>
                                       <div className="text-sm text-gray-700"><span className="text-gray-500">세부작업:</span> {factor.detail_work || '-'}</div>
                                       <div className="text-sm text-gray-700"><span className="text-gray-500">유해위험요인:</span> {factor.risk_factor || '-'}</div>
                                       <div className="text-sm text-gray-700"><span className="text-gray-500">예방대책세부내용:</span> {factor.details || '-'}</div>
                                       <div className="text-sm text-gray-700"><span className="text-gray-500">이행여부:</span> {factor.implementation === 'no' ? '부' : '여'}</div>
+                                      {(factor.photo_1 || factor.photo_2) && (
+                                        <div className="grid grid-cols-2 gap-2 mt-2">
+                                          {factor.photo_1 ? (
+                                            <div className="w-full h-32 bg-black border rounded flex items-center justify-center">
+                                              <img src={factor.photo_1} alt={`주요위험요인 #${idx + 1} 사진 1`} className="max-w-full max-h-full object-contain" />
+                                            </div>
+                                          ) : (
+                                            <div className="w-full h-32 flex items-center justify-center text-gray-300 border rounded bg-black text-xs">사진 1 없음</div>
+                                          )}
+                                          {factor.photo_2 ? (
+                                            <div className="w-full h-32 bg-black border rounded flex items-center justify-center">
+                                              <img src={factor.photo_2} alt={`주요위험요인 #${idx + 1} 사진 2`} className="max-w-full max-h-full object-contain" />
+                                            </div>
+                                          ) : (
+                                            <div className="w-full h-32 flex items-center justify-center text-gray-300 border rounded bg-black text-xs">사진 2 없음</div>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -2329,247 +2669,7 @@ export default function ManagerInspectionPage() {
                                   </div>
                                 </div>
 
-                                {/* 위험성평가 사진과 재해예방 보고서 수평 배치 */}
-                                <div className="grid grid-cols-2 gap-4">
-                                  {/* 위험성평가 사진 */}
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                      위험성평가 사진
-                                    </label>
-                                    <input
-                                      ref={riskAssessmentPhotoRef}
-                                      type="file"
-                                      accept="image/*"
-                                      onChange={async (e) => {
-                                        const file = e.target.files?.[0]
-                                        if (file) {
-                                          // 파일 크기 체크 (20MB)
-                                          if (file.size > 20 * 1024 * 1024) {
-                                            alert(`${file.name}은(는) 20MB를 초과합니다.`)
-                                            e.target.value = ''
-                                            return
-                                          }
-                                          
-                                          if (file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name)) {
-                                            // 리사이즈 시도 (HEIC/HEIF는 그대로 사용될 수 있음)
-                                            const resized = await resizeImageToJpeg(file, 960, 720, 1.00)
-                                            const previewUrl = URL.createObjectURL(resized)
-                                            if (newRecord.risk_assessment_photo_preview) {
-                                              URL.revokeObjectURL(newRecord.risk_assessment_photo_preview)
-                                            }
-                                            setNewRecord({...newRecord, risk_assessment_photo: resized, risk_assessment_photo_preview: previewUrl})
-                                          } else {
-                                            const previewUrl = URL.createObjectURL(file)
-                                            if (newRecord.risk_assessment_photo_preview) {
-                                              URL.revokeObjectURL(newRecord.risk_assessment_photo_preview)
-                                            }
-                                            setNewRecord({...newRecord, risk_assessment_photo: file, risk_assessment_photo_preview: previewUrl})
-                                          }
-                                        }
-                                      }}
-                                      className="hidden"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => riskAssessmentPhotoRef.current?.click()}
-                                      className="w-full p-3 border border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors flex items-center justify-center text-gray-600 hover:text-blue-600"
-                                    >
-                                      <Camera className="h-6 w-6" />
-                                    </button>
-                                    {newRecord.risk_assessment_photo_preview && (
-                                      <div className="mt-2">
-                                        <div className="w-full h-40 border rounded overflow-hidden bg-white relative">
-                                          <img src={newRecord.risk_assessment_photo_preview} alt="위험성평가 사진 미리보기" className="w-full h-full object-contain" />
-                                          <div className="absolute top-1 right-1 flex gap-1">
-                                            <button
-                                              type="button"
-                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
-                                              title="시계방향 회전"
-                                              onClick={async () => {
-                                                if (newRecord.risk_assessment_photo) {
-                                                  // File 객체가 있는 경우 (새로 업로드한 경우)
-                                                  const rotated = await rotateImageFile(newRecord.risk_assessment_photo, 'cw')
-                                                  const previewUrl = URL.createObjectURL(rotated)
-                                                  if (newRecord.risk_assessment_photo_preview && newRecord.risk_assessment_photo_preview.startsWith('blob:')) {
-                                                    URL.revokeObjectURL(newRecord.risk_assessment_photo_preview)
-                                                  }
-                                                  setNewRecord({
-                                                    ...newRecord,
-                                                    risk_assessment_photo: rotated,
-                                                    risk_assessment_photo_preview: previewUrl
-                                                  })
-                                                } else if (newRecord.risk_assessment_photo_preview) {
-                                                  // URL만 있는 경우 (수정 모드에서 로드한 경우)
-                                                  const result = await rotateImageFromUrl(newRecord.risk_assessment_photo_preview, 'cw')
-                                                  if (result) {
-                                                    setNewRecord({
-                                                      ...newRecord,
-                                                      risk_assessment_photo: result.file,
-                                                      risk_assessment_photo_preview: result.previewUrl
-                                                    })
-                                                  }
-                                                }
-                                              }}
-                                            >
-                                              <RotateCw className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
-                                              title="크롭"
-                                              onClick={() => openCropModal('risk_assessment')}
-                                            >
-                                              <Crop className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
-                                              title="삭제"
-                                              onClick={() => {
-                                                setDeleteConfirmCallback(() => () => {
-                                                  if (newRecord.risk_assessment_photo_preview && newRecord.risk_assessment_photo_preview.startsWith('blob:')) {
-                                                    URL.revokeObjectURL(newRecord.risk_assessment_photo_preview)
-                                                  }
-                                                  if (riskAssessmentPhotoRef.current) {
-                                                    riskAssessmentPhotoRef.current.value = ''
-                                                  }
-                                                  setNewRecord({
-                                                    ...newRecord,
-                                                    risk_assessment_photo: null,
-                                                    risk_assessment_photo_preview: ''
-                                                  })
-                                                })
-                                                setShowDeleteConfirm(true)
-                                              }}
-                                            >
-                                              <Trash2 className="h-4 w-4" />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* 재해예방기술지도 보고서 사진 */}
-                                  <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                      재해예방 보고서
-                                    </label>
-                                    <input
-                                      ref={disasterPreventionPhotoRef}
-                                      type="file"
-                                      accept="image/*"
-                                      onChange={async (e) => {
-                                        const file = e.target.files?.[0]
-                                        if (file) {
-                                          // 파일 크기 체크 (20MB)
-                                          if (file.size > 20 * 1024 * 1024) {
-                                            alert(`${file.name}은(는) 20MB를 초과합니다.`)
-                                            e.target.value = ''
-                                            return
-                                          }
-                                          
-                                          if (file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name)) {
-                                            // 리사이즈 시도 (HEIC/HEIF는 그대로 사용될 수 있음)
-                                            const resized = await resizeImageToJpeg(file, 960, 720, 1.00)
-                                            const previewUrl = URL.createObjectURL(resized)
-                                            if (newRecord.disaster_prevention_report_photo_preview) {
-                                              URL.revokeObjectURL(newRecord.disaster_prevention_report_photo_preview)
-                                            }
-                                            setNewRecord({...newRecord, disaster_prevention_report_photo: resized, disaster_prevention_report_photo_preview: previewUrl})
-                                          } else {
-                                            const previewUrl = URL.createObjectURL(file)
-                                            if (newRecord.disaster_prevention_report_photo_preview) {
-                                              URL.revokeObjectURL(newRecord.disaster_prevention_report_photo_preview)
-                                            }
-                                            setNewRecord({...newRecord, disaster_prevention_report_photo: file, disaster_prevention_report_photo_preview: previewUrl})
-                                          }
-                                        }
-                                      }}
-                                      className="hidden"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => disasterPreventionPhotoRef.current?.click()}
-                                      className="w-full p-3 border border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors flex items-center justify-center text-gray-600 hover:text-blue-600"
-                                    >
-                                      <Camera className="h-6 w-6" />
-                                    </button>
-                                    <p className="text-xs text-gray-500 mt-1">※기술지도 결과보고서의 유해·위험요인 및 예방대책</p>
-                                    {newRecord.disaster_prevention_report_photo_preview && (
-                                      <div className="mt-2">
-                                        <div className="w-full h-40 border rounded overflow-hidden bg-white relative">
-                                          <img src={newRecord.disaster_prevention_report_photo_preview} alt="재해예방기술지도 보고서 사진 미리보기" className="w-full h-full object-contain" />
-                                          <div className="absolute top-1 right-1 flex gap-1">
-                                            <button
-                                              type="button"
-                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
-                                              title="시계방향 회전"
-                                              onClick={async () => {
-                                                if (newRecord.disaster_prevention_report_photo) {
-                                                  // File 객체가 있는 경우 (새로 업로드한 경우)
-                                                  const rotated = await rotateImageFile(newRecord.disaster_prevention_report_photo, 'cw')
-                                                  const previewUrl = URL.createObjectURL(rotated)
-                                                  if (newRecord.disaster_prevention_report_photo_preview && newRecord.disaster_prevention_report_photo_preview.startsWith('blob:')) {
-                                                    URL.revokeObjectURL(newRecord.disaster_prevention_report_photo_preview)
-                                                  }
-                                                  setNewRecord({
-                                                    ...newRecord,
-                                                    disaster_prevention_report_photo: rotated,
-                                                    disaster_prevention_report_photo_preview: previewUrl
-                                                  })
-                                                } else if (newRecord.disaster_prevention_report_photo_preview) {
-                                                  // URL만 있는 경우 (수정 모드에서 로드한 경우)
-                                                  const result = await rotateImageFromUrl(newRecord.disaster_prevention_report_photo_preview, 'cw')
-                                                  if (result) {
-                                                    setNewRecord({
-                                                      ...newRecord,
-                                                      disaster_prevention_report_photo: result.file,
-                                                      disaster_prevention_report_photo_preview: result.previewUrl
-                                                    })
-                                                  }
-                                                }
-                                              }}
-                                            >
-                                              <RotateCw className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
-                                              title="크롭"
-                                              onClick={() => openCropModal('disaster_prevention')}
-                                            >
-                                              <Crop className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
-                                              title="삭제"
-                                              onClick={() => {
-                                                setDeleteConfirmCallback(() => () => {
-                                                  if (newRecord.disaster_prevention_report_photo_preview && newRecord.disaster_prevention_report_photo_preview.startsWith('blob:')) {
-                                                    URL.revokeObjectURL(newRecord.disaster_prevention_report_photo_preview)
-                                                  }
-                                                  if (disasterPreventionPhotoRef.current) {
-                                                    disasterPreventionPhotoRef.current.value = ''
-                                                  }
-                                                  setNewRecord({
-                                                    ...newRecord,
-                                                    disaster_prevention_report_photo: null,
-                                                    disaster_prevention_report_photo_preview: ''
-                                                  })
-                                                })
-                                                setShowDeleteConfirm(true)
-                                              }}
-                                            >
-                                              <Trash2 className="h-4 w-4" />
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
+                                {/* 위험성평가/재해예방 사진은 각 탭 안에 2장씩 배치 */}
                               </div>
                             )}
                             </div>
@@ -2611,7 +2711,7 @@ export default function ManagerInspectionPage() {
                                     (위험등급 중, "상"만 기재) 재해취약 3대 사고유형(물체에맞음, 부딪힘, 추락) 관련 작업에 대해서는 필수 작성
                                   </p>
                                 </div>
-                            
+
                             {newRecord.risk_factors.map((factor, index) => (
                               <div key={index} className="border border-gray-300 rounded-lg mb-4 bg-gray-50">
                                 <div className="flex justify-between items-center p-4 cursor-pointer" 
@@ -2725,6 +2825,15 @@ export default function ManagerInspectionPage() {
                                         </select>
                                       </div>
                                     </div>
+
+                                    {/* 위험성감소대책 이행 사진 (2장) */}
+                                    <div className="mt-4">
+                                      <div className="text-sm font-semibold text-gray-800 mb-2">위험성감소대책 이행 사진</div>
+                                      <div className="grid grid-cols-2 gap-4">
+                                        {renderFactorPhotoSlot('risk', index, 1)}
+                                        {renderFactorPhotoSlot('risk', index, 2)}
+                                      </div>
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -2737,7 +2846,11 @@ export default function ManagerInspectionPage() {
                                       detail_work: '',
                                       risk_factor: '',
                                       details: '',
-                                      implementation: 'yes' as 'yes' | 'no'
+                                      implementation: 'yes' as 'yes' | 'no',
+                                      photo_1: '',
+                                      photo_2: '',
+                                      photo_1_file: null as File | null,
+                                      photo_2_file: null as File | null
                                     }
                                     // 새 항목 추가
                                     setNewRecord({
@@ -2765,6 +2878,7 @@ export default function ManagerInspectionPage() {
                                     재해취약 3대 사고유형(물체에맞음, 부딪힘, 추락) 관련 작업에 대해서는 필수 작성
                                   </p>
                                 </div>
+
                                 {newRecord.disaster_prevention_risk_factors.map((factor, index) => (
                                   <div key={index} className="border border-gray-300 rounded-lg mb-4 bg-gray-50">
                                     <div className="flex justify-between items-center p-4 cursor-pointer" 
@@ -2878,6 +2992,15 @@ export default function ManagerInspectionPage() {
                                             </select>
                                           </div>
                                         </div>
+
+                                        {/* 예방대책 사진 (2장) */}
+                                        <div className="mt-4">
+                                          <div className="text-sm font-semibold text-gray-800 mb-2">예방대책 사진</div>
+                                          <div className="grid grid-cols-2 gap-4">
+                                            {renderFactorPhotoSlot('disaster', index, 1)}
+                                            {renderFactorPhotoSlot('disaster', index, 2)}
+                                          </div>
+                                        </div>
                                       </div>
                                     )}
                                   </div>
@@ -2890,7 +3013,11 @@ export default function ManagerInspectionPage() {
                                       detail_work: '',
                                       risk_factor: '',
                                       details: '',
-                                      implementation: 'yes' as 'yes' | 'no'
+                                      implementation: 'yes' as 'yes' | 'no',
+                                      photo_1: '',
+                                      photo_2: '',
+                                      photo_1_file: null as File | null,
+                                      photo_2_file: null as File | null
                                     }
                                     // 새 항목 추가
                                     setNewRecord({

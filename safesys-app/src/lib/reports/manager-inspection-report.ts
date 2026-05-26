@@ -249,6 +249,117 @@ function formatDate(dateStr: string): string {
   return `${year}. &nbsp;&nbsp;${month}. &nbsp;&nbsp;${day}.`
 }
 
+// 일상점검_양식.xlsx 스타일 페이지 — 한 페이지에 위험성평가 + 재해예방 각 1쌍씩 표시
+function generatePhotoSheetHTML(
+  inspection: ManagerInspection,
+  project: Project,
+  riskFactor: any | null,
+  disasterFactor: any | null,
+  pairIndex: number,
+  totalPairs: number
+): string {
+  const branch = (project as any)?.managing_branch || ''
+  const projectName = project?.project_name || ''
+  const quarter = getQuarterLabel(inspection.inspection_date)
+  const inspectionDate = formatDate(inspection.inspection_date)
+  const inspectorName = inspection.inspector_name || ''
+  const supervisor = (inspection as any)?.construction_supervisor || inspectorName
+
+  const labelCell = 'border: 0.5px solid #000; padding: 6px 8px; background-color: #f2f2f2; font-weight: bold; text-align: center; vertical-align: middle; font-size: 11px;'
+  const valueCell = 'border: 0.5px solid #000; padding: 6px 8px; text-align: center; vertical-align: middle; font-size: 11px;'
+  const valueCellLeft = 'border: 0.5px solid #000; padding: 6px 8px; text-align: left; vertical-align: middle; font-size: 11px;'
+  const photoLabel = 'border: 0.5px solid #000; padding: 4px; background-color: #f2f2f2; font-weight: bold; text-align: center; vertical-align: middle; font-size: 11px;'
+  const photoCell = 'border: 0.5px solid #000; padding: 4px; height: 220px; text-align: center; vertical-align: middle; overflow: hidden;'
+
+  const renderPhoto = (url: string | undefined): string => {
+    if (url && url.trim()) {
+      return `<img src="${url}" style="max-width: 100%; max-height: 210px; object-fit: contain;" />`
+    }
+    return '<span style="color: #aaa; font-size: 11px;">사진 없음</span>'
+  }
+
+  const renderSection = (
+    title: string,
+    factor: any | null,
+    isDisaster: boolean
+  ): string => {
+    const detailWork = factor?.detail_work || ''
+    const riskFactorText = factor?.risk_factor || ''
+    const details = factor?.details || ''
+    const action = factor?.implementation === 'no' ? '미조치' : '조치완료'
+    const photo1 = factor?.photo_1 || ''
+    const photo2 = factor?.photo_2 || ''
+    const photoSectionLabel = isDisaster ? '예방대책 사진' : '위험성감소대책 이행 사진'
+
+    return `
+      <div style="margin-bottom: 12px;">
+        <div style="font-weight: bold; font-size: 13px; padding: 6px 4px; border: 0.5px solid #000; background-color: #e8e8e8;">
+          ${title}
+        </div>
+        <table style="width: 100%; border-collapse: collapse; table-layout: fixed; border-top: none;">
+          <colgroup>
+            <col style="width: 16%;"/>
+            <col style="width: 34%;"/>
+            <col style="width: 16%;"/>
+            <col style="width: 34%;"/>
+          </colgroup>
+          <tr>
+            <td style="${labelCell}">지구명</td>
+            <td style="${valueCell}">${branch || projectName}</td>
+            <td style="${labelCell}">세부작업</td>
+            <td style="${valueCell}">${detailWork || ''}</td>
+          </tr>
+          <tr>
+            <td style="${labelCell}">일시(조치완료)</td>
+            <td style="${valueCell}">${inspectionDate}</td>
+            <td style="${labelCell}">확 인 자</td>
+            <td style="${valueCell}">${supervisor || ''}</td>
+          </tr>
+          <tr>
+            <td colspan="2" style="${photoLabel}">${photoSectionLabel}</td>
+            <td colspan="2" style="${photoLabel}">${photoSectionLabel}</td>
+          </tr>
+          <tr>
+            <td colspan="2" style="${photoCell}">${renderPhoto(photo1)}</td>
+            <td colspan="2" style="${photoCell}">${renderPhoto(photo2)}</td>
+          </tr>
+          <tr>
+            <td style="${labelCell}">유해위험요인</td>
+            <td colspan="3" style="${valueCellLeft}">${riskFactorText || '&nbsp;'}</td>
+          </tr>
+          <tr>
+            <td style="${labelCell}">${isDisaster ? '예방대책 세부내용' : '위험성 감소대책'}</td>
+            <td colspan="3" style="${valueCellLeft}">${details || '&nbsp;'}</td>
+          </tr>
+          <tr>
+            <td style="${labelCell}">조치사항</td>
+            <td colspan="3" style="${valueCellLeft}">${action}</td>
+          </tr>
+        </table>
+      </div>
+    `
+  }
+
+  const pageNote = totalPairs > 1 ? `<div style="text-align: right; font-size: 10px; color: #666; margin-bottom: 4px;">${pairIndex + 1} / ${totalPairs}</div>` : ''
+
+  return `
+    <div style="text-align: center; margin-bottom: 14px;">
+      <h1 style="font-size: 18px; font-weight: bold; margin: 0; letter-spacing: 1px;">
+        ${projectName} ${quarter} 위험성평가 및<br/>기술지도 조치 후 사진대지
+      </h1>
+    </div>
+    ${pageNote}
+    ${renderSection('1. 위험성평가  예방대책  조치  후  사진', riskFactor, false)}
+    ${renderSection('2. 재해예방기술지도  예방대책  조치  후  사진(기술지도 수행 현장)', disasterFactor, true)}
+  `
+}
+
+// 위험요인에 사진이 하나라도 있는지 검사
+function hasFactorPhoto(inspection: ManagerInspection): boolean {
+  const checkArr = (arr: any) => Array.isArray(arr) && arr.some((f: any) => (f?.photo_1 && String(f.photo_1).trim()) || (f?.photo_2 && String(f.photo_2).trim()))
+  return checkArr((inspection as any)?.risk_factors_json) || checkArr((inspection as any)?.disaster_prevention_risk_factors_json)
+}
+
 // PDF 생성 메인 함수
 export async function generateManagerInspectionReport(params: ManagerInspectionReportParams): Promise<void> {
   const { project, inspections, selectedRecords } = params
@@ -277,11 +388,8 @@ export async function generateManagerInspectionReport(params: ManagerInspectionR
   const pdf = new jsPDF('p', 'mm', 'a4')
   let isFirstPage = true
 
-  for (let i = 0; i < sortedInspections.length; i++) {
-    const inspection = sortedInspections[i]
-    const sequenceNumber = getSequenceNumber(inspection, inspections)
-
-    // HTML 컨테이너 생성
+  // 페이지 1장 렌더링 헬퍼
+  const renderPage = async (innerHTML: string, runTrim = true) => {
     const pdfContainer = document.createElement('div')
     pdfContainer.style.width = '210mm'
     pdfContainer.style.minHeight = '297mm'
@@ -293,44 +401,61 @@ export async function generateManagerInspectionReport(params: ManagerInspectionR
     pdfContainer.style.backgroundColor = 'white'
     pdfContainer.style.fontSize = '12px'
     pdfContainer.style.lineHeight = '1.4'
-
-    // 재해예방 기술지도 사진 유무에 따라 다른 양식 적용
-    const hasDisasterPhoto = !!(inspection as any)?.disaster_prevention_report_photo
-    pdfContainer.innerHTML = hasDisasterPhoto 
-      ? generateInspectionHTMLWithDisaster(inspection, project, sequenceNumber)
-      : generateInspectionHTML(inspection, project, sequenceNumber)
-
-    // DOM에 추가 (화면에 보이지 않게)
+    pdfContainer.innerHTML = innerHTML
     pdfContainer.style.position = 'absolute'
     pdfContainer.style.left = '-9999px'
     document.body.appendChild(pdfContainer)
 
-    // 이미지 로드 대기
     await new Promise(resolve => setTimeout(resolve, 500))
+    if (runTrim) trimBlankRowsToFit(pdfContainer)
 
-    // 페이지 초과 시 빈 행을 뒤에서부터 제거하여 서명 영역이 넘어가지 않도록 조정
-    trimBlankRowsToFit(pdfContainer)
-
-    // 캔버스로 변환
     const canvas = await html2canvas(pdfContainer, {
       scale: 1.9,
       useCORS: true,
       allowTaint: true,
       backgroundColor: '#ffffff'
     })
-
-    // DOM에서 제거
     document.body.removeChild(pdfContainer)
 
-    // PDF에 이미지 추가
     const imgWidth = 210
     const imgHeight = (canvas.height * imgWidth) / canvas.width
-
-    if (!isFirstPage) {
-      pdf.addPage()
-    }
+    if (!isFirstPage) pdf.addPage()
     pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST')
     isFirstPage = false
+  }
+
+  for (let i = 0; i < sortedInspections.length; i++) {
+    const inspection = sortedInspections[i]
+    const sequenceNumber = getSequenceNumber(inspection, inspections)
+
+    // 1) 기존 양식 페이지 — 항상 첫 페이지로 출력
+    const hasDisasterPhoto = !!(inspection as any)?.disaster_prevention_report_photo
+    const baseHtml = hasDisasterPhoto
+      ? generateInspectionHTMLWithDisaster(inspection, project, sequenceNumber)
+      : generateInspectionHTML(inspection, project, sequenceNumber)
+    await renderPage(baseHtml, true)
+
+    // 2) 위험요인 카드에 사진이 있는 경우 — 사진대지 페이지를 factor 쌍별로 이어서 추가
+    if (hasFactorPhoto(inspection)) {
+      const riskFactors: any[] = Array.isArray((inspection as any)?.risk_factors_json) ? (inspection as any).risk_factors_json : []
+      const disasterFactors: any[] = Array.isArray((inspection as any)?.disaster_prevention_risk_factors_json) ? (inspection as any).disaster_prevention_risk_factors_json : []
+      // 사진이 하나라도 있는 쌍만 출력
+      const pairCount = Math.max(riskFactors.length, disasterFactors.length)
+      const pairsWithPhotos: Array<{ rf: any | null; df: any | null }> = []
+      for (let p = 0; p < pairCount; p++) {
+        const rf = riskFactors[p] || null
+        const df = disasterFactors[p] || null
+        const rfHasPhoto = !!(rf?.photo_1 || rf?.photo_2)
+        const dfHasPhoto = !!(df?.photo_1 || df?.photo_2)
+        if (rfHasPhoto || dfHasPhoto) {
+          pairsWithPhotos.push({ rf, df })
+        }
+      }
+      for (let p = 0; p < pairsWithPhotos.length; p++) {
+        const { rf, df } = pairsWithPhotos[p]
+        await renderPage(generatePhotoSheetHTML(inspection, project, rf, df, p, pairsWithPhotos.length), false)
+      }
+    }
   }
 
   // PDF 저장
@@ -399,6 +524,51 @@ export async function generateManagerInspectionBulkReport(
   }
   const totalInspections = calculateTotalInspections()
   let currentInspectionIndex = 0
+
+  // 사진대지 페이지 렌더 헬퍼 — factor에 사진이 있는 경우 메인 페이지 뒤에 이어 출력
+  const renderPhotoSheetsForInspection = async (inspection: ManagerInspection, project: Project) => {
+    if (!hasFactorPhoto(inspection)) return
+    const riskFactors: any[] = Array.isArray((inspection as any)?.risk_factors_json) ? (inspection as any).risk_factors_json : []
+    const disasterFactors: any[] = Array.isArray((inspection as any)?.disaster_prevention_risk_factors_json) ? (inspection as any).disaster_prevention_risk_factors_json : []
+    const pairCount = Math.max(riskFactors.length, disasterFactors.length)
+    const pairsWithPhotos: Array<{ rf: any | null; df: any | null }> = []
+    for (let p = 0; p < pairCount; p++) {
+      const rf = riskFactors[p] || null
+      const df = disasterFactors[p] || null
+      const rfHasPhoto = !!(rf?.photo_1 || rf?.photo_2)
+      const dfHasPhoto = !!(df?.photo_1 || df?.photo_2)
+      if (rfHasPhoto || dfHasPhoto) pairsWithPhotos.push({ rf, df })
+    }
+    for (let p = 0; p < pairsWithPhotos.length; p++) {
+      ensureNotCancelled(signal)
+      const { rf, df } = pairsWithPhotos[p]
+      const photoContainer = document.createElement('div')
+      photoContainer.style.width = '210mm'
+      photoContainer.style.minHeight = '297mm'
+      photoContainer.style.paddingTop = '20mm'
+      photoContainer.style.paddingRight = '20mm'
+      photoContainer.style.paddingBottom = '20mm'
+      photoContainer.style.paddingLeft = '20mm'
+      photoContainer.style.fontFamily = 'Arial, sans-serif'
+      photoContainer.style.backgroundColor = 'white'
+      photoContainer.style.fontSize = '12px'
+      photoContainer.style.lineHeight = '1.4'
+      photoContainer.innerHTML = generatePhotoSheetHTML(inspection, project, rf, df, p, pairsWithPhotos.length)
+      photoContainer.style.position = 'absolute'
+      photoContainer.style.left = '-9999px'
+      document.body.appendChild(photoContainer)
+      await new Promise(resolve => setTimeout(resolve, 500))
+      ensureNotCancelled(signal)
+      const photoCanvas = await html2canvas(photoContainer, { scale: 1.9, useCORS: true, allowTaint: true, backgroundColor: '#ffffff' })
+      ensureNotCancelled(signal)
+      document.body.removeChild(photoContainer)
+      const photoImgWidth = 210
+      const photoImgHeight = (photoCanvas.height * photoImgWidth) / photoCanvas.width
+      if (!isFirstPage) pdf.addPage()
+      pdf.addImage(photoCanvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, photoImgWidth, photoImgHeight, undefined, 'FAST')
+      isFirstPage = false
+    }
+  }
 
   // 지사별 그룹핑 유틸
   const groupByBranch = (items: typeof projectInspections) => {
@@ -493,6 +663,9 @@ export async function generateManagerInspectionBulkReport(
       if (!isFirstPage) pdf.addPage()
       pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST')
       isFirstPage = false
+
+      // 사진대지 페이지 추가
+      await renderPhotoSheetsForInspection(inspection, project)
     }
   } else if (summary?.quarter) {
     const groups = groupByBranch(projectInspections)
@@ -564,6 +737,9 @@ export async function generateManagerInspectionBulkReport(
         if (!isFirstPage) pdf.addPage()
         pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST')
         isFirstPage = false
+
+        // 사진대지 페이지 추가
+        await renderPhotoSheetsForInspection(inspection, project)
       }
     }
   } else {
@@ -612,6 +788,9 @@ export async function generateManagerInspectionBulkReport(
         if (!isFirstPage) pdf.addPage()
         pdf.addImage(canvas.toDataURL('image/jpeg', 1.0), 'JPEG', 0, 0, imgWidth, imgHeight, undefined, 'FAST')
         isFirstPage = false
+
+        // 사진대지 페이지 추가
+        await renderPhotoSheetsForInspection(inspection, project)
       }
     }
   }

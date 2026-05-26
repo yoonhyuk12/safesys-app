@@ -450,6 +450,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                       <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">재해예방 대상</th>
                       <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">점검 횟수</th>
                       <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">미완성</th>
+                      <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">사진 미업로드<br/>점검 건수</th>
                       <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">최근점검자</th>
                       <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">비고</th>
                     </tr>
@@ -480,6 +481,18 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                         return sum + incompleteCount
                       }, 0)
 
+                      // 사진 미업로드 점검 건수: 위험요인 카드의 photo_1/photo_2가 전혀 없는 점검
+                      const countFactorPhotos = (arr: any) => Array.isArray(arr)
+                        ? arr.reduce((s: number, f: any) => s + (f?.photo_1 && String(f.photo_1).trim() ? 1 : 0) + (f?.photo_2 && String(f.photo_2).trim() ? 1 : 0), 0)
+                        : 0
+                      const totalNoPhotoCount = branchProjects.reduce((sum, p) => {
+                        const projectInspections = managerInspections.filter(i => i.project_id === p.id)
+                        const noPhotoCount = projectInspections.filter(i =>
+                          countFactorPhotos((i as any).risk_factors_json) + countFactorPhotos((i as any).disaster_prevention_risk_factors_json) === 0
+                        ).length
+                        return sum + noPhotoCount
+                      }, 0)
+
                       const totalDisasterPreventionCount = branchProjects.filter(p => p.disaster_prevention_target).length
 
                       return (
@@ -498,6 +511,9 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                           </th>
                           <th className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">
                             {totalIncompleteCount > 0 ? <span className="text-red-600">{totalIncompleteCount}건</span> : '-'}
+                          </th>
+                          <th className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">
+                            {totalNoPhotoCount > 0 ? <span className="text-red-600">{totalNoPhotoCount}건</span> : '-'}
                           </th>
                           <th className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">
                             -
@@ -528,6 +544,13 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                         // 미완성 조건: 위험성평가 사진이 없거나, 재해예방 대상인데 재해예방 보고서 사진이 없으면 미완성
                         return !hasRiskPhoto || (isDisasterPreventionTarget && !hasDisasterPhoto)
                       }).length
+                      // 사진 미업로드 점검 건수: 위험요인 카드 photo_1/photo_2가 전혀 없는 점검
+                      const countFactorPhotosRow = (arr: any) => Array.isArray(arr)
+                        ? arr.reduce((s: number, f: any) => s + (f?.photo_1 && String(f.photo_1).trim() ? 1 : 0) + (f?.photo_2 && String(f.photo_2).trim() ? 1 : 0), 0)
+                        : 0
+                      const noPhotoCount = projectInspections.filter(i =>
+                        countFactorPhotosRow((i as any).risk_factors_json) + countFactorPhotosRow((i as any).disaster_prevention_risk_factors_json) === 0
+                      ).length
                       const ia: any = (project as any).is_active
                       const isTarget = ia && typeof ia === 'object' ? !!ia[`q${quarterNum}` as 'q1' | 'q2' | 'q3' | 'q4'] : false
                       const hasInspections = inspectionCount > 0
@@ -567,6 +590,13 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                           <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
                             {incompleteCount > 0 ? (
                               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">{incompleteCount}건</span>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
+                            {noPhotoCount > 0 ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">{noPhotoCount}건</span>
                             ) : (
                               <span className="text-gray-400">-</span>
                             )}
@@ -785,7 +815,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
           ) : selectedSafetyHq ? (
             // 특정 본부 선택 시: 해당 본부의 지사별 점검 통계
             (() => {
-              const branchStats = new Map<string, { projectCount: number; targetCount: number; inspectionCount: number; targetInspectionCount: number; incompleteCount: number; lastInspector: string; lastInspectionDate: Date | null }>()
+              const branchStats = new Map<string, { projectCount: number; targetCount: number; inspectionCount: number; targetInspectionCount: number; incompleteCount: number; noPhotoCount: number; lastInspector: string; lastInspectionDate: Date | null }>()
 
               const filteredProjects = projects.filter((p) => p.managing_hq === selectedSafetyHq)
 
@@ -802,7 +832,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
 
                 const branch = p.managing_branch
                 if (!branchStats.has(branch)) {
-                  branchStats.set(branch, { projectCount: 0, targetCount: 0, inspectionCount: 0, targetInspectionCount: 0, incompleteCount: 0, lastInspector: '-', lastInspectionDate: null })
+                  branchStats.set(branch, { projectCount: 0, targetCount: 0, inspectionCount: 0, targetInspectionCount: 0, incompleteCount: 0, noPhotoCount: 0, lastInspector: '-', lastInspectionDate: null })
                 }
                 const entry = branchStats.get(branch)!
                 entry.projectCount++
@@ -847,6 +877,16 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                   if (isIncomplete) {
                     entry.incompleteCount++
                   }
+
+                  // 위험요인 카드 사진(photo_1/photo_2) 1장도 없는 점검 카운트
+                  const countFactorPhotos = (arr: any) => Array.isArray(arr)
+                    ? arr.reduce((sum: number, f: any) => sum + (f?.photo_1 && String(f.photo_1).trim() ? 1 : 0) + (f?.photo_2 && String(f.photo_2).trim() ? 1 : 0), 0)
+                    : 0
+                  const totalFactorPhotos = countFactorPhotos((ins as any).risk_factors_json) + countFactorPhotos((ins as any).disaster_prevention_risk_factors_json)
+                  if (totalFactorPhotos === 0) {
+                    entry.noPhotoCount++
+                  }
+
                   // 최근 점검자 업데이트
                   const insDate = new Date(ins.inspection_date)
                   if (!entry.lastInspectionDate || insDate > entry.lastInspectionDate) {
@@ -866,9 +906,10 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                   acc.inspectionCount += s.inspectionCount
                   acc.targetInspectionCount += s.targetInspectionCount
                   acc.incompleteCount += s.incompleteCount
+                  acc.noPhotoCount += s.noPhotoCount
                   return acc
                 },
-                { projectCount: 0, targetCount: 0, inspectionCount: 0, targetInspectionCount: 0, incompleteCount: 0 }
+                { projectCount: 0, targetCount: 0, inspectionCount: 0, targetInspectionCount: 0, incompleteCount: 0, noPhotoCount: 0 }
               )
               const totalRate = total.targetCount > 0 ? (total.inspectionCount / total.targetCount) * 100 : 0
 
@@ -884,6 +925,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                             <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">점검대상 수</th>
                             <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">점검횟수(대상)</th>
                             <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">미완성</th>
+                            <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">사진 미업로드<br/>점검 건수</th>
                             <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">최근점검자</th>
                             <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">점검률</th>
                             <th className="px-3 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">비고</th>
@@ -896,6 +938,9 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                             <th className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">{total.inspectionCount}건 ({total.targetInspectionCount})</th>
                             <th className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">
                               {total.incompleteCount > 0 ? <span className="text-red-600">{total.incompleteCount}건</span> : '-'}
+                            </th>
+                            <th className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">
+                              {total.noPhotoCount > 0 ? <span className="text-red-600">{total.noPhotoCount}건</span> : '-'}
                             </th>
                             <th className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">-</th>
                             <th className="px-3 py-3 sm:px-6 sm:py-4 text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">{totalRate.toFixed(1)}%</th>
@@ -915,6 +960,13 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                                 <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
                                   {s.incompleteCount > 0 ? (
                                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">{s.incompleteCount}건</span>
+                                  ) : (
+                                    <span className="text-gray-400">-</span>
+                                  )}
+                                </td>
+                                <td className="px-3 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm border-r border-gray-200 text-center">
+                                  {s.noPhotoCount > 0 ? (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">{s.noPhotoCount}건</span>
                                   ) : (
                                     <span className="text-gray-400">-</span>
                                   )}
