@@ -50,6 +50,80 @@ interface ChecklistItem {
   remarks: string
 }
 
+// 5대 핵심 안전수칙 항목 타입 (등급 평가: 1~5등급 + 해당없음, 또는 횟수 입력)
+type FiveKeyGrade = '1' | '2' | '3' | '4' | '5' | 'N/A' | ''
+interface FiveKeyItem {
+  category: string
+  title: string
+  description: string
+  grade: FiveKeyGrade
+  remarks: string
+  count?: number // 횟수 입력 항목 ('횟수'로 끝나는 항목용)
+}
+
+// 등급별 라벨 (1: 매우우수, 2: 우수, 3: 보통, 4: 미흡, 5: 불이행)
+const FIVE_KEY_GRADE_LABEL: Record<Exclude<FiveKeyGrade, ''>, string> = {
+  '1': '매우우수',
+  '2': '우수',
+  '3': '보통',
+  '4': '미흡',
+  '5': '불이행',
+  'N/A': '해당없음'
+}
+
+// 횟수 입력 항목 판별 (관리자 입회/동행 횟수)
+const isCountFiveKey = (title: string): boolean => title.trim().endsWith('횟수')
+
+// 5대 핵심 안전수칙 기본 정의 (17개 항목, 5개 카테고리)
+const DEFAULT_FIVE_KEY_ITEMS: FiveKeyItem[] = [
+  // ① TBM 실시 (4)
+  { category: '① TBM 실시', title: '1) TBM 실시', description: '· TBM 작업 시작 전 실시 여부', grade: '1', remarks: '특이사항 없음' },
+  { category: '① TBM 실시', title: '2) 위험성평가 사항 공유', description: '· 당일 작업에 대한 위험성평가 사항 공유 여부', grade: '1', remarks: '특이사항 없음' },
+  { category: '① TBM 실시', title: '3) 위험성평가 사항 대책의 적절성', description: '· 유해위험요인별 감소대책이 구체적이고 실행 가능한지 여부', grade: '1', remarks: '특이사항 없음' },
+  { category: '① TBM 실시', title: '4) 관리자 입회 횟수', description: '· 관리자 입회 횟수', grade: '1', remarks: '특이사항 없음', count: 0 },
+  // ② 신규근로자 작업 전 현장 둘러보기 (3)
+  { category: '② 신규근로자 작업 전 현장 둘러보기', title: '1) 신규근로자 작업 전 현장 둘러보기 실시', description: '· 작업 투입 전 현장 둘러보기 실시 여부', grade: '1', remarks: '특이사항 없음' },
+  { category: '② 신규근로자 작업 전 현장 둘러보기', title: '2) 신규근로자 현장 안내 일지 작성 및 관리', description: '· 현장 안내 일지 작성 및 관리 여부', grade: '1', remarks: '특이사항 없음' },
+  { category: '② 신규근로자 작업 전 현장 둘러보기', title: '3) 관리자 동행 횟수', description: '· 관리자 동행 횟수', grade: '1', remarks: '특이사항 없음', count: 0 },
+  // ③ 건설기계 주변 접근금지, 신호수 배치 (4)
+  { category: '③ 건설기계 주변 접근금지, 신호수 배치', title: '1) 건설기계 후사경 및 후방영상 표시장치 등 부착상태 및 작동상태', description: '· 후사경·후방카메라 부착 상태 및 정상 작동 여부, 화면 선명도 확인', grade: '1', remarks: '특이사항 없음' },
+  { category: '③ 건설기계 주변 접근금지, 신호수 배치', title: '2) 작업계획서 작성 및 PTW 승인', description: '· 건설기계 작업계획서 작성 여부 및 PTW 승인 절차 이행 확인', grade: '1', remarks: '특이사항 없음' },
+  { category: '③ 건설기계 주변 접근금지, 신호수 배치', title: '3) 차량동선과 근로자동선 구분 및 분리', description: '· 차량 이동경로와 보행자 통로가 분리되어 있는지 확인', grade: '1', remarks: '특이사항 없음' },
+  { category: '③ 건설기계 주변 접근금지, 신호수 배치', title: '4) 건설기계 주변 신호수 배치', description: '· 장비 작업반경 내 신호수 배치 여부', grade: '1', remarks: '특이사항 없음' },
+  // ④ 개인보호구 착용 철저 (3)
+  { category: '④ 개인보호구 착용 철저', title: '1) 작업별 적정 개인보호구 착용', description: '· 안전모·안전화·안전대 등 작업별 적정 보호구 착용 여부 및 착용 상태(턱끈 체결 등) 확인', grade: '1', remarks: '특이사항 없음' },
+  { category: '④ 개인보호구 착용 철저', title: '2) 개인보호구 지급·관리', description: '· 보호구 지급대장 관리 여부, 마모·파손 보호구 교체 및 예비 보호구 비치 현황 확인', grade: '1', remarks: '특이사항 없음' },
+  { category: '④ 개인보호구 착용 철저', title: '3) 고소작업 시 안전대 부착설비 설치', description: '· 안전대 부착설비(구명줄·걸이설비) 설치 상태 및 안전대 정상 작동 여부 확인', grade: '1', remarks: '특이사항 없음' },
+  // ⑤ 안전보건표지 설치 (3)
+  { category: '⑤ 안전보건표지 설치', title: '1) 현장 맞춤형 안전보건표지 제작·설치', description: '· 현장 위험요인(추락·낙하·감전 등)에 맞는 표지가 적정 위치에 설치되어 있는지 확인', grade: '1', remarks: '특이사항 없음' },
+  { category: '⑤ 안전보건표지 설치', title: '2) 훼손등에 대한 지속적 관리', description: '· 훼손·오염·탈락된 안전보건표지의 적정 관리 여부', grade: '1', remarks: '특이사항 없음' },
+  { category: '⑤ 안전보건표지 설치', title: '3) 외국인근로자 대상 다국어 표지 설치', description: '· 외국인 근로자 국적별 다국어 표기 여부', grade: '1', remarks: '특이사항 없음' },
+]
+
+// DB에서 로드한 five_key_items에 부족한 항목 채우기 (title 기준 매칭)
+function normalizeFiveKeyItems(items: any[]): FiveKeyItem[] {
+  if (!items || items.length === 0) {
+    return DEFAULT_FIVE_KEY_ITEMS.map(it => ({ ...it }))
+  }
+  const existingMap = new Map(items.map((it: any) => [it.title, it]))
+  return DEFAULT_FIVE_KEY_ITEMS.map(def => {
+    const existing = existingMap.get(def.title)
+    if (existing) {
+      return {
+        category: def.category,
+        title: def.title,
+        description: def.description,
+        grade: (existing.grade ?? '') as FiveKeyGrade,
+        remarks: existing.remarks ?? '특이사항 없음',
+        count: isCountFiveKey(def.title)
+          ? (typeof existing.count === 'number' ? existing.count : 0)
+          : undefined
+      }
+    }
+    return { ...def, count: isCountFiveKey(def.title) ? 0 : undefined }
+  })
+}
+
 export default function HeadquartersInspectionPage() {
   const { user, userProfile, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -132,15 +206,18 @@ export default function HeadquartersInspectionPage() {
       { title: '안전보건표지 설치', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' },
       { title: 'TBM 실시 확인', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' },
       { title: '기타 현장 안전관리에 관한 사항 (산업안전보건 기준에 관한 규칙 등)', status: 'good' as 'good' | 'bad' | '', remarks: '특이사항 없음' }
-    ]
+    ],
+    // 5대 핵심 안전수칙 항목들 (17개, 5개 카테고리)
+    five_key_items: DEFAULT_FIVE_KEY_ITEMS.map(it => ({ ...it })) as FiveKeyItem[]
   })
   
   // UI 상태
   const [isBasicInfoExpanded, setIsBasicInfoExpanded] = useState(true)
-  const [activeTab, setActiveTab] = useState<'critical' | 'caution' | 'other'>('critical') // 탭 상태
+  const [activeTab, setActiveTab] = useState<'critical' | 'caution' | 'other' | 'fiveKey'>('critical') // 탭 상태
   const [expandedCriticalItems, setExpandedCriticalItems] = useState<boolean[]>([true, true, true, true, true])
   const [expandedCautionItems, setExpandedCautionItems] = useState<boolean[]>([true, true, true]) // 3개 항목 모두 펼침
   const [expandedOtherItems, setExpandedOtherItems] = useState<boolean[]>([true, true, true, true, true, true, true]) // 7개 항목 모두 펼침
+  const [expandedFiveKeyItems, setExpandedFiveKeyItems] = useState<boolean[]>(() => DEFAULT_FIVE_KEY_ITEMS.map(() => true)) // 17개 항목 모두 펼침
   
   // 파일 참조
   const sitePhotoOverviewRef = useRef<HTMLInputElement>(null)
@@ -797,6 +874,7 @@ export default function HeadquartersInspectionPage() {
         projectName: project?.project_name || 'project',
         inspections: selected,
         branchName: project?.managing_branch || undefined,
+        hqName: project?.managing_hq || undefined,
       })
       setIsDownloadMode(false)
       setSelectedForReport([])
@@ -997,7 +1075,8 @@ export default function HeadquartersInspectionPage() {
         issue_content2: inspection.issue_content2 || '',
         critical_items: inspection.critical_items || [],
         caution_items: inspection.caution_items || [],
-        other_items: normalizeOtherItems(inspection.other_items || [])
+        other_items: normalizeOtherItems(inspection.other_items || []),
+        five_key_items: normalizeFiveKeyItems(inspection.five_key_items || [])
       })
 
       setIsEditMode(true)
@@ -1081,7 +1160,8 @@ export default function HeadquartersInspectionPage() {
             issue_content2: newRecord.issue_content2 || null,
             critical_items: newRecord.critical_items,
             caution_items: newRecord.caution_items,
-            other_items: newRecord.other_items
+            other_items: newRecord.other_items,
+            five_key_items: newRecord.five_key_items
             // signature 필드는 업데이트하지 않음 (기존 서명 유지)
           })
           .eq('id', editingInspectionId)
@@ -1131,7 +1211,8 @@ export default function HeadquartersInspectionPage() {
           { title: '안전보건표지 설치', status: 'good', remarks: '특이사항 없음' },
           { title: 'TBM 실시 확인', status: 'good', remarks: '특이사항 없음' },
           { title: '기타 현장 안전관리에 관한 사항 (산업안전보건 기준에 관한 규칙 등)', status: 'good', remarks: '특이사항 없음' }
-        ]
+        ],
+        five_key_items: DEFAULT_FIVE_KEY_ITEMS.map(it => ({ ...it }))
       })
 
       // 목록 새로고침
@@ -1181,7 +1262,8 @@ export default function HeadquartersInspectionPage() {
             issue_content2: newRecord.issue_content2 || null,
             critical_items: newRecord.critical_items,
             caution_items: newRecord.caution_items,
-            other_items: newRecord.other_items
+            other_items: newRecord.other_items,
+            five_key_items: newRecord.five_key_items
             // signature 필드는 업데이트하지 않음 (기존 서명 유지)
           })
           .eq('id', editingInspectionId)
@@ -1210,6 +1292,7 @@ export default function HeadquartersInspectionPage() {
             critical_items: newRecord.critical_items,
             caution_items: newRecord.caution_items,
             other_items: newRecord.other_items,
+            five_key_items: newRecord.five_key_items,
             signature: signatureData,
             created_by: user?.id
           })
@@ -1297,7 +1380,8 @@ export default function HeadquartersInspectionPage() {
           { title: '안전보건표지 설치', status: 'good', remarks: '특이사항 없음' },
           { title: 'TBM 실시 확인', status: 'good', remarks: '특이사항 없음' },
           { title: '기타 현장 안전관리에 관한 사항 (산업안전보건 기준에 관한 규칙 등)', status: 'good', remarks: '특이사항 없음' }
-        ]
+        ],
+        five_key_items: DEFAULT_FIVE_KEY_ITEMS.map(it => ({ ...it }))
       })
 
       // 목록 새로고침
@@ -1637,7 +1721,8 @@ export default function HeadquartersInspectionPage() {
                                 { title: '안전보건표지 설치', status: 'good', remarks: '특이사항 없음' },
                                 { title: 'TBM 실시 확인', status: 'good', remarks: '특이사항 없음' },
                                 { title: '기타 현장 안전관리에 관한 사항 (산업안전보건 기준에 관한 규칙 등)', status: 'good', remarks: '특이사항 없음' }
-                              ]
+                              ],
+                              five_key_items: DEFAULT_FIVE_KEY_ITEMS.map(it => ({ ...it }))
                             })
                             setIsEditMode(false)
                             setEditingInspectionId(null)
@@ -2601,12 +2686,12 @@ export default function HeadquartersInspectionPage() {
 
                         {/* 점검 항목 탭 인터페이스 */}
                         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden flex flex-col" style={{ height: '600px', maxHeight: '70vh' }}>
-                          {/* 탭 헤더 - 고정 */}
-                          <div className="flex bg-gray-100 border-b border-gray-200 sticky top-0 z-20">
+                          {/* 탭 헤더 - 고정 (모바일에서 가로 스크롤) */}
+                          <div className="flex bg-gray-100 border-b border-gray-200 sticky top-0 z-20 overflow-x-auto whitespace-nowrap">
                             <button
                               type="button"
                               onClick={() => setActiveTab('critical')}
-                              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors relative ${
+                              className={`flex-1 shrink-0 min-w-[88px] px-4 py-3 text-sm font-medium transition-colors relative ${
                                 activeTab === 'critical'
                                   ? 'bg-white text-red-700 border-b-2 border-red-500'
                                   : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
@@ -2615,15 +2700,12 @@ export default function HeadquartersInspectionPage() {
                               <div className="flex items-center justify-center gap-2">
                                 <span className="w-3 h-3 bg-red-500 rounded-full"></span>
                                 #1
-                                <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">
-                                  {newRecord.critical_items.filter(item => item.status).length}/{newRecord.critical_items.length}
-                                </span>
                               </div>
                             </button>
                             <button
                               type="button"
                               onClick={() => setActiveTab('caution')}
-                              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors relative ${
+                              className={`flex-1 shrink-0 min-w-[88px] px-4 py-3 text-sm font-medium transition-colors relative ${
                                 activeTab === 'caution'
                                   ? 'bg-white text-orange-700 border-b-2 border-orange-500'
                                   : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
@@ -2632,15 +2714,12 @@ export default function HeadquartersInspectionPage() {
                               <div className="flex items-center justify-center gap-2">
                                 <span className="w-3 h-3 bg-orange-500 rounded-full"></span>
                                 #2
-                                <span className="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full">
-                                  {newRecord.caution_items.filter(item => item.status).length}/{newRecord.caution_items.length}
-                                </span>
                               </div>
                             </button>
                             <button
                               type="button"
                               onClick={() => setActiveTab('other')}
-                              className={`flex-1 px-4 py-3 text-sm font-medium transition-colors relative ${
+                              className={`flex-1 shrink-0 min-w-[88px] px-4 py-3 text-sm font-medium transition-colors relative ${
                                 activeTab === 'other'
                                   ? 'bg-white text-blue-700 border-b-2 border-blue-500'
                                   : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
@@ -2649,20 +2728,32 @@ export default function HeadquartersInspectionPage() {
                               <div className="flex items-center justify-center gap-2">
                                 <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
                                 #3
-                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                                  {newRecord.other_items.filter(item => item.status).length}/{newRecord.other_items.length}
-                                </span>
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setActiveTab('fiveKey')}
+                              className={`flex-1 shrink-0 min-w-[88px] px-4 py-3 text-sm font-medium transition-colors relative ${
+                                activeTab === 'fiveKey'
+                                  ? 'bg-white text-green-700 border-b-2 border-green-500'
+                                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                              }`}
+                            >
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="w-3 h-3 bg-green-500 rounded-full"></span>
+                                #4
                               </div>
                             </button>
                           </div>
 
                           {/* 탭 컨텐츠 - 스크롤 가능 */}
-                          <div 
+                          <div
                             ref={tabContentRef}
                             className={`p-4 overflow-y-auto flex-1 ${
-                            activeTab === 'critical' ? 'bg-red-50' : 
-                            activeTab === 'caution' ? 'bg-orange-50' : 
-                            'bg-blue-50'
+                            activeTab === 'critical' ? 'bg-red-50' :
+                            activeTab === 'caution' ? 'bg-orange-50' :
+                            activeTab === 'other' ? 'bg-blue-50' :
+                            'bg-green-50'
                           }`}>
                             {/* 중요 점검 항목들 */}
                             {activeTab === 'critical' && (
@@ -3046,6 +3137,180 @@ export default function HeadquartersInspectionPage() {
                                   </div>
                                 )
                               })}
+                            </div>
+                          )}
+
+                          {/* 5대 핵심 안전수칙 점검 항목들 */}
+                          {activeTab === 'fiveKey' && (
+                            <div className="space-y-4">
+                              <div className="text-center py-3 bg-green-100 rounded-lg border border-green-200">
+                                <h4 className="font-medium text-green-800">
+                                  건설현장 5대 핵심 안전수칙 점검표
+                                </h4>
+                                <p className="text-sm text-green-700 mt-1">총 {newRecord.five_key_items.length}개 항목 · 5개 카테고리</p>
+                                <p className="text-[11px] text-green-600 mt-1">
+                                  각 항목의 세부 평가기준은 본부별 특성 및 현장 여건에 맞게 자체 기준(1~5등급)으로 평가하며, 5등급은 미이행 또는 확인 불가한 경우 적용합니다.
+                                </p>
+                              </div>
+
+                              {(() => {
+                                const grouped: { category: string; items: { item: FiveKeyItem; index: number }[] }[] = []
+                                newRecord.five_key_items.forEach((item, index) => {
+                                  const last = grouped[grouped.length - 1]
+                                  if (last && last.category === item.category) {
+                                    last.items.push({ item, index })
+                                  } else {
+                                    grouped.push({ category: item.category, items: [{ item, index }] })
+                                  }
+                                })
+                                return grouped.map(group => (
+                                  <div key={group.category} className="space-y-2">
+                                    <div className="px-3 py-2 bg-green-200 border border-green-300 rounded-lg">
+                                      <h5 className="text-sm font-bold text-green-900">{group.category}</h5>
+                                    </div>
+                                    {group.items.map(({ item, index }) => (
+                                      <div key={`fiveKey-${index}`} className="border border-gray-300 rounded-lg bg-white ml-2">
+                                        <div
+                                          className="flex justify-between items-center p-3 cursor-pointer hover:bg-gray-50"
+                                          onClick={() => {
+                                            const newExpanded = [...expandedFiveKeyItems]
+                                            newExpanded[index] = !newExpanded[index]
+                                            setExpandedFiveKeyItems(newExpanded)
+                                          }}
+                                        >
+                                          <h6 className="text-sm font-medium text-gray-900">{item.title}</h6>
+                                          <div className="flex items-center gap-2">
+                                            {isCountFiveKey(item.title) ? (
+                                              <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-700">
+                                                {typeof item.count === 'number' ? item.count : 0}건
+                                              </span>
+                                            ) : item.grade ? (
+                                              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                                                item.grade === 'N/A' ? 'bg-gray-100 text-gray-700' :
+                                                item.grade === '1' ? 'bg-emerald-100 text-emerald-700' :
+                                                item.grade === '2' ? 'bg-lime-100 text-lime-700' :
+                                                item.grade === '3' ? 'bg-yellow-100 text-yellow-800' :
+                                                item.grade === '4' ? 'bg-orange-100 text-orange-700' :
+                                                'bg-red-100 text-red-700'
+                                              }`}>
+                                                {FIVE_KEY_GRADE_LABEL[item.grade]}
+                                              </span>
+                                            ) : null}
+                                            {expandedFiveKeyItems[index] ? (
+                                              <ChevronUp className="h-4 w-4 text-gray-500" />
+                                            ) : (
+                                              <ChevronDown className="h-4 w-4 text-gray-500" />
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {expandedFiveKeyItems[index] && (
+                                          <div className="border-t border-gray-100 p-3 bg-gray-50 space-y-3">
+                                            {isCountFiveKey(item.title) ? (
+                                              <div>
+                                                <label className="block text-xs font-medium text-gray-700 mb-2">
+                                                  횟수
+                                                </label>
+                                                <div className="flex items-center gap-2">
+                                                  <input
+                                                    type="number"
+                                                    min={0}
+                                                    inputMode="numeric"
+                                                    value={typeof item.count === 'number' ? item.count : 0}
+                                                    onChange={(e) => {
+                                                      const raw = e.target.value
+                                                      const num = raw === '' ? 0 : Math.max(0, parseInt(raw, 10) || 0)
+                                                      const updatedItems = [...newRecord.five_key_items]
+                                                      updatedItems[index] = { ...updatedItems[index], count: num }
+                                                      setNewRecord({ ...newRecord, five_key_items: updatedItems })
+                                                    }}
+                                                    className="w-28 p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-right"
+                                                  />
+                                                  <span className="text-sm text-gray-700 font-medium">건</span>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              <div>
+                                                <label className="block text-xs font-medium text-gray-700 mb-2">
+                                                  이행여부 (1~5등급 또는 해당없음)
+                                                </label>
+                                                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                                                  {(['1', '2', '3', '4', '5', 'N/A'] as Exclude<FiveKeyGrade, ''>[]).map(g => (
+                                                    <label
+                                                      key={g}
+                                                      className={`flex items-center justify-center cursor-pointer text-xs font-medium border rounded-lg py-2 transition-colors ${
+                                                        item.grade === g
+                                                          ? (g === 'N/A' ? 'bg-gray-700 text-white border-gray-700' :
+                                                             g === '1' ? 'bg-emerald-600 text-white border-emerald-600' :
+                                                             g === '2' ? 'bg-lime-600 text-white border-lime-600' :
+                                                             g === '3' ? 'bg-yellow-500 text-white border-yellow-500' :
+                                                             g === '4' ? 'bg-orange-500 text-white border-orange-500' :
+                                                             'bg-red-600 text-white border-red-600')
+                                                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+                                                      }`}
+                                                    >
+                                                      <input
+                                                        type="radio"
+                                                        name={`fiveKey_${index}`}
+                                                        value={g}
+                                                        checked={item.grade === g}
+                                                        onChange={() => {
+                                                          const updatedItems = [...newRecord.five_key_items]
+                                                          updatedItems[index] = { ...updatedItems[index], grade: g }
+                                                          setNewRecord({ ...newRecord, five_key_items: updatedItems })
+                                                        }}
+                                                        className="sr-only"
+                                                      />
+                                                      <span>{FIVE_KEY_GRADE_LABEL[g]}</span>
+                                                    </label>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            <div>
+                                              <label className="block text-xs font-medium text-gray-700 mb-2">
+                                                점검 결과
+                                              </label>
+                                              <textarea
+                                                value={item.remarks}
+                                                onChange={(e) => {
+                                                  const updatedItems = [...newRecord.five_key_items]
+                                                  updatedItems[index] = { ...updatedItems[index], remarks: e.target.value }
+                                                  setNewRecord({ ...newRecord, five_key_items: updatedItems })
+                                                }}
+                                                onFocus={(e) => {
+                                                  if (e.currentTarget.value.trim() === '특이사항 없음') {
+                                                    const updatedItems = [...newRecord.five_key_items]
+                                                    updatedItems[index] = { ...updatedItems[index], remarks: '' }
+                                                    setNewRecord({ ...newRecord, five_key_items: updatedItems })
+                                                  }
+                                                }}
+                                                onBlur={(e) => {
+                                                  if (!e.currentTarget.value.trim()) {
+                                                    const updatedItems = [...newRecord.five_key_items]
+                                                    updatedItems[index] = { ...updatedItems[index], remarks: '특이사항 없음' }
+                                                    setNewRecord({ ...newRecord, five_key_items: updatedItems })
+                                                  }
+                                                }}
+                                                className="w-full p-3 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 resize-none"
+                                                rows={2}
+                                                placeholder="점검 결과를 입력하세요"
+                                              />
+                                              {item.description && (
+                                                <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600 border-l-2 border-green-300">
+                                                  <div className="font-medium text-gray-700 mb-1">Note.</div>
+                                                  <div className="whitespace-pre-line">{item.description}</div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                ))
+                              })()}
                             </div>
                           )}
                           </div>

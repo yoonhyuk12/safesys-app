@@ -36,7 +36,7 @@ export async function downloadBranchHeadquartersReports(params: DownloadBranchRe
 
   const groups = targetProjects.map((p) => {
     const ins = inspections.filter((i) => i.project_id === p.id && isInQuarter(i.inspection_date, selectedQuarter))
-    return { projectName: p.project_name || 'project', inspections: ins, branchName: p.managing_branch }
+    return { projectName: p.project_name || 'project', inspections: ins, branchName: p.managing_branch, hqName: p.managing_hq }
   }).filter((g) => g.inspections.length > 0)
 
   if (groups.length === 0) {

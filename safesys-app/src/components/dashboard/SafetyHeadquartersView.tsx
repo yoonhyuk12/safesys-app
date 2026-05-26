@@ -116,14 +116,14 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
     }
   }, [projects, headquartersInspections])
   // groups 계산은 상위에서 주입해도 되지만, 여기서 간략 처리
-  const buildGroups = (): { projectName: string; inspections: any[]; branchName?: string }[] => {
-    const groups: { projectName: string; inspections: any[]; branchName?: string }[] = []
+  const buildGroups = (): { projectName: string; inspections: any[]; branchName?: string; hqName?: string }[] => {
+    const groups: { projectName: string; inspections: any[]; branchName?: string; hqName?: string }[] = []
     if (selectedSafetyBranch) {
       const branchProjects = projects.filter((p: any) => (!selectedHq || p.managing_hq === selectedHq) && p.managing_branch === selectedSafetyBranch)
       const targetProjects = selectedProjectIdsForReport.length > 0 ? branchProjects.filter((p: any) => selectedProjectIdsForReport.includes(p.id)) : branchProjects
       targetProjects.forEach((p: any) => {
         const ins = headquartersInspections.filter((i: any) => i.project_id === p.id)
-        if (ins.length > 0) groups.push({ projectName: p.project_name || 'project', inspections: ins, branchName: p.managing_branch })
+        if (ins.length > 0) groups.push({ projectName: p.project_name || 'project', inspections: ins, branchName: p.managing_branch, hqName: p.managing_hq })
       })
     } else {
       const filteredProjects = projects.filter((p: any) => {
@@ -134,7 +134,7 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
       })
       filteredProjects.forEach((p: any) => {
         const ins = headquartersInspections.filter((i: any) => i.project_id === p.id)
-        if (ins.length > 0) groups.push({ projectName: p.project_name || 'project', inspections: ins, branchName: p.managing_branch })
+        if (ins.length > 0) groups.push({ projectName: p.project_name || 'project', inspections: ins, branchName: p.managing_branch, hqName: p.managing_hq })
       })
     }
     return groups
