@@ -3884,7 +3884,7 @@ export default function HeadquartersInspectionPage() {
                       )}
                     </div>
                     <div className="text-xs text-emerald-800/80 mt-1 leading-snug">
-                      {'“양호하게 관리 중임”, “기준에 맞게 이행 중”'} 등 15자 이내의 긍정 표현으로 자동 입력 (GPT-4o mini)
+                      {'“현장 기준에 맞게 양호하게 관리 중임”'} 등 25자 이내의 긍정 표현으로 자동 입력 (GPT-4o mini)
                     </div>
                   </div>
                 </button>
