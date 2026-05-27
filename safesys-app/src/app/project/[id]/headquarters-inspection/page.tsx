@@ -20,6 +20,22 @@ interface ExtendedProject extends Project {
   }
 }
 
+// 중요 점검 항목 기본 정의 (순서 및 제목)
+const DEFAULT_CRITICAL_TITLES = [
+  '위험공종 작업허가제 승인, 작업계획서 작성 적정성',
+  '전조등, 후방영상장치 작동상태, 후사경의 설치상태, 운전자 안전띠',
+  '작업장소 지형 및 지반상태',
+  '출입통제, 작업지휘자, 신호수 배치',
+  '인양작업시 안전조치'
+]
+
+// 요주의 점검 항목 기본 정의 (순서 및 제목)
+const DEFAULT_CAUTION_TITLES = [
+  '가설통로 및 작업발판 안전조치',
+  '비계·동바리 구조 안전',
+  '고소작업, 개구부 등 안전조치'
+]
+
 // 기타 항목 기본 정의 (순서 및 제목)
 const DEFAULT_OTHER_ITEMS = [
   '법적이행사항 확인',
@@ -160,7 +176,11 @@ export default function HeadquartersInspectionPage() {
   const [isResignMode, setIsResignMode] = useState(false) // 재서명 선택 모드 여부
   const [selectedForResign, setSelectedForResign] = useState<string[]>([]) // 재서명 대상 항목 ID
   const [showResignSignatureModal, setShowResignSignatureModal] = useState(false) // 재서명 서명 모달
-  
+
+  // 등록 전 점검 결과 기본값 선택 팝업
+  const [showRemarksChoiceModal, setShowRemarksChoiceModal] = useState(false)
+  const [aiRemarksLoading, setAiRemarksLoading] = useState(false)
+
   // 크롭 관련 상태
   const [showCropModal, setShowCropModal] = useState(false)
   const [cropImageSrc, setCropImageSrc] = useState<string>('')
@@ -1514,6 +1534,129 @@ export default function HeadquartersInspectionPage() {
     )
   }
 
+  // 신규 점검 폼 초기화 (remarks 전략 선택 가능)
+  // remarks 인자가 없으면 모든 항목 "특이사항 없음" 으로 채움
+  type RemarksMap = {
+    critical: string[]
+    caution: string[]
+    other: string[]
+    fiveKey: string[]
+  }
+  const buildInitialNewRecord = (remarksMap?: RemarksMap) => {
+    const r = (arr: string[] | undefined, idx: number): string => {
+      const v = arr?.[idx]?.trim()
+      return v && v.length > 0 ? v : '특이사항 없음'
+    }
+    return {
+      inspection_date: new Date().toISOString().split('T')[0],
+      inspector_name: userProfile ? `${userProfile.position || ''} ${userProfile.full_name}`.trim() : '',
+      site_photo_overview: null as File | null,
+      site_photo_issue1: null as File | null,
+      site_photo_issue2: null as File | null,
+      site_photo_overview_preview: '',
+      site_photo_issue1_preview: '',
+      site_photo_issue2_preview: '',
+      issue_content1: '',
+      issue_content2: '',
+      critical_items: DEFAULT_CRITICAL_TITLES.map((title, i) => ({
+        title,
+        status: 'good' as 'good' | 'bad' | '',
+        remarks: r(remarksMap?.critical, i)
+      })),
+      caution_items: DEFAULT_CAUTION_TITLES.map((title, i) => ({
+        title,
+        status: 'good' as 'good' | 'bad' | '',
+        remarks: r(remarksMap?.caution, i)
+      })),
+      other_items: DEFAULT_OTHER_ITEMS.map((title, i) => ({
+        title,
+        status: 'good' as 'good' | 'bad' | '',
+        remarks: r(remarksMap?.other, i)
+      })),
+      five_key_items: DEFAULT_FIVE_KEY_ITEMS.map((it, i) => ({
+        ...it,
+        remarks: r(remarksMap?.fiveKey, i)
+      })) as FiveKeyItem[]
+    }
+  }
+
+  const openRegisterForm = (remarksMap?: RemarksMap) => {
+    setNewRecord(buildInitialNewRecord(remarksMap))
+    setIsEditMode(false)
+    setEditingInspectionId(null)
+    setShowAddForm(true)
+  }
+
+  // 팝업: 기본값 유지
+  const handleRegisterWithDefaults = () => {
+    setShowRemarksChoiceModal(false)
+    openRegisterForm()
+  }
+
+  // 팝업: AI 자동 작성
+  const handleRegisterWithAi = async () => {
+    if (aiRemarksLoading) return
+    setAiRemarksLoading(true)
+    try {
+      const critical = DEFAULT_CRITICAL_TITLES.map(title => ({ title }))
+      const caution = DEFAULT_CAUTION_TITLES.map(title => ({ title }))
+      const other = DEFAULT_OTHER_ITEMS.map(title => ({ title }))
+      const fiveKey = DEFAULT_FIVE_KEY_ITEMS.map(it => ({
+        title: it.title,
+        description: it.description
+      }))
+      const items = [...critical, ...caution, ...other, ...fiveKey]
+
+      const res = await fetch('/api/ai/headquarters-remarks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items })
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.error || 'AI 응답 오류')
+      }
+      const data = await res.json() as { success: boolean; remarks: string[] }
+      const all = Array.isArray(data?.remarks) ? data.remarks : []
+
+      // 길이가 부족하면 "특이사항 없음" 으로 패딩
+      const pickRange = (start: number, end: number, count: number): string[] => {
+        const slice = all.slice(start, end)
+        const padded: string[] = []
+        for (let i = 0; i < count; i++) {
+          const v = slice[i]?.trim?.()
+          padded.push(v && v.length > 0 ? v : '특이사항 없음')
+        }
+        return padded
+      }
+
+      const cStart = 0
+      const cEnd = critical.length
+      const ctStart = cEnd
+      const ctEnd = ctStart + caution.length
+      const oStart = ctEnd
+      const oEnd = oStart + other.length
+      const fStart = oEnd
+      const fEnd = fStart + fiveKey.length
+
+      const remarksMap: RemarksMap = {
+        critical: pickRange(cStart, cEnd, critical.length),
+        caution: pickRange(ctStart, ctEnd, caution.length),
+        other: pickRange(oStart, oEnd, other.length),
+        fiveKey: pickRange(fStart, fEnd, fiveKey.length)
+      }
+      setShowRemarksChoiceModal(false)
+      openRegisterForm(remarksMap)
+    } catch (e) {
+      console.error('AI 점검 결과 생성 실패:', e)
+      alert('AI 자동 작성에 실패했습니다. 기본값으로 진행합니다.')
+      setShowRemarksChoiceModal(false)
+      openRegisterForm()
+    } finally {
+      setAiRemarksLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex flex-col">
       {/* 헤더 */}
@@ -1688,46 +1831,7 @@ export default function HeadquartersInspectionPage() {
                       {/* 등록 버튼 */}
                       {!isDeleteMode && (
                         <button
-                          onClick={() => {
-                            // 폼 초기화
-                            setNewRecord({
-                              inspection_date: new Date().toISOString().split('T')[0],
-                              inspector_name: userProfile ? `${userProfile.position || ''} ${userProfile.full_name}`.trim() : '',
-                              site_photo_overview: null,
-                              site_photo_issue1: null,
-                              site_photo_issue2: null,
-                              site_photo_overview_preview: '',
-                              site_photo_issue1_preview: '',
-                              site_photo_issue2_preview: '',
-                              issue_content1: '',
-                              issue_content2: '',
-                              critical_items: [
-                                { title: '위험공종 작업허가제 승인, 작업계획서 작성 적정성', status: 'good', remarks: '특이사항 없음' },
-                                { title: '전조등, 후방영상장치 작동상태, 후사경의 설치상태, 운전자 안전띠', status: 'good', remarks: '특이사항 없음' },
-                                { title: '작업장소 지형 및 지반상태', status: 'good', remarks: '특이사항 없음' },
-                                { title: '출입통제, 작업지휘자, 신호수 배치', status: 'good', remarks: '특이사항 없음' },
-                                { title: '인양작업시 안전조치', status: 'good', remarks: '특이사항 없음' }
-                              ],
-                              caution_items: [
-                                { title: '가설통로 및 작업발판 안전조치', status: 'good', remarks: '특이사항 없음' },
-                                { title: '비계·동바리 구조 안전', status: 'good', remarks: '특이사항 없음' },
-                                { title: '고소작업, 개구부 등 안전조치', status: 'good', remarks: '특이사항 없음' }
-                              ],
-                              other_items: [
-                                { title: '법적이행사항 확인', status: 'good', remarks: '특이사항 없음' },
-                                { title: 'VAR 매뉴얼 작동성 확인', status: 'good', remarks: '특이사항 없음' },
-                                { title: '취약근로자 안전관리 확인', status: 'good', remarks: '특이사항 없음' },
-                                { title: '재해예방기술지도 지적사항 이행 확인', status: 'good', remarks: '특이사항 없음' },
-                                { title: '안전보건표지 설치', status: 'good', remarks: '특이사항 없음' },
-                                { title: 'TBM 실시 확인', status: 'good', remarks: '특이사항 없음' },
-                                { title: '기타 현장 안전관리에 관한 사항 (산업안전보건 기준에 관한 규칙 등)', status: 'good', remarks: '특이사항 없음' }
-                              ],
-                              five_key_items: DEFAULT_FIVE_KEY_ITEMS.map(it => ({ ...it }))
-                            })
-                            setIsEditMode(false)
-                            setEditingInspectionId(null)
-                            setShowAddForm(true)
-                          }}
+                          onClick={() => setShowRemarksChoiceModal(true)}
                           className="bg-green-600 hover:bg-green-700 text-white p-3 rounded-full shadow-lg transition-colors group"
                           title="점검 등록하기"
                         >
@@ -3728,6 +3832,83 @@ export default function HeadquartersInspectionPage() {
                 >
                   닫기
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 점검 결과 기본값 선택 팝업 */}
+        {showRemarksChoiceModal && (
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={() => {
+              if (!aiRemarksLoading) setShowRemarksChoiceModal(false)
+            }}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                <h3 className="text-base font-semibold text-gray-900">점검 결과 기본값 선택</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowRemarksChoiceModal(false)}
+                  disabled={aiRemarksLoading}
+                  className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-40"
+                  aria-label="닫기"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="px-5 py-4 space-y-3">
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  #1~#4 탭의 모든 항목 <span className="font-medium text-gray-800">{'“점검 결과”'}</span> 칸을 어떻게 채울지 선택해 주세요.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleRegisterWithAi}
+                  disabled={aiRemarksLoading}
+                  className="w-full flex items-start gap-3 p-4 rounded-xl border-2 border-emerald-500 bg-emerald-50 hover:bg-emerald-100 transition-colors text-left disabled:opacity-60 disabled:cursor-wait"
+                >
+                  <div className="flex-shrink-0 w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold">
+                    AI
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-emerald-900 flex items-center gap-2">
+                      AI 자동 작성
+                      {aiRemarksLoading && (
+                        <span className="inline-block w-3 h-3 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
+                      )}
+                    </div>
+                    <div className="text-xs text-emerald-800/80 mt-1 leading-snug">
+                      {'“양호하게 관리 중임”, “기준에 맞게 이행 중”'} 등 15자 이내의 긍정 표현으로 자동 입력 (GPT-4o mini)
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleRegisterWithDefaults}
+                  disabled={aiRemarksLoading}
+                  className="w-full flex items-start gap-3 p-4 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 transition-colors text-left disabled:opacity-60"
+                >
+                  <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-gray-900">기본값 유지</div>
+                    <div className="text-xs text-gray-600 mt-1 leading-snug">
+                      모든 항목을 {'“특이사항 없음”'} 으로 채움 (기본)
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 text-[11px] text-gray-500 text-center">
+                선택 후 점검 등록 폼이 열립니다.
               </div>
             </div>
           </div>
