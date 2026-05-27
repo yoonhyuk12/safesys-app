@@ -180,6 +180,7 @@ export default function HeadquartersInspectionPage() {
   // 등록 전 점검 결과 기본값 선택 팝업
   const [showRemarksChoiceModal, setShowRemarksChoiceModal] = useState(false)
   const [aiRemarksLoading, setAiRemarksLoading] = useState(false)
+  const [aiRemarksProgress, setAiRemarksProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 })
 
   // 크롭 관련 상태
   const [showCropModal, setShowCropModal] = useState(false)
@@ -1593,58 +1594,87 @@ export default function HeadquartersInspectionPage() {
     openRegisterForm()
   }
 
-  // 팝업: AI 자동 작성
+  // 팝업: AI 자동 작성 (카테고리별 4개 배치 병렬 호출 + 진행 표시)
   const handleRegisterWithAi = async () => {
     if (aiRemarksLoading) return
-    setAiRemarksLoading(true)
-    try {
-      const critical = DEFAULT_CRITICAL_TITLES.map(title => ({ title }))
-      const caution = DEFAULT_CAUTION_TITLES.map(title => ({ title }))
-      const other = DEFAULT_OTHER_ITEMS.map(title => ({ title }))
-      const fiveKey = DEFAULT_FIVE_KEY_ITEMS.map(it => ({
-        title: it.title,
-        description: it.description
-      }))
-      const items = [...critical, ...caution, ...other, ...fiveKey]
 
+    type Batch = {
+      key: 'critical' | 'caution' | 'other' | 'fiveKey'
+      category: string
+      items: { title: string; description?: string }[]
+    }
+
+    const batches: Batch[] = [
+      {
+        key: 'critical',
+        category: '중점 점검 항목',
+        items: DEFAULT_CRITICAL_TITLES.map(title => ({ title }))
+      },
+      {
+        key: 'caution',
+        category: '요주의 점검 항목',
+        items: DEFAULT_CAUTION_TITLES.map(title => ({ title }))
+      },
+      {
+        key: 'other',
+        category: '기타 점검 항목',
+        items: DEFAULT_OTHER_ITEMS.map(title => ({ title }))
+      },
+      {
+        key: 'fiveKey',
+        category: '5대 핵심 안전수칙',
+        items: DEFAULT_FIVE_KEY_ITEMS.map(it => ({ title: it.title, description: it.description }))
+      }
+    ]
+
+    setAiRemarksLoading(true)
+    setAiRemarksProgress({ done: 0, total: batches.length })
+
+    const pad = (arr: string[] | undefined, count: number): string[] => {
+      const out: string[] = []
+      for (let i = 0; i < count; i++) {
+        const v = arr?.[i]?.trim?.()
+        out.push(v && v.length > 0 ? v : '특이사항 없음')
+      }
+      return out
+    }
+
+    const callBatch = async (batch: Batch): Promise<string[]> => {
       const res = await fetch('/api/ai/headquarters-remarks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items })
+        body: JSON.stringify({ items: batch.items, category: batch.category })
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
         throw new Error(err?.error || 'AI 응답 오류')
       }
-      const data = await res.json() as { success: boolean; remarks: string[] }
-      const all = Array.isArray(data?.remarks) ? data.remarks : []
+      const data = (await res.json()) as { success: boolean; remarks: string[] }
+      return pad(Array.isArray(data?.remarks) ? data.remarks : [], batch.items.length)
+    }
 
-      // 길이가 부족하면 "특이사항 없음" 으로 패딩
-      const pickRange = (start: number, end: number, count: number): string[] => {
-        const slice = all.slice(start, end)
-        const padded: string[] = []
-        for (let i = 0; i < count; i++) {
-          const v = slice[i]?.trim?.()
-          padded.push(v && v.length > 0 ? v : '특이사항 없음')
-        }
-        return padded
-      }
-
-      const cStart = 0
-      const cEnd = critical.length
-      const ctStart = cEnd
-      const ctEnd = ctStart + caution.length
-      const oStart = ctEnd
-      const oEnd = oStart + other.length
-      const fStart = oEnd
-      const fEnd = fStart + fiveKey.length
+    try {
+      const results = await Promise.all(
+        batches.map(async (batch) => {
+          try {
+            const remarks = await callBatch(batch)
+            setAiRemarksProgress(prev => ({ ...prev, done: prev.done + 1 }))
+            return { key: batch.key, remarks }
+          } catch (e) {
+            console.error(`AI 배치(${batch.key}) 실패:`, e)
+            setAiRemarksProgress(prev => ({ ...prev, done: prev.done + 1 }))
+            return { key: batch.key, remarks: pad(undefined, batch.items.length) }
+          }
+        })
+      )
 
       const remarksMap: RemarksMap = {
-        critical: pickRange(cStart, cEnd, critical.length),
-        caution: pickRange(ctStart, ctEnd, caution.length),
-        other: pickRange(oStart, oEnd, other.length),
-        fiveKey: pickRange(fStart, fEnd, fiveKey.length)
+        critical: results.find(r => r.key === 'critical')?.remarks ?? pad(undefined, DEFAULT_CRITICAL_TITLES.length),
+        caution: results.find(r => r.key === 'caution')?.remarks ?? pad(undefined, DEFAULT_CAUTION_TITLES.length),
+        other: results.find(r => r.key === 'other')?.remarks ?? pad(undefined, DEFAULT_OTHER_ITEMS.length),
+        fiveKey: results.find(r => r.key === 'fiveKey')?.remarks ?? pad(undefined, DEFAULT_FIVE_KEY_ITEMS.length)
       }
+
       setShowRemarksChoiceModal(false)
       openRegisterForm(remarksMap)
     } catch (e) {
@@ -1654,6 +1684,7 @@ export default function HeadquartersInspectionPage() {
       openRegisterForm()
     } finally {
       setAiRemarksLoading(false)
+      setAiRemarksProgress({ done: 0, total: 0 })
     }
   }
 
@@ -3871,21 +3902,37 @@ export default function HeadquartersInspectionPage() {
                   type="button"
                   onClick={handleRegisterWithAi}
                   disabled={aiRemarksLoading}
-                  className="w-full flex items-start gap-3 p-4 rounded-xl border-2 border-emerald-500 bg-emerald-50 hover:bg-emerald-100 transition-colors text-left disabled:opacity-60 disabled:cursor-wait"
+                  className="w-full flex items-start gap-3 p-4 rounded-xl border-2 border-emerald-500 bg-emerald-50 hover:bg-emerald-100 transition-colors text-left disabled:opacity-80 disabled:cursor-wait"
                 >
                   <div className="flex-shrink-0 w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold">
-                    AI
+                    {aiRemarksLoading ? (
+                      <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      'AI'
+                    )}
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-emerald-900 flex items-center gap-2">
                       AI 자동 작성
-                      {aiRemarksLoading && (
-                        <span className="inline-block w-3 h-3 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin" />
+                      {aiRemarksLoading && aiRemarksProgress.total > 0 && (
+                        <span className="text-xs font-medium text-emerald-700">
+                          ({aiRemarksProgress.done}/{aiRemarksProgress.total} 배치 작성 중...)
+                        </span>
                       )}
                     </div>
                     <div className="text-xs text-emerald-800/80 mt-1 leading-snug">
-                      {'“현장 기준에 맞게 양호하게 관리 중임”'} 등 25자 이내의 긍정 표현으로 자동 입력 (GPT-4o mini)
+                      카테고리별 4개 배치 병렬 호출로 다양한 표현을 25자 이내로 자동 입력 (GPT-4o mini)
                     </div>
+                    {aiRemarksLoading && aiRemarksProgress.total > 0 && (
+                      <div className="mt-2 h-1.5 w-full rounded-full bg-emerald-200 overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-600 transition-all duration-300"
+                          style={{
+                            width: `${Math.min(100, Math.round((aiRemarksProgress.done / aiRemarksProgress.total) * 100))}%`
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </button>
 
