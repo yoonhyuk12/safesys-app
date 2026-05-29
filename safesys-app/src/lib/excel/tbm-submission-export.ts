@@ -158,7 +158,7 @@ export async function downloadTBMSubmissionExcel(
   // ──── 제목 ────
   ws.mergeCells(r, 1, r, 8)
   const titleCell = ws.getCell(r, 1)
-  titleCell.value = 'Tool Box Meeting 회의록'
+  titleCell.value = '일일안전교육일지(TBM 회의록)'
   titleCell.font = titleFont
   titleCell.alignment = centerAlign
   titleCell.border = { bottom: { style: 'medium', color: { argb: 'FF000000' } } }

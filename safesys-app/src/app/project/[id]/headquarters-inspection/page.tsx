@@ -2976,9 +2976,23 @@ export default function HeadquartersInspectionPage() {
                                         </div>
                                         
                                         <div>
-                                          <label className="block text-xs font-medium text-gray-700 mb-2">
-                                            점검 결과
-                                          </label>
+                                          <div className="flex items-center justify-between mb-2">
+                                            <label className="block text-xs font-medium text-gray-700">
+                                              점검 결과
+                                            </label>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const updatedItems = [...newRecord.critical_items]
+                                                updatedItems[index].remarks = ''
+                                                setNewRecord({...newRecord, critical_items: updatedItems})
+                                              }}
+                                              className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                              삭제
+                                            </button>
+                                          </div>
                                           <textarea
                                             value={item.remarks}
                                             onChange={(e) => {
@@ -3100,9 +3114,23 @@ export default function HeadquartersInspectionPage() {
                                         </div>
                                         
                                         <div>
-                                          <label className="block text-xs font-medium text-gray-700 mb-2">
-                                            점검 결과
-                                          </label>
+                                          <div className="flex items-center justify-between mb-2">
+                                            <label className="block text-xs font-medium text-gray-700">
+                                              점검 결과
+                                            </label>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const updatedItems = [...newRecord.caution_items]
+                                                updatedItems[index].remarks = ''
+                                                setNewRecord({...newRecord, caution_items: updatedItems})
+                                              }}
+                                              className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                              삭제
+                                            </button>
+                                          </div>
                                           <textarea
                                             value={item.remarks}
                                             onChange={(e) => {
@@ -3232,9 +3260,23 @@ export default function HeadquartersInspectionPage() {
                                         </div>
                                         
                                         <div>
-                                          <label className="block text-xs font-medium text-gray-700 mb-2">
-                                            점검 결과
-                                          </label>
+                                          <div className="flex items-center justify-between mb-2">
+                                            <label className="block text-xs font-medium text-gray-700">
+                                              점검 결과
+                                            </label>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const updatedItems = [...newRecord.other_items]
+                                                updatedItems[index].remarks = ''
+                                                setNewRecord({...newRecord, other_items: updatedItems})
+                                              }}
+                                              className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                              삭제
+                                            </button>
+                                          </div>
                                           <textarea
                                             value={item.remarks}
                                             onChange={(e) => {
@@ -3404,9 +3446,23 @@ export default function HeadquartersInspectionPage() {
                                             )}
 
                                             <div>
-                                              <label className="block text-xs font-medium text-gray-700 mb-2">
-                                                점검 결과
-                                              </label>
+                                              <div className="flex items-center justify-between mb-2">
+                                                <label className="block text-xs font-medium text-gray-700">
+                                                  점검 결과
+                                                </label>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const updatedItems = [...newRecord.five_key_items]
+                                                    updatedItems[index] = { ...updatedItems[index], remarks: '' }
+                                                    setNewRecord({ ...newRecord, five_key_items: updatedItems })
+                                                  }}
+                                                  className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                                >
+                                                  <Trash2 className="w-3 h-3" />
+                                                  삭제
+                                                </button>
+                                              </div>
                                               <textarea
                                                 value={item.remarks}
                                                 onChange={(e) => {

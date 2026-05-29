@@ -383,7 +383,7 @@ class PDFGenerator {
         <div style="font-size: 8px; color: #333; margin-bottom: 2px; text-align: left;">건설기술 진흥법 시행령 103조(안전교육) 제3항에 따른 안전교육내용 기록</div>
         <!-- 헤더 -->
         <div style="text-align: center; margin-bottom: ${headerBottomMargin}; border-bottom: 3px solid #000; padding-bottom: 8px; page-break-after: avoid;">
-          <h1 style="margin: 0; font-size: 22px; font-weight: bold;">Tool Box Meeting 회의록</h1>
+          <h1 style="margin: 0; font-size: 22px; font-weight: bold;">일일안전교육일지(TBM 회의록)</h1>
         </div>
 
         <!-- TBM 리더 -->

@@ -1743,9 +1743,13 @@ export default function MaterialLedgerPage() {
     return gemStyles[finalIndex % gemStyles.length]
   }
 
-  // 빈 슬롯 생성 (8x4 그리드 = 32슬롯, 최소 표시)
-  const totalSlots = Math.max(32, materials.length + 1)
-  const emptySlots = totalSlots - materials.length - 1 // -1 for add button
+  // 빈 슬롯 생성: 자재 + 추가 버튼이 한 행을 꽉 채워도 항상 다음 행에 여분 칸이 보이도록
+  // 열 수(모바일 4 / md 8)로 나누어 떨어지게 올림하여 마지막 행이 깔끔하게 채워지고
+  // 최소 1칸 이상의 여분이 남도록 한다.
+  const SLOT_COLS = 8
+  const usedSlots = materials.length + 1 // 자재 + 추가 버튼
+  const totalSlots = Math.max(32, Math.ceil((usedSlots + 1) / SLOT_COLS) * SLOT_COLS)
+  const emptySlots = totalSlots - usedSlots
 
   return (
     <div className="min-h-screen flex flex-col" style={{
@@ -1990,7 +1994,7 @@ export default function MaterialLedgerPage() {
                   </button>
 
                   {/* 빈 슬롯들 */}
-                  {Array.from({ length: Math.min(emptySlots, 31) }).map((_, idx) => (
+                  {Array.from({ length: emptySlots }).map((_, idx) => (
                     <div
                       key={`empty-${idx}`}
                       className="w-full aspect-square rounded"
