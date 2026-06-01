@@ -2669,7 +2669,247 @@ export default function ManagerInspectionPage() {
                                   </div>
                                 </div>
 
-                                {/* 위험성평가/재해예방 사진은 각 탭 안에 2장씩 배치 */}
+                                {/* 위험성평가 사진과 재해예방 보고서 수평 배치 */}
+                                <div className="grid grid-cols-2 gap-4">
+                                  {/* 위험성평가 사진 */}
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      위험성평가 사진
+                                    </label>
+                                    <input
+                                      ref={riskAssessmentPhotoRef}
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={async (e) => {
+                                        const file = e.target.files?.[0]
+                                        if (file) {
+                                          // 파일 크기 체크 (20MB)
+                                          if (file.size > 20 * 1024 * 1024) {
+                                            alert(`${file.name}은(는) 20MB를 초과합니다.`)
+                                            e.target.value = ''
+                                            return
+                                          }
+
+                                          if (file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name)) {
+                                            // 리사이즈 시도 (HEIC/HEIF는 그대로 사용될 수 있음)
+                                            const resized = await resizeImageToJpeg(file, 960, 720, 1.00)
+                                            const previewUrl = URL.createObjectURL(resized)
+                                            if (newRecord.risk_assessment_photo_preview) {
+                                              URL.revokeObjectURL(newRecord.risk_assessment_photo_preview)
+                                            }
+                                            setNewRecord({...newRecord, risk_assessment_photo: resized, risk_assessment_photo_preview: previewUrl})
+                                          } else {
+                                            const previewUrl = URL.createObjectURL(file)
+                                            if (newRecord.risk_assessment_photo_preview) {
+                                              URL.revokeObjectURL(newRecord.risk_assessment_photo_preview)
+                                            }
+                                            setNewRecord({...newRecord, risk_assessment_photo: file, risk_assessment_photo_preview: previewUrl})
+                                          }
+                                        }
+                                      }}
+                                      className="hidden"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => riskAssessmentPhotoRef.current?.click()}
+                                      className="w-full p-3 border border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors flex items-center justify-center text-gray-600 hover:text-blue-600"
+                                    >
+                                      <Camera className="h-6 w-6" />
+                                    </button>
+                                    {newRecord.risk_assessment_photo_preview && (
+                                      <div className="mt-2">
+                                        <div className="w-full h-40 border rounded overflow-hidden bg-white relative">
+                                          <img src={newRecord.risk_assessment_photo_preview} alt="위험성평가 사진 미리보기" className="w-full h-full object-contain" />
+                                          <div className="absolute top-1 right-1 flex gap-1">
+                                            <button
+                                              type="button"
+                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
+                                              title="시계방향 회전"
+                                              onClick={async () => {
+                                                if (newRecord.risk_assessment_photo) {
+                                                  // File 객체가 있는 경우 (새로 업로드한 경우)
+                                                  const rotated = await rotateImageFile(newRecord.risk_assessment_photo, 'cw')
+                                                  const previewUrl = URL.createObjectURL(rotated)
+                                                  if (newRecord.risk_assessment_photo_preview && newRecord.risk_assessment_photo_preview.startsWith('blob:')) {
+                                                    URL.revokeObjectURL(newRecord.risk_assessment_photo_preview)
+                                                  }
+                                                  setNewRecord({
+                                                    ...newRecord,
+                                                    risk_assessment_photo: rotated,
+                                                    risk_assessment_photo_preview: previewUrl
+                                                  })
+                                                } else if (newRecord.risk_assessment_photo_preview) {
+                                                  // URL만 있는 경우 (수정 모드에서 로드한 경우)
+                                                  const result = await rotateImageFromUrl(newRecord.risk_assessment_photo_preview, 'cw')
+                                                  if (result) {
+                                                    setNewRecord({
+                                                      ...newRecord,
+                                                      risk_assessment_photo: result.file,
+                                                      risk_assessment_photo_preview: result.previewUrl
+                                                    })
+                                                  }
+                                                }
+                                              }}
+                                            >
+                                              <RotateCw className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
+                                              title="크롭"
+                                              onClick={() => openCropModal('risk_assessment')}
+                                            >
+                                              <Crop className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
+                                              title="삭제"
+                                              onClick={() => {
+                                                setDeleteConfirmCallback(() => () => {
+                                                  if (newRecord.risk_assessment_photo_preview && newRecord.risk_assessment_photo_preview.startsWith('blob:')) {
+                                                    URL.revokeObjectURL(newRecord.risk_assessment_photo_preview)
+                                                  }
+                                                  if (riskAssessmentPhotoRef.current) {
+                                                    riskAssessmentPhotoRef.current.value = ''
+                                                  }
+                                                  setNewRecord({
+                                                    ...newRecord,
+                                                    risk_assessment_photo: null,
+                                                    risk_assessment_photo_preview: ''
+                                                  })
+                                                })
+                                                setShowDeleteConfirm(true)
+                                              }}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* 재해예방기술지도 보고서 사진 */}
+                                  <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                      재해예방 보고서
+                                    </label>
+                                    <input
+                                      ref={disasterPreventionPhotoRef}
+                                      type="file"
+                                      accept="image/*"
+                                      onChange={async (e) => {
+                                        const file = e.target.files?.[0]
+                                        if (file) {
+                                          // 파일 크기 체크 (20MB)
+                                          if (file.size > 20 * 1024 * 1024) {
+                                            alert(`${file.name}은(는) 20MB를 초과합니다.`)
+                                            e.target.value = ''
+                                            return
+                                          }
+
+                                          if (file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name)) {
+                                            // 리사이즈 시도 (HEIC/HEIF는 그대로 사용될 수 있음)
+                                            const resized = await resizeImageToJpeg(file, 960, 720, 1.00)
+                                            const previewUrl = URL.createObjectURL(resized)
+                                            if (newRecord.disaster_prevention_report_photo_preview) {
+                                              URL.revokeObjectURL(newRecord.disaster_prevention_report_photo_preview)
+                                            }
+                                            setNewRecord({...newRecord, disaster_prevention_report_photo: resized, disaster_prevention_report_photo_preview: previewUrl})
+                                          } else {
+                                            const previewUrl = URL.createObjectURL(file)
+                                            if (newRecord.disaster_prevention_report_photo_preview) {
+                                              URL.revokeObjectURL(newRecord.disaster_prevention_report_photo_preview)
+                                            }
+                                            setNewRecord({...newRecord, disaster_prevention_report_photo: file, disaster_prevention_report_photo_preview: previewUrl})
+                                          }
+                                        }
+                                      }}
+                                      className="hidden"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => disasterPreventionPhotoRef.current?.click()}
+                                      className="w-full p-3 border border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors flex items-center justify-center text-gray-600 hover:text-blue-600"
+                                    >
+                                      <Camera className="h-6 w-6" />
+                                    </button>
+                                    <p className="text-xs text-gray-500 mt-1">※기술지도 결과보고서의 유해·위험요인 및 예방대책</p>
+                                    {newRecord.disaster_prevention_report_photo_preview && (
+                                      <div className="mt-2">
+                                        <div className="w-full h-40 border rounded overflow-hidden bg-white relative">
+                                          <img src={newRecord.disaster_prevention_report_photo_preview} alt="재해예방기술지도 보고서 사진 미리보기" className="w-full h-full object-contain" />
+                                          <div className="absolute top-1 right-1 flex gap-1">
+                                            <button
+                                              type="button"
+                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
+                                              title="시계방향 회전"
+                                              onClick={async () => {
+                                                if (newRecord.disaster_prevention_report_photo) {
+                                                  // File 객체가 있는 경우 (새로 업로드한 경우)
+                                                  const rotated = await rotateImageFile(newRecord.disaster_prevention_report_photo, 'cw')
+                                                  const previewUrl = URL.createObjectURL(rotated)
+                                                  if (newRecord.disaster_prevention_report_photo_preview && newRecord.disaster_prevention_report_photo_preview.startsWith('blob:')) {
+                                                    URL.revokeObjectURL(newRecord.disaster_prevention_report_photo_preview)
+                                                  }
+                                                  setNewRecord({
+                                                    ...newRecord,
+                                                    disaster_prevention_report_photo: rotated,
+                                                    disaster_prevention_report_photo_preview: previewUrl
+                                                  })
+                                                } else if (newRecord.disaster_prevention_report_photo_preview) {
+                                                  // URL만 있는 경우 (수정 모드에서 로드한 경우)
+                                                  const result = await rotateImageFromUrl(newRecord.disaster_prevention_report_photo_preview, 'cw')
+                                                  if (result) {
+                                                    setNewRecord({
+                                                      ...newRecord,
+                                                      disaster_prevention_report_photo: result.file,
+                                                      disaster_prevention_report_photo_preview: result.previewUrl
+                                                    })
+                                                  }
+                                                }
+                                              }}
+                                            >
+                                              <RotateCw className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
+                                              title="크롭"
+                                              onClick={() => openCropModal('disaster_prevention')}
+                                            >
+                                              <Crop className="h-4 w-4" />
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
+                                              title="삭제"
+                                              onClick={() => {
+                                                setDeleteConfirmCallback(() => () => {
+                                                  if (newRecord.disaster_prevention_report_photo_preview && newRecord.disaster_prevention_report_photo_preview.startsWith('blob:')) {
+                                                    URL.revokeObjectURL(newRecord.disaster_prevention_report_photo_preview)
+                                                  }
+                                                  if (disasterPreventionPhotoRef.current) {
+                                                    disasterPreventionPhotoRef.current.value = ''
+                                                  }
+                                                  setNewRecord({
+                                                    ...newRecord,
+                                                    disaster_prevention_report_photo: null,
+                                                    disaster_prevention_report_photo_preview: ''
+                                                  })
+                                                })
+                                                setShowDeleteConfirm(true)
+                                              }}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             )}
                             </div>
