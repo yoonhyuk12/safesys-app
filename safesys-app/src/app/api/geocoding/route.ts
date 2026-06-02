@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { VWORLD_API_KEY } from '@/lib/vworld'
 
 async function tryVworldAPI(address: string, vworldApiKey: string): Promise<{lat: number, lng: number} | null> {
   try {
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const vworldApiKey = '6CC56ABA-00BE-3D0C-B544-53D5B25BC2C5'
+    const vworldApiKey = VWORLD_API_KEY
     
     // 1차 시도: 원본 주소
     console.log('=== V-world API 주소 변환 시도 ===')

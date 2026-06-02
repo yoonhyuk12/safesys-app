@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
+import { VWORLD_API_KEY } from '@/lib/vworld'
 
 interface VworldMapAddressModalProps {
   isOpen: boolean
@@ -55,7 +56,7 @@ const VworldMapAddressModal: React.FC<VworldMapAddressModalProps> = ({
         <div className="flex-1 min-h-0">
           <iframe
             ref={iframeRef}
-            src="/vworld-map.html"
+            src={`/vworld-map.html?key=${encodeURIComponent(VWORLD_API_KEY)}`}
             className="w-full h-full border-0"
             title="V-world 지도"
           />

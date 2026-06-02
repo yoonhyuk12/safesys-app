@@ -7,9 +7,19 @@
     <title>주소 검색</title>
     <!-- jQuery for V-world API JSONP -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <!-- V-world API (document.write 사용으로 인해 정적 로드 필수) -->
-    <script type="text/javascript"
-        src="https://map.vworld.kr/js/vworldMapInit.js.do?version=2.0&apiKey=6CC56ABA-00BE-3D0C-B544-53D5B25BC2C5"></script>
+    <!-- V-world API 키: iframe URL 쿼리(?key=)로 주입. lib/vworld.ts 가 단일 관리 지점. -->
+    <script type="text/javascript">
+        // 키는 부모(VworldMapAddressModal)가 iframe src 쿼리로 전달한다.
+        // 미전달 시 폴백 기본 키 사용(직접 HTML 접근 등).
+        window.VWORLD_API_KEY =
+            new URLSearchParams(window.location.search).get('key') ||
+            '6CC56ABA-00BE-3D0C-B544-53D5B25BC2C5';
+        // vworldMapInit.js 는 document.write 를 사용하므로 파싱 중 동기 로드가 필수.
+        document.write(
+            '<scr' + 'ipt type="text/javascript" src="https://map.vworld.kr/js/vworldMapInit.js.do?version=2.0&apiKey=' +
+            encodeURIComponent(window.VWORLD_API_KEY) + '"></scr' + 'ipt>'
+        );
+    </script>
     <style>
         * {
             margin: 0;
@@ -228,7 +238,7 @@
     </div>
 
     <script>
-        const API_KEY = '6CC56ABA-00BE-3D0C-B544-53D5B25BC2C5';
+        const API_KEY = window.VWORLD_API_KEY;
 
         let vworldMap = null;
         let markerLayer = null;

@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { MapPin, Search, X } from 'lucide-react'
+import { VWORLD_API_KEY } from '@/lib/vworld'
 
 interface AddressResult {
   address: string
@@ -87,7 +88,7 @@ const VworldAddressSearch: React.FC<VworldAddressSearchProps> = ({
     try {
       console.log('주소 검색 시작:', query)
       
-      const apiKey = '6CC56ABA-00BE-3D0C-B544-53D5B25BC2C5'
+      const apiKey = VWORLD_API_KEY
       
       // jQuery AJAX JSONP 방식으로 CORS 우회 (샘플 코드와 동일한 방식)
       const searchWithJsonp = (searchQuery: string) => {
