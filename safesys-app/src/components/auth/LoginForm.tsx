@@ -38,6 +38,14 @@ const LoginForm: React.FC = () => {
   const [showFindIdModal, setShowFindIdModal] = useState(false)
   const [showFindPasswordModal, setShowFindPasswordModal] = useState(false)
   const [showContacts, setShowContacts] = useState(false)
+  const [showSignupNotice, setShowSignupNotice] = useState(false)
+
+  // 회원가입 안내 팝업 확인 후 약관 페이지로 이동
+  const handleProceedSignup = () => {
+    sessionStorage.removeItem('termsAgreed')
+    setShowSignupNotice(false)
+    router.push('/signup/terms')
+  }
 
   // 공유 기능
   const handleShare = async () => {
@@ -276,11 +284,7 @@ const LoginForm: React.FC = () => {
               <button
                 type="button"
                 className="text-blue-600 hover:text-blue-500 text-sm font-medium transition-colors"
-                onClick={() => {
-                  // 회원가입 버튼 클릭 시 약관 동의 상태 초기화
-                  sessionStorage.removeItem('termsAgreed')
-                  router.push('/signup/terms')
-                }}
+                onClick={() => setShowSignupNotice(true)}
               >
                 계정이 없으신가요? 회원가입
               </button>
@@ -322,6 +326,54 @@ const LoginForm: React.FC = () => {
           isOpen={showFindPasswordModal}
           onClose={() => setShowFindPasswordModal(false)}
         />
+
+        {/* 회원가입 안내 팝업 */}
+        {showSignupNotice && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setShowSignupNotice(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-center text-lg font-bold text-gray-900">
+                회원가입 안내
+              </h3>
+              <p className="mt-4 text-sm leading-relaxed text-gray-700">
+                이 시스템은 건설공사 사업관리방식 검토기준 및 업무수행지침
+                <br />
+                제16조(건설사업정보관리시스템 운영), 제48조(보고서 작성, 제출)에 따라 구축한 <span className="font-semibold">&ldquo;건설사업관리업무 보고시스템&rdquo;</span>이다.
+              </p>
+              <div className="mt-3 text-center">
+                <a
+                  href="https://www.law.go.kr/%ED%96%89%EC%A0%95%EA%B7%9C%EC%B9%99/%EA%B1%B4%EC%84%A4%EA%B3%B5%EC%82%AC%EC%82%AC%EC%97%85%EA%B4%80%EB%A6%AC%EB%B0%A9%EC%8B%9D%EA%B2%80%ED%86%A0%EA%B8%B0%EC%A4%80%EB%B0%8F%EC%97%85%EB%AC%B4%EC%88%98%ED%96%89%EC%A7%80%EC%B9%A8/%EC%A0%9C48%EC%A1%B0"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:text-blue-500 underline transition-colors"
+                >
+                  제48조 (국가법령정보센터)
+                </a>
+              </div>
+              <div className="mt-6 flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+                  onClick={() => setShowSignupNotice(false)}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+                  onClick={handleProceedSignup}
+                >
+                  확인
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

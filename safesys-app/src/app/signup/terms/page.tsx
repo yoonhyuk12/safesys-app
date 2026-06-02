@@ -53,8 +53,12 @@ export default function TermsPage() {
             <p className="mt-2 text-center text-sm text-gray-600">
               서비스 이용을 위해 약관에 동의해주세요
             </p>
-            <p className="mt-1 text-center text-xs text-gray-500">
-              한국농어촌공사 경기지역본부 안전관리센터
+            <p className="mt-4 text-center text-xs text-gray-500 leading-relaxed">
+              건설공사 사업관리방식 검토기준 및 업무수행지침 제48조(보고서 작성, 제출)
+              <br />
+              발주청이 별도의 온라인 건설사업관리업무 보고시스템을 활용하는 경우에는
+              <br />
+              온라인 건설사업관리업무 보고시스템의 이용으로 갈음할 수 있다
             </p>
           </div>
 

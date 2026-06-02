@@ -662,8 +662,28 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* 안내 문구 */}
-          <div className="mb-6 mx-auto max-w-2xl px-2">
-            <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-2 sm:p-3 md:p-4 shadow-sm">
+          <div className="mb-6 flex justify-center px-2">
+            <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-2 sm:p-3 md:p-4 shadow-sm w-fit max-w-full">
+              <p
+                className="text-yellow-700 text-center mb-2"
+                style={{
+                  fontSize: 'clamp(0.65rem, 2.6vw, 0.95rem)',
+                  lineHeight: '1.4',
+                  wordSpacing: '0.1em',
+                  letterSpacing: '-0.01em'
+                }}
+              >
+                안전관리시스템은 &ldquo;건설공사 사업관리방식 검토기준 및 업무수행지침&rdquo; 제16조(건설사업정보관리시스템 운영),{' '}
+                <a
+                  href="https://www.law.go.kr/%ED%96%89%EC%A0%95%EA%B7%9C%EC%B9%99/%EA%B1%B4%EC%84%A4%EA%B3%B5%EC%82%AC%EC%82%AC%EC%97%85%EA%B4%80%EB%A6%AC%EB%B0%A9%EC%8B%9D%EA%B2%80%ED%86%A0%EA%B8%B0%EC%A4%80%EB%B0%8F%EC%97%85%EB%AC%B4%EC%88%98%ED%96%89%EC%A7%80%EC%B9%A8/%EC%A0%9C48%EC%A1%B0"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-500 underline"
+                >
+                  제48조(보고서 작성, 제출)
+                </a>
+                에 따라 구축 운영하는 &ldquo;사업관리시스템&rdquo;입니다.
+              </p>
               <p
                 className="font-bold text-yellow-800 text-center"
                 style={{
