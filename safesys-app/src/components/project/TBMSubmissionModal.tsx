@@ -699,34 +699,16 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
 
   const handleLoadRecentData = async () => {
     try {
-      // 최근 날짜의 제출 데이터 조회
-      const { data: latestRow, error: latestError } = await supabase
-        .from('tbm_submissions')
-        .select('meeting_date')
-        .eq('project_name', projectName)
-        .eq('headquarters', managingHq)
-        .eq('branch', managingBranch)
-        .order('submitted_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (latestError) {
-        if (latestError.code === 'PGRST116') {
-          alert('최근 제출 데이터가 없습니다.')
-          return
-        }
-        throw latestError
-      }
-
-      // 같은 날짜의 모든 제출 데이터 가져오기
+      // 최근 제출 데이터를 여러 날짜에 걸쳐 조회 (제출일 최신순)
+      // 특정 날짜만이 아니라 최근 제출자 전체를 후보로 보여주기 위함
       const { data: rows, error: rowsError } = await supabase
         .from('tbm_submissions')
         .select('*')
         .eq('project_name', projectName)
         .eq('headquarters', managingHq)
         .eq('branch', managingBranch)
-        .eq('meeting_date', latestRow.meeting_date)
         .order('submitted_at', { ascending: false })
+        .limit(100)
 
       if (rowsError) throw rowsError
 
@@ -735,11 +717,27 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         return
       }
 
+      // 제출자별로 가장 최근 제출 1건만 남기고 중복 제거
+      // (어제 다른 사람이 제출한 건도 후보로 노출되도록)
+      const seen = new Set<string>()
+      const candidates: any[] = []
+      for (const row of rows) {
+        const key =
+          (row.reporter_name || '').trim() && (row.reporter_contact || '').trim()
+            ? `${row.reporter_name}|${row.reporter_contact}`
+            : (row.reporter_name || '').trim()
+              ? `name:${row.reporter_name}`
+              : `id:${row.id}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        candidates.push(row)
+      }
+
       // 1건이면 바로 적용, 2건 이상이면 선택 UI 표시
-      if (rows.length === 1) {
-        applyRecentData(rows[0])
+      if (candidates.length === 1) {
+        applyRecentData(candidates[0])
       } else {
-        setRecentCandidates(rows)
+        setRecentCandidates(candidates)
       }
     } catch (error: any) {
       console.error('최근 데이터 불러오기 오류:', error)
@@ -1232,7 +1230,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
               {recentCandidates.length > 0 && (
                 <div className="mb-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm font-medium text-blue-800 mb-2">
-                    {recentCandidates[0].meeting_date} 제출자 선택 ({recentCandidates.length}건)
+                    최근 제출자 선택 ({recentCandidates.length}명)
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {recentCandidates.map((c) => (
@@ -1240,9 +1238,12 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                         key={c.id}
                         type="button"
                         onClick={() => applyRecentData(c)}
-                        className="px-3 py-1.5 text-sm bg-white border border-blue-300 rounded-md hover:bg-blue-100 transition-colors"
+                        className="px-3 py-1.5 text-sm bg-white border border-blue-300 rounded-md hover:bg-blue-100 transition-colors flex items-center gap-1.5"
                       >
-                        {c.reporter_name || '미입력'}
+                        <span className="font-medium">{c.reporter_name || '미입력'}</span>
+                        {c.meeting_date && (
+                          <span className="text-xs text-gray-400">{c.meeting_date}</span>
+                        )}
                       </button>
                     ))}
                     <button
