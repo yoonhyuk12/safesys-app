@@ -1202,11 +1202,11 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
           <div className="p-6 space-y-6">
             {/* 금일작업 */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-2 mb-2">
                 <label className="block text-sm font-medium text-gray-700">
                   금일작업 <span className="text-red-500">*</span>
                 </label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 justify-end">
                   <button
                     type="button"
                     onClick={handleLoadRecentData}
@@ -1214,6 +1214,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                     title="최근일자 가져오기"
                   >
                     <RefreshCw className="h-4 w-4" />
+                    <span className="md:hidden">최근가져오기</span>
                     <span className="hidden md:inline">최근일자 가져오기</span>
                   </button>
                   <button
