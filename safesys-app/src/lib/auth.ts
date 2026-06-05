@@ -78,7 +78,13 @@ export const signIn = async (email: string, password: string) => {
 
       // 구체적인 에러 메시지 제공
       if (error.message.includes('Invalid login credentials')) {
-        throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.')
+        // Supabase는 미가입 이메일과 비밀번호 오류를 모두 'Invalid login credentials'로 반환하므로
+        // user_profiles에서 이메일 등록 여부를 확인하여 안내 문구를 구분한다.
+        const emailExists = await checkEmailExists(lowerEmail)
+        if (!emailExists) {
+          throw new Error('가입되지 않은 이메일입니다.')
+        }
+        throw new Error('비밀번호가 올바르지 않습니다.')
       } else if (error.message.includes('Email not confirmed')) {
         throw new Error('이메일 인증을 먼저 해주시기 바랍니다. 가입 시 입력한 이메일의 받은편지함을 확인해주세요. (꼭 스팸메일함 확인해주세요)\n문의 : 경기 윤혁 차장(010-2676-5472) / 충남 임원일 차장(010-4758-1293)')
       } else if (error.message.includes('Too many requests')) {
