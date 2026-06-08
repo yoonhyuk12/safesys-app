@@ -490,7 +490,8 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       { title: '특수형태근로종사자 교육(최초2시간이상)' },
       { title: 'MSDS(물질안전보건) 교육' },
       { title: '채용시 교육(1/4/8시간 이상)' },
-      { title: '건설업 기초안전보건교육(4hr) 수료증' }
+      { title: '건설업 기초안전보건교육(4hr) 수료증' },
+      { title: '신규근로자 둘러보기(공사 자체시행)' }
     ],
     description: 
       '• 양식 : ' + 
