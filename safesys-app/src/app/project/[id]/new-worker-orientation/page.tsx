@@ -331,7 +331,19 @@ export default function NewWorkerOrientationPage() {
         {/* 새로 작성 버튼 */}
         {!showAddForm && (
           <div className="flex justify-between items-center mb-3">
-            <h2 className="text-lg font-bold text-white">신규근로자 현장안내 일지</h2>
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <h2 className="text-lg font-bold text-white truncate">신규근로자 현장안내 일지</h2>
+              <a
+                href="https://drive.google.com/uc?export=download&id=1TR7vjr7Km1BEBK3HFWpAOyBK40iR9rjK"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-white/90 text-blue-700 rounded-lg hover:bg-white text-xs sm:text-sm shadow-sm shrink-0"
+                title="현장안내 일지 양식(hwpx) 다운로드"
+              >
+                <Download className="h-4 w-4" />
+                <span className="whitespace-nowrap">양식(hwpx)</span>
+              </a>
+            </div>
             <button
               onClick={() => {
                 setFormData(emptyFormData(getFormDefaults()))
