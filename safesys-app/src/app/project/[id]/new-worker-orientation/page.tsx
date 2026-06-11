@@ -321,7 +321,7 @@ export default function NewWorkerOrientationPage() {
               <ArrowLeft className="h-5 w-5" />
             </button>
             <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">
-              {project?.project_name || '신규근로자 현장안내'}
+              {project?.project_name || '신규근로자 둘러보기'}
             </h1>
           </div>
         </div>
@@ -332,7 +332,7 @@ export default function NewWorkerOrientationPage() {
         {!showAddForm && (
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-              <h2 className="text-lg font-bold text-white truncate">신규근로자 현장안내 일지</h2>
+              <h2 className="text-lg font-bold text-white truncate">신규근로자 둘러보기 일지</h2>
               <a
                 href="https://drive.google.com/uc?export=download&id=1TR7vjr7Km1BEBK3HFWpAOyBK40iR9rjK"
                 target="_blank"
@@ -363,7 +363,7 @@ export default function NewWorkerOrientationPage() {
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-4 overflow-hidden">
             <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between">
               <h2 className="font-semibold text-base sm:text-lg">
-                {editingRecordId ? '현장안내 일지 수정' : '신규근로자 현장안내(1시간 둘러보기) 일지'}
+                {editingRecordId ? '둘러보기 일지 수정' : '신규근로자 둘러보기(1시간) 일지'}
               </h2>
               <button onClick={resetForm} className="text-white hover:text-blue-200">
                 <X className="h-5 w-5" />

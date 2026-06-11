@@ -780,7 +780,7 @@ export default function ProjectDetailPage() {
                 />
                 <DocumentFolder
                   title="신규근로자
-현장안내"
+둘러보기"
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
