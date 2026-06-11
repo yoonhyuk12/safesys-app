@@ -862,6 +862,15 @@ export default function ProjectDetailPage() {
                   pdcaCategory="C"
                 />
                 <DocumentFolder
+                  title="검사/검측
+대장"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/inspection-request`)}
+                  pdcaCategory="C"
+                />
+                <DocumentFolder
                   title="안전점검 GPT"
                   year={new Date().getFullYear().toString()}
                   isActive={false}

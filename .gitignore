@@ -13,7 +13,7 @@ safesys-app/safesys-app/
 # AI tool configs
 .agent/
 .agents/
-.claude/agents/
+.claude/
 .claude/skills/
 .claude/settings.local.json
 .codex/
