@@ -397,8 +397,25 @@ export default function PTWPage() {
       </header>
 
       <main className="max-w-none mx-auto py-4 px-2 sm:px-4">
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <LoadingSpinner />
+          </div>
+        ) : records.length === 0 && !showForm ? (
+          /* 등록된 허가서가 없으면 가운데 추가 버튼만 표시 */
+          <div className="flex justify-center py-20">
+            <button
+              onClick={handleAddClick}
+              className="flex items-center gap-2 px-8 py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 text-base font-semibold shadow-lg"
+            >
+              <Plus className="h-5 w-5" />
+              허가서 추가
+            </button>
+          </div>
+        ) : (
         <div className="flex flex-col lg:flex-row gap-4 lg:items-start">
-          {/* 목록 (데스크톱: 좌측 / 모바일: 상단) — 작성 영역과 동일 폭 */}
+          {/* 목록 (데스크톱: 좌측 / 모바일: 상단) — 허가서가 있을 때만 표시 */}
+          {records.length > 0 && (
           <div className="w-full lg:flex-1 lg:min-w-0 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between gap-2">
               <h2 className="font-semibold text-sm sm:text-base truncate">안전작업허가 승인대장</h2>
@@ -437,9 +454,10 @@ export default function PTWPage() {
               />
             )}
           </div>
+          )}
 
-          {/* 작성/수정 영역 (데스크톱: 우측 / 모바일: 하단) — 목록과 동일 폭 */}
-          <div className="w-full lg:flex-1 lg:min-w-0">
+          {/* 작성/수정 영역 (데스크톱: 우측 / 모바일: 하단) — 목록이 없으면 가운데 단독 표시 */}
+          <div className={records.length > 0 ? 'w-full lg:flex-1 lg:min-w-0' : 'w-full max-w-3xl mx-auto'}>
             {!showForm ? (
               <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
                 <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
@@ -656,6 +674,7 @@ export default function PTWPage() {
             )}
           </div>
         </div>
+        )}
       </main>
 
       {/* 서명 모달 */}
