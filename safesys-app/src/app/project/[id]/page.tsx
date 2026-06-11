@@ -38,6 +38,7 @@ export default function ProjectDetailPage() {
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [hqPendingCount, setHqPendingCount] = useState(0)
   const [safetyLedgerPendingCount, setSafetyLedgerPendingCount] = useState(0)
+  const [ptwCount, setPtwCount] = useState<number | null>(null)
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -58,6 +59,19 @@ export default function ProjectDetailPage() {
     if (user && projectId) {
       loadProject()
     }
+  }, [user, projectId])
+
+  // PTW 허가서 건수 조회 (서류철 카드 표시용)
+  useEffect(() => {
+    if (!user || !projectId) return
+    const loadPtwCount = async () => {
+      const { count, error: countError } = await (supabase as any)
+        .from('ptw_permits')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+      if (!countError) setPtwCount(count ?? 0)
+    }
+    loadPtwCount()
   }, [user, projectId])
 
   // 외부 클릭 시 메뉴 닫기
@@ -803,7 +817,7 @@ export default function ProjectDetailPage() {
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
-                  isPending={true}
+                  docCount={ptwCount ?? undefined}
                   onClick={() => router.push(`/project/${projectId}/ptw`)}
                 />
               </div>

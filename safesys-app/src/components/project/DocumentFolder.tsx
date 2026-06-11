@@ -16,6 +16,7 @@ interface DocumentFolderProps {
   isPending?: boolean // 준비중 상태
   isAncientDocument?: boolean // 고대 문서 스타일 (디아블로 테마)
   badgeCount?: number // 우측 상단 뱃지 숫자
+  docCount?: number // 서류명 하단 건수 표시 (예: (2))
   pdcaCategory?: 'P' | 'D' | 'C' | 'A' // PDCA 그룹 색상
   bottomLabel?: string // 하단 라벨 커스텀 (기본: "안전")
 }
@@ -33,6 +34,7 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
   isPending = false,
   isAncientDocument = false,
   badgeCount,
+  docCount,
   pdcaCategory,
   bottomLabel
 }) => {
@@ -369,8 +371,8 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
         <div className="flex flex-col h-full p-2 lg:p-4 justify-between">
           {/* 제목 */}
           <div className="flex-1 flex items-center justify-center overflow-hidden">
-            <div className="bg-white border border-gray-200 rounded-sm p-1 m-1 w-full h-full flex items-center justify-center" style={{ fontFamily: 'ChosunBg, serif' }}>
-              <div className="flex justify-center items-center h-full w-full">
+            <div className="bg-white border border-gray-200 rounded-sm p-1 m-1 w-full h-full flex flex-col items-center justify-center" style={{ fontFamily: 'ChosunBg, serif' }}>
+              <div className="flex justify-center items-center w-full flex-1 min-h-0">
                 {title && (() => {
                   // 줄바꿈이 있는 경우 처리
                   const lines = title.split('\n')
@@ -556,6 +558,12 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
                   }
                 })()}
               </div>
+              {/* 서류명 하단 건수 */}
+              {docCount != null && (
+                <div className={`text-[10px] lg:text-xs font-medium ${isGrayedOut ? 'text-gray-400' : 'text-blue-700'} pb-0.5 shrink-0`}>
+                  ({docCount})
+                </div>
+              )}
             </div>
           </div>
 
