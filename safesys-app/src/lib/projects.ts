@@ -34,7 +34,11 @@ export interface Project {
   industrial_law_safety_ledger?: boolean
   disaster_prevention_target?: boolean
   cctv_rtsp_url?: string
+  business_card_pdf_url?: string  // 사업카드(PDF) 링크
   display_order?: number  // 지사별 순서 번호
+  // 공사기간 (작업일보 공정률 계산: 착공일 0% → 준공일 100%)
+  construction_start_date?: string | null
+  construction_end_date?: string | null
   // 개인정보 관리책임자
   privacy_manager_name?: string
   privacy_manager_position?: string
@@ -68,8 +72,12 @@ export interface CreateProjectData {
   industrial_law_safety_ledger?: boolean
   disaster_prevention_target?: boolean
   cctv_rtsp_url?: string
+  business_card_pdf_url?: string  // 사업카드(PDF) 링크
   client_telegram_id?: string | null
   contractor_telegram_id?: string | null
+  // 공사기간 (작업일보 공정률 계산용)
+  construction_start_date?: string | null
+  construction_end_date?: string | null
   // 개인정보 관리책임자
   privacy_manager_name?: string
   privacy_manager_position?: string

@@ -28,9 +28,12 @@ interface FormData {
   construction_law_safety_plan?: boolean
   industrial_law_safety_ledger?: boolean
   disaster_prevention_target?: boolean
-  cctv_rtsp_url?: string
+  business_card_pdf_url?: string
   client_telegram_id?: string
   contractor_telegram_id?: string
+  // 공사기간 (작업일보 공정률 계산: 착공일 0% → 준공일 100%)
+  construction_start_date?: string
+  construction_end_date?: string
   // 개인정보 관리책임자
   privacy_manager_name?: string
   privacy_manager_position?: string
@@ -69,9 +72,11 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
     construction_law_safety_plan: project.construction_law_safety_plan || false,
     industrial_law_safety_ledger: project.industrial_law_safety_ledger || false,
     disaster_prevention_target: project.disaster_prevention_target || false,
-    cctv_rtsp_url: project.cctv_rtsp_url || '',
+    business_card_pdf_url: project.business_card_pdf_url || '',
     client_telegram_id: (project as any).client_telegram_id || '',
     contractor_telegram_id: (project as any).contractor_telegram_id || '',
+    construction_start_date: project.construction_start_date || '',
+    construction_end_date: project.construction_end_date || '',
     privacy_manager_name: project.privacy_manager_name || '',
     privacy_manager_position: project.privacy_manager_position || '',
     privacy_manager_email: project.privacy_manager_email || '',
@@ -261,6 +266,13 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
       return
     }
 
+    if (formData.construction_start_date && formData.construction_end_date &&
+        formData.construction_start_date > formData.construction_end_date) {
+      setError('착공일이 준공일보다 늦을 수 없습니다.')
+      setLoading(false)
+      return
+    }
+
     try {
       await updateProject(project.id, {
         project_name: formData.project_name.trim(),
@@ -281,9 +293,11 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
         construction_law_safety_plan: formData.construction_law_safety_plan,
         industrial_law_safety_ledger: formData.industrial_law_safety_ledger,
         disaster_prevention_target: formData.disaster_prevention_target,
-        cctv_rtsp_url: formData.cctv_rtsp_url?.trim() || undefined,
+        business_card_pdf_url: formData.business_card_pdf_url?.trim() || undefined,
         client_telegram_id: formData.client_telegram_id?.trim() || null,
         contractor_telegram_id: formData.contractor_telegram_id?.trim() || null,
+        construction_start_date: formData.construction_start_date || null,
+        construction_end_date: formData.construction_end_date || null,
         privacy_manager_name: formData.privacy_manager_name?.trim() || undefined,
         privacy_manager_position: formData.privacy_manager_position?.trim() || undefined,
         privacy_manager_email: formData.privacy_manager_email?.trim() || undefined,
@@ -450,6 +464,41 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
 
         {isOptionalExpanded && (
           <div className="space-y-4 p-4 bg-yellow-50/50 border-l-4 border-yellow-400 rounded-r-lg">
+            {/* 착공일/준공일 — 작업일보 공정률 자동 계산 기준 (착공일 0% → 준공일 100%) */}
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <label htmlFor="construction_start_date" className="block text-sm font-medium text-gray-700 mb-2">
+                  착공일 <span className="text-xs text-gray-500 font-normal">(공정률 0%)</span>
+                </label>
+                <input
+                  type="date"
+                  id="construction_start_date"
+                  name="construction_start_date"
+                  value={formData.construction_start_date || ''}
+                  onChange={handleInputChange}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  disabled={loading}
+                />
+              </div>
+              <div>
+                <label htmlFor="construction_end_date" className="block text-sm font-medium text-gray-700 mb-2">
+                  준공일 <span className="text-xs text-gray-500 font-normal">(공정률 100%)</span>
+                </label>
+                <input
+                  type="date"
+                  id="construction_end_date"
+                  name="construction_end_date"
+                  value={formData.construction_end_date || ''}
+                  onChange={handleInputChange}
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  disabled={loading}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-500 -mt-2">
+              작업일보의 공정률이 공사기간 기준으로 자동 계산됩니다.
+            </p>
+
             {/* 사업분류 */}
             <div>
               <label htmlFor="project_category" className="block text-sm font-medium text-gray-700 mb-2">
@@ -637,24 +686,34 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
               </div>
             </div>
 
-            {/* CCTV RTSP URL */}
+            {/* 사업카드(PDF) 링크 */}
             <div>
-              <label htmlFor="cctv_rtsp_url" className="block text-sm font-medium text-gray-700 mb-2">
-                CCTV RTSP URL
+              <label htmlFor="business_card_pdf_url" className="block text-sm font-medium text-gray-700 mb-2">
+                사업카드(PDF) 링크
               </label>
               <input
-                type="text"
-                id="cctv_rtsp_url"
-                name="cctv_rtsp_url"
-                value={formData.cctv_rtsp_url}
+                type="url"
+                id="business_card_pdf_url"
+                name="business_card_pdf_url"
+                value={formData.business_card_pdf_url}
                 onChange={handleInputChange}
-                placeholder="예: rtsp://username:password@192.168.1.100:554/stream"
+                placeholder="예: https://example.com/business-card.pdf"
                 className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono"
                 disabled={loading}
               />
               <p className="mt-1 text-xs text-gray-500">
-                CCTV 카메라의 RTSP 스트림 URL을 입력하세요
+                사업카드 PDF 문서의 링크 URL을 입력하세요
               </p>
+              {formData.business_card_pdf_url?.trim() && (
+                <a
+                  href={formData.business_card_pdf_url.trim()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-block text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  📄 사업카드 PDF 열기
+                </a>
+              )}
             </div>
 
             {/* 텔레그램 정보 수신용 아이디 */}

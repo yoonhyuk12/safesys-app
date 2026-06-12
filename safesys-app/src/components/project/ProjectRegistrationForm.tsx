@@ -27,7 +27,7 @@ interface FormData {
   construction_law_safety_plan?: boolean
   industrial_law_safety_ledger?: boolean
   disaster_prevention_target?: boolean
-  cctv_rtsp_url?: string
+  business_card_pdf_url?: string
   client_telegram_id?: string
   contractor_telegram_id?: string
 }
@@ -58,7 +58,7 @@ const ProjectRegistrationForm: React.FC = () => {
     construction_law_safety_plan: false,
     industrial_law_safety_ledger: false,
     disaster_prevention_target: false,
-    cctv_rtsp_url: '',
+    business_card_pdf_url: '',
     client_telegram_id: '',
     contractor_telegram_id: ''
   })
@@ -217,7 +217,7 @@ const ProjectRegistrationForm: React.FC = () => {
         construction_law_safety_plan: formData.construction_law_safety_plan,
         industrial_law_safety_ledger: formData.industrial_law_safety_ledger,
         disaster_prevention_target: formData.disaster_prevention_target,
-        cctv_rtsp_url: formData.cctv_rtsp_url?.trim() || undefined,
+        business_card_pdf_url: formData.business_card_pdf_url?.trim() || undefined,
         client_telegram_id: formData.client_telegram_id?.trim() || undefined,
         contractor_telegram_id: formData.contractor_telegram_id?.trim() || undefined
       })
@@ -565,23 +565,23 @@ const ProjectRegistrationForm: React.FC = () => {
               </div>
             </div>
 
-            {/* CCTV RTSP URL */}
+            {/* 사업카드(PDF) 링크 */}
             <div>
-              <label htmlFor="cctv_rtsp_url" className="block text-sm font-medium text-gray-700 mb-2">
-                CCTV RTSP URL
+              <label htmlFor="business_card_pdf_url" className="block text-sm font-medium text-gray-700 mb-2">
+                사업카드(PDF) 링크
               </label>
               <input
-                type="text"
-                id="cctv_rtsp_url"
-                name="cctv_rtsp_url"
-                value={formData.cctv_rtsp_url}
+                type="url"
+                id="business_card_pdf_url"
+                name="business_card_pdf_url"
+                value={formData.business_card_pdf_url}
                 onChange={handleInputChange}
-                placeholder="예: rtsp://username:password@192.168.1.100:554/stream"
+                placeholder="예: https://example.com/business-card.pdf"
                 className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono"
                 disabled={loading}
               />
               <p className="mt-1 text-xs text-gray-500">
-                CCTV 카메라의 RTSP 스트림 URL을 입력하세요
+                사업카드 PDF 문서의 링크 URL을 입력하세요
               </p>
             </div>
 

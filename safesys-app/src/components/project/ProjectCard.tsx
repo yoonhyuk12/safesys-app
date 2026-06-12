@@ -1,8 +1,9 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { Building, MapPin, MoreVertical, Video, Share2 } from 'lucide-react'
+import { Building, MapPin, MoreVertical, FileText, Share2 } from 'lucide-react'
 import { Project } from '@/lib/projects'
+import { computeProgressRate } from '@/lib/work-daily-report/work-daily-report-types'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import type { QuarterToggleState } from '@/lib/ui-settings'
@@ -500,6 +501,14 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
   const updateInfo = getUpdateInfo()
 
+  // 공사기간 기반 현재 공정률 (착공일 0% → 준공일 100%, 다 채워지면 준공) — 기간 미등록 시 null
+  const progressRate = (() => {
+    const now = new Date()
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const rate = computeProgressRate(project.construction_start_date, project.construction_end_date, todayStr)
+    return rate === '' ? null : parseFloat(rate)
+  })()
+
   return (
     <div
       className={`group bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 p-3 relative ${isEditMode ? 'cursor-move' : 'cursor-pointer'
@@ -559,6 +568,32 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         animation: isEditMode ? 'shake 0.5s ease-in-out infinite' : undefined
       }}
     >
+      {/* 공정률 색 채움 (좌→우, 100% = 준공) */}
+      {progressRate !== null && progressRate > 0 && (
+        <div
+          className="absolute inset-y-0 left-0 pointer-events-none"
+          style={{
+            width: `${progressRate}%`,
+            background: 'linear-gradient(90deg, rgba(59,130,246,0.08) 0%, rgba(59,130,246,0.22) 100%)',
+            borderRadius: progressRate >= 100 ? '0.5rem' : '0.5rem 0 0 0.5rem',
+          }}
+        >
+          {/* 진행 위치 표시선 + 공정률 % */}
+          {progressRate < 100 && (
+            <>
+              <div className="absolute inset-y-0 right-0 w-[2px] bg-blue-400/70" />
+              <span
+                className={`absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-bold text-blue-700 bg-white/75 rounded-sm px-0.5 leading-tight ${
+                  progressRate > 85 ? 'right-1' : 'left-full ml-1'
+                }`}
+              >
+                {Math.round(progressRate)}%
+              </span>
+            </>
+          )}
+        </div>
+      )}
+
       {/* 준공 도장 (completed 상태일 때) */}
       {completed && (
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10 pointer-events-none">
@@ -642,10 +677,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
               </span>
             )}
             <div className="flex items-center gap-1">
-              {/* CCTV 표시 */}
-              {project.cctv_rtsp_url && (
-                <div className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white border-2 border-white shadow-sm" title="CCTV 있음">
-                  <Video className="h-3 w-3" />
+              {/* 사업카드 표시 */}
+              {project.business_card_pdf_url && (
+                <div className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white border-2 border-white shadow-sm" title="사업카드 있음">
+                  <FileText className="h-3 w-3" />
                 </div>
               )}
               {/* 재해예방기술지도 대상 마킹 */}

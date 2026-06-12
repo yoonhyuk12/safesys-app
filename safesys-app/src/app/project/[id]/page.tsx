@@ -3,12 +3,15 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Building, Phone, MoreVertical, Copy, Check, Video } from 'lucide-react'
+import { ArrowLeft, Building, Phone, MoreVertical, Copy, Check, FileText } from 'lucide-react'
 import { Project, deleteProject } from '@/lib/projects'
+import { computeProgressRate } from '@/lib/work-daily-report/work-daily-report-types'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import ProjectDeleteModal from '@/components/project/ProjectDeleteModal'
 import DocumentFolder from '@/components/project/DocumentFolder'
+import DocumentCabinet from '@/components/project/DocumentCabinet'
+import BusinessCardEasel from '@/components/project/BusinessCardEasel'
 import HeatWaveCheckModal from '@/components/project/HeatWaveCheckModal'
 import ProjectHandoverModal from '@/components/project/ProjectHandoverModal'
 import ProjectShareModal from '@/components/project/ProjectShareModal'
@@ -41,6 +44,7 @@ export default function ProjectDetailPage() {
   const [ptwCount, setPtwCount] = useState<number | null>(null)
   const [inspectionRequestCount, setInspectionRequestCount] = useState<number | null>(null)
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
+  const [openCabinet, setOpenCabinet] = useState<'시공' | '안전' | '품질' | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const RISK_ASSESSMENT_GPTS_URL = 'https://chatgpt.com/g/g-uhvOsghT3-hangugnongeocongongsa-wiheomseongpyeongga-jagseong-ai'
@@ -328,9 +332,9 @@ export default function ProjectDetailPage() {
     }
   }
 
-  const handleCCTVClick = () => {
-    if (project?.cctv_rtsp_url) {
-      window.open(project.cctv_rtsp_url, '_blank')
+  const handleBusinessCardClick = () => {
+    if (project?.business_card_pdf_url) {
+      window.open(project.business_card_pdf_url, '_blank')
     }
   }
 
@@ -484,6 +488,14 @@ export default function ProjectDetailPage() {
     )
   }
 
+  // 공사기간 기반 현재 공정률 (착공일 0% → 준공일 100%) — 시공 캐비넷 명판 표시용
+  const constructionProgress = (() => {
+    const now = new Date()
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    const rate = computeProgressRate(project.construction_start_date, project.construction_end_date, todayStr)
+    return rate === '' ? null : Math.round(parseFloat(rate))
+  })()
+
   return (
     <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex flex-col">
       {/* 헤더 */}
@@ -499,13 +511,13 @@ export default function ProjectDetailPage() {
               </button>
               <Building className="h-6 w-6 text-blue-600 mr-2 lg:mr-3 flex-shrink-0" />
               <h1 className="text-sm lg:text-xl font-bold text-gray-900 truncate">{project.project_name}</h1>
-              {project.cctv_rtsp_url && (
+              {project.business_card_pdf_url && (
                 <button
-                  onClick={handleCCTVClick}
-                  className="ml-2 lg:ml-3 p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors flex-shrink-0"
-                  title="CCTV 보기"
+                  onClick={handleBusinessCardClick}
+                  className="ml-2 lg:ml-3 p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors flex-shrink-0"
+                  title="사업카드 보기"
                 >
-                  <Video className="h-5 w-5" />
+                  <FileText className="h-5 w-5" />
                 </button>
               )}
             </div>
@@ -627,7 +639,7 @@ export default function ProjectDetailPage() {
               {/* 선택사항 정보 */}
               {(project.total_budget || project.current_year_budget || project.supervisor_position ||
                 project.supervisor_name || project.actual_work_address || project.construction_law_safety_plan ||
-                project.industrial_law_safety_ledger || (project as any).disaster_prevention_target || project.cctv_rtsp_url) && (
+                project.industrial_law_safety_ledger || (project as any).disaster_prevention_target || project.business_card_pdf_url) && (
                   <>
                     <div className="border-t border-gray-200"></div>
                     <div className="text-sm text-gray-600">
@@ -670,16 +682,16 @@ export default function ProjectDetailPage() {
                           </button>
                         </>
                       )}
-                      {project.cctv_rtsp_url && (
+                      {project.business_card_pdf_url && (
                         <>
                           {' / '}
                           <button
-                            onClick={handleCCTVClick}
-                            className="inline-flex items-center gap-1 text-red-600 hover:text-red-700 transition-colors cursor-pointer"
-                            title="CCTV 보기"
+                            onClick={handleBusinessCardClick}
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 transition-colors cursor-pointer"
+                            title="사업카드 보기"
                           >
-                            <Video className="h-4 w-4" />
-                            <span className="underline">CCTV</span>
+                            <FileText className="h-4 w-4" />
+                            <span className="underline">사업카드</span>
                           </button>
                         </>
                       )}
@@ -726,7 +738,110 @@ export default function ProjectDetailPage() {
             </div>
           </div>
 
-          {/* 문서철 그리드 - PDCA 그룹핑 */}
+          {/* 서류 캐비넷 — 좁은 화면에서는 줄 나눔 */}
+          <div className="mb-10 flex justify-center">
+            <div className="flex flex-wrap items-end justify-center gap-4 sm:gap-6 lg:gap-8">
+              {project.business_card_pdf_url && (
+                <BusinessCardEasel onClick={handleBusinessCardClick} />
+              )}
+              {(['시공', '안전', '품질'] as const).map((name) => (
+                <DocumentCabinet
+                  key={name}
+                  title={name}
+                  titleSuffix={name === '시공' && constructionProgress !== null ? `(${constructionProgress}%)` : undefined}
+                  pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) : undefined}
+                  color={name === '시공' ? 'blue' : name === '안전' ? 'green' : 'amber'}
+                  isOpen={openCabinet === name}
+                  onClick={() => setOpenCabinet((prev) => (prev === name ? null : name))}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* 문서철 그리드 - 시공 캐비넷 */}
+          {openCabinet === '시공' && (
+          <div className="flex flex-wrap justify-center gap-3">
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>P (계획)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="시공
+서류
+관리"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  externalUrl="https://docs.google.com/forms/d/e/1FAIpQLSdY1beSxNGj6niH6_jG7onccyQsUoIBfldYbIWsbMkc7VoQKA/viewform"
+                  pdcaCategory="P"
+                />
+              </div>
+            </div>
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>D (실행)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="작업일보"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/work-daily-report`)}
+                  bottomLabel="사업"
+                />
+              </div>
+            </div>
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>C (점검)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="검사/검측
+대장"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  docCount={inspectionRequestCount ?? undefined}
+                  onClick={() => router.push(`/project/${projectId}/inspection-request`)}
+                  pdcaCategory="C"
+                />
+              </div>
+            </div>
+          </div>
+          )}
+
+          {/* 문서철 그리드 - 품질 캐비넷 */}
+          {openCabinet === '품질' && (
+          <div className="flex flex-wrap justify-center gap-3">
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>P (계획)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="품질
+서류
+관리"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  externalUrl="https://docs.google.com/forms/d/e/1FAIpQLSeSTpnRsOBiy0myufl0itGdeDeVzfkYWeybqBhR7ThDef5HHw/viewform"
+                  pdcaCategory="P"
+                />
+              </div>
+            </div>
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>D (실행)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="자재
+수불부"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/material-ledger`)}
+                  bottomLabel="사업"
+                />
+              </div>
+            </div>
+          </div>
+          )}
+
+          {/* 문서철 그리드 - PDCA 그룹핑 (안전 캐비넷) */}
+          {openCabinet === '안전' && (
           <div className="flex flex-wrap justify-center gap-3">
             {/* P (계획) */}
             <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
@@ -739,24 +854,6 @@ export default function ProjectDetailPage() {
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   onClick={() => router.push(`/project/${projectId}/safe-documents`)}
-                  pdcaCategory="P"
-                />
-                <DocumentFolder
-                  title="시공
-서류
-관리"
-                  year={new Date().getFullYear().toString()}
-                  isActive={false}
-                  externalUrl="https://docs.google.com/forms/d/e/1FAIpQLSdY1beSxNGj6niH6_jG7onccyQsUoIBfldYbIWsbMkc7VoQKA/viewform"
-                  pdcaCategory="P"
-                />
-                <DocumentFolder
-                  title="품질
-서류
-관리"
-                  year={new Date().getFullYear().toString()}
-                  isActive={false}
-                  externalUrl="https://docs.google.com/forms/d/e/1FAIpQLSeSTpnRsOBiy0myufl0itGdeDeVzfkYWeybqBhR7ThDef5HHw/viewform"
                   pdcaCategory="P"
                 />
                 <DocumentFolder
@@ -816,15 +913,6 @@ export default function ProjectDetailPage() {
                   isProjectActive={project.is_active !== false}
                 />
                 <DocumentFolder
-                  title="자재
-수불부"
-                  year={new Date().getFullYear().toString()}
-                  isActive={false}
-                  projectId={projectId}
-                  onClick={() => router.push(`/project/${projectId}/material-ledger`)}
-                  bottomLabel="사업"
-                />
-                <DocumentFolder
                   title="위험공종
 작업허가제
 ︵PTW︶"
@@ -873,16 +961,6 @@ export default function ProjectDetailPage() {
                   projectId={projectId}
                   onClick={() => router.push(`/project/${projectId}/safety-inspection-ledger`)}
                   badgeCount={safetyLedgerPendingCount}
-                  pdcaCategory="C"
-                />
-                <DocumentFolder
-                  title="검사/검측
-대장"
-                  year={new Date().getFullYear().toString()}
-                  isActive={false}
-                  projectId={projectId}
-                  docCount={inspectionRequestCount ?? undefined}
-                  onClick={() => router.push(`/project/${projectId}/inspection-request`)}
                   pdcaCategory="C"
                 />
                 <DocumentFolder
@@ -942,6 +1020,7 @@ export default function ProjectDetailPage() {
               </div>
             </div>
           </div>
+          )}
         </div>
       </main>
 
