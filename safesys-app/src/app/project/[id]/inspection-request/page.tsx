@@ -45,6 +45,15 @@ export default function InspectionRequestPage() {
     router.push(`/project/${projectId}`)
   }
 
+  // 프로젝트명에서 지구명 추출 (첫 단어의 "…지구"까지, 최대 4글자) — 번호 접두어용
+  const deriveDistrictPrefix = (projectName?: string): string => {
+    if (!projectName) return ''
+    const token = projectName.trim().split(/\s+/)[0]
+    const idx = token.indexOf('지구')
+    const district = idx >= 0 ? token.slice(0, idx + 2) : token
+    return district.slice(0, 4)
+  }
+
   // 프로젝트 로드
   useEffect(() => {
     if (!user || !projectId) return
@@ -97,14 +106,15 @@ export default function InspectionRequestPage() {
     setEditingRecordId(null)
   }
 
-  // 추가 시작 — 기본값: 번호(다음 순번, 통보번호 동일), 현장대리인(프로젝트 소유자), 검측자/공사감독원(프로젝트 감독)
+  // 추가 시작 — 기본값: 번호(지구명요청-순번)/통보번호(지구명통보-순번), 현장대리인(프로젝트 소유자), 검측자/공사감독원(프로젝트 감독)
   const handleAddClick = () => {
     setEditingRecordId(null)
-    const nextNo = String(records.length + 1)
+    const prefix = deriveDistrictPrefix(project?.project_name)
+    const nextSeq = records.length + 1
     setFormData(
       createEmptyInspectionRequest({
-        request_no: nextNo,
-        result_no: nextNo,
+        request_no: `${prefix}요청-${nextSeq}`,
+        result_no: `${prefix}통보-${nextSeq}`,
         field_agent_name: projectOwner?.full_name || '',
         inspector_name: project?.supervisor_name || '',
         supervisor_name: project?.supervisor_name || '',

@@ -12,6 +12,9 @@ interface InspectionRequestFormProps {
 
 const inputCls =
   'w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
+// 번호 분리 입력용 (w-full 미포함 — flex 내부 폭 지정과 충돌 방지)
+const bareInputCls =
+  'border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
 
 export default function InspectionRequestForm({ formData, onChange }: InspectionRequestFormProps) {
@@ -23,14 +26,26 @@ export default function InspectionRequestForm({ formData, onChange }: Inspection
     onChange({ ...formData, [key]: value })
   }
 
-  // 요청서 번호 변경 시 통보번호도 동일하게 유지 (통보번호를 따로 수정한 경우는 제외)
+  // 요청서 번호 변경 시 통보번호도 함께 변경 ("요청"→"통보" 치환, 통보번호를 따로 수정한 경우는 제외)
+  const toResultNo = (requestNo: string) => requestNo.replace('요청', '통보')
   const setRequestNo = (value: string) => {
     onChange({
       ...formData,
       request_no: value,
-      ...(formData.result_no === formData.request_no ? { result_no: value } : {}),
+      ...(formData.result_no === toResultNo(formData.request_no) ? { result_no: toResultNo(value) } : {}),
     })
   }
+
+  // 번호 문자열을 텍스트(접두어)와 순번으로 분리/결합 — 입력칸은 따로, 저장은 "텍스트-순번" 한 값
+  const splitNo = (no: string): { prefix: string; seq: string } => {
+    const idx = no.lastIndexOf('-')
+    if (idx >= 0) return { prefix: no.slice(0, idx), seq: no.slice(idx + 1) }
+    return /^\d*$/.test(no) ? { prefix: '', seq: no } : { prefix: no, seq: '' }
+  }
+  const joinNo = (prefix: string, seq: string): string => (prefix && seq ? `${prefix}-${seq}` : prefix || seq)
+
+  const reqNo = splitNo(formData.request_no)
+  const resNo = splitNo(formData.result_no)
 
   return (
     <div className="space-y-4">
@@ -41,15 +56,26 @@ export default function InspectionRequestForm({ formData, onChange }: Inspection
           검측요청서 (별지 제4호)
         </div>
         <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div>
+          <div className="col-span-2">
             <label className={labelCls}>번호</label>
-            <input
-              type="text"
-              value={formData.request_no}
-              onChange={(e) => setRequestNo(e.target.value)}
-              placeholder="예: 1"
-              className={inputCls}
-            />
+            <div className="flex items-center gap-1">
+              <input
+                type="text"
+                value={reqNo.prefix}
+                onChange={(e) => setRequestNo(joinNo(e.target.value, reqNo.seq))}
+                placeholder="지구명요청"
+                className={`${bareInputCls} min-w-0 flex-1`}
+              />
+              <span className="text-gray-400 shrink-0">-</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={reqNo.seq}
+                onChange={(e) => setRequestNo(joinNo(reqNo.prefix, e.target.value))}
+                placeholder="1"
+                className={`${bareInputCls} w-16 shrink-0 text-center`}
+              />
+            </div>
           </div>
           <div>
             <label className={labelCls}>요청일자</label>
@@ -202,15 +228,26 @@ export default function InspectionRequestForm({ formData, onChange }: Inspection
           검측결과통보
         </div>
         <div className="p-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div>
+          <div className="col-span-2">
             <label className={labelCls}>통보번호</label>
-            <input
-              type="text"
-              value={formData.result_no}
-              onChange={(e) => set('result_no', e.target.value)}
-              placeholder="예: 1"
-              className={inputCls}
-            />
+            <div className="flex items-center gap-1">
+              <input
+                type="text"
+                value={resNo.prefix}
+                onChange={(e) => set('result_no', joinNo(e.target.value, resNo.seq))}
+                placeholder="지구명통보"
+                className={`${bareInputCls} min-w-0 flex-1`}
+              />
+              <span className="text-gray-400 shrink-0">-</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={resNo.seq}
+                onChange={(e) => set('result_no', joinNo(resNo.prefix, e.target.value))}
+                placeholder="1"
+                className={`${bareInputCls} w-16 shrink-0 text-center`}
+              />
+            </div>
           </div>
           <div>
             <label className={labelCls}>통보일자</label>
@@ -222,6 +259,18 @@ export default function InspectionRequestForm({ formData, onChange }: Inspection
             />
           </div>
           <div>
+            <label className={labelCls}>합격여부</label>
+            <select
+              value={formData.pass_status}
+              onChange={(e) => set('pass_status', e.target.value as PassStatus)}
+              className={inputCls}
+            >
+              <option value="">미정</option>
+              <option value="합격">합격</option>
+              <option value="불합격">불합격</option>
+            </select>
+          </div>
+          <div className="col-span-2">
             <label className={labelCls}>검측자</label>
             <div className="flex items-center gap-2">
               <input
@@ -251,39 +300,7 @@ export default function InspectionRequestForm({ formData, onChange }: Inspection
               )}
             </div>
           </div>
-          <div>
-            <label className={labelCls}>합격여부</label>
-            <select
-              value={formData.pass_status}
-              onChange={(e) => set('pass_status', e.target.value as PassStatus)}
-              className={inputCls}
-            >
-              <option value="">미정</option>
-              <option value="합격">합격</option>
-              <option value="불합격">불합격</option>
-            </select>
-          </div>
-          <div className="col-span-2 sm:col-span-4">
-            <label className={labelCls}>검측결과</label>
-            <textarea
-              value={formData.result_content}
-              onChange={(e) => set('result_content', e.target.value)}
-              rows={2}
-              placeholder="검측결과 내용"
-              className={inputCls}
-            />
-          </div>
-          <div className="col-span-2 sm:col-span-4">
-            <label className={labelCls}>지시사항</label>
-            <textarea
-              value={formData.instructions}
-              onChange={(e) => set('instructions', e.target.value)}
-              rows={2}
-              placeholder="지시사항"
-              className={inputCls}
-            />
-          </div>
-          <div className="col-span-2 sm:col-span-4">
+          <div className="col-span-2">
             <label className={labelCls}>공사감독원</label>
             <div className="flex items-center gap-2">
               <input
@@ -312,6 +329,26 @@ export default function InspectionRequestForm({ formData, onChange }: Inspection
                 </button>
               )}
             </div>
+          </div>
+          <div className="col-span-2 sm:col-span-4">
+            <label className={labelCls}>검측결과</label>
+            <textarea
+              value={formData.result_content}
+              onChange={(e) => set('result_content', e.target.value)}
+              rows={2}
+              placeholder="검측결과 내용"
+              className={inputCls}
+            />
+          </div>
+          <div className="col-span-2 sm:col-span-4">
+            <label className={labelCls}>지시사항</label>
+            <textarea
+              value={formData.instructions}
+              onChange={(e) => set('instructions', e.target.value)}
+              rows={2}
+              placeholder="지시사항"
+              className={inputCls}
+            />
           </div>
         </div>
       </div>
