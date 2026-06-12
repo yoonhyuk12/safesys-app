@@ -4,6 +4,8 @@ type WeatherData = {
   date: string;
   sky: "맑음" | "구름많음" | "흐림" | "자료부족";
   tempAvgC: number | null;
+  tempMaxC: number | null;
+  tempMinC: number | null;
   rainSumMm: number | null;
   cloudAvg: number | null;
   summary: string;
@@ -208,14 +210,18 @@ function getNearestStation(lat: number, lon: number): { stnId: string; stnName: 
   return result;
 }
 
-function parseDailyData(text: string): Map<string, { taAvg: number | null; caTot: number | null; rnDay: number | null }> {
-  const result = new Map<string, { taAvg: number | null; caTot: number | null; rnDay: number | null }>();
+type DailyParsed = { taAvg: number | null; taMax: number | null; taMin: number | null; caTot: number | null; rnDay: number | null };
+
+function parseDailyData(text: string): Map<string, DailyParsed> {
+  const result = new Map<string, DailyParsed>();
   const lines = text.split("\n").map(l => l.trim());
 
   // kma_sfcdd3.php 고정 컬럼 인덱스 (헤더 형식이 2줄이라 이름으로 찾을 수 없음)
-  // 컬럼: 0=날짜, 1=관측소, 10=TA_AVG, 31=CA_TOT, 38=RN_DAY
+  // 컬럼: 0=날짜, 1=관측소, 10=TA_AVG, 11=TA_MAX, 13=TA_MIN, 31=CA_TOT, 38=RN_DAY
   const COL_DATE = 0;
   const COL_TA_AVG = 10;   // 일 평균기온(℃)
+  const COL_TA_MAX = 11;   // 일 최고기온(℃)
+  const COL_TA_MIN = 13;   // 일 최저기온(℃)
   const COL_CA_TOT = 31;   // 전운량(1/10)
   const COL_RN_DAY = 38;   // 일 강수량(mm)
 
@@ -228,6 +234,8 @@ function parseDailyData(text: string): Map<string, { taAvg: number | null; caTot
 
     result.set(tm, {
       taAvg: parseNumber(parts[COL_TA_AVG]),
+      taMax: parseNumber(parts[COL_TA_MAX]),
+      taMin: parseNumber(parts[COL_TA_MIN]),
       caTot: parseNumber(parts[COL_CA_TOT]),
       rnDay: parseNumber(parts[COL_RN_DAY]),
     });
@@ -295,7 +303,7 @@ export async function GET(req: Request) {
 
     // 2. 기간을 31일 단위로 분할하여 조회
     const ranges = splitDateRange(start, end);
-    const allData = new Map<string, { taAvg: number | null; caTot: number | null; rnDay: number | null }>();
+    const allData = new Map<string, DailyParsed>();
 
     for (const range of ranges) {
       const url = `https://apihub.kma.go.kr/api/typ01/url/kma_sfcdd3.php?tm1=${range.tm1}&tm2=${range.tm2}&stn=${station.stnId}&help=0&mode=0&authKey=${encodeURIComponent(AUTH_KEY)}`;
@@ -314,6 +322,8 @@ export async function GET(req: Request) {
       const dayData = allData.get(dateStr);
 
       const tempAvg = dayData?.taAvg ?? null;
+      const tempMax = dayData?.taMax ?? null;
+      const tempMin = dayData?.taMin ?? null;
       const cloudAvg = dayData?.caTot ?? null;
       const rainSum = dayData?.rnDay ?? null;
 
@@ -325,6 +335,8 @@ export async function GET(req: Request) {
         date: dateStr,
         sky,
         tempAvgC: tempRounded,
+        tempMaxC: tempMax !== null ? Math.round(tempMax * 10) / 10 : null,
+        tempMinC: tempMin !== null ? Math.round(tempMin * 10) / 10 : null,
         rainSumMm: rainRounded,
         cloudAvg,
         summary: tempRounded !== null

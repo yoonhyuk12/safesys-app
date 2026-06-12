@@ -681,6 +681,98 @@ export async function getEnhancedApparentTemperature(lat: number, lng: number, a
   }
 }
 
+// 기상청 단기예보 기반 일별 날씨 요약 (작업일보용 — 오늘/미래 날짜)
+// 02시 발표 예보에 일 최저기온(TMN, 06시), 일 최고기온(TMX, 15시)이 포함됨
+export interface DailyForecastSummary {
+  sky: string            // 맑음/구름많음/흐림/비/눈/소나기
+  tempMax: number | null // 일 최고기온(℃)
+  tempMin: number | null // 일 최저기온(℃)
+}
+
+export async function getDailyForecastSummary(
+  lat: number,
+  lng: number,
+  targetDate: string // YYYY-MM-DD
+): Promise<DailyForecastSummary | null> {
+  try {
+    const apiKey = process.env.NEXT_PUBLIC_KMA_API_KEY;
+    if (!apiKey) {
+      console.error('기상청 API 키가 설정되지 않았습니다.');
+      return null;
+    }
+    const cleanApiKey = apiKey.replace(/\s+/g, '').trim();
+    const { x, y } = convertToGridCoords(lat, lng);
+
+    // 02시 발표 예보 사용 (새벽 3시 이전이면 전날 23시 발표 사용)
+    const now = new Date();
+    const base = new Date(now);
+    let baseTime = '0200';
+    if (now.getHours() < 3) {
+      base.setDate(base.getDate() - 1);
+      baseTime = '2300';
+    }
+    const baseDate = `${base.getFullYear()}${String(base.getMonth() + 1).padStart(2, '0')}${String(base.getDate()).padStart(2, '0')}`;
+    const target = targetDate.replace(/-/g, '');
+
+    const url = 'https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst';
+    const params = new URLSearchParams({
+      serviceKey: cleanApiKey,
+      pageNo: '1',
+      numOfRows: '1000',
+      dataType: 'XML',
+      base_date: baseDate,
+      base_time: baseTime,
+      nx: x.toString(),
+      ny: y.toString()
+    });
+
+    const response = await fetch(`${url}?${params}`);
+    if (!response.ok) {
+      throw new Error(`API 호출 실패: ${response.status}`);
+    }
+
+    const responseText = await response.text();
+    const data: KMAResponse = responseText.trim().startsWith('<')
+      ? parseXMLToJSON(responseText)
+      : JSON.parse(responseText);
+
+    if (data.response.header.resultCode !== '00') {
+      console.error(`기상청 단기예보 오류: ${data.response.header.resultMsg}`);
+      return null;
+    }
+
+    const items = data.response.body.items.item;
+    let tempMax: number | null = null;
+    let tempMin: number | null = null;
+    let sky = '';
+    let pty = 0;
+
+    for (const item of items) {
+      if (item.fcstDate !== target || !item.fcstValue) continue;
+
+      if (item.category === 'TMX') {
+        tempMax = Math.round(parseFloat(item.fcstValue) * 10) / 10;
+      } else if (item.category === 'TMN') {
+        tempMin = Math.round(parseFloat(item.fcstValue) * 10) / 10;
+      } else if (item.category === 'SKY' && (item.fcstTime === '1200' || !sky)) {
+        // 정오 기준 하늘상태 (1=맑음, 3=구름많음, 4=흐림)
+        sky = item.fcstValue === '1' ? '맑음' : item.fcstValue === '3' ? '구름많음' : item.fcstValue === '4' ? '흐림' : sky;
+      } else if (item.category === 'PTY' && item.fcstTime === '1200') {
+        pty = parseInt(item.fcstValue, 10) || 0;
+      }
+    }
+
+    if (tempMax === null && tempMin === null && !sky) return null;
+
+    // 정오 강수형태가 있으면 우선 표시 (1=비, 2=비/눈, 3=눈, 4=소나기)
+    const ptyText = pty === 1 ? '비' : pty === 2 ? '비/눈' : pty === 3 ? '눈' : pty === 4 ? '소나기' : '';
+    return { sky: ptyText || sky, tempMax, tempMin };
+  } catch (error) {
+    console.error('기상청 단기예보 조회 오류:', error);
+    return null;
+  }
+}
+
 // 주소를 기반으로 체감온도 가져오기 (기존 호환성을 위해 유지)
 export async function getApparentTemperatureByAddress(address: string): Promise<number | null> {
   try {
