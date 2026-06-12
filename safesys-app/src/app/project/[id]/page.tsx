@@ -5,7 +5,8 @@ import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Building, Phone, MoreVertical, Copy, Check, FileText } from 'lucide-react'
 import { Project, deleteProject } from '@/lib/projects'
-import { computeProgressRate } from '@/lib/work-daily-report/work-daily-report-types'
+import { computeProgressRate, ProgressAnchor } from '@/lib/work-daily-report/work-daily-report-types'
+import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import ProjectDeleteModal from '@/components/project/ProjectDeleteModal'
@@ -45,6 +46,7 @@ export default function ProjectDetailPage() {
   const [inspectionRequestCount, setInspectionRequestCount] = useState<number | null>(null)
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
   const [openCabinet, setOpenCabinet] = useState<'시공' | '안전' | '품질' | null>(null)
+  const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
 
   const RISK_ASSESSMENT_GPTS_URL = 'https://chatgpt.com/g/g-uhvOsghT3-hangugnongeocongongsa-wiheomseongpyeongga-jagseong-ai'
@@ -65,6 +67,16 @@ export default function ProjectDetailPage() {
       loadProject()
     }
   }, [user, projectId])
+
+  // 작업일보의 수동 입력 공정률 기준점 로드 — 작업일보 공정률과 동일한 보간 계산용
+  useEffect(() => {
+    if (!project?.construction_start_date || !project?.construction_end_date) return
+    let cancelled = false
+    getProgressAnchors(project.id).then(anchors => {
+      if (!cancelled && anchors.length > 0) setProgressAnchors(anchors)
+    })
+    return () => { cancelled = true }
+  }, [project?.id, project?.construction_start_date, project?.construction_end_date])
 
   // PTW 허가서 건수 조회 (서류철 카드 표시용)
   useEffect(() => {
@@ -488,11 +500,11 @@ export default function ProjectDetailPage() {
     )
   }
 
-  // 공사기간 기반 현재 공정률 (착공일 0% → 준공일 100%) — 시공 캐비넷 명판 표시용
+  // 현재 공정률 (착공일 0% → 수동 기준점 보간 → 준공일 100%) — 작업일보 공정률과 연동, 시공 캐비넷 명판 표시용
   const constructionProgress = (() => {
     const now = new Date()
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-    const rate = computeProgressRate(project.construction_start_date, project.construction_end_date, todayStr)
+    const rate = computeProgressRate(project.construction_start_date, project.construction_end_date, todayStr, progressAnchors)
     return rate === '' ? null : Math.round(parseFloat(rate))
   })()
 

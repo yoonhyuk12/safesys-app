@@ -13,6 +13,7 @@ import {
   ProgressAnchor,
   computeProgressRate,
 } from '@/lib/work-daily-report/work-daily-report-types'
+import { invalidateProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
 
 interface DraftAnchor {
   date: string
@@ -306,6 +307,9 @@ export default function ProgressRateModal({
           }
         }
       }
+
+      // 프로젝트 카드/상세 페이지의 공정률 표시 캐시 갱신
+      invalidateProgressAnchors(projectId)
 
       const currentRate = currentEntry ? String(currentEntry.rate) : null
       onSaved({

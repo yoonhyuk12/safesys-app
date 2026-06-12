@@ -3,7 +3,8 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Building, MapPin, MoreVertical, FileText, Share2 } from 'lucide-react'
 import { Project } from '@/lib/projects'
-import { computeProgressRate } from '@/lib/work-daily-report/work-daily-report-types'
+import { computeProgressRate, ProgressAnchor } from '@/lib/work-daily-report/work-daily-report-types'
+import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
 import { formatDistanceToNow } from 'date-fns'
 import { ko } from 'date-fns/locale'
 import type { QuarterToggleState } from '@/lib/ui-settings'
@@ -501,11 +502,23 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
   const updateInfo = getUpdateInfo()
 
-  // 공사기간 기반 현재 공정률 (착공일 0% → 준공일 100%, 다 채워지면 준공) — 기간 미등록 시 null
+  // 작업일보의 수동 입력 공정률 기준점 — 작업일보와 동일한 보간 계산을 위해 로드
+  const hasConstructionPeriod = !!project.construction_start_date && !!project.construction_end_date
+  const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
+  useEffect(() => {
+    if (!hasConstructionPeriod) return
+    let cancelled = false
+    getProgressAnchors(project.id).then(anchors => {
+      if (!cancelled && anchors.length > 0) setProgressAnchors(anchors)
+    })
+    return () => { cancelled = true }
+  }, [project.id, hasConstructionPeriod])
+
+  // 현재 공정률 (착공일 0% → 수동 기준점 보간 → 준공일 100%) — 작업일보 공정률과 연동, 기간 미등록 시 null
   const progressRate = (() => {
     const now = new Date()
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-    const rate = computeProgressRate(project.construction_start_date, project.construction_end_date, todayStr)
+    const rate = computeProgressRate(project.construction_start_date, project.construction_end_date, todayStr, progressAnchors)
     return rate === '' ? null : parseFloat(rate)
   })()
 

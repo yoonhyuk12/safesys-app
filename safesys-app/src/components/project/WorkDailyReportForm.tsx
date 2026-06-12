@@ -23,6 +23,7 @@ import {
   computeProgressRate,
   ProgressAnchor,
 } from '@/lib/work-daily-report/work-daily-report-types'
+import { invalidateProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
 import { downloadWorkDailyReportExcel } from '@/lib/excel/work-daily-report-export'
 import { getDailyForecastSummary } from '@/lib/weather'
 import ProgressRateModal from '@/components/project/ProgressRateModal'
@@ -594,6 +595,8 @@ export default function WorkDailyReportForm({
           ? [...others, { date: reportDate, rate: manualValue }]
           : others
       })
+      // 프로젝트 카드/상세 페이지의 공정률 표시 캐시 갱신
+      invalidateProgressAnchors(projectId)
 
       alert('저장되었습니다.')
       onSaved()
@@ -616,6 +619,9 @@ export default function WorkDailyReportForm({
         .delete()
         .eq('id', existingId)
       if (error) throw new Error(error.message)
+
+      // 삭제된 일보가 수동 기준점이었을 수 있음 — 카드/상세 공정률 캐시 갱신
+      invalidateProgressAnchors(projectId)
 
       alert('삭제되었습니다.')
       applyCarryOver(null)
