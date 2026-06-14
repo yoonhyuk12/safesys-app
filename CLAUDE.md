@@ -2,9 +2,150 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 작업 행동 가이드라인 (Behavioral Guidelines)
+
+Behavioral guidelines to reduce common LLM coding mistakes.
+
+> Tradeoff: These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+### 1. Think Before Coding
+
+Don't assume. Don't hide confusion. Surface tradeoffs.
+
+Before implementing:
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity First
+
+Minimum code that solves the problem. Nothing speculative.
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+
+Touch only what you must. Clean up only your own mess.
+
+When editing existing code:
+
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it — don't delete it.
+
+When your changes create orphans:
+
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+
+Define success criteria. Loop until verified.
+
+Transform tasks into verifiable goals:
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+### 5. No Closing Colons (Korean Output)
+
+End Korean sentences with a period, not a colon.
+
+When the user writes in Korean, your output is also Korean:
+
+- Don't end sentences with `:` even if the next line is a list or example.
+- LLMs trained on English docs leak the colon habit into Korean. Catch it.
+- The test: every Korean sentence terminator should be `.`, `?`, or `!` — not `:`.
+- Colons are fine inside code, key-value pairs, or labels. Not as sentence enders.
+
+### 6. File Header Comments in Korean
+
+First line of every new source file: a one-line Korean comment stating its role.
+
+When creating a new file:
+
+- TypeScript/JavaScript: `// 사용자 인증 상태를 관리하는 Context Provider`
+- Python: `# KIS API 호출을 비동기로 래핑하는 클라이언트`
+- SQL: `-- 일별 집계 결과를 저장하는 머티리얼라이즈드 뷰`
+- Place it directly under required directives (`'use client'`, `'use server'`, shebang).
+- Skip config files (`*.config.ts`, `package.json`, etc.).
+
+Why: agents read files selectively, not whole codebases. A one-line Korean header gives instant context so the next session (human or agent) can navigate without re-reading the entire file.
+
+### 7. Plan + Checklist + Context Notes
+
+Before any non-trivial task, produce three artifacts. Don't start coding without them.
+
+- **Plan** — what we're building and why.
+- **Checklist** (`checklist.md`) — concrete tasks as checkboxes. Tick as you go.
+- **Context Notes** (`context-notes.md`) — decisions made during the work and the reasoning behind them. Append continuously.
+
+If the user gives only a plan and asks you to start coding, stop and ask: "Should I create the checklist and context notes first?" The next session — yours or someone else's — needs the notes to pick up where you left off without re-deriving every decision.
+
+### 8. Run Tests Before Marking Complete
+
+If you touched code, run the tests before saying "done".
+
+- `npm test`, `pytest`, `cargo test`, whatever the project uses — run it.
+- If tests pass, report results. If they fail, fix and re-run.
+- No test setup? At minimum, verify the project builds/compiles.
+- Run tests proactively, before the user signals "끝", "완료", "다 됐어" — not after.
+
+This is the step LLMs skip most often. Treat it as non-negotiable.
+
+### 9. Semantic Commits
+
+Commit when one logical change is complete. Don't wait for the user to ask.
+
+- The test: "Can I describe this commit in one sentence?" If yes, commit. If no, the changes are still mixed — split them.
+- Good: "auth 미들웨어 추가". Bad: "auth 추가하고 UI도 고치고 버그도 수정" (split into 3).
+- Don't accumulate 20 unrelated edits and lose the ability to roll back individually.
+- Don't commit just to commit — meaningful units only.
+
+> Note: For solo prototypes or throwaway scripts, group commits loosely if it slows you down. The point is reversibility, not ceremony.
+
+### 10. Read Errors, Don't Guess
+
+Read the actual error/log line. Don't pattern-match from memory.
+
+When something fails:
+
+- Read the full error message and stack trace.
+- Check the actual log output, not what you assume it should say.
+- Don't apply a "common fix" before confirming the cause.
+- If unclear, add a print/log to verify state — then fix.
+
+This is the step LLMs skip most often after "run tests". They guess from error keywords and apply the most-recent-pattern fix. That's how a one-line bug becomes a three-file refactor.
+
+These guidelines are working if: fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
 ## 프로젝트 개요
 
-SafeSys는 Next.js 15, React 19, Supabase로 구축된 한국의 건설 안전관리 시스템입니다. 건설 프로젝트의 안전 점검(폭염, 관리자, 본부불시, TBM), 작업자 관리, 자재 원장, 문서 생성(PDF/Excel/HWPX)을 관리합니다. PWA로 설계되어 모바일 현장 사용을 지원합니다.
+SafeSys는 Next.js 15, React 19, Supabase로 구축된 한국의 건설 안전관리 시스템입니다.
+
+건설 프로젝트의 안전 점검(폭염, 관리자, 본부불시, TBM), 작업자 관리, 자재 원장, 문서 생성(PDF/Excel/HWPX)을 관리합니다. PWA로 설계되어 모바일 현장 사용을 지원합니다.
 
 ## 계획서 (Plans)
 
@@ -32,6 +173,7 @@ npm run lint             # ESLint 검사
 ## 아키텍처
 
 ### 기술 스택
+
 - **프론트엔드**: Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS 4
 - **백엔드**: Supabase (PostgreSQL + Auth + Realtime)
 - **지도**: Kakao Maps API, VWorld Map API, Leaflet
@@ -58,6 +200,7 @@ layout.tsx (Root)
 ```
 
 **viewMode 상태**:
+
 ```typescript
 const [viewMode, setViewMode] = useState<'tbm' | 'map' | 'list' | 'safety'>()
 const [selectedSafetyCard, setSelectedSafetyCard] = useState<string | null>(null)
@@ -67,19 +210,21 @@ const [selectedSafetyBranch, setSelectedSafetyBranch] = useState<string | null>(
 ### 라우팅 구조
 
 **메인 라우트:**
-| 경로 | 설명 |
-|------|------|
-| `/` | 사용자 역할에 따라 /tbm 또는 /safe로 리다이렉트 |
-| `/safe/*` | 안전현황 대시보드 (아래 상세) |
-| `/tbm` | TBM 현황 페이지 |
-| `/tbm-view/[id]` | TBM 뷰 상세 (다국어 번역/복사 지원) |
-| `/list` | 프로젝트 목록 뷰 |
-| `/map` | 프로젝트 지도 뷰 |
-| `/business` | 자재/사업관리 뷰 |
-| `/project/[id]/*` | 프로젝트 상세 (20개 하위 페이지) |
-| `/worker-register` | 작업자 등록 플로우 |
+
+| 경로                 | 설명                                            |
+| -------------------- | ----------------------------------------------- |
+| `/`                | 사용자 역할에 따라 /tbm 또는 /safe로 리다이렉트 |
+| `/safe/*`          | 안전현황 대시보드 (아래 상세)                   |
+| `/tbm`             | TBM 현황 페이지                                 |
+| `/tbm-view/[id]`   | TBM 뷰 상세 (다국어 번역/복사 지원)             |
+| `/list`            | 프로젝트 목록 뷰                                |
+| `/map`             | 프로젝트 지도 뷰                                |
+| `/business`        | 자재/사업관리 뷰                                |
+| `/project/[id]/*`  | 프로젝트 상세 (20개 하위 페이지)                |
+| `/worker-register` | 작업자 등록 플로우                              |
 
 **안전현황 라우트 (`/safe/`):**
+
 ```
 /safe                                    # 전체 안전현황 개요
 /safe/heatwave                          # 폭염점검 전체 현황
@@ -101,6 +246,7 @@ daily-inspection, edit, headquarters-inspection, heatwave, holiday-work, issue-m
 ### API 라우트 (`src/app/api/`)
 
 **AI 엔드포인트 (8개):**
+
 - `/api/ai/daily-inspection` — AI 일일점검 생성
 - `/api/ai/extract-equipment-count` — OCR 장비 수량 추출
 - `/api/ai/ocr-card` — 카드 OCR
@@ -111,6 +257,7 @@ daily-inspection, edit, headquarters-inspection, heatwave, holiday-work, issue-m
 - `/api/ai/write-risk-analysis` — AI 위험분석 작성
 
 **외부 서비스 연동:**
+
 - `/api/weather/*` — 기상청 API (ASOS, 역사데이터, 체감온도)
 - `/api/geocoding`, `/api/address-search` — 주소/좌표 변환
 - `/api/telegram/*` — Telegram 알림 (텍스트/사진)
@@ -137,24 +284,26 @@ src/components/
 
 ### 유틸리티 (`src/lib/`)
 
-| 파일 | 역할 |
-|------|------|
+| 파일                       | 역할                                                         |
+| -------------------------- | ------------------------------------------------------------ |
 | `projects.ts` (~2,400줄) | 핵심 데이터 함수: 프로젝트 CRUD, 점검 데이터 조회, 타입 정의 |
-| `supabase.ts` | Supabase 클라이언트 초기화 (lazy loading) |
-| `supabase-admin.ts` | 관리자용 Supabase 클라이언트 |
-| `auth.ts` | 인증 유틸리티 |
-| `constants.ts` | 본부/지사 옵션, `DEBUG_LOGS` 플래그 |
-| `weather.ts` | 기상청 API 연동 |
-| `tbm.ts` | TBM 상태 관리 |
-| `telegram.ts` | Telegram 봇 연동 |
-| `ui-settings.ts` | UI 상태 영속화 (분기 토글) |
+| `supabase.ts`            | Supabase 클라이언트 초기화 (lazy loading)                    |
+| `supabase-admin.ts`      | 관리자용 Supabase 클라이언트                                 |
+| `auth.ts`                | 인증 유틸리티                                                |
+| `constants.ts`           | 본부/지사 옵션,`DEBUG_LOGS` 플래그                         |
+| `weather.ts`             | 기상청 API 연동                                              |
+| `tbm.ts`                 | TBM 상태 관리                                                |
+| `telegram.ts`            | Telegram 봇 연동                                             |
+| `ui-settings.ts`         | UI 상태 영속화 (분기 토글)                                   |
 
 **문서 생성:**
+
 - `lib/reports/` — PDF 보고서 12개 (jsPDF + html2canvas)
 - `lib/excel/` — Excel 내보내기 10개 (exceljs)
 - `lib/hwpx/` — HWPX 내보내기 3개
 
 ### 주요 타입 (`src/lib/projects.ts`)
+
 ```typescript
 // UserProfile: role('발주청'|'감리단'|'시공사'), hq_division, branch_division, is_admin
 // Project: is_active는 boolean 또는 분기별 JSONB 객체
@@ -165,6 +314,7 @@ src/components/
 ## 환경 설정
 
 `.env.local`에 필요한 환경 변수:
+
 ```
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
@@ -176,20 +326,24 @@ NEXT_PUBLIC_APP_VERSION=1.0.0
 ```
 
 **API 키 사용 위치:**
+
 - V-World: `.env.local`, `layout.tsx`, `api/geocoding/route.ts`, `VworldAddressSearch.tsx`
 - Kakao Maps: `layout.tsx`에 하드코딩
 
 ## 인증 및 권한
 
 ### 역할 체계
+
 - **발주청** (클라이언트): 전사 데이터 조회 가능 (본부급 또는 관리자)
 - **감리단** (감독): 소속 지사 데이터만 조회
 - **시공사** (계약업체): 소속 지사 데이터만 조회
 
 ### 조직 구조
+
 본부(hq_division) → 지사(branch_division) 계층 구조
 
 ### 접근 권한 패턴
+
 ```typescript
 // 전사 보기 권한
 const canSeeAllHq = userProfile?.role === '발주청' &&
@@ -197,6 +351,7 @@ const canSeeAllHq = userProfile?.role === '발주청' &&
 ```
 
 ### 인증 플로우
+
 - **AuthContext** (`src/contexts/AuthContext.tsx`): 전역 인증 상태 (user, userProfile, refreshProfile, signOut)
 - **SupabaseProvider** (`src/providers/SupabaseProvider.tsx`): Supabase 클라이언트/세션 제공
 - 자동 토큰 갱신 (`autoRefreshToken` 활성화)
@@ -204,6 +359,7 @@ const canSeeAllHq = userProfile?.role === '발주청' &&
 ## 데이터베이스
 
 ### 주요 테이블
+
 - `user_profiles` — 사용자 역할/조직 구조
 - `projects` — 건설 프로젝트 (행정구역, 좌표, 분기별 활성 상태)
 - `heat_wave_checks` — 열중질환 안전 점검
@@ -215,28 +371,34 @@ const canSeeAllHq = userProfile?.role === '발주청' &&
 - 모든 테이블에 RLS(Row Level Security) 적용
 
 ### 마이그레이션
+
 `database/` 디렉토리에 14개 SQL 마이그레이션 파일
 
 ### Supabase MCP 주의사항
+
 **읽기 전용** 모드 — SELECT 쿼리만 가능. DDL/DML 불가. 스키마 변경 필요 시 Supabase 웹 콘솔 사용.
 
 ## 개발 참고사항
 
 ### Next.js 설정 (next.config.ts)
+
 - **빌드 설정**: TypeScript/ESLint 오류가 빌드를 차단하지 않음
 - **출력 모드**: `standalone`
 - **캐시 비활성화**: 모든 경로에 no-cache 헤더
 - **Webpack**: punycode deprecation 경고 억제
 
 ### UI 컴포넌트
+
 - ShadCN 사용: `npx shadcn@latest add [component-name]` (deprecated된 `shadcn-ui` 사용 금지)
 - 아이콘: Lucide React (`import { IconName } from "lucide-react"`)
 - 사용 전 `src/components/ui/` 디렉토리에서 설치 여부 확인
 
 ### PWA
+
 - 서비스 워커 자동 등록, 설치 프롬프트, 업데이트 알림 시스템
 
 ### 데이터 로딩 패턴
+
 - 지연 로딩: 특정 카드/뷰 선택 시에만 데이터 로드
 - ref 기반 캐시로 중복 요청 방지
 - 사용자 역할/viewMode 조건 확인 후 데이터 로드

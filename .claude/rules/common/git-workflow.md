@@ -9,6 +9,8 @@
 
 Types: feat, fix, refactor, docs, test, chore, perf, ci
 
+> 언제·얼마나 잘게 커밋할지(원자적 커밋, "한 문장으로 설명 가능" 기준) 원칙은 [CLAUDE.md](../../../CLAUDE.md) 가이드 #9를 따른다. 이 파일은 메시지 포맷·타입·PR 절차를 담는다.
+
 Note: Attribution disabled globally via ~/.claude/settings.json.
 
 ## Pull Request Workflow

@@ -19,13 +19,11 @@ The Feature Implementation Workflow describes the development pipeline: research
    - Generate planning docs before coding: PRD, architecture, system_design, tech_doc, task_list
    - Identify dependencies and risks
    - Break down into phases
+   - 비자명 작업은 `checklist.md`·`context-notes.md` 산출물도 함께 만든다 — CLAUDE.md 가이드 #7을 따른다.
 
 2. **TDD Approach**
    - Use **tdd-guide** agent
-   - Write tests first (RED)
-   - Implement to pass tests (GREEN)
-   - Refactor (IMPROVE)
-   - Verify 80%+ coverage
+   - RED → GREEN → REFACTOR 사이클과 80%+ 커버리지 기준은 [testing.md](./testing.md)를 단일 출처로 따른다 (CLAUDE.md 가이드 #4·#8 참조).
 
 3. **Code Review**
    - Use **code-reviewer** agent immediately after writing code
