@@ -463,24 +463,24 @@ export async function getHeatWaveCheckCountByUserBranch(
   }
 }
 
-// 프로젝트 삭제 (관련 점검 데이터도 함께 삭제)
+// 프로젝트 삭제 (관련 점검 데이터는 CASCADE, Storage 사진은 서버 라우트에서 함께 정리)
 export async function deleteProject(projectId: string): Promise<{ success: boolean; error?: string }> {
   try {
-    const { data: { user } } = await supabase.auth.getUser()
+    const { data: { session } } = await supabase.auth.getSession()
 
-    if (!user) {
+    if (!session) {
       return { success: false, error: '로그인이 필요합니다.' }
     }
 
-    // 프로젝트 삭제 (모든 관련 테이블은 ON DELETE CASCADE로 자동 삭제)
-    const { error: projectError } = await supabase
-      .from('projects')
-      .delete()
-      .eq('id', projectId)
+    // Storage 파일 삭제는 service-role 권한이 필요하므로 서버 라우트에 위임
+    const response = await fetch(`/api/projects/${projectId}/delete`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+    const result = await response.json()
 
-    if (projectError) {
-      console.error('Project deletion error:', projectError)
-      return { success: false, error: '프로젝트 삭제에 실패했습니다.' }
+    if (!response.ok || !result.success) {
+      return { success: false, error: result.error || '프로젝트 삭제에 실패했습니다.' }
     }
 
     return { success: true }
