@@ -38,6 +38,25 @@ const getErrorMessage = (err: unknown): string =>
 
 const isDateStr = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v)
 
+// 공정률 단조 증가 원칙: 시간이 지나도 공정률은 낮아질 수 없음 — 나중 날짜는 앞선 날짜보다 같거나 높아야 함.
+// 사용자가 입력한 기준값(base)은 draft에 그대로 두고, 표시·저장용 적용값(effective)만
+// 날짜순 누적 최댓값 max(자기 base, 앞선 적용값)으로 계산한다.
+// 덕분에 앞선 날짜를 올리면 뒤 날짜가 끌려 올라가고, 앞선 날짜를 다시 내리면 뒤 날짜는 각자의 기준값까지 따라 내려간다.
+const effectiveRateMap = (rows: DraftAnchor[]): Map<string, number> => {
+  const valid = rows
+    .filter(d => isDateStr(d.date) && d.rate.trim() !== '' && !isNaN(parseFloat(d.rate)))
+    .map(d => ({ date: d.date, base: Math.min(100, Math.max(0, parseFloat(d.rate))) }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+  const map = new Map<string, number>()
+  let runningMax = -Infinity
+  for (const v of valid) {
+    const eff = Math.max(v.base, runningMax)
+    runningMax = eff
+    map.set(v.date, eff)
+  }
+  return map
+}
+
 // ── SVG 차트 상수
 const W = 640
 const H = 300
@@ -61,7 +80,7 @@ export default function ProgressRateModal({
   const [draft, setDraft] = useState<DraftAnchor[]>([])
   const [saving, setSaving] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
-  const draggingRef = useRef(false)
+  const draggingDateRef = useRef<string | null>(null)
 
   // 모달이 열릴 때 초안 구성: 저장된 기준점 + 선택 날짜의 미저장 수동값
   useEffect(() => {
@@ -86,10 +105,10 @@ export default function ProgressRateModal({
     isDateStr(constructionStart) && isDateStr(constructionEnd) &&
     constructionStart < constructionEnd
 
-  // 유효한 초안 기준점 (차트 실시간 반영)
-  const validAnchors: ProgressAnchor[] = draft
-    .filter(d => isDateStr(d.date) && d.rate.trim() !== '' && !isNaN(parseFloat(d.rate)))
-    .map(d => ({ date: d.date, rate: Math.min(100, Math.max(0, parseFloat(d.rate))) }))
+  // 적용 공정률(단조 증가 반영) — 차트/저장에 사용. 사용자가 입력한 기준값은 draft에 그대로 보존.
+  const effectiveByDate = effectiveRateMap(draft)
+  const validAnchors: ProgressAnchor[] = Array.from(effectiveByDate.entries())
+    .map(([date, rate]) => ({ date, rate }))
 
   // 선택 날짜의 공정률 미리보기 (선택 날짜 자신의 기준점 우선)
   const currentEntry = validAnchors.find(a => a.date === reportDate)
@@ -148,30 +167,32 @@ export default function ProgressRateModal({
     return Math.min(100, Math.max(0, Math.round(rate * 10) / 10))
   }
 
-  const setCurrentDateRate = (rate: number) => {
+  // 특정 날짜의 공정률 기준점 갱신 (없으면 추가) — 그래프 핸들 드래그 공용
+  // 드래그/입력은 사용자의 기준값(base)만 설정한다. 단조 증가는 effectiveRateMap에서 표시·저장 시 적용.
+  const setDateRate = (date: string, rate: number) => {
     setDraft(rows => {
-      const idx = rows.findIndex(r => r.date === reportDate)
+      const idx = rows.findIndex(r => r.date === date)
       if (idx >= 0) {
         return rows.map((r, i) => i === idx ? { ...r, rate: String(rate) } : r)
       }
-      return [...rows, { date: reportDate, rate: String(rate) }]
+      return [...rows, { date, rate: String(rate) }]
         .sort((a, b) => a.date.localeCompare(b.date))
     })
   }
 
-  const handlePointerDown = (e: React.PointerEvent) => {
-    draggingRef.current = true
+  const handlePointerDown = (e: React.PointerEvent, date: string) => {
+    draggingDateRef.current = date
     ;(e.target as Element).setPointerCapture(e.pointerId)
-    setCurrentDateRate(rateFromPointer(e.clientY))
+    setDateRate(date, rateFromPointer(e.clientY))
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!draggingRef.current) return
-    setCurrentDateRate(rateFromPointer(e.clientY))
+    if (!draggingDateRef.current) return
+    setDateRate(draggingDateRef.current, rateFromPointer(e.clientY))
   }
 
   const handlePointerUp = () => {
-    draggingRef.current = false
+    draggingDateRef.current = null
   }
 
   const updateDraft = (index: number, field: 'date' | 'rate', value: string) => {
@@ -182,8 +203,42 @@ export default function ProgressRateModal({
     setDraft(rows => rows.filter((_, i) => i !== index))
   }
 
+  // 새 기준점 기본 날짜: 공사기간 내 가장 넓은 빈 구간의 중간 (기존 행과 중복 회피)
+  const pickDefaultAnchorDate = (): string => {
+    if (!hasPeriod) return ''
+    const toYMD = (t: number) => {
+      const d = new Date(t)
+      return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+    }
+    const used = new Set(draft.map(r => r.date).filter(isDateStr))
+    const inner = Array.from(used)
+      .map(d => new Date(d).getTime())
+      .filter(t => t > startT && t < endT)
+    const points = [startT, ...inner, endT].sort((a, b) => a - b)
+    let bestMid = (startT + endT) / 2
+    let bestGap = -1
+    for (let i = 0; i < points.length - 1; i++) {
+      const gap = points[i + 1] - points[i]
+      if (gap > bestGap) { bestGap = gap; bestMid = (points[i] + points[i + 1]) / 2 }
+    }
+    const DAY = 24 * 60 * 60 * 1000
+    let candidate = toYMD(bestMid)
+    let guard = 0
+    while ((used.has(candidate) || candidate === toYMD(startT) || candidate === toYMD(endT)) && guard < 366) {
+      bestMid += DAY
+      candidate = toYMD(bestMid)
+      guard++
+    }
+    return candidate
+  }
+
   const addDraft = () => {
-    setDraft(rows => [...rows, { date: '', rate: '' }])
+    const date = pickDefaultAnchorDate()
+    // 직선보간법 자동 공정률을 기본값으로 채움 — 새 점이 현재 보간선 위에 놓이고 바로 드래그 가능
+    const rate = date
+      ? computeProgressRate(constructionStart, constructionEnd, date, validAnchors.filter(a => a.date !== date))
+      : ''
+    setDraft(rows => [...rows, { date, rate }].sort((a, b) => a.date.localeCompare(b.date)))
   }
 
   // 다른 날짜 기준점 DB 반영 (해당 날짜 일보가 있으면 갱신, 없으면 생성)
@@ -244,6 +299,9 @@ export default function ProgressRateModal({
       return
     }
 
+    // validAnchors/currentEntry는 effectiveRateMap을 거친 적용값이라 단조 증가가 이미 반영됨
+    const savedCurrent = currentEntry ?? null
+
     try {
       setSaving(true)
 
@@ -265,7 +323,7 @@ export default function ProgressRateModal({
       }
 
       // 선택 날짜의 수동 공정률 — 일보가 이미 있으면 즉시 반영 (없으면 폼 저장 시 반영)
-      if (currentEntry) {
+      if (savedCurrent) {
         const { data: currentRow } = await supabase
           .from('work_daily_reports')
           .select('id')
@@ -275,7 +333,7 @@ export default function ProgressRateModal({
         if (currentRow) {
           const { error: curError } = await supabase
             .from('work_daily_reports')
-            .update({ progress_rate: String(currentEntry.rate), progress_rate_manual: true, updated_at: new Date().toISOString() })
+            .update({ progress_rate: String(savedCurrent.rate), progress_rate_manual: true, updated_at: new Date().toISOString() })
             .eq('id', currentRow.id)
           if (curError) throw new Error(curError.message)
         }
@@ -289,7 +347,7 @@ export default function ProgressRateModal({
           .eq('project_id', projectId)
         if (allError) throw new Error(allError.message)
 
-        const anchorList = currentEntry ? [...newOthers, currentEntry] : newOthers
+        const anchorList = savedCurrent ? [...newOthers, savedCurrent] : newOthers
         for (const row of allReports || []) {
           if (row.progress_rate_manual) continue
           const computed = computeProgressRate(
@@ -311,9 +369,9 @@ export default function ProgressRateModal({
       // 프로젝트 카드/상세 페이지의 공정률 표시 캐시 갱신
       invalidateProgressAnchors(projectId)
 
-      const currentRate = currentEntry ? String(currentEntry.rate) : null
+      const currentRate = savedCurrent ? String(savedCurrent.rate) : null
       onSaved({
-        anchors: currentEntry ? [...newOthers, currentEntry] : newOthers,
+        anchors: savedCurrent ? [...newOthers, savedCurrent] : newOthers,
         currentRate,
       })
       onClose()
@@ -339,7 +397,8 @@ export default function ProgressRateModal({
         </div>
         <p className="text-xs text-gray-500 mb-3">
           착공(0%) → 준공(100%) 직선보간 그래프입니다. 날짜별 공정률을 직접 입력하면 그 점을 지나도록 실시간 보정됩니다.
-          그래프의 <span className="font-semibold text-amber-600">주황 핸들</span>을 위아래로 드래그하면 선택 날짜의 공정률을 조정할 수 있습니다.
+          그래프의 <span className="font-semibold text-amber-600">주황 핸들</span>(선택 날짜)과 <span className="font-semibold text-red-600">빨간 점</span>(다른 날짜)을 위아래로 드래그해 각 날짜의 공정률을 조정할 수 있습니다.
+          행을 추가하면 그래프에 새 점이 생기고 기본값은 직선보간 자동 공정률로 채워집니다.
         </p>
 
         {!hasPeriod ? (
@@ -382,12 +441,26 @@ export default function ProgressRateModal({
               <circle cx={xScale(startT)} cy={yScale(0)} r="4" fill="#1f2937" />
               <circle cx={xScale(endT)} cy={yScale(100)} r="4" fill="#1f2937" />
 
-              {/* 수동 기준점 */}
+              {/* 수동 기준점 — 각 점을 위아래로 드래그하면 해당 날짜의 공정률 조정 (선택 날짜는 아래 주황 핸들) */}
               {validAnchors
                 .map(a => ({ ...a, t: new Date(a.date).getTime() }))
-                .filter(a => a.t >= startT && a.t <= endT)
+                .filter(a => a.t >= startT && a.t <= endT && a.date !== reportDate)
                 .map(a => (
-                  <circle key={a.date} cx={xScale(a.t)} cy={yScale(a.rate)} r="4.5" fill="#dc2626" stroke="#fff" strokeWidth="1.5" />
+                  <g
+                    key={a.date}
+                    className="cursor-ns-resize"
+                    style={{ touchAction: 'none' }}
+                    onPointerDown={e => handlePointerDown(e, a.date)}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                  >
+                    <text x={xScale(a.t)} y={yScale(a.rate) - 11} textAnchor="middle" fontSize="9" fill="#b91c1c" fontWeight="bold">
+                      {a.rate.toFixed(1)}%
+                    </text>
+                    <circle cx={xScale(a.t)} cy={yScale(a.rate)} r="7" fill="#dc2626" stroke="#fff" strokeWidth="2" />
+                    <line x1={xScale(a.t) - 3} y1={yScale(a.rate) - 1.8} x2={xScale(a.t) + 3} y2={yScale(a.rate) - 1.8} stroke="#fff" strokeWidth="1.1" />
+                    <line x1={xScale(a.t) - 3} y1={yScale(a.rate) + 1.8} x2={xScale(a.t) + 3} y2={yScale(a.rate) + 1.8} stroke="#fff" strokeWidth="1.1" />
+                  </g>
                 ))}
 
               {/* 선택 날짜 위치 + 드래그 핸들 (수직 이동만) */}
@@ -403,7 +476,7 @@ export default function ProgressRateModal({
                   <g
                     className="cursor-ns-resize"
                     style={{ touchAction: 'none' }}
-                    onPointerDown={handlePointerDown}
+                    onPointerDown={e => handlePointerDown(e, reportDate)}
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
                   >
@@ -458,6 +531,14 @@ export default function ProgressRateModal({
           <tbody>
             {draft.map((row, i) => {
               const isCurrent = row.date === reportDate
+              const base = parseFloat(row.rate)
+              const eff = effectiveByDate.get(row.date)
+              const pushedUp = eff != null && !isNaN(base) && eff > base + 0.05
+              // 빈 칸은 그 날짜의 직선보간 자동값을 placeholder로 노출 (입력 전까지 '자동' 상태 유지)
+              const autoRate = row.rate.trim() === '' && hasPeriod && isDateStr(row.date)
+                ? computeProgressRate(constructionStart, constructionEnd, row.date, validAnchors.filter(a => a.date !== row.date))
+                : ''
+              const ratePlaceholder = autoRate ? `${autoRate}% (자동)` : '비우면 자동 계산'
               return (
                 <tr key={i} className={isCurrent ? 'bg-amber-50/60' : ''}>
                   <td className="border border-gray-300 p-0">
@@ -468,13 +549,18 @@ export default function ProgressRateModal({
                       className="w-full px-1.5 py-1.5 text-xs bg-transparent text-center focus:outline-none focus:bg-blue-50"
                     />
                   </td>
-                  <td className="border border-gray-300 p-0">
+                  <td className="border border-gray-300 p-0 align-middle">
                     <input
                       value={row.rate}
                       onChange={e => updateDraft(i, 'rate', e.target.value)}
-                      placeholder="비우면 자동 계산"
-                      className="w-full px-1.5 py-1.5 text-xs bg-transparent text-center focus:outline-none focus:bg-blue-50"
+                      placeholder={ratePlaceholder}
+                      className="w-full px-1.5 py-1.5 text-xs bg-transparent text-center focus:outline-none focus:bg-blue-50 placeholder:text-gray-500"
                     />
+                    {pushedUp && (
+                      <div className="text-[10px] text-amber-600 leading-none pb-1 text-center" title="앞선 날짜의 공정률 때문에 끌어올려진 적용값입니다.">
+                        ↑ 적용 {eff!.toFixed(1)}%
+                      </div>
+                    )}
                   </td>
                   <td className="border border-gray-300 text-center">
                     <button
@@ -493,6 +579,8 @@ export default function ProgressRateModal({
         <p className="text-[11px] text-gray-400 mb-4">
           노란 행은 현재 선택한 날짜({reportDate})입니다. 선택 날짜의 공정률은 작업일보 저장 시 함께 저장되고,
           다른 날짜는 확인 즉시 해당 날짜의 작업일보에 반영됩니다.
+          공정률은 시간순으로 낮아질 수 없어, 앞선 날짜를 올리면 이후 날짜도 같은 값 이상으로 끌어올려집니다(↑ 적용 표시).
+          앞선 날짜를 다시 내리면 이후 날짜는 각자 입력한 값까지 따라 내려갑니다.
         </p>
 
         <div className="flex justify-end gap-2">

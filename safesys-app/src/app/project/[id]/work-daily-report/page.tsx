@@ -144,10 +144,10 @@ export default function WorkDailyReportPage() {
     }
   }, [user, project, loadTbmDates])
 
-  // 날짜 변경 시 일지 닫기 (추가/보기 화면으로 복귀)
+  // 날짜 선택 시: 작업일보가 있으면 바로 펼쳐서 보기/수정, 없으면 추가 화면 표시
   useEffect(() => {
-    setFormOpen(false)
-  }, [selectedDate])
+    setFormOpen(reportDates.includes(selectedDate))
+  }, [selectedDate, reportDates])
 
   useEffect(() => {
     if (user && projectId) {
