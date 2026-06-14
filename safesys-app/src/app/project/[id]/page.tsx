@@ -45,7 +45,7 @@ export default function ProjectDetailPage() {
   const [ptwCount, setPtwCount] = useState<number | null>(null)
   const [inspectionRequestCount, setInspectionRequestCount] = useState<number | null>(null)
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
-  const [openCabinet, setOpenCabinet] = useState<'시공' | '안전' | '품질' | null>(null)
+  const [openCabinet, setOpenCabinet] = useState<'시공' | '안전' | '품질' | '발주청' | null>(null)
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -756,17 +756,35 @@ export default function ProjectDetailPage() {
               {project.business_card_pdf_url && (
                 <BusinessCardEasel onClick={handleBusinessCardClick} />
               )}
-              {(['시공', '안전', '품질'] as const).map((name) => (
-                <DocumentCabinet
-                  key={name}
-                  title={name}
-                  titleSuffix={name === '시공' && constructionProgress !== null ? `(${constructionProgress}%)` : undefined}
-                  pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) : undefined}
-                  color={name === '시공' ? 'blue' : name === '안전' ? 'green' : 'amber'}
-                  isOpen={openCabinet === name}
-                  onClick={() => setOpenCabinet((prev) => (prev === name ? null : name))}
-                />
-              ))}
+              {([
+                '시공', '안전', '품질',
+                // 발주청 캐비넷은 발주청 소속 사용자에게만 노출
+                ...(userProfile?.role === '발주청' ? ['발주청'] : []),
+              ] as Array<'시공' | '안전' | '품질' | '발주청'>).map((name) => {
+                const cabinet = (
+                  <DocumentCabinet
+                    key={name}
+                    title={name}
+                    titleSuffix={name === '시공' && constructionProgress !== null ? `(${constructionProgress}%)` : undefined}
+                    pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) : undefined}
+                    color={name === '시공' ? 'blue' : name === '안전' ? 'green' : name === '품질' ? 'amber' : 'purple'}
+                    isOpen={openCabinet === name}
+                    onClick={() => setOpenCabinet((prev) => (prev === name ? null : name))}
+                  />
+                )
+                // 발주청 캐비넷 바로 아래에 안내 문구 표시 (절대 배치 — 다른 캐비넷 정렬에 영향 없음)
+                if (name === '발주청') {
+                  return (
+                    <div key={name} className="relative">
+                      {cabinet}
+                      <p className="absolute left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap text-xs text-blue-100/70">
+                        * 위 발주청 캐비넷은 발주청 사용자만 보입니다.
+                      </p>
+                    </div>
+                  )
+                }
+                return cabinet
+              })}
             </div>
           </div>
 
@@ -1028,6 +1046,27 @@ export default function ProjectDetailPage() {
                   isPending={true}
                   onClick={() => router.push(`/project/${projectId}/issue-management`)}
                   pdcaCategory="A"
+                />
+              </div>
+            </div>
+          </div>
+          )}
+
+          {/* 문서철 그리드 - 발주청 캐비넷 */}
+          {openCabinet === '발주청' && (
+          <div className="flex flex-wrap justify-center gap-3">
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>C (점검)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="︵AI︶
+공사감독 일지"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/supervisor-diary`)}
+                  pdcaCategory="C"
+                  bottomLabel="감독"
                 />
               </div>
             </div>
