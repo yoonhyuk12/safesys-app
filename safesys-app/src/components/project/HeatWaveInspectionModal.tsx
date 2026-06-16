@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { X, Thermometer, Camera, Upload, Loader2, Calendar, User } from 'lucide-react'
+import { X, Thermometer, Camera, Upload, Loader2, Calendar, User, CloudSun } from 'lucide-react'
 import Image from 'next/image'
 import SignatureModal from './SignatureModal'
 
@@ -44,6 +44,9 @@ export default function HeatWaveInspectionModal({
   const [isLoading, setIsLoading] = useState(false)
   const [showSignatureModal, setShowSignatureModal] = useState(false)
   const [weatherDetailUrl, setWeatherDetailUrl] = useState<string>('')
+  const [weatherLoading, setWeatherLoading] = useState(false)
+  // 기상청에서 가져온 체감온도의 출처(주소·기준 시각) 안내 문구
+  const [weatherInfo, setWeatherInfo] = useState<string>('')
   
   const [formData, setFormData] = useState<HeatWaveInspectionData>({
     measureDateTime: '',
@@ -274,6 +277,8 @@ export default function HeatWaveInspectionModal({
   // 모달이 열릴 때 저장된 데이터 복원 및 초기 설정
   useEffect(() => {
     if (isOpen) {
+      // 이전 조회의 출처 안내 문구 초기화
+      setWeatherInfo('')
       // 먼저 저장된 데이터가 있는지 확인
       const savedData = loadFromStorage()
       
@@ -303,8 +308,70 @@ export default function HeatWaveInspectionModal({
       [field]: value
     }
     setFormData(newData)
+    // 체감온도를 직접 수정하면 기상청 출처 안내는 더 이상 유효하지 않음
+    if (field === 'temperature') {
+      setWeatherInfo('')
+    }
     // 변경사항을 즉시 저장 (async 함수이므로 await 없이 호출)
     saveToStorage(newData)
+  }
+
+  // 기상청에서 측정일시 기준 가까운 시간대의 체감온도를 가져와 자동 입력
+  const fetchApparentTemperature = async () => {
+    if (!projectCoords) {
+      alert('현장 좌표(위도/경도)가 등록되어 있지 않아 기상청 체감온도를 가져올 수 없습니다.')
+      return
+    }
+
+    try {
+      setWeatherLoading(true)
+
+      // 측정일시(YYYY-MM-DDTHH:mm) → targetDate(YYYYMMDD)/targetTime(HHmm), 없으면 현재 시각
+      const dt = formData.measureDateTime
+        ? new Date(formData.measureDateTime.replace('T', ' '))
+        : new Date()
+      const targetDate = `${dt.getFullYear()}${String(dt.getMonth() + 1).padStart(2, '0')}${String(dt.getDate()).padStart(2, '0')}`
+      const targetTime = `${String(dt.getHours()).padStart(2, '0')}${String(dt.getMinutes()).padStart(2, '0')}`
+
+      const response = await fetch('/api/weather-crawl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lat: projectCoords.lat,
+          lng: projectCoords.lng,
+          targetDate,
+          targetTime
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`기상청 조회 실패 (${response.status})`)
+      }
+
+      const data = await response.json()
+      if (data.apparentTemperature === undefined || data.apparentTemperature === null) {
+        throw new Error('체감온도 데이터를 가져오지 못했습니다.')
+      }
+
+      const newData = { ...formData, temperature: String(data.apparentTemperature) }
+      setFormData(newData)
+      saveToStorage(newData)
+
+      // 출처 안내 문구 구성: 주소(없으면 좌표) · 기준 시각
+      const matched: string | undefined = data?.apiInfo?.matchedDateTime
+      const timeLabel = matched
+        ? `${matched.slice(0, 4)}-${matched.slice(4, 6)}-${matched.slice(6, 8)} ${matched.slice(8, 10)}:${matched.slice(10, 12)}`
+        : '현재 시각'
+      const locationLabel = projectAddress
+        ? projectAddress
+        : `위도 ${projectCoords.lat.toFixed(4)}, 경도 ${projectCoords.lng.toFixed(4)}`
+      setWeatherInfo(`📍 ${locationLabel} · ${timeLabel} 기준 기상청 공식 체감온도`)
+    } catch (error) {
+      console.error('기상청 체감온도 조회 오류:', error)
+      alert('기상청 체감온도를 가져오는 중 오류가 발생했습니다. 직접 입력하거나 다시 시도해주세요.')
+    } finally {
+      setWeatherLoading(false)
+    }
   }
 
   const handleOXChange = (field: keyof HeatWaveInspectionData, value: 'O' | 'X') => {
@@ -466,34 +533,53 @@ export default function HeatWaveInspectionModal({
                 <Thermometer className="h-4 w-4 inline mr-1" />
                 체감온도 <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  step="0.1"
-                  value={formData.temperature}
-                  onChange={(e) => handleInputChange('temperature', e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="예: 32.5"
-                  required
-                />
-                <span className="absolute right-3 top-2 text-gray-500 text-sm">°C</span>
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={formData.temperature}
+                    onChange={(e) => handleInputChange('temperature', e.target.value)}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="예: 32.5"
+                    required
+                  />
+                  <span className="absolute right-3 top-2 text-gray-500 text-sm">°C</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchApparentTemperature}
+                  disabled={weatherLoading}
+                  title="기상청 체감온도 가져오기 (측정일시·현장 좌표 기준)"
+                  className="shrink-0 inline-flex items-center gap-1 px-2.5 py-2 text-sm text-sky-600 border border-sky-200 rounded-md hover:bg-sky-50 transition-colors disabled:opacity-50 whitespace-nowrap"
+                >
+                  {weatherLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <CloudSun className="h-4 w-4" />
+                  )}
+                  기상청
+                </button>
               </div>
+              {weatherInfo && (
+                <p className="mt-1 text-xs text-sky-700">{weatherInfo}</p>
+              )}
               <p className="mt-1 text-xs text-gray-500">
-                <a 
-                  href="https://www.weather.go.kr/w/theme/daily-life/regional-composite-index.do"
+                <a
+                  href="https://www.weather.go.kr/w/index.do"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-800 underline mr-4"
                 >
                   🌡️ 기상청 체감온도(실외)
                 </a>
-                <a 
-                  href="https://www.kosha.or.kr/kosha/business/heatWaveTemperature.do"
+                <a
+                  href="https://portal.kosha.or.kr/business-apply-search/etc-biz/season-climate/heat/sub2"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-800 underline"
                 >
-                  📊 체감온도계산(실내)
+                  🧮 체감온도계산기
                 </a>
               </p>
             </div>
