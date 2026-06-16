@@ -39,55 +39,94 @@ function convertToGridCoords(lat: number, lng: number) {
   return { x, y };
 }
 
-// 더 정확한 체감온도 계산 공식 (풍속, 습도, 온도 모두 고려)
+// 기상청 공식 체감온도 산출
+// - 여름철: 2022.6.2 개정 산출식 (습구온도 Tw는 Stull 추정식)
+// - 겨울철(저온·바람): 풍속냉각 체감온도(겨울철 체감온도)
 function calculateApparentTemperature(temperature: number, humidity: number, windSpeed: number): number {
-  const T = temperature;  // 기온 (°C)
-  const RH = humidity;    // 상대습도 (%)
-  const V = windSpeed;    // 풍속 (m/s)
-  
-  // 1. 풍속이 낮을 때는 Heat Index 사용 (고온/고습)
-  if (V <= 1.5 && T >= 26 && RH >= 40) {
-    const F = (T * 9/5) + 32;
-    let HI = 0.5 * (F + 61.0 + ((F - 68.0) * 1.2) + (RH * 0.094));
-    
-    if (HI >= 80) {
-      HI = -42.379 + 2.04901523 * F + 10.14333127 * RH - 0.22475541 * F * RH
-         - 6.83783e-3 * F * F - 5.481717e-2 * RH * RH + 1.22874e-3 * F * F * RH
-         + 8.5282e-4 * F * RH * RH - 1.99e-6 * F * F * RH * RH;
+  const Ta = temperature; // 기온(°C)
+  const RH = humidity;    // 상대습도(%)
+  const V = windSpeed;    // 풍속(m/s)
+
+  // 겨울철 체감온도: 기온 10℃ 이하 + 풍속 1.3m/s(=4.8km/h) 초과
+  if (Ta <= 10 && V > 1.3) {
+    const Vk = V * 3.6; // m/s → km/h
+    const wct = 13.12 + 0.6215 * Ta - 11.37 * Math.pow(Vk, 0.16) + 0.3965 * Ta * Math.pow(Vk, 0.16);
+    return Math.round(wct * 10) / 10;
+  }
+
+  // 여름철 체감온도 (기상청 2022.6.2 개정 산출식)
+  // 1) 습구온도 Tw — Stull(2011) 추정식, atan은 라디안
+  const Tw =
+    Ta * Math.atan(0.151977 * Math.sqrt(RH + 8.313659)) +
+    Math.atan(Ta + RH) -
+    Math.atan(RH - 1.676331) +
+    0.00391838 * Math.pow(RH, 1.5) * Math.atan(0.023101 * RH) -
+    4.686035;
+
+  // 2) 체감온도
+  const at =
+    -0.2442 +
+    0.55399 * Tw +
+    0.45535 * Ta -
+    0.0022 * Tw * Tw +
+    0.00278 * Tw * Ta +
+    3.0;
+
+  return Math.round(at * 10) / 10;
+}
+
+// 측정 시각과 가장 가까운 예보 시간대의 기온/습도/풍속을 선택
+function pickNearestForecast(xml: string, targetDate: string, targetTime: string) {
+  const byTime = new Map<string, { TMP?: number; REH?: number; WSD?: number }>();
+  const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+  let m: RegExpExecArray | null;
+  while ((m = itemRegex.exec(xml)) !== null) {
+    const block = m[1];
+    const category = block.match(/<category>([^<]+)<\/category>/)?.[1];
+    const fcstDate = block.match(/<fcstDate>([^<]+)<\/fcstDate>/)?.[1];
+    const fcstTime = block.match(/<fcstTime>([^<]+)<\/fcstTime>/)?.[1];
+    const fcstValue = block.match(/<fcstValue>([^<]+)<\/fcstValue>/)?.[1];
+    if (!category || !fcstDate || !fcstTime || fcstValue == null) continue;
+    if (category !== 'TMP' && category !== 'REH' && category !== 'WSD') continue;
+    const key = `${fcstDate}${fcstTime}`;
+    const rec = byTime.get(key) || {};
+    rec[category as 'TMP' | 'REH' | 'WSD'] = parseFloat(fcstValue);
+    byTime.set(key, rec);
+  }
+
+  // 타임존 영향 없이 비교하기 위해 양쪽 모두 Date.UTC로 환산 (오프셋이 상쇄됨)
+  const toMs = (yyyymmdd: string, hhmm: string) =>
+    Date.UTC(
+      Number(yyyymmdd.slice(0, 4)),
+      Number(yyyymmdd.slice(4, 6)) - 1,
+      Number(yyyymmdd.slice(6, 8)),
+      Number(hhmm.slice(0, 2)),
+      Number(hhmm.slice(2, 4))
+    );
+
+  const targetMs = toMs(targetDate, targetTime.padStart(4, '0'));
+  let best: { key: string; rec: { TMP?: number; REH?: number; WSD?: number } } | null = null;
+  let bestDiff = Infinity;
+  for (const [key, rec] of byTime) {
+    if (rec.TMP == null) continue;
+    const diff = Math.abs(toMs(key.slice(0, 8), key.slice(8, 12)) - targetMs);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = { key, rec };
     }
-    
-    const heatIndex = (HI - 32) * 5/9;
-    return Math.round(Math.max(T, heatIndex)); // 기온보다 낮을 수 없음
   }
-  
-  // 2. 풍속이 있을 때는 Wind Chill 효과 고려
-  if (V > 1.5 && T < 10) {
-    // Wind Chill 공식 (저온에서 바람의 냉각 효과)
-    const windChill = 13.12 + 0.6215 * T - 11.37 * Math.pow(V * 3.6, 0.16) + 0.3965 * T * Math.pow(V * 3.6, 0.16);
-    return Math.round(Math.min(T, windChill)); // 기온보다 높을 수 없음
-  }
-  
-  // 3. 일반적인 경우: 습도와 풍속을 모두 고려한 체감온도
-  // 습도 효과 (습도가 높을수록 더 덥게 느껴짐)
-  const humidityEffect = (RH - 60) * 0.1; // 습도 60%를 기준으로 ±효과
-  
-  // 풍속 효과 (바람이 강할수록 시원하게 느껴짐)
-  const windEffect = -V * 2.0; // 풍속 1m/s당 약 2도 시원
-  
-  // 온도별 민감도 조정
-  let tempSensitivity = 1.0;
-  if (T >= 30) tempSensitivity = 1.3;      // 고온에서 더 민감
-  else if (T >= 25) tempSensitivity = 1.1;
-  else if (T <= 5) tempSensitivity = 1.2;  // 저온에서도 더 민감
-  
-  const apparentTemp = T + (humidityEffect * tempSensitivity) + windEffect;
-  
-  return Math.round(apparentTemp);
+  if (!best) return null;
+  return {
+    temperature: best.rec.TMP as number,
+    humidity: best.rec.REH,
+    windSpeed: best.rec.WSD,
+    fcstDateTime: best.key
+  };
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { lat, lng } = await request.json();
+    const { lat, lng, targetDate: targetDateParam, targetTime: targetTimeParam } = await request.json();
 
     if (!lat || !lng) {
       return NextResponse.json(
@@ -162,25 +201,43 @@ export async function POST(request: NextRequest) {
 
     const responseText = await response.text();
     console.log('기상청 API 응답 (처음 1000자):', responseText.substring(0, 1000));
-    
-    // XML 파싱 (더 정확한 정규식)
-    const temperatureMatch = responseText.match(/<category>TMP<\/category>[\s\S]*?<fcstValue>([^<]+)<\/fcstValue>/);
-    const humidityMatch = responseText.match(/<category>REH<\/category>[\s\S]*?<fcstValue>([^<]+)<\/fcstValue>/);
-    const windSpeedMatch = responseText.match(/<category>WSD<\/category>[\s\S]*?<fcstValue>([^<]+)<\/fcstValue>/);
-    
-    console.log('파싱 결과:', {
-      temperatureMatch: temperatureMatch ? temperatureMatch[1] : '없음',
-      humidityMatch: humidityMatch ? humidityMatch[1] : '없음',
-      windSpeedMatch: windSpeedMatch ? windSpeedMatch[1] : '없음'
-    });
-    
-    if (!temperatureMatch) {
-      throw new Error('기상청 API에서 온도 데이터를 찾을 수 없습니다.');
+
+    let temperature: number;
+    let humidity: number;
+    let windSpeed: number;
+    let matchedDateTime: string | null = null;
+
+    if (targetDateParam && targetTimeParam) {
+      // 측정 시각과 가장 가까운 예보 시간대의 값 선택
+      const picked = pickNearestForecast(responseText, targetDateParam, targetTimeParam);
+      if (!picked) {
+        throw new Error('기상청 API에서 온도 데이터를 찾을 수 없습니다.');
+      }
+      temperature = picked.temperature;
+      humidity = picked.humidity ?? 60; // 기본값 60%
+      windSpeed = picked.windSpeed ?? 0;
+      matchedDateTime = picked.fcstDateTime;
+      console.log('가까운 예보 시간대 선택:', { targetDateParam, targetTimeParam, matchedDateTime });
+    } else {
+      // 기존 동작: 응답의 첫 예보값 사용 (시각 미지정 호출 하위호환)
+      const temperatureMatch = responseText.match(/<category>TMP<\/category>[\s\S]*?<fcstValue>([^<]+)<\/fcstValue>/);
+      const humidityMatch = responseText.match(/<category>REH<\/category>[\s\S]*?<fcstValue>([^<]+)<\/fcstValue>/);
+      const windSpeedMatch = responseText.match(/<category>WSD<\/category>[\s\S]*?<fcstValue>([^<]+)<\/fcstValue>/);
+
+      console.log('파싱 결과:', {
+        temperatureMatch: temperatureMatch ? temperatureMatch[1] : '없음',
+        humidityMatch: humidityMatch ? humidityMatch[1] : '없음',
+        windSpeedMatch: windSpeedMatch ? windSpeedMatch[1] : '없음'
+      });
+
+      if (!temperatureMatch) {
+        throw new Error('기상청 API에서 온도 데이터를 찾을 수 없습니다.');
+      }
+
+      temperature = parseFloat(temperatureMatch[1]);
+      humidity = humidityMatch ? parseFloat(humidityMatch[1]) : 60; // 기본값 60%
+      windSpeed = windSpeedMatch ? parseFloat(windSpeedMatch[1]) : 0;
     }
-    
-    const temperature = parseFloat(temperatureMatch[1]);
-    const humidity = humidityMatch ? parseFloat(humidityMatch[1]) : 60; // 기본값 60%
-    const windSpeed = windSpeedMatch ? parseFloat(windSpeedMatch[1]) : 0;
     
     // 개선된 체감온도 계산 (풍속, 습도, 온도 모두 고려)
     const apparentTemperature = calculateApparentTemperature(temperature, humidity, windSpeed);
@@ -202,18 +259,20 @@ export async function POST(request: NextRequest) {
         windSpeed: windSpeed || 0
       },
       calculation: {
-        method: windSpeed > 1.5 && temperature < 10 ? 'WindChill' : 
-                (windSpeed <= 1.5 && temperature >= 26 && humidity >= 40) ? 'HeatIndex' : 'Combined',
+        method: temperature <= 10 && windSpeed > 1.3
+          ? '기상청 겨울철 체감온도(풍속냉각)'
+          : '기상청 여름철 체감온도(2022.6.2 개정 산출식)',
         factors: {
           baseTemp: temperature,
-          humidityEffect: `${humidity}% (기준: 60%)`,
-          windEffect: `${windSpeed}m/s`
+          humidity: `${humidity}%`,
+          windSpeed: `${windSpeed}m/s`
         }
       },
       apiInfo: {
         baseDate: baseDate,
         baseTime: baseTimeStr,
-        gridCoords: { x, y }
+        gridCoords: { x, y },
+        matchedDateTime: matchedDateTime
       },
       timestamp: new Date().toISOString()
     });

@@ -1464,7 +1464,20 @@ export default function HeatWaveCheckPage() {
                         return days
                       })()}
                     </div>
-                    
+
+                    {/* 법적 근거 (일자 무관 항상 최신 법령으로 연결) */}
+                    <div className="mt-4 pt-3 border-t border-gray-200 text-center">
+                      <a
+                        href="https://www.law.go.kr/법령/산업안전보건기준에관한규칙/제562조"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 underline"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        법적 근거: 산업안전보건기준에 관한 규칙 제562조(고열·폭염장해 예방 조치)
+                      </a>
+                    </div>
+
                     {/* 선택된 날짜의 점검 기록 - 캘린더 위 모달 */}
                     {selectedDate && selectedDateChecks.length > 0 && (
                       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1870,17 +1883,15 @@ export default function HeatWaveCheckPage() {
                     </div>
                   </div>
                   
-                  {/* 우측 영역 가운데 + 버튼 (발주청은 숨김) */}
-                  {userProfile?.role !== '발주청' && (
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-                      <button
-                        onClick={handleNewCheck}
-                        className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-200"
-                      >
-                        <Plus className="h-8 w-8" />
-                      </button>
-                    </div>
-                  )}
+                  {/* 우측 영역 가운데 + 버튼 (발주청 포함 전 역할 등록 가능) */}
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+                    <button
+                      onClick={handleNewCheck}
+                      className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-200"
+                    >
+                      <Plus className="h-8 w-8" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
