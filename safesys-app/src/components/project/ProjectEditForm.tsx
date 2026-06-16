@@ -305,11 +305,16 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
       })
 
       alert('프로젝트가 성공적으로 수정되었습니다!')
-      // 저장된 경로로 돌아가기 (스크롤 위치도 복원됨)
+      // 저장 후 이전 화면으로 복귀.
+      // 대시보드에서 진입한 경우 저장된 경로로 이동(스크롤 위치도 복원), 그 외(프로젝트 상세 등)는 직전 화면으로 돌아간다.
       const returnPath = typeof window !== 'undefined'
-        ? sessionStorage.getItem('dashboard-return-path') || '/'
-        : '/'
-      router.push(returnPath)
+        ? sessionStorage.getItem('dashboard-return-path')
+        : null
+      if (returnPath) {
+        router.push(returnPath)
+      } else {
+        router.back()
+      }
     } catch (err: any) {
       console.error('Project update error:', err)
       setError(err.message || '프로젝트 수정에 실패했습니다.')
