@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { parsePersonnelCount, TBM_PERSONNEL_GUIDE } from '@/lib/chat/tbm-personnel'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 
@@ -102,13 +103,14 @@ function analyzeTBMData(records: TBMRecord[]) {
   const totalTbmCount = records.length
 
   // 본부별 통계
-  const hqStats: Record<string, { tbmCount: number; riskWorkCount: number; newWorkersCount: number; branches: Set<string> }> = {}
+  const hqStats: Record<string, { tbmCount: number; riskWorkCount: number; newWorkersCount: number; personnelCount: number; branches: Set<string> }> = {}
 
   // 지사별 통계
-  const branchStats: Record<string, { tbmCount: number; riskWorkCount: number; projects: string[] }> = {}
+  const branchStats: Record<string, { tbmCount: number; riskWorkCount: number; personnelCount: number; projects: string[] }> = {}
 
   let totalRiskWorkCount = 0
   let totalNewWorkersCount = 0
+  let totalPersonnelCount = 0
 
   records.forEach(record => {
     const hq = record.managing_hq || '미분류'
@@ -116,14 +118,14 @@ function analyzeTBMData(records: TBMRecord[]) {
 
     // 본부별 집계
     if (!hqStats[hq]) {
-      hqStats[hq] = { tbmCount: 0, riskWorkCount: 0, newWorkersCount: 0, branches: new Set() }
+      hqStats[hq] = { tbmCount: 0, riskWorkCount: 0, newWorkersCount: 0, personnelCount: 0, branches: new Set() }
     }
     hqStats[hq].tbmCount++
     hqStats[hq].branches.add(branch)
 
     // 지사별 집계
     if (!branchStats[branch]) {
-      branchStats[branch] = { tbmCount: 0, riskWorkCount: 0, projects: [] }
+      branchStats[branch] = { tbmCount: 0, riskWorkCount: 0, personnelCount: 0, projects: [] }
     }
     branchStats[branch].tbmCount++
     branchStats[branch].projects.push(record.project_name)
@@ -145,23 +147,32 @@ function analyzeTBMData(records: TBMRecord[]) {
         hqStats[hq].newWorkersCount += count
       }
     }
+
+    // 투입인원 집계 (자유 텍스트 → 인원수 추정)
+    const personnel = parsePersonnelCount(record.attendees)
+    totalPersonnelCount += personnel
+    hqStats[hq].personnelCount += personnel
+    branchStats[branch].personnelCount += personnel
   })
 
   return {
     totalTbmCount,
     totalRiskWorkCount,
     totalNewWorkersCount,
+    totalPersonnelCount,
     hqStats: Object.entries(hqStats).map(([name, stats]) => ({
       hqName: name,
       tbmCount: stats.tbmCount,
       riskWorkCount: stats.riskWorkCount,
       newWorkersCount: stats.newWorkersCount,
+      personnelCount: stats.personnelCount,
       branchCount: stats.branches.size
     })),
     branchStats: Object.entries(branchStats).map(([name, stats]) => ({
       branchName: name,
       tbmCount: stats.tbmCount,
       riskWorkCount: stats.riskWorkCount,
+      personnelCount: stats.personnelCount,
       projectCount: stats.projects.length
     })),
     records: records.slice(0, 20) // 최근 20개 레코드만 상세 정보 제공
@@ -299,17 +310,20 @@ interface TBMAnalysis {
   totalTbmCount: number
   totalRiskWorkCount: number
   totalNewWorkersCount: number
+  totalPersonnelCount: number
   hqStats: Array<{
     hqName: string
     tbmCount: number
     riskWorkCount: number
     newWorkersCount: number
+    personnelCount: number
     branchCount: number
   }>
   branchStats: Array<{
     branchName: string
     tbmCount: number
     riskWorkCount: number
+    personnelCount: number
     projectCount: number
   }>
   records: TBMRecord[]
@@ -369,22 +383,25 @@ function buildSystemPrompt(tbmAnalysis: TBMAnalysis, date: string, userPermissio
 
   const dataContext = `
 
+${TBM_PERSONNEL_GUIDE}
+
 ===== 📊 실시간 TBM 현황 (구글 시트 데이터) =====
 📅 기준일: ${date}
 
 📈 전체 현황:
 - TBM 실시 현장: ${tbmAnalysis.totalTbmCount}개
+- 투입인원 합계: ${tbmAnalysis.totalPersonnelCount}명
 - 위험공종 현장: ${tbmAnalysis.totalRiskWorkCount}개
 - 신규인원 합계: ${tbmAnalysis.totalNewWorkersCount}명
 
 🏢 본부별 현황:
 ${tbmAnalysis.hqStats.map(hq =>
-    `- ${hq.hqName}: TBM ${hq.tbmCount}건, 위험공종 ${hq.riskWorkCount}건, 신규인원 ${hq.newWorkersCount}명 (${hq.branchCount}개 지사)`
+    `- ${hq.hqName}: TBM ${hq.tbmCount}건, 투입인원 ${hq.personnelCount}명, 위험공종 ${hq.riskWorkCount}건, 신규인원 ${hq.newWorkersCount}명 (${hq.branchCount}개 지사)`
   ).join('\n')}
 
-🏗️ 지사별 현황 (상위):
-${tbmAnalysis.branchStats.slice(0, 15).map(branch =>
-    `- ${branch.branchName}: TBM ${branch.tbmCount}건, 위험공종 ${branch.riskWorkCount}건`
+🏗️ 지사별 현황:
+${tbmAnalysis.branchStats.map(branch =>
+    `- ${branch.branchName}: TBM ${branch.tbmCount}건, 투입인원 ${branch.personnelCount}명, 위험공종 ${branch.riskWorkCount}건`
   ).join('\n')}
 
 ${riskWorkTypes.length > 0 ? `
@@ -399,7 +416,7 @@ ${todayWorks.map(w => `- ${w}`).join('\n')}
 
 ===== 상세 TBM 기록 (최근 ${tbmAnalysis.records.length}건) =====
 ${tbmAnalysis.records.map(r =>
-    `[${r.meeting_time || '시간미입력'}] ${r.project_name} (${r.managing_branch}) - ${r.construction_company || '업체미입력'}, 작업: ${r.today_work || '미입력'}, 위험공종: ${r.risk_work_type || '해당없음'}, 신규: ${r.new_workers || '없음'}`
+    `[${r.meeting_time || '시간미입력'}] ${r.project_name} (${r.managing_branch}) - ${r.construction_company || '업체미입력'}, 작업: ${r.today_work || '미입력'}, 위험공종: ${r.risk_work_type || '해당없음'}, 투입인원: ${(r.attendees || '미입력').replace(/\s*\n\s*/g, ' / ')}, 신규: ${r.new_workers || '없음'}`
   ).join('\n')}
 ===========================================
 
