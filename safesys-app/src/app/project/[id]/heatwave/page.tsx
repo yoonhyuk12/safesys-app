@@ -1476,6 +1476,17 @@ export default function HeatWaveCheckPage() {
                         <FileText className="h-3.5 w-3.5" />
                         법적 근거: 산업안전보건기준에 관한 규칙 제562조(고열·폭염장해 예방 조치)
                       </a>
+                      <div className="mt-1">
+                        <a
+                          href="https://drive.google.com/file/d/165bisacZVv-9mxDad5L82iYok2-wiWR9/view?usp=sharing"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 underline"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          26년 폭염조치사항
+                        </a>
+                      </div>
                     </div>
 
                     {/* 선택된 날짜의 점검 기록 - 캘린더 위 모달 */}
