@@ -183,7 +183,7 @@ export default function TBMChatBot({ userProfile }: TBMChatBotProps) {
                 <h3 className="font-semibold text-sm">TBM AI 어시스턴트</h3>
                 {!isMinimized && (
                   <p className="text-xs text-blue-100">
-                    GPT-4o-mini · Supabase · {userProfile?.branch_division && !userProfile.branch_division.endsWith('본부') 
+                    Gemini 3.5 Flash · Supabase · {userProfile?.branch_division && !userProfile.branch_division.endsWith('본부')
                       ? userProfile.branch_division 
                       : userProfile?.hq_division 
                         ? userProfile.hq_division 

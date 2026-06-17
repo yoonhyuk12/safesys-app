@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+
+// TBM 챗봇 응답 생성 모델 — Gemini 3.5 Flash
+const GEMINI_MODEL = 'gemini-3.5-flash'
 
 // Supabase 클라이언트 (lazy 초기화 - 빌드 시 환경변수 없어도 에러 방지)
 let _supabase: ReturnType<typeof createClient> | null = null
@@ -169,7 +172,7 @@ export async function POST(request: NextRequest) {
   try {
     // 환경 변수 체크 및 상세 오류 메시지
     const missingEnvVars: string[] = []
-    if (!OPENAI_API_KEY) missingEnvVars.push('OPENAI_API_KEY')
+    if (!GEMINI_API_KEY) missingEnvVars.push('GEMINI_API_KEY')
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) missingEnvVars.push('NEXT_PUBLIC_SUPABASE_URL')
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY && !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) missingEnvVars.push('SUPABASE_SERVICE_ROLE_KEY 또는 NEXT_PUBLIC_SUPABASE_ANON_KEY')
 
@@ -181,7 +184,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('OPENAI_API_KEY exists:', OPENAI_API_KEY?.substring(0, 10) + '...')
+    console.log('GEMINI_API_KEY exists:', GEMINI_API_KEY?.substring(0, 10) + '...')
 
     const { message, conversationHistory, userPermission } = await request.json()
 
@@ -225,42 +228,49 @@ export async function POST(request: NextRequest) {
     // TBM 데이터를 시스템 프롬프트에 포함
     const systemPrompt = buildSystemPrompt(tbmAnalysis, today, userPermission)
 
-    // 대화 기록 구성
-    const messages: ChatMessage[] = [
-      { role: 'system', content: systemPrompt },
-      ...((conversationHistory || []) as ChatMessage[]),
-      { role: 'user', content: message }
-    ]
+    // 대화 기록을 Gemini contents 형식으로 변환 (assistant→model, system은 systemInstruction으로 분리)
+    const historyContents = ((conversationHistory || []) as ChatMessage[]).map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }))
+    // Gemini는 contents가 user 턴으로 시작해야 하므로 앞쪽 model 턴(초기 인사말 등) 제거
+    while (historyContents.length > 0 && historyContents[0].role === 'model') {
+      historyContents.shift()
+    }
+    const contents = [...historyContents, { role: 'user', parts: [{ text: message }] }]
 
-    // OpenAI API 호출
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 1000,
-        presence_penalty: 0.1,
-        frequency_penalty: 0.1
-      })
-    })
+    // Gemini API 호출
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': GEMINI_API_KEY!
+        },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1000
+          }
+        })
+      }
+    )
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error('OpenAI API Error:', response.status, errorData)
+      console.error('Gemini API Error:', response.status, errorData)
 
       // 오류 유형별 상세 메시지
       let errorMessage = 'AI 응답 생성에 실패했습니다.'
-      if (response.status === 401) {
-        errorMessage = 'OpenAI API 키가 유효하지 않습니다. 키를 확인해주세요.'
+      if (response.status === 401 || response.status === 403) {
+        errorMessage = 'Gemini API 키가 유효하지 않습니다. 키를 확인해주세요.'
       } else if (response.status === 429) {
         errorMessage = 'API 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.'
-      } else if (response.status === 500) {
-        errorMessage = 'OpenAI 서버 오류가 발생했습니다.'
+      } else if (response.status >= 500) {
+        errorMessage = 'Gemini 서버 오류가 발생했습니다.'
       }
 
       return NextResponse.json(
@@ -270,7 +280,9 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json()
-    const assistantMessage = data.choices?.[0]?.message?.content || '응답을 생성하지 못했습니다.'
+    const assistantMessage = data.candidates?.[0]?.content?.parts
+      ?.map((part: { text?: string }) => part.text || '')
+      .join('') || '응답을 생성하지 못했습니다.'
 
     return NextResponse.json({ response: assistantMessage })
 
