@@ -209,8 +209,8 @@ export async function POST(request: NextRequest) {
     // 사용자 권한 정보 로깅
     console.log('사용자 권한:', userPermission)
 
-    // 오늘 날짜로 구글 시트에서 TBM 데이터 가져오기
-    const today = new Date().toISOString().split('T')[0]
+    // 오늘 날짜(한국 시간 KST)로 TBM 데이터 가져오기 — 서버가 UTC라 toISOString을 쓰면 새벽에 전날로 계산됨
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
     console.log('TBM 데이터 조회 날짜:', today)
 
     let tbmRecords = await fetchTBMDataFromSupabase(today)
