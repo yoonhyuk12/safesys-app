@@ -39,6 +39,8 @@ export interface Project {
   // 공사기간 (작업일보 공정률 계산: 착공일 0% → 준공일 100%)
   construction_start_date?: string | null
   construction_end_date?: string | null
+  // 시공 예정공정표 (공종/공사금액/旬별 일정). 공정률 곡선의 단일 출처. 타입은 WorkSchedule.
+  construction_schedule?: import('@/lib/work-schedule/work-schedule-types').WorkSchedule | null
   // 개인정보 관리책임자
   privacy_manager_name?: string
   privacy_manager_position?: string
