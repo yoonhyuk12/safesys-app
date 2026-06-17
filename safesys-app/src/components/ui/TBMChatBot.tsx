@@ -146,6 +146,7 @@ export default function TBMChatBot({ userProfile }: TBMChatBotProps) {
   const quickQuestions = [
     '오늘 TBM 실시율은?',
     '위험공종 현황 알려줘',
+    '투입인원 현황은?',
     '신규인원 현황은?',
     '본부별 비교해줘'
   ]
