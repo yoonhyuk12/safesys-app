@@ -51,6 +51,22 @@ export const emptyPersonnelRow = (category = ''): PersonnelRow => ({
 // 구분이 안 되는 장비/인력 항목 명칭 — 항상 마지막 행에 고정
 export const UNCLASSIFIED_LABEL = '기타(미분류)'
 
+// 실제 작성된 작업일보 여부 — 공정률만 입력한 앵커 행(ProgressRateModal이 생성)과 구분한다.
+// 금일/명일작업·특이사항 텍스트가 있거나, 인원·장비 중 금일투입 값이 하나라도 있으면 실제 일보.
+// (재계산이 붙이는 이월/백필 행은 금일투입이 항상 공란이라 이 기준으로 앵커와 구분된다)
+export const isRealWorkReport = (r: {
+  today_work?: string | null
+  tomorrow_work?: string | null
+  participants?: string | null
+  equipment_rows?: EquipmentRow[] | null
+  personnel_rows?: PersonnelRow[] | null
+}): boolean => {
+  if ((r.today_work || '').trim() || (r.tomorrow_work || '').trim() || (r.participants || '').trim()) return true
+  if ((r.equipment_rows || []).some(e => (e.todayCount || '').trim())) return true
+  if ((r.personnel_rows || []).some(p => (p.todayCount || '').trim())) return true
+  return false
+}
+
 // 기본 행: 기타(미분류)만 고정 — 나머지 분류는 직전 일보 이월 또는 AI 분류로 추가됨
 export const defaultPersonnelRows = (): PersonnelRow[] => [emptyPersonnelRow(UNCLASSIFIED_LABEL)]
 

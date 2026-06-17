@@ -23,7 +23,7 @@ import {
   computeProgressRate,
   ProgressAnchor,
 } from '@/lib/work-daily-report/work-daily-report-types'
-import { invalidateProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
+import { invalidateProgressAnchors, getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
 import { downloadWorkDailyReportExcel } from '@/lib/excel/work-daily-report-export'
 import { getDailyForecastSummary } from '@/lib/weather'
 import ProgressRateModal from '@/components/project/ProgressRateModal'
@@ -90,7 +90,8 @@ export default function WorkDailyReportForm({
   const [checkerName, setCheckerName] = useState('')
   const [manualRate, setManualRate] = useState('')             // 사용자가 직접 입력한 공정률
   const [isManualRate, setIsManualRate] = useState(false)
-  const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([]) // 다른 날짜의 수동 입력 기준점들
+  const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([]) // 다른 날짜의 수동 입력 기준점들 (수동 입력 모달용)
+  const [autoAnchors, setAutoAnchors] = useState<ProgressAnchor[]>([]) // 자동 공정률 계산용 — 예정공정표 우선(getProgressAnchors)
   const [todayWork, setTodayWork] = useState('')
   const [tomorrowWork, setTomorrowWork] = useState('')
   const [equipmentRows, setEquipmentRows] = useState<EquipmentRow[]>(defaultEquipmentRows())
@@ -116,7 +117,7 @@ export default function WorkDailyReportForm({
     constructionStart,
     constructionEnd,
     reportDate,
-    progressAnchors.filter(a => a.date !== reportDate)
+    autoAnchors.filter(a => a.date !== reportDate)
   )
   const isManualActive = isManualRate && manualRate.trim() !== ''
   const progressRate = isManualActive ? manualRate.trim() : autoRate
@@ -201,6 +202,9 @@ export default function WorkDailyReportForm({
         console.error('공정률 기준점 조회 오류:', anchorErr)
         setProgressAnchors([])
       }
+
+      // 자동 공정률 계산용 앵커 — 예정공정표가 있으면 그 곡선, 없으면 수동 기준점 (캐비넷·목록과 동일 출처)
+      getProgressAnchors(projectId).then(setAutoAnchors).catch(() => setAutoAnchors([]))
 
       const { data, error } = await supabase
         .from('work_daily_reports')
@@ -597,6 +601,7 @@ export default function WorkDailyReportForm({
       })
       // 프로젝트 카드/상세 페이지의 공정률 표시 캐시 갱신
       invalidateProgressAnchors(projectId)
+      getProgressAnchors(projectId).then(setAutoAnchors).catch(() => {})
 
       alert('저장되었습니다.')
       onSaved()
@@ -622,6 +627,7 @@ export default function WorkDailyReportForm({
 
       // 삭제된 일보가 수동 기준점이었을 수 있음 — 카드/상세 공정률 캐시 갱신
       invalidateProgressAnchors(projectId)
+      getProgressAnchors(projectId).then(setAutoAnchors).catch(() => {})
 
       alert('삭제되었습니다.')
       applyCarryOver(null)

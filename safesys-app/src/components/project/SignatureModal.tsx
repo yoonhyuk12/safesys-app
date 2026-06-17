@@ -70,7 +70,7 @@ export default function SignatureModal({
     
     const coords = getCanvasCoordinates(canvas, e.clientX, e.clientY)
     
-    ctx.lineWidth = 5
+    ctx.lineWidth = 8
     ctx.lineCap = 'round'
     ctx.strokeStyle = '#000000'
     ctx.lineTo(coords.x, coords.y)

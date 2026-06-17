@@ -10,9 +10,11 @@ import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import { downloadMonthlyWorkDailyReportsExcel } from '@/lib/excel/work-daily-report-export'
 import { computeProgressRate, type WorkDailyReport } from '@/lib/work-daily-report/work-daily-report-types'
+import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import WorkDailyReportForm from '@/components/project/WorkDailyReportForm'
 import TBMClassificationPanel from '@/components/project/TBMClassificationPanel'
+import MissingRangeFillCard from '@/components/project/MissingRangeFillCard'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 const toDateStr = (year: number, month: number, day: number) =>
@@ -230,15 +232,8 @@ export default function WorkDailyReportPage() {
         return
       }
 
-      // 공정률 보강 — 수동 입력값은 그대로, 비어 있으면 공사기간+수동 기준점 기반 자동 계산
-      const { data: anchorData } = await supabase
-        .from('work_daily_reports')
-        .select('report_date, progress_rate')
-        .eq('project_id', projectId)
-        .eq('progress_rate_manual', true)
-      const anchors = (anchorData || [])
-        .map(row => ({ date: row.report_date as string, rate: parseFloat(row.progress_rate) }))
-        .filter(a => a.date && !isNaN(a.rate))
+      // 공정률 보강 — 예정공정표가 있으면 그 곡선, 없으면 수동 기준점 (캐비넷·목록·작업일보와 동일 출처)
+      const anchors = await getProgressAnchors(projectId)
 
       const reportsWithRate = reports.map(report => {
         if (report.progress_rate_manual && report.progress_rate) return report
@@ -523,6 +518,19 @@ export default function WorkDailyReportPage() {
                 </span>
               </div>
             </div>
+
+            <MissingRangeFillCard
+              projectId={projectId}
+              projectName={project.project_name}
+              managingHq={project.managing_hq}
+              managingBranch={project.managing_branch}
+              latitude={project.latitude}
+              longitude={project.longitude}
+              userId={user.id}
+              ownerName={project.user_profiles?.full_name || ''}
+              onFilled={loadReportDates}
+              onGoStage1={() => setActiveTab(1)}
+            />
             </div>
           </div>
 
