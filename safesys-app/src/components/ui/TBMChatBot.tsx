@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react'
-import { MessageCircle, X, Send, Bot, User, Loader2, Minimize2, Maximize2 } from 'lucide-react'
+import { MessageCircle, X, Send, Bot, User, Loader2, Minimize2, Maximize2, RotateCcw } from 'lucide-react'
 
 interface Message {
   id: string
@@ -142,6 +142,19 @@ export default function TBMChatBot({ userProfile }: TBMChatBotProps) {
     }
   }
 
+  // 대화 초기화 — 첫 인사말만 남기고 비움
+  const handleReset = () => {
+    setMessages([
+      {
+        id: '1',
+        role: 'assistant',
+        content: getInitialMessage(),
+        timestamp: new Date()
+      }
+    ])
+    setInput('')
+  }
+
   // 빠른 질문 버튼
   const quickQuestions = [
     '오늘 TBM 실시율은?',
@@ -194,6 +207,13 @@ export default function TBMChatBot({ userProfile }: TBMChatBotProps) {
               </div>
             </div>
             <div className="flex items-center gap-1">
+              <button
+                onClick={handleReset}
+                className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+                title="대화 초기화"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
               <button
                 onClick={() => setIsMinimized(!isMinimized)}
                 className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
