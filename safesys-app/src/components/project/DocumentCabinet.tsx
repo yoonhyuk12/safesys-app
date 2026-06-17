@@ -72,6 +72,7 @@ const DocumentCabinet: React.FC<DocumentCabinetProps> = ({ title, titleSuffix, c
 
   return (
     <div
+      data-cabinet
       className={`
         relative w-24 sm:w-28 lg:w-36 transition-transform duration-200
         ${onClick ? 'cursor-pointer hover:scale-105' : ''}
@@ -188,6 +189,21 @@ const DocumentCabinet: React.FC<DocumentCabinetProps> = ({ title, titleSuffix, c
                   ))}
                 </div>
               </div>
+
+              {/* 안전 캐비넷 좌측 문 스티커 — "5대 안전수칙" 비스듬히 부착 */}
+              {title === '안전' && side === 'left' && (
+                <div
+                  className="absolute left-1/2 top-1/2 z-10 whitespace-nowrap rounded-[3px] border border-red-600/80 bg-yellow-300 px-1 lg:px-1.5 py-[1px] lg:py-0.5 text-[7px] lg:text-[10px] font-extrabold leading-none text-red-700"
+                  style={{
+                    transform: 'translate(-50%, -50%) rotate(-32deg)',
+                    boxShadow: '1px 2px 3px rgba(0,0,0,0.35)',
+                    letterSpacing: '-0.02em',
+                    backfaceVisibility: 'hidden',
+                  }}
+                >
+                  5대 안전수칙
+                </div>
+              )}
 
               {/* 손잡이 (중앙 분할선 쪽) */}
               <div

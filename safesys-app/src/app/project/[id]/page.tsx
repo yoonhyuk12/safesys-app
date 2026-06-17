@@ -48,6 +48,41 @@ export default function ProjectDetailPage() {
   const [openCabinet, setOpenCabinet] = useState<'시공' | '안전' | '품질' | '발주청' | null>(null)
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
+  // 캐비넷 여닫기 효과음 (브라우저에서만 생성)
+  const cabinetOpenSoundRef = useRef<HTMLAudioElement | null>(null)
+  const cabinetCloseSoundRef = useRef<HTMLAudioElement | null>(null)
+
+  useEffect(() => {
+    cabinetOpenSoundRef.current = new Audio('/cabinet open.mp3')
+    cabinetCloseSoundRef.current = new Audio('/cabinet close.mp3')
+  }, [])
+
+  const playCabinetSound = (action: 'open' | 'close') => {
+    const audio = action === 'open' ? cabinetOpenSoundRef.current : cabinetCloseSoundRef.current
+    if (!audio) return
+    audio.currentTime = 0
+    audio.play().catch(() => {})
+  }
+
+  // 캐비넷 토글 — 열 때는 열림음, 닫을 때는 닫힘음 재생
+  const toggleCabinet = (name: '시공' | '안전' | '품질' | '발주청') => {
+    if (openCabinet === name) {
+      playCabinetSound('close')
+      setOpenCabinet(null)
+    } else {
+      playCabinetSound('open')
+      setOpenCabinet(name)
+    }
+  }
+
+  // 캐비넷·서류철·버튼·링크 외 빈 공간 클릭 시 캐비넷 닫기
+  const handleContentClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!openCabinet) return
+    const target = e.target as HTMLElement
+    if (target.closest('[data-cabinet], [data-folder], button, a')) return
+    playCabinetSound('close')
+    setOpenCabinet(null)
+  }
 
   const RISK_ASSESSMENT_GPTS_URL = 'https://chatgpt.com/g/g-uhvOsghT3-hangugnongeocongongsa-wiheomseongpyeongga-jagseong-ai'
   const RISK_ASSESSMENT_AI_EXCEL_URL = 'https://airiskdocu.vercel.app/'
@@ -548,7 +583,7 @@ export default function ProjectDetailPage() {
 
       {/* 메인 콘텐츠 */}
       <main className="flex-1 w-full max-w-7xl lg:max-w-none mx-auto py-6 sm:px-6 lg:px-4">
-        <div className="px-4 py-6 sm:px-0 lg:px-0">
+        <div className="px-4 py-6 sm:px-0 lg:px-0" onClick={handleContentClick}>
           {/* 프로젝트 정보 */}
           <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative">
             {/* 점점점 메뉴 버튼 */}
@@ -647,6 +682,16 @@ export default function ProjectDetailPage() {
                   </>
                 )}
               </div>
+
+              {/* 공사기간 (착공일·준공일) — 값이 있을 때만 새 줄로 표시 */}
+              {(project.construction_start_date || project.construction_end_date) && (
+                <div className="text-sm text-gray-600">
+                  {[
+                    project.construction_start_date && `착공일: ${project.construction_start_date}`,
+                    project.construction_end_date && `준공일: ${project.construction_end_date}`,
+                  ].filter(Boolean).join(' / ')}
+                </div>
+              )}
 
               {/* 선택사항 정보 */}
               {(project.total_budget || project.current_year_budget || project.supervisor_position ||
@@ -769,9 +814,20 @@ export default function ProjectDetailPage() {
                     pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) : undefined}
                     color={name === '시공' ? 'blue' : name === '안전' ? 'green' : name === '품질' ? 'amber' : 'purple'}
                     isOpen={openCabinet === name}
-                    onClick={() => setOpenCabinet((prev) => (prev === name ? null : name))}
+                    onClick={() => toggleCabinet(name)}
                   />
                 )
+                // 시공 캐비넷 아래에 공정률 조정 안내 문구 표시 (절대 배치 — 다른 캐비넷 정렬에 영향 없음)
+                if (name === '시공' && constructionProgress !== null) {
+                  return (
+                    <div key={name} className="relative">
+                      {cabinet}
+                      <p className="absolute left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap text-xs text-blue-100/70">
+                        {'* 공정률 조정은 "작업일보", "공정표"에서 가능합니다.'}
+                      </p>
+                    </div>
+                  )
+                }
                 // 발주청 캐비넷 바로 아래에 안내 문구 표시 (절대 배치 — 다른 캐비넷 정렬에 영향 없음)
                 if (name === '발주청') {
                   return (
@@ -802,6 +858,15 @@ export default function ProjectDetailPage() {
                   isActive={false}
                   externalUrl="https://docs.google.com/forms/d/e/1FAIpQLSdY1beSxNGj6niH6_jG7onccyQsUoIBfldYbIWsbMkc7VoQKA/viewform"
                   pdcaCategory="P"
+                />
+                <DocumentFolder
+                  title="공정표"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/work-schedule`)}
+                  pdcaCategory="P"
+                  bottomLabel="사업"
                 />
               </div>
             </div>

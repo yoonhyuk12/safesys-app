@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useRef, useEffect } from 'react'
 import { MapPin } from 'lucide-react'
 
 interface BusinessCardEaselProps {
@@ -13,6 +13,20 @@ const WOOD_BAR = 'linear-gradient(180deg, #d97706 0%, #b45309 60%, #92400e 100%)
 
 // 사업카드 PDF를 여는 이젤 그래픽 — 서류 캐비넷 옆에 배치
 const BusinessCardEasel: React.FC<BusinessCardEaselProps> = ({ onClick }) => {
+  // 호버 진입·이탈 시 재생할 종이 슬라이드 효과음 (브라우저에서만 생성)
+  const slideSoundRef = useRef<HTMLAudioElement | null>(null)
+
+  useEffect(() => {
+    slideSoundRef.current = new Audio('/oxidvideos-paper-slide-short-478835.mp3')
+  }, [])
+
+  const playSlideSound = () => {
+    const audio = slideSoundRef.current
+    if (!audio) return
+    audio.currentTime = 0
+    audio.play().catch(() => {})
+  }
+
   return (
     <div
       className={`
@@ -20,6 +34,8 @@ const BusinessCardEasel: React.FC<BusinessCardEaselProps> = ({ onClick }) => {
         ${onClick ? 'cursor-pointer' : ''}
       `}
       onClick={onClick}
+      onMouseEnter={playSlideSound}
+      onMouseLeave={playSlideSound}
       title="사업카드 보기"
     >
       {/* 뒷다리 (중앙 수직) */}

@@ -3,6 +3,10 @@
 import React from 'react'
 import { useRouter } from 'next/navigation'
 
+// 모든 서류철이 공유하는 마우스 오버 효과음 — 인스턴스마다 새로 디코딩하지 않도록 모듈 레벨에서 1회 생성·프리로드
+const boxHoverSound = typeof window !== 'undefined' ? new Audio('/kave_msri-box-sfx-323776.mp3') : null
+if (boxHoverSound) boxHoverSound.preload = 'auto'
+
 interface DocumentFolderProps {
   title: string
   year?: string
@@ -39,6 +43,12 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
   bottomLabel
 }) => {
   const router = useRouter()
+
+  const playHoverSound = () => {
+    if (!boxHoverSound) return
+    boxHoverSound.currentTime = 0
+    boxHoverSound.play().catch(() => {})
+  }
 
   const handleClick = () => {
     // 준비중 상태인 경우
@@ -107,12 +117,14 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
   if (isAncientDocument) {
     return (
       <div
+        data-folder
         className={`
-          relative w-[60px] h-56 sm:w-[68px] lg:w-[80px] lg:h-96 transition-all duration-200 
+          relative w-[60px] h-56 sm:w-[68px] lg:w-[80px] lg:h-96 transition-all duration-200
           cursor-pointer hover:scale-105
           ${isActive ? 'z-10' : 'z-0'}
         `}
         onClick={handleClick}
+        onMouseEnter={playHoverSound}
       >
         {/* 고대 두루마리/문서 본체 */}
         <div
@@ -260,12 +272,14 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
 
   return (
     <div
+      data-folder
       className={`
-        relative w-[60px] h-56 sm:w-[68px] lg:w-[80px] lg:h-96 transition-all duration-200 
+        relative w-[60px] h-56 sm:w-[68px] lg:w-[80px] lg:h-96 transition-all duration-200
         ${isGrayedOut ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:scale-105'}
         ${isActive ? 'z-10' : 'z-0'}
       `}
       onClick={handleClick}
+      onMouseEnter={playHoverSound}
     >
       {/* 문서철 본체 */}
       <div className={`
