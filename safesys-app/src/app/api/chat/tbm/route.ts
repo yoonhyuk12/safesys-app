@@ -264,7 +264,8 @@ export async function POST(request: NextRequest) {
           contents,
           generationConfig: {
             temperature: 0.7,
-            maxOutputTokens: 1000
+            // 지사 전체 나열 등 긴 답변이 잘리지 않도록 넉넉히 (Gemini는 thinking 토큰도 이 한도를 같이 사용)
+            maxOutputTokens: 8192
           }
         })
       }
