@@ -797,7 +797,7 @@ export default function ProjectDetailPage() {
 
           {/* 서류 캐비넷 — 좁은 화면에서는 줄 나눔 */}
           <div className="mb-10 flex justify-center">
-            <div className="flex flex-wrap items-end justify-center gap-4 sm:gap-6 lg:gap-8">
+            <div className="flex flex-wrap items-end justify-center gap-x-4 sm:gap-x-6 lg:gap-x-8 gap-y-10">
               {project.business_card_pdf_url && (
                 <BusinessCardEasel onClick={handleBusinessCardClick} />
               )}
