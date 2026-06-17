@@ -314,7 +314,8 @@ export const createEmptyHighRiskFormData = (defaults?: HighRiskFormDefaults): Hi
   overview: {
     managing_dept: defaults?.managingDept || '',
     project_name: defaults?.projectName || '',
-    work_period: '',
+    // 작업기간 시작일 기본값: 오늘 (종료일은 사용자 입력)
+    work_period: `${new Date().toISOString().split('T')[0]} ~ `,
     contractor: defaults?.contractor || '',
     cost: '',
     manager: defaults?.manager || '',

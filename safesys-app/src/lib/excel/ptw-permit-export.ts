@@ -102,7 +102,7 @@ const addSignatureImage = (
   }
 }
 
-// 하단 서명 행: A:F 우측정렬 텍스트 + G:H (서명) + 이미지
+// 하단 서명 행: A:G 병합·우측정렬(라벨·성명) + H에 (인)만 표시 + 서명 이미지를 H((인)) 중앙 위에 겹침
 const addSignatureRow = (
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
@@ -111,19 +111,19 @@ const addSignatureRow = (
   name: string,
   signature?: string
 ) => {
-  mergeSet(ws, `A${rowNum}:F${rowNum}`, `${label} :   ${name || ''}`, {
+  mergeSet(ws, `A${rowNum}:G${rowNum}`, `${label} :   ${name || ''}`, {
     border: false,
     size: 11,
     align: { horizontal: 'right' },
   })
-  mergeSet(ws, `G${rowNum}:H${rowNum}`, signature ? '' : '(서명)', {
+  setCell(ws, `H${rowNum}`, '(인)', {
     border: false,
-    size: 10,
-    color: 'FF888888',
+    size: 11,
     align: { horizontal: 'center' },
   })
   ws.getRow(rowNum).height = 28
-  addSignatureImage(wb, ws, signature, 6.2, rowNum)
+  // H 컬럼((인)) 중앙 위에 서명 이미지 겹침
+  addSignatureImage(wb, ws, signature, 7.1, rowNum)
 }
 
 // 관리감독자(부장) 추가 서명 행들
@@ -461,15 +461,15 @@ const buildCommonSheet = (
     mergeSet(ws, `G${r}:H${r}`, '감시인 확인', { bold: true, fill: headerFill, align: { horizontal: 'center' }, size: 9 })
     ws.getRow(r).height = 18
     r++
-    ;(form.hot_gas_rows || []).forEach((row) => {
-      mergeSet(ws, `A${r}:B${r}`, row.substance || '', { align: { horizontal: 'center' } })
-      setCell(ws, `C${r}`, row.concentration || '', { align: { horizontal: 'center' } })
-      setCell(ws, `D${r}`, row.time || '', { align: { horizontal: 'center' } })
-      mergeSet(ws, `E${r}:F${r}`, row.measurer || '', { align: { horizontal: 'center' } })
-      mergeSet(ws, `G${r}:H${r}`, row.watcher_confirm || '', { align: { horizontal: 'center' } })
-      ws.getRow(r).height = 20
-      r++
-    })
+      ; (form.hot_gas_rows || []).forEach((row) => {
+        mergeSet(ws, `A${r}:B${r}`, row.substance || '', { align: { horizontal: 'center' } })
+        setCell(ws, `C${r}`, row.concentration || '', { align: { horizontal: 'center' } })
+        setCell(ws, `D${r}`, row.time || '', { align: { horizontal: 'center' } })
+        mergeSet(ws, `E${r}:F${r}`, row.measurer || '', { align: { horizontal: 'center' } })
+        mergeSet(ws, `G${r}:H${r}`, row.watcher_confirm || '', { align: { horizontal: 'center' } })
+        ws.getRow(r).height = 20
+        r++
+      })
   }
 
   // 밀폐공간: 산소 및 유해가스 농도 측정결과 (전/중/중)
@@ -486,21 +486,21 @@ const buildCommonSheet = (
     setCell(ws, `H${r}`, '출(명)', { bold: true, fill: headerFill, align: { horizontal: 'center' }, size: 9 })
     ws.getRow(r).height = 18
     r++
-    ;(form.confined_gas_rows || []).forEach((row, i) => {
-      setCell(ws, `A${r}`, `${row.phase || ''}${i > 0 ? '*' : ''}`, { fill: headerFill, align: { horizontal: 'center' } })
-      setCell(ws, `B${r}`, row.time || '', { align: { horizontal: 'center' } })
-      mergeSet(
-        ws,
-        `C${r}:E${r}`,
-        `O₂:${row.o2 || '  '}%  CO₂:${row.co2 || '  '}%  H₂S:${row.h2s || '  '}ppm  CO:${row.co || '  '}ppm  EX:${row.ex || '  '}%`,
-        { size: 9 }
-      )
-      setCell(ws, `F${r}`, row.measurer || '', { align: { horizontal: 'center' } })
-      setCell(ws, `G${r}`, row.in_count || '', { align: { horizontal: 'center' } })
-      setCell(ws, `H${r}`, row.out_count || '', { align: { horizontal: 'center' } })
-      ws.getRow(r).height = 20
-      r++
-    })
+      ; (form.confined_gas_rows || []).forEach((row, i) => {
+        setCell(ws, `A${r}`, `${row.phase || ''}${i > 0 ? '*' : ''}`, { fill: headerFill, align: { horizontal: 'center' } })
+        setCell(ws, `B${r}`, row.time || '', { align: { horizontal: 'center' } })
+        mergeSet(
+          ws,
+          `C${r}:E${r}`,
+          `O₂:${row.o2 || '  '}%  CO₂:${row.co2 || '  '}%  H₂S:${row.h2s || '  '}ppm  CO:${row.co || '  '}ppm  EX:${row.ex || '  '}%`,
+          { size: 9 }
+        )
+        setCell(ws, `F${r}`, row.measurer || '', { align: { horizontal: 'center' } })
+        setCell(ws, `G${r}`, row.in_count || '', { align: { horizontal: 'center' } })
+        setCell(ws, `H${r}`, row.out_count || '', { align: { horizontal: 'center' } })
+        ws.getRow(r).height = 20
+        r++
+      })
     mergeSet(ws, `A${r}:H${r}`, '*중 : 작업을 일시 중단(작업장소 일탈)하였다가 다시 시작하기 전 재측정 필요', {
       size: 8, color: 'FF777777', border: false,
     })
@@ -517,14 +517,14 @@ const buildCommonSheet = (
     mergeSet(ws, `G${r}:H${r}`, '현장정비', { bold: true, fill: headerFill, align: { horizontal: 'center' }, size: 9 })
     ws.getRow(r).height = 18
     r++
-    ;(form.electrical_devices || []).forEach((row) => {
-      mergeSet(ws, `A${r}:B${r}`, row.device || '', { align: { horizontal: 'center' } })
-      mergeSet(ws, `C${r}:D${r}`, row.breaker_confirmer || '', { align: { horizontal: 'center' } })
-      mergeSet(ws, `E${r}:F${r}`, row.electric_manager || '', { align: { horizontal: 'center' } })
-      mergeSet(ws, `G${r}:H${r}`, row.site_maintenance || '', { align: { horizontal: 'center' } })
-      ws.getRow(r).height = 20
-      r++
-    })
+      ; (form.electrical_devices || []).forEach((row) => {
+        mergeSet(ws, `A${r}:B${r}`, row.device || '', { align: { horizontal: 'center' } })
+        mergeSet(ws, `C${r}:D${r}`, row.breaker_confirmer || '', { align: { horizontal: 'center' } })
+        mergeSet(ws, `E${r}:F${r}`, row.electric_manager || '', { align: { horizontal: 'center' } })
+        mergeSet(ws, `G${r}:H${r}`, row.site_maintenance || '', { align: { horizontal: 'center' } })
+        ws.getRow(r).height = 20
+        r++
+      })
   }
 
   // 화기작업: 기기점검 결과
@@ -537,15 +537,15 @@ const buildCommonSheet = (
     mergeSet(ws, `G${r}:H${r}`, '조치사항', { bold: true, fill: headerFill, align: { horizontal: 'center' }, size: 9 })
     ws.getRow(r).height = 18
     r++
-    ;(form.hot_devices || []).forEach((row) => {
-      mergeSet(ws, `A${r}:B${r}`, row.device || '', { align: { horizontal: 'center' } })
-      setCell(ws, `C${r}`, row.inspector || '', { align: { horizontal: 'center' } })
-      setCell(ws, `D${r}`, row.witness || '', { align: { horizontal: 'center' } })
-      mergeSet(ws, `E${r}:F${r}`, row.worker || '', { align: { horizontal: 'center' } })
-      mergeSet(ws, `G${r}:H${r}`, row.action || '', { align: { horizontal: 'center' } })
-      ws.getRow(r).height = 20
-      r++
-    })
+      ; (form.hot_devices || []).forEach((row) => {
+        mergeSet(ws, `A${r}:B${r}`, row.device || '', { align: { horizontal: 'center' } })
+        setCell(ws, `C${r}`, row.inspector || '', { align: { horizontal: 'center' } })
+        setCell(ws, `D${r}`, row.witness || '', { align: { horizontal: 'center' } })
+        mergeSet(ws, `E${r}:F${r}`, row.worker || '', { align: { horizontal: 'center' } })
+        mergeSet(ws, `G${r}:H${r}`, row.action || '', { align: { horizontal: 'center' } })
+        ws.getRow(r).height = 20
+        r++
+      })
   }
 
   // 특별조치 필요사항
@@ -700,6 +700,7 @@ export async function downloadPtwPermitExcel(record: PtwPermitRecord, projectNam
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 1,
+      horizontalCentered: true, // 페이지 가로 중앙 맞춤
       // 엑셀 기본 여백
       margins: { left: 0.7, right: 0.7, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 },
     },
@@ -711,6 +712,9 @@ export async function downloadPtwPermitExcel(record: PtwPermitRecord, projectNam
 
   // 하단 여백이 남지 않도록 행 높이를 A4에 맞춰 확대
   stretchRowsToA4(ws, lastRow)
+
+  // 인쇄 영역: A~H열, 1행~마지막 내용행 (위험공종 표준 서식 = 38행)
+  ws.pageSetup.printArea = `A1:H${lastRow}`
 
   const dateStr = record.permit_date || new Date().toISOString().split('T')[0]
   const filename = `${config.short}_작업허가서_${dateStr}.xlsx`
