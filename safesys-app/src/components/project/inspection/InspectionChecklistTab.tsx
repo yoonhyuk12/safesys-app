@@ -2,7 +2,7 @@
 
 // 검측 체크리스트(별지 제5호) 탭 — 요청서에 첨부되는 체크리스트 입력 UI
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { ClipboardCheck, Sparkles } from 'lucide-react'
 import {
   InspectionRequestFormData,
@@ -17,9 +17,36 @@ interface InspectionChecklistTabProps {
 
 const inputCls =
   'w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
-const cellInputCls =
-  'w-full border border-gray-200 rounded px-1.5 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
+
+// 내용 높이에 맞춰 자동으로 늘어나는 표 셀 textarea — AI가 채운 긴 검측항목·검사기준 전체가 보이게
+function AutoTextarea({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [value])
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={1}
+      className="w-full border border-gray-200 rounded px-1.5 py-1 text-sm resize-none overflow-hidden block focus:outline-none focus:ring-1 focus:ring-blue-500"
+    />
+  )
+}
 
 // 검사결과 합격/불합격 토글 버튼 — 클릭으로 선택, 기본값 합격
 function ResultToggle({ value, onSet }: { value: PassStatus; onSet: (v: PassStatus) => void }) {
@@ -189,42 +216,37 @@ export default function InspectionChecklistTab({ formData, onChange }: Inspectio
             <tbody className="bg-white">
               {formData.checklist_items.map((it, i) => (
                 <tr key={i}>
-                  <td className="px-1 py-1 text-center text-gray-400 border border-gray-200">{i + 1}</td>
-                  <td className="px-1 py-1 border border-gray-200">
-                    <input
-                      type="text"
-                      value={it.item}
-                      onChange={(e) => setItem(i, 'item', e.target.value)}
-                      className={cellInputCls}
-                    />
+                  <td className="px-1 py-1 text-center text-gray-400 border border-gray-200 align-top pt-2">
+                    {i + 1}
                   </td>
-                  <td className="px-1 py-1 border border-gray-200">
-                    <input
-                      type="text"
-                      value={it.standard}
-                      onChange={(e) => setItem(i, 'standard', e.target.value)}
-                      className={cellInputCls}
-                    />
+                  <td className="px-1 py-1 border border-gray-200 align-top">
+                    <AutoTextarea value={it.item} onChange={(v) => setItem(i, 'item', v)} />
                   </td>
-                  <td className="px-1 py-1 border border-gray-200">
-                    <ResultToggle
-                      value={it.contractor_result}
-                      onSet={(v) => setItem(i, 'contractor_result', v)}
-                    />
+                  <td className="px-1 py-1 border border-gray-200 align-top">
+                    <AutoTextarea value={it.standard} onChange={(v) => setItem(i, 'standard', v)} />
                   </td>
-                  <td className="px-1 py-1 border border-gray-200">
-                    <ResultToggle
-                      value={it.supervisor_result}
-                      onSet={(v) => setItem(i, 'supervisor_result', v)}
-                    />
+                  <td className="px-1 py-1 border border-gray-200 align-top">
+                    {it.item.trim() ? (
+                      <ResultToggle
+                        value={it.contractor_result}
+                        onSet={(v) => setItem(i, 'contractor_result', v)}
+                      />
+                    ) : (
+                      <div className="text-center text-gray-300 text-xs pt-1">-</div>
+                    )}
                   </td>
-                  <td className="px-1 py-1 border border-gray-200">
-                    <input
-                      type="text"
-                      value={it.action}
-                      onChange={(e) => setItem(i, 'action', e.target.value)}
-                      className={cellInputCls}
-                    />
+                  <td className="px-1 py-1 border border-gray-200 align-top">
+                    {it.item.trim() ? (
+                      <ResultToggle
+                        value={it.supervisor_result}
+                        onSet={(v) => setItem(i, 'supervisor_result', v)}
+                      />
+                    ) : (
+                      <div className="text-center text-gray-300 text-xs pt-1">-</div>
+                    )}
+                  </td>
+                  <td className="px-1 py-1 border border-gray-200 align-top">
+                    <AutoTextarea value={it.action} onChange={(v) => setItem(i, 'action', v)} />
                   </td>
                 </tr>
               ))}
