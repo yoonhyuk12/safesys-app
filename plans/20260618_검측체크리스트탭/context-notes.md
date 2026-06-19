@@ -32,3 +32,9 @@ ChecklistItem = { item, standard, contractor_result, supervisor_result, action }
   - 라우트 `api/ai/inspection-checklist`: Gemini 호출(supervisor-summary 패턴 차용), responseMimeType json, item/standard만 생성(검사결과·조치사항은 사람).
   - 모델: 사용자가 말한 gemini-3.5-flash-lite는 Gemini API에 없음(404 model not found, 실테스트 확인) → 검증된 gemini-3.1-flash-lite 사용. 배열 구조라 추후 모델 추가 시 폴백 가능.
   - 실엔드포인트 테스트(철근콘크리트/아스팔트포장)에서 위키 매트릭스와 정합한 항목 생성 확인.
+
+## 3차 변경 (검사결과 입력 방식)
+
+- 사용자 요청: 시공자/감독원 검사결과를 드롭다운→합격/불합격 버튼 토글, 기본값 합격.
+- `createEmptyChecklistItem`의 contractor_result/supervisor_result 기본값을 '합격'으로. 기존 저장 레코드의 ''(미정)은 normalize 시 그대로 유지(버튼 미선택 상태로 표시).
+- 부작용 방지: 기본 합격이라 빈 행도 합격이 되므로, 엑셀 출력은 `hasItem`(검측항목 존재) 가드로 빈 행에는 ○를 찍지 않는다.

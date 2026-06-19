@@ -64,8 +64,8 @@ export interface InspectionRequestRecord extends InspectionRequestFormData {
 export const createEmptyChecklistItem = (): ChecklistItem => ({
   item: '',
   standard: '',
-  contractor_result: '',
-  supervisor_result: '',
+  contractor_result: '합격', // 기본값 합격 — 통과 항목은 그대로 두고 불합격만 토글
+  supervisor_result: '합격',
   action: '',
 })
 

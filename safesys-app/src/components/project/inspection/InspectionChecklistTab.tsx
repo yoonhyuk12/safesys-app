@@ -21,7 +21,36 @@ const cellInputCls =
   'w-full border border-gray-200 rounded px-1.5 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
 
-const RESULT_OPTIONS: PassStatus[] = ['', '합격', '불합격']
+// 검사결과 합격/불합격 토글 버튼 — 클릭으로 선택, 기본값 합격
+function ResultToggle({ value, onSet }: { value: PassStatus; onSet: (v: PassStatus) => void }) {
+  const base = 'px-2 py-1 text-xs rounded border transition-colors'
+  return (
+    <div className="flex gap-1 justify-center">
+      <button
+        type="button"
+        onClick={() => onSet('합격')}
+        className={`${base} ${
+          value === '합격'
+            ? 'bg-green-600 text-white border-green-600'
+            : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'
+        }`}
+      >
+        합격
+      </button>
+      <button
+        type="button"
+        onClick={() => onSet('불합격')}
+        className={`${base} ${
+          value === '불합격'
+            ? 'bg-red-600 text-white border-red-600'
+            : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'
+        }`}
+      >
+        불합격
+      </button>
+    </div>
+  )
+}
 
 export default function InspectionChecklistTab({ formData, onChange }: InspectionChecklistTabProps) {
   const [aiLoading, setAiLoading] = useState(false)
@@ -152,8 +181,8 @@ export default function InspectionChecklistTab({ formData, onChange }: Inspectio
                 <th className="px-2 py-2 font-semibold border border-gray-200 w-10">No</th>
                 <th className="px-2 py-2 font-semibold border border-gray-200">검측 항목</th>
                 <th className="px-2 py-2 font-semibold border border-gray-200">검사기준(시방서·도면)</th>
-                <th className="px-2 py-2 font-semibold border border-gray-200 w-24">시공자<br />(합/불)</th>
-                <th className="px-2 py-2 font-semibold border border-gray-200 w-24">감독원<br />(합/불)</th>
+                <th className="px-2 py-2 font-semibold border border-gray-200 w-32">시공자<br />(합/불)</th>
+                <th className="px-2 py-2 font-semibold border border-gray-200 w-32">감독원<br />(합/불)</th>
                 <th className="px-2 py-2 font-semibold border border-gray-200">조치사항</th>
               </tr>
             </thead>
@@ -178,30 +207,16 @@ export default function InspectionChecklistTab({ formData, onChange }: Inspectio
                     />
                   </td>
                   <td className="px-1 py-1 border border-gray-200">
-                    <select
+                    <ResultToggle
                       value={it.contractor_result}
-                      onChange={(e) => setItem(i, 'contractor_result', e.target.value as PassStatus)}
-                      className={cellInputCls}
-                    >
-                      {RESULT_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt || '-'}
-                        </option>
-                      ))}
-                    </select>
+                      onSet={(v) => setItem(i, 'contractor_result', v)}
+                    />
                   </td>
                   <td className="px-1 py-1 border border-gray-200">
-                    <select
+                    <ResultToggle
                       value={it.supervisor_result}
-                      onChange={(e) => setItem(i, 'supervisor_result', e.target.value as PassStatus)}
-                      className={cellInputCls}
-                    >
-                      {RESULT_OPTIONS.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt || '-'}
-                        </option>
-                      ))}
-                    </select>
+                      onSet={(v) => setItem(i, 'supervisor_result', v)}
+                    />
                   </td>
                   <td className="px-1 py-1 border border-gray-200">
                     <input

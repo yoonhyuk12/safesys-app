@@ -195,14 +195,18 @@ export async function downloadInspectionChecklistExcel(
   normalizeChecklistItems(record.checklist_items).forEach((it) => {
     const top = r
     const bottom = r + 1
+    // 항목이 비어있는 행은 기본값(합격)이라도 표시하지 않는다 (빈 행에 ○ 방지)
+    const hasItem = !!(it.item && it.item.trim())
     mergeSet(ws, `A${top}:C${bottom}`, it.item || '', { align: { horizontal: 'left' } })
     mergeSet(ws, `D${top}:G${bottom}`, it.standard || '', { align: { horizontal: 'left' }, size: 9 })
     // 시공자 (상단)
-    setCell(ws, `H${top}`, mark(it.contractor_result === '합격'), { align: { horizontal: 'center' } })
-    mergeSet(ws, `I${top}:J${top}`, mark(it.contractor_result === '불합격'), { align: { horizontal: 'center' } })
+    setCell(ws, `H${top}`, mark(hasItem && it.contractor_result === '합격'), { align: { horizontal: 'center' } })
+    mergeSet(ws, `I${top}:J${top}`, mark(hasItem && it.contractor_result === '불합격'), {
+      align: { horizontal: 'center' },
+    })
     // 감독원 (하단)
-    setCell(ws, `H${bottom}`, mark(it.supervisor_result === '합격'), { align: { horizontal: 'center' } })
-    mergeSet(ws, `I${bottom}:J${bottom}`, mark(it.supervisor_result === '불합격'), {
+    setCell(ws, `H${bottom}`, mark(hasItem && it.supervisor_result === '합격'), { align: { horizontal: 'center' } })
+    mergeSet(ws, `I${bottom}:J${bottom}`, mark(hasItem && it.supervisor_result === '불합격'), {
       align: { horizontal: 'center' },
     })
     mergeSet(ws, `K${top}:K${bottom}`, it.action || '', { align: { horizontal: 'left' }, size: 9 })
