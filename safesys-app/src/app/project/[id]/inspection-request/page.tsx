@@ -13,10 +13,12 @@ import {
   downloadInspectionRequestExcel,
   downloadInspectionLedgerExcel,
 } from '@/lib/excel/inspection-request-export'
+import { downloadInspectionChecklistExcel } from '@/lib/excel/inspection-checklist-export'
 import {
   InspectionRequestFormData,
   InspectionRequestRecord,
   createEmptyInspectionRequest,
+  normalizeChecklistItems,
 } from '@/lib/inspection/inspection-types'
 
 export default function InspectionRequestPage() {
@@ -39,6 +41,7 @@ export default function InspectionRequestPage() {
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [checklistDownloadingId, setChecklistDownloadingId] = useState<string | null>(null)
   const [ledgerDownloading, setLedgerDownloading] = useState(false)
 
   const handleBack = () => {
@@ -127,7 +130,11 @@ export default function InspectionRequestPage() {
   const handleSelectRecord = (record: InspectionRequestRecord) => {
     const { id, project_id, created_by, created_at, updated_at, ...fields } = record
     void id; void project_id; void created_by; void created_at; void updated_at
-    setFormData({ ...createEmptyInspectionRequest(), ...fields })
+    setFormData({
+      ...createEmptyInspectionRequest(),
+      ...fields,
+      checklist_items: normalizeChecklistItems(fields.checklist_items),
+    })
     setEditingRecordId(record.id)
     setShowForm(true)
   }
@@ -208,6 +215,19 @@ export default function InspectionRequestPage() {
       alert('엑셀 생성 실패: ' + message)
     } finally {
       setDownloadingId(null)
+    }
+  }
+
+  // 검측 체크리스트(별지 제5호) 1건 엑셀 다운로드
+  const handleDownloadChecklist = async (record: InspectionRequestRecord) => {
+    setChecklistDownloadingId(record.id)
+    try {
+      await downloadInspectionChecklistExcel(record, project?.project_name || '')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '알 수 없는 오류'
+      alert('엑셀 생성 실패: ' + message)
+    } finally {
+      setChecklistDownloadingId(null)
     }
   }
 
@@ -351,17 +371,30 @@ export default function InspectionRequestPage() {
                   {/* 버튼 */}
                   <div className="flex justify-end gap-2 pt-1">
                     {editingRecordId && (
-                      <button
-                        onClick={() => {
-                          const record = records.find((r) => r.id === editingRecordId)
-                          if (record) handleDownload(record)
-                        }}
-                        disabled={downloadingId === editingRecordId}
-                        className="flex items-center gap-1 px-3 py-2 text-sm text-green-700 bg-green-50 border border-green-300 rounded-lg hover:bg-green-100 disabled:opacity-50"
-                      >
-                        <Download className="h-4 w-4" />
-                        엑셀
-                      </button>
+                      <>
+                        <button
+                          onClick={() => {
+                            const record = records.find((r) => r.id === editingRecordId)
+                            if (record) handleDownload(record)
+                          }}
+                          disabled={downloadingId === editingRecordId}
+                          className="flex items-center gap-1 px-3 py-2 text-sm text-green-700 bg-green-50 border border-green-300 rounded-lg hover:bg-green-100 disabled:opacity-50"
+                        >
+                          <Download className="h-4 w-4" />
+                          요청서
+                        </button>
+                        <button
+                          onClick={() => {
+                            const record = records.find((r) => r.id === editingRecordId)
+                            if (record) handleDownloadChecklist(record)
+                          }}
+                          disabled={checklistDownloadingId === editingRecordId}
+                          className="flex items-center gap-1 px-3 py-2 text-sm text-green-700 bg-green-50 border border-green-300 rounded-lg hover:bg-green-100 disabled:opacity-50"
+                        >
+                          <Download className="h-4 w-4" />
+                          체크리스트
+                        </button>
+                      </>
                     )}
                     <button
                       onClick={resetForm}

@@ -3,6 +3,18 @@
 
 export type PassStatus = '' | '합격' | '불합격'
 
+// 검측 체크리스트(별지 제5호) 항목 — 각 항목은 상단(시공자)/하단(감독원) 2행으로 표기됨
+export interface ChecklistItem {
+  item: string // 검측 항목
+  standard: string // 검사기준 (시방서 또는 도면 등)
+  contractor_result: PassStatus // 검사결과 상단 — 시공자 점검
+  supervisor_result: PassStatus // 검사결과 하단 — 감독원 검측
+  action: string // 조치사항
+}
+
+// 양식과 동일한 고정 행 수 — 폼·엑셀 공통 단일 출처
+export const CHECKLIST_ROW_COUNT = 14
+
 export interface InspectionRequestFormData {
   // 검측요청서 (별지 제4호)
   request_no: string // 요청 번호
@@ -33,6 +45,11 @@ export interface InspectionRequestFormData {
   supervisor_name: string // 공사감독원
   supervisor_signature: string // 공사감독원 서명 (base64 이미지)
 
+  // 검측 체크리스트 (별지 제5호) — 헤더(시설물명/위치/공종명/물량)는 위 검측요청서 필드와 공유(싱크)
+  checklist_items: ChecklistItem[] // 검측 항목 목록 (고정 행)
+  contractor_check_date: string | null // 시공자 점검일자 (YYYY-MM-DD)
+  supervisor_check_date: string | null // 감독원 검측일자 (YYYY-MM-DD)
+
   remarks: string
 }
 
@@ -42,6 +59,26 @@ export interface InspectionRequestRecord extends InspectionRequestFormData {
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+export const createEmptyChecklistItem = (): ChecklistItem => ({
+  item: '',
+  standard: '',
+  contractor_result: '',
+  supervisor_result: '',
+  action: '',
+})
+
+export const createEmptyChecklistItems = (): ChecklistItem[] =>
+  Array.from({ length: CHECKLIST_ROW_COUNT }, () => createEmptyChecklistItem())
+
+// DB에서 불러온 항목(null·길이 불일치 가능)을 고정 행 수에 맞게 정규화
+export const normalizeChecklistItems = (items: unknown): ChecklistItem[] => {
+  const arr = Array.isArray(items) ? items : []
+  return Array.from({ length: CHECKLIST_ROW_COUNT }, (_, i) => ({
+    ...createEmptyChecklistItem(),
+    ...(arr[i] && typeof arr[i] === 'object' ? (arr[i] as Partial<ChecklistItem>) : {}),
+  }))
 }
 
 export const createEmptyInspectionRequest = (
@@ -70,6 +107,9 @@ export const createEmptyInspectionRequest = (
   instructions: '',
   supervisor_name: '',
   supervisor_signature: '',
+  checklist_items: createEmptyChecklistItems(),
+  contractor_check_date: null,
+  supervisor_check_date: null,
   remarks: '',
   ...defaults,
 })

@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { ClipboardList, FileCheck, BookOpen } from 'lucide-react'
 import SignatureModal from '@/components/project/SignatureModal'
+import InspectionChecklistTab from '@/components/project/inspection/InspectionChecklistTab'
 import { InspectionRequestFormData, PassStatus } from '@/lib/inspection/inspection-types'
 
 interface InspectionRequestFormProps {
@@ -21,9 +22,20 @@ export default function InspectionRequestForm({ formData, onChange }: Inspection
   const [activeSignType, setActiveSignType] = useState<
     'field_agent_signature' | 'inspector_signature' | 'supervisor_signature' | null
   >(null)
+  const [activeTab, setActiveTab] = useState<'request' | 'checklist'>('request')
 
   const set = <K extends keyof InspectionRequestFormData>(key: K, value: InspectionRequestFormData[K]) => {
     onChange({ ...formData, [key]: value })
+  }
+
+  // 검측 체크리스트 탭으로 전환 — 헤더는 검측요청서 필드를 그대로 공유하고, 비어있는 일자만 1회 자동 채움
+  const goToChecklist = () => {
+    onChange({
+      ...formData,
+      contractor_check_date: formData.contractor_check_date || formData.request_date,
+      supervisor_check_date: formData.supervisor_check_date || formData.result_date,
+    })
+    setActiveTab('checklist')
   }
 
   // 요청서 번호 변경 시 통보번호도 함께 변경 ("요청"→"통보" 치환, 통보번호를 따로 수정한 경우는 제외)
@@ -47,8 +59,29 @@ export default function InspectionRequestForm({ formData, onChange }: Inspection
   const reqNo = splitNo(formData.request_no)
   const resNo = splitNo(formData.result_no)
 
+  const tabBtnCls = (active: boolean) =>
+    `flex-1 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+      active
+        ? 'border-blue-600 text-blue-700'
+        : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+    }`
+
   return (
-    <div className="space-y-4">
+    <div>
+      {/* 탭 바 */}
+      <div className="flex border-b border-gray-200 mb-4">
+        <button type="button" onClick={() => setActiveTab('request')} className={tabBtnCls(activeTab === 'request')}>
+          검측요청서
+        </button>
+        <button type="button" onClick={goToChecklist} className={tabBtnCls(activeTab === 'checklist')}>
+          검측 체크리스트(선택사항)
+        </button>
+      </div>
+
+      {activeTab === 'checklist' ? (
+        <InspectionChecklistTab formData={formData} onChange={onChange} />
+      ) : (
+      <div className="space-y-4">
       {/* 검측요청서 (별지 제4호) */}
       <div className="border border-gray-300 rounded-lg overflow-hidden">
         <div className="bg-gray-100 px-3 py-2 font-semibold text-sm border-b border-gray-300 flex items-center gap-2">
@@ -352,6 +385,8 @@ export default function InspectionRequestForm({ formData, onChange }: Inspection
           </div>
         </div>
       </div>
+      </div>
+      )}
 
       {/* 서명 모달 */}
       <SignatureModal
