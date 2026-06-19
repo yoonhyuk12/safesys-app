@@ -225,11 +225,11 @@ export async function downloadInspectionLedgerExcel(
 }
 
 // ── 검측요청서 + 검측결과통보 (별지 제4호) — 1건 출력
-export async function downloadInspectionRequestExcel(
+export function addRequestSheet(
+  workbook: ExcelJS.Workbook,
   record: InspectionRequestRecord,
   projectName: string
-): Promise<void> {
-  const workbook = new ExcelJS.Workbook()
+): ExcelJS.Worksheet {
   const signaturesToAdd: { signature: string | undefined; col: number; row: number }[] = []
   const ws = workbook.addWorksheet('검측요청서', {
     pageSetup: {
@@ -416,6 +416,16 @@ export async function downloadInspectionRequestExcel(
     addSignatureImage(workbook, ws, item.signature, item.col, item.row)
   })
 
+  return ws
+}
+
+// 검측요청서(별지 제4호) 단독 1건 출력
+export async function downloadInspectionRequestExcel(
+  record: InspectionRequestRecord,
+  projectName: string
+): Promise<void> {
+  const workbook = new ExcelJS.Workbook()
+  addRequestSheet(workbook, record, projectName)
   const dateStr = record.request_date || new Date().toISOString().split('T')[0]
   const filename = `검측요청서_${record.request_no ? `제${record.request_no}호_` : ''}${dateStr}.xlsx`
   await downloadWorkbook(workbook, filename)

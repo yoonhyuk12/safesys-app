@@ -88,7 +88,7 @@ export default function InspectionRequestList({
                     onClick={() => onDownload(record)}
                     disabled={downloadingId === record.id}
                     className="p-1.5 text-green-600 hover:bg-green-50 rounded-md mx-auto flex disabled:opacity-40"
-                    title="검측요청서 엑셀 다운로드"
+                    title="검측요청서(시트1) + 체크리스트(시트2) 엑셀 다운로드"
                   >
                     <Download className="h-4 w-4" />
                   </button>

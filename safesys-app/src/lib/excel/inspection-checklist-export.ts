@@ -6,6 +6,7 @@ import {
   InspectionRequestRecord,
   normalizeChecklistItems,
 } from '@/lib/inspection/inspection-types'
+import { addRequestSheet } from '@/lib/excel/inspection-request-export'
 
 const thin: ExcelJS.Border = { style: 'thin', color: { argb: 'FF000000' } }
 const allBorders: Partial<ExcelJS.Borders> = { top: thin, bottom: thin, left: thin, right: thin }
@@ -87,12 +88,11 @@ const downloadWorkbook = async (workbook: ExcelJS.Workbook, filename: string) =>
   window.URL.revokeObjectURL(url)
 }
 
-// ── 검측 체크리스트 (별지 제5호) — 1건 출력
-export async function downloadInspectionChecklistExcel(
-  record: InspectionRequestRecord,
-  projectName: string
-): Promise<void> {
-  const workbook = new ExcelJS.Workbook()
+// ── 검측 체크리스트 (별지 제5호) 시트를 워크북에 추가
+export function addChecklistSheet(
+  workbook: ExcelJS.Workbook,
+  record: InspectionRequestRecord
+): ExcelJS.Worksheet {
   const ws = workbook.addWorksheet('검측체크리스트', {
     pageSetup: {
       paperSize: 9, // A4
@@ -242,8 +242,18 @@ export async function downloadInspectionChecklistExcel(
   )
   ws.getRow(r).height = 24
 
-  const dateStr = record.contractor_check_date || record.request_date || new Date().toISOString().split('T')[0]
-  const titlePart = projectName ? `${projectName}_` : ''
-  const filename = `검측체크리스트_${titlePart}${dateStr}.xlsx`
+  return ws
+}
+
+// ── 검측요청서(시트1) + 검측 체크리스트(시트2)를 한 파일로 출력
+export async function downloadInspectionRequestWithChecklistExcel(
+  record: InspectionRequestRecord,
+  projectName: string
+): Promise<void> {
+  const workbook = new ExcelJS.Workbook()
+  addRequestSheet(workbook, record, projectName) // 시트1: 검측요청서
+  addChecklistSheet(workbook, record) // 시트2: 검측 체크리스트
+  const dateStr = record.request_date || new Date().toISOString().split('T')[0]
+  const filename = `검측요청서_체크리스트_${record.request_no ? `제${record.request_no}호_` : ''}${dateStr}.xlsx`
   await downloadWorkbook(workbook, filename)
 }

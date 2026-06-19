@@ -38,3 +38,10 @@ ChecklistItem = { item, standard, contractor_result, supervisor_result, action }
 - 사용자 요청: 시공자/감독원 검사결과를 드롭다운→합격/불합격 버튼 토글, 기본값 합격.
 - `createEmptyChecklistItem`의 contractor_result/supervisor_result 기본값을 '합격'으로. 기존 저장 레코드의 ''(미정)은 normalize 시 그대로 유지(버튼 미선택 상태로 표시).
 - 부작용 방지: 기본 합격이라 빈 행도 합격이 되므로, 엑셀 출력은 `hasItem`(검측항목 존재) 가드로 빈 행에는 ○를 찍지 않는다.
+
+## 4차 변경 (엑셀 통합 + 입력칸 자동 높이)
+
+- 사용자 요청: 다운로드 1번에 시트1=요청서, 시트2=체크리스트가 한 파일에.
+  - export 리팩터: `addRequestSheet(wb, record, projectName)`·`addChecklistSheet(wb, record)`로 시트 빌더 분리. `downloadInspectionRequestWithChecklistExcel`가 한 워크북에 두 시트 추가. checklist-export가 request-export의 addRequestSheet를 import(순환 없음).
+  - page.tsx: 다운로드 버튼/리스트 아이콘 모두 통합 다운로더 사용. 폼 푸터의 요청서/체크리스트 2버튼 → 단일 "엑셀". handleDownloadChecklist/checklistDownloadingId/downloadInspectionChecklistExcel 제거.
+- 입력칸 자동 높이: 검측항목·검사기준·조치사항을 `AutoTextarea`(useEffect로 scrollHeight 맞춤)로 변경. 합격/불합격 버튼은 검측항목이 있는 행에만 표시.
