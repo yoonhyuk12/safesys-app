@@ -244,6 +244,14 @@ export interface SubChecklistItem {
   readonly states?: readonly ConstructionStatus[];
   readonly costs?: 'all' | readonly ConstructionCost[];
   readonly dependsOn?: DependsOnType;
+  readonly penalty?: ChecklistPenalty;   // 하위 항목별 과태료/벌금 (있으면 건별 부과)
+}
+
+// 항목별 과태료/벌금 (합계 표 계산용 amount + 표시용 text)
+export interface ChecklistPenalty {
+  readonly kind: '과태료' | '벌금' | '없음';   // 행정 과태료 / 형사 벌금 / 없음 — 합계 표에서 구분 집계
+  readonly amount: number | null;              // 합계 계산용 금액(원). 없음이면 null
+  readonly text: string;                       // 표시용 문구
 }
 
 export interface ChecklistItem {
@@ -254,6 +262,7 @@ export interface ChecklistItem {
   readonly description?: string;
   readonly image?: string;
   readonly imageAlt?: string;
+  readonly penalty?: ChecklistPenalty;
 }
 
 // Type Guards
@@ -294,7 +303,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       'target="_blank" class="text-blue-600 hover:underline">예방조치 이행 확인표 샘플양식</a><br />' + 
       '• <a href="https://drive.google.com/file/d/1wPp917VaE_R13WYvjEmsF1UOyoVVpsUx/view?usp=drive_link" ' + 
       'target="_blank" class="text-blue-600 hover:underline">안전보건대장 전문가 적정성 확인 지침</a><br />' +
-      '• 주의 : "설계 변경시 산업안전보건관리비 금액변경 기록(필수)"'
+      '• 주의 : "설계 변경시 산업안전보건관리비 금액변경 기록(필수)"',
+    penalty: {
+      kind: '과태료',
+      amount: 10000000,
+      text: '하위 3개 항목 중 하나라도 미이행 → 1,000만 원 이하'
+    }
   },
   '시공안전계획서': {
     states: CONSTRUCTION_STATUS,
@@ -312,7 +326,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '• 샘플양식 : ' + 
       '<a href="https://drive.google.com/file/d/1bqAJ5MowMXdkOlOhxFzWZJVNA0p_TnYF/view?usp=drive_link" ' + 
       'target="_blank" class="text-blue-600 hover:underline">' + 
-      '시공안전계획서 샘플양식(타회사)</a><br />'      
+      '시공안전계획서 샘플양식(타회사)</a><br />',
+    penalty: {
+      kind: '없음',
+      amount: null,
+      text: '없음'
+    }
   },  
   '안전관리계획서': {
     states: CONSTRUCTION_STATUS,
@@ -325,12 +344,14 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       {
         title: '안전관리계획서 작성 및 비치',
         states: CONSTRUCTION_STATUS,
-        costs: 'all'
+        costs: 'all',
+        penalty: { kind: '벌금', amount: 20000000, text: '미작성·미비치 → 2,000만 원 이하' }
       },
       {
         title: '안전관리실태 확인 회의 실시(월1회)',
         states: ['공사중'] as const,
-        costs: 'all'
+        costs: 'all',
+        penalty: { kind: '없음', amount: null, text: '없음' }
       }
     ],
     description: 
@@ -367,20 +388,35 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
     dependsOn: 'hasSpecialConstruction2',
     description:
     '• 대상 : 안전관리계획서 수립현장<br />' + 
-    '• 관련 : <a href="https://www.law.go.kr/lsLawLinkInfo.do?lsJoLnkSeq=1017732939&chrClsCd=010202&ancYnChk=" target="_blank" class="text-blue-600 hover:underline">건설기술 진흥법 시행령 제100조(안전점검 시기, 방법 등) 제1항 제3호</a><br />• 등록 : <a href="https://www.csi.go.kr/main.do?isMobile=null" target="_blank" class="text-blue-600 hover:underline">정기점검보고서, 종합보고서 사이트(건설공사 안전관리 종합정보망) 등록</a><br />• 참고 : <a href="https://www.law.go.kr/admRulBylInfoPLinkR.do?admRulSeq=2100000216960&admRulNm=%EA%B1%B4%EC%84%A4%EA%B3%B5%EC%82%AC%20%EC%95%88%EC%A0%84%EA%B4%80%EB%A6%AC%20%EC%97%85%EB%AC%B4%EC%88%98%ED%96%89%20%EC%A7%80%EC%B9%A8&bylNo=0001&bylBrNo=00&bylCls=BE&bylClsCd=BE&joEfYd=&bylEfYd=" target="_blank" class="text-blue-600 hover:underline">정기안전점검 실시시기</a>'
+    '• 관련 : <a href="https://www.law.go.kr/lsLawLinkInfo.do?lsJoLnkSeq=1017732939&chrClsCd=010202&ancYnChk=" target="_blank" class="text-blue-600 hover:underline">건설기술 진흥법 시행령 제100조(안전점검 시기, 방법 등) 제1항 제3호</a><br />• 등록 : <a href="https://www.csi.go.kr/main.do?isMobile=null" target="_blank" class="text-blue-600 hover:underline">정기점검보고서, 종합보고서 사이트(건설공사 안전관리 종합정보망) 등록</a><br />• 참고 : <a href="https://www.law.go.kr/admRulBylInfoPLinkR.do?admRulSeq=2100000216960&admRulNm=%EA%B1%B4%EC%84%A4%EA%B3%B5%EC%82%AC%20%EC%95%88%EC%A0%84%EA%B4%80%EB%A6%AC%20%EC%97%85%EB%AC%B4%EC%88%98%ED%96%89%20%EC%A7%80%EC%B9%A8&bylNo=0001&bylBrNo=00&bylCls=BE&bylClsCd=BE&joEfYd=&bylEfYd=" target="_blank" class="text-blue-600 hover:underline">정기안전점검 실시시기</a>',
+    penalty: {
+      kind: '벌금',
+      amount: 20000000,
+      text: '미실시 → 2,000만 원 이하'
+    }
   },
   '가설구조물 구조적 안전성 검토': {
     states: ['착공전', '공사중'] as const,
     costs: 'all',
     dependsOn: 'hasSpecialConstruction2',
-    description: '• 관련 : <a href="https://www.law.go.kr/lsLawLinkInfo.do?lsJoLnkSeq=1017732397&chrClsCd=010202&ancYnChk=" target="_blank" class="text-blue-600 hover:underline">건설기술 진흥법 시행령 제101조의2(가설구조물의 구조적 안전성 확인)</a><br />• 양식 : <a href="https://drive.google.com/file/d/1Qku39d-Bbf1BxyI0nctt91IUANlJ1V6X/view?usp=share_link" target="_blank" class="text-blue-600 hover:underline">(공사양식) 가설구조물 안전성 검토 확인서</a><br />• 참고 : <a href="https://drive.google.com/file/d/1lWZdUifwVg4t5fZM50OKlItMyzJnuaRK/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">설계, 설계변경시 비계는 구조검토서 첨부 필요(비계 및 안전시설물 설계 기준)</a><br />• 대상 가설구조물:<br />  - 31m 이상 비계<br />  - 브라켓 비계<br />  - 5m 이상 거푸집/동바리, 작업발판 일체형 거푸집<br />  - 터널 지보공, 2m 이상 흙막이 지보공<br />  - 동력을 이용하는 가설구조물<br />  - 10m 이상 외부작업용 작업발판/안전시설물<br />  - 현장제작 복합형 가설구조물<br />  - 발주자/인허가기관이 필요하다고 인정하는 가설구조물'
+    description: '• 관련 : <a href="https://www.law.go.kr/lsLawLinkInfo.do?lsJoLnkSeq=1017732397&chrClsCd=010202&ancYnChk=" target="_blank" class="text-blue-600 hover:underline">건설기술 진흥법 시행령 제101조의2(가설구조물의 구조적 안전성 확인)</a><br />• 양식 : <a href="https://drive.google.com/file/d/1Qku39d-Bbf1BxyI0nctt91IUANlJ1V6X/view?usp=share_link" target="_blank" class="text-blue-600 hover:underline">(공사양식) 가설구조물 안전성 검토 확인서</a><br />• 참고 : <a href="https://drive.google.com/file/d/1lWZdUifwVg4t5fZM50OKlItMyzJnuaRK/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">설계, 설계변경시 비계는 구조검토서 첨부 필요(비계 및 안전시설물 설계 기준)</a><br />• 대상 가설구조물:<br />  - 31m 이상 비계<br />  - 브라켓 비계<br />  - 5m 이상 거푸집/동바리, 작업발판 일체형 거푸집<br />  - 터널 지보공, 2m 이상 흙막이 지보공<br />  - 동력을 이용하는 가설구조물<br />  - 10m 이상 외부작업용 작업발판/안전시설물<br />  - 현장제작 복합형 가설구조물<br />  - 발주자/인허가기관이 필요하다고 인정하는 가설구조물',
+    penalty: {
+      kind: '벌금',
+      amount: 20000000,
+      text: '구조적 안전성 검토 미이행 → 2,000만 원 이하'
+    }
   },
   '일일안전점검': {
     states: ['공사중'] as const,
     costs: 'all',
     description:
      '• 대상 : 모든건설 현장<br />' + 
-     '• 관련 : <a href="https://www.law.go.kr/lsLawLinkInfo.do?lsJoLnkSeq=1017732939&chrClsCd=010202&ancYnChk=" target="_blank" class="text-blue-600 hover:underline">건설기술 진흥법 시행령 제100조(안전점검의 시기ㆍ방법 등)</a><br />• 양식 : <a href="https://drive.google.com/file/d/12_IhSP4bG0zDvYUEgcjYsJT5qAm1hvJm/view?usp=drivesdk" target="_blank" class="text-blue-600 hover:underline">(공사양식) 일일점검일지</a><br />• 참고 : 일일점검시 "위험성평가" 이행사항 체크내역 반영'
+     '• 관련 : <a href="https://www.law.go.kr/lsLawLinkInfo.do?lsJoLnkSeq=1017732939&chrClsCd=010202&ancYnChk=" target="_blank" class="text-blue-600 hover:underline">건설기술 진흥법 시행령 제100조(안전점검의 시기ㆍ방법 등)</a><br />• 양식 : <a href="https://drive.google.com/file/d/12_IhSP4bG0zDvYUEgcjYsJT5qAm1hvJm/view?usp=drivesdk" target="_blank" class="text-blue-600 hover:underline">(공사양식) 일일점검일지</a><br />• 참고 : 일일점검시 "위험성평가" 이행사항 체크내역 반영',
+    penalty: {
+      kind: '벌금',
+      amount: 20000000,
+      text: '미실시 → 2,000만 원 이하'
+    }
   },
   '위험공종 작업허가제': {
     states: ['공사중'] as const,
@@ -397,12 +433,22 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '• 양식 : <a href="https://drive.google.com/file/d/1mDa_55DtxWbW_kiRid06gnvIGSOjn7ga/view?usp=drive_link" ' +
      'target="_blank" class="text-blue-600 hover:underline">위험공종작업허가 이행확인.hwp(양식)</a><br />',
     image: '/사전작업허가제.png',
-    imageAlt: '위험공종 안전 실명제 표지판 및 안전게시판 예시'
+    imageAlt: '위험공종 안전 실명제 표지판 및 안전게시판 예시',
+    penalty: {
+      kind: '없음',
+      amount: null,
+      text: '없음'
+    }
   },
   '작업계획서': {
     states: ['공사중'] as const,
     costs: 'all',
-    description: '• 관련법 : <a href="https://www.law.go.kr/lsLawLinkInfo.do?lsJoLnkSeq=1016699585&chrClsCd=010202&ancYnChk=" target="_blank" class="text-blue-600 hover:underline">산업안전보건기준에 관한 규칙 제38조(사전조사 및 작업계획서의 작성 등)</a><br />• 양식 : <a href="https://drive.google.com/file/d/1mafzvAt1IskgsQZCJ6lfbf1zT9QmbYX9/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">(양식) 차량계 건설기계 작업계획서</a><br />• 양식 : <a href="https://drive.google.com/file/d/16by0cv8IvQm73nv7jHLMZXay3uoM4pkV/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">(양식) 중량물 취급계획서</a><br />• 양식 : <a href="https://drive.google.com/file/d/1ulUy_JuvXd2rkij4mes69Va3e14evqZS/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">(양식) 차량계하역운반기계 등 사용 작업계획서</a><br />• 양식 : <a href="https://drive.google.com/file/d/1alME3eGuqZA-qi1KYwPRaVlOBuZhdsxo/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">(양식) 전기작업계획서</a><br />• 참고 : <a href="https://www.law.go.kr/LSW//lsBylInfoPLinkR.do?lsiSeq=245059&lsNm=%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EA%B8%B0%EC%A4%80%EC%97%90+%EA%B4%80%ED%95%9C+%EA%B7%9C%EC%B9%99&bylNo=0006&bylBrNo=00&bylCls=BE&bylEfYd=20221018&bylEfYdYn=Y" target="_blank" class="text-blue-600 hover:underline">차량계 건설기계 종류(17종)</a><br />• 참고 : <a href="https://drive.google.com/file/d/1Fe-nG7TSP24ExK6iVl_VyKV9U15ULpNM/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">작업계획서 기재내용(별표4)</a><br />• 참고 : <a href="https://drive.google.com/file/d/1WHlyzSU5R6fjEp0HHN5xGJiZe5SFTGBS/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">작업지휘자 지정, 배치·운영 및 작업계획서 작성 가이드</a><br />• 참고 : 작업지휘자, 유도원은 현장대리인, 안전관리자 지정 불가<br />            관리감독자, 작업반장 급 중간관리자 임명'
+    description: '• 관련법 : <a href="https://www.law.go.kr/lsLawLinkInfo.do?lsJoLnkSeq=1016699585&chrClsCd=010202&ancYnChk=" target="_blank" class="text-blue-600 hover:underline">산업안전보건기준에 관한 규칙 제38조(사전조사 및 작업계획서의 작성 등)</a><br />• 양식 : <a href="https://drive.google.com/file/d/1mafzvAt1IskgsQZCJ6lfbf1zT9QmbYX9/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">(양식) 차량계 건설기계 작업계획서</a><br />• 양식 : <a href="https://drive.google.com/file/d/16by0cv8IvQm73nv7jHLMZXay3uoM4pkV/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">(양식) 중량물 취급계획서</a><br />• 양식 : <a href="https://drive.google.com/file/d/1ulUy_JuvXd2rkij4mes69Va3e14evqZS/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">(양식) 차량계하역운반기계 등 사용 작업계획서</a><br />• 양식 : <a href="https://drive.google.com/file/d/1alME3eGuqZA-qi1KYwPRaVlOBuZhdsxo/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">(양식) 전기작업계획서</a><br />• 참고 : <a href="https://www.law.go.kr/LSW//lsBylInfoPLinkR.do?lsiSeq=245059&lsNm=%EC%82%B0%EC%97%85%EC%95%88%EC%A0%84%EB%B3%B4%EA%B1%B4%EA%B8%B0%EC%A4%80%EC%97%90+%EA%B4%80%ED%95%9C+%EA%B7%9C%EC%B9%99&bylNo=0006&bylBrNo=00&bylCls=BE&bylEfYd=20221018&bylEfYdYn=Y" target="_blank" class="text-blue-600 hover:underline">차량계 건설기계 종류(17종)</a><br />• 참고 : <a href="https://drive.google.com/file/d/1Fe-nG7TSP24ExK6iVl_VyKV9U15ULpNM/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">작업계획서 기재내용(별표4)</a><br />• 참고 : <a href="https://drive.google.com/file/d/1WHlyzSU5R6fjEp0HHN5xGJiZe5SFTGBS/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">작업지휘자 지정, 배치·운영 및 작업계획서 작성 가이드</a><br />• 참고 : 작업지휘자, 유도원은 현장대리인, 안전관리자 지정 불가<br />            관리감독자, 작업반장 급 중간관리자 임명',
+    penalty: {
+      kind: '벌금',
+      amount: 50000000,
+      text: '미작성 → 5,000만 원 이하 (사망사고 시 1억 원 이하)'
+    }
   },
   '안전보건조정자 선임 및 회의': {
     states: ['공사중'] as const,
@@ -433,7 +479,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       'target="_blank" class="text-blue-600 hover:underline">안전보건조정자 업무매뉴얼(25.05개정)</a><br />' + 
       '• 선임자격 : 책임감리자, 건설안전기술사, 건설안전기사(5년이상), 건설산업기사(7년이상) 등<br />' + 
       '• 내용 : 선임통보(착공이전), 월1회 점검(공사 실시하는 월만)<br />' + 
-      '※ VAR에 따라 위험성평가 회의, 안전보건협의체 회의, 안전보건조정자 회의 하나의 양식으로 같이 진행'
+      '※ VAR에 따라 위험성평가 회의, 안전보건협의체 회의, 안전보건조정자 회의 하나의 양식으로 같이 진행',
+    penalty: {
+      kind: '과태료',
+      amount: 5000000,
+      text: '미선임 → 500만 원 이하'
+    }
   },  
   '건진법 안전관리비 사용내역': {
     states: ['공사중', '공사중지'] as const,
@@ -448,7 +499,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '<a href="https://drive.google.com/file/d/1zlKR1rIqBdBB67u1wGCDCnwuBA624ZLh/view?usp=drivesdk" ' + 
       'target="_blank" class="text-blue-600 hover:underline">건진법 안전관리비 사용항목</a><br />' + 
       '• 정산 : 산안비과 같게, 실정산금액에 대해서 정산<br />' +
-      '※ 감리자는 6개월 마다 1회 이상 내역 확인'
+      '※ 감리자는 6개월 마다 1회 이상 내역 확인',
+    penalty: {
+      kind: '없음',
+      amount: null,
+      text: '없음'
+    }
   },
   '산업안전보건관리비 사용내역': {
     states: ['공사중', '공사중지'] as const,
@@ -474,24 +530,30 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '• 시공자는 사용명세서를 매월 작성하여 보존, 감리자는 6개월 마다 1회 이상 내역 확인(공사 지침상 1개월 단위 내역 확인)<br />' + 
       '• 안전관리자 인건비 : 겸직(50%), 전담(100%), 단 지방관서에 선임 보고한 날 이후<br />' + 
       '• 증빙 : 노동부 선임 신고서, 안전업무일지 등, 기타 제반서류<br />' + 
-      '• 주의 : "설계 변경시 산업안전보건관리비 금액변경 기록(필수)"'
+      '• 주의 : "설계 변경시 산업안전보건관리비 금액변경 기록(필수)"',
+    penalty: {
+      kind: '과태료',
+      amount: 50000000,
+      text: '목적 외 사용 → 5,000만 원 이하'
+    }
   },
   '안전보건교육': {
     states: ['공사중', '공사중지'] as const,
     costs: 'all',
     subItems: [
-      { 
+      {
         title: '안전보건관리책임자 교육(6시간 이상, 신규/보수)',
-        costs: ['20억 이상 ~ 50억 미만', '50억 이상 ~ 120억 미만', '120억 이상 ~ 150억 미만', '150억 이상'] as const
+        costs: ['20억 이상 ~ 50억 미만', '50억 이상 ~ 120억 미만', '120억 이상 ~ 150억 미만', '150억 이상'] as const,
+        penalty: { kind: '과태료', amount: 5000000, text: '미실시 → 500만 원 이하' }
       },
-      { title: '관리감독자 교육(연간 16시간 이상)' },
-      { title: '정기교육(사무직 외 근로자, 매반기 12시간 이상)' },
-      { title: '특별교육 대상자(2/8/16시간 이상)' },
-      { title: '특수형태근로종사자 교육(최초2시간이상)' },
-      { title: 'MSDS(물질안전보건) 교육' },
-      { title: '채용시 교육(1/4/8시간 이상)' },
-      { title: '건설업 기초안전보건교육(4hr) 수료증' },
-      { title: '신규근로자 둘러보기(공사 자체시행)' }
+      { title: '관리감독자 교육(연간 16시간 이상)', penalty: { kind: '과태료', amount: 5000000, text: '미실시 → 500만 원 이하' } },
+      { title: '정기교육(사무직 외 근로자, 매반기 12시간 이상)', penalty: { kind: '과태료', amount: 5000000, text: '미실시 → 500만 원 이하' } },
+      { title: '특별교육 대상자(2/8/16시간 이상)', penalty: { kind: '과태료', amount: 30000000, text: '미실시 → 3,000만 원 이하' } },
+      { title: '특수형태근로종사자 교육(최초2시간이상)', penalty: { kind: '과태료', amount: 5000000, text: '미실시 → 500만 원 이하' } },
+      { title: 'MSDS(물질안전보건) 교육', penalty: { kind: '과태료', amount: 5000000, text: '미실시 → 500만 원 이하' } },
+      { title: '채용시 교육(1/4/8시간 이상)', penalty: { kind: '과태료', amount: 5000000, text: '미실시 → 500만 원 이하' } },
+      { title: '건설업 기초안전보건교육(4hr) 수료증', penalty: { kind: '과태료', amount: 5000000, text: '미실시 → 500만 원 이하' } },
+      { title: '신규근로자 둘러보기(공사 자체시행)', penalty: { kind: '없음', amount: null, text: '없음' } }
     ],
     description: 
       '• 양식 : ' + 
@@ -600,11 +662,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       'target="_blank" class="text-blue-600 hover:underline">위험성평가 지원 시스템</a><br />' + 
       '• AI 도움 : ' +
       '<a href="#" data-risk-chooser="true" ' +
-      'class="text-blue-600 hover:underline cursor-pointer">위험성평가 GPTS AI</a><br />' +
-      '• 과태료 (산업안전보건법 제175조) :<br />' +
-      '&nbsp;&nbsp;- 미실시 → 1,000만 원 이하<br />' +
-      '&nbsp;&nbsp;- 근로자 미참여·미통지 → 500만 원 이하<br />' +
-      '&nbsp;&nbsp;- 기록·보존 미이행 → 300만 원 이하'
+      'class="text-blue-600 hover:underline cursor-pointer">위험성평가 GPTS AI</a><br />',
+    penalty: {
+      kind: '과태료',
+      amount: 10000000,
+      text: '미실시 → 1,000만 원 이하 / 근로자 미참여·미통지 → 500만 원 이하 / 기록·보존 미이행 → 300만 원 이하 (산업안전보건법 제175조)'
+    }
   },
   'TBM실시(일일안전보건교육)': {
     states: ['공사중'] as const,
@@ -622,7 +685,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       'target="_blank" class="text-blue-600 hover:underline">TBM일지 제출</a><br />' + 
       '• 참고 : ' + 
       '<a href="https://drive.google.com/file/d/1pur2NbzreaBIzdB0uZJbhBUCGJlYuk68/view?usp=drivesdk" ' + 
-      'target="_blank" class="text-blue-600 hover:underline">작업 전 안전점검회의(TBM)의 안전보건 정기교육 시간 인정에 관한 지침</a>'
+      'target="_blank" class="text-blue-600 hover:underline">작업 전 안전점검회의(TBM)의 안전보건 정기교육 시간 인정에 관한 지침</a>',
+    penalty: {
+      kind: '없음',
+      amount: null,
+      text: '없음'
+    }
   },
   '근로자 작업장 출입 전,후 체크(일일)': {
     states: ['공사중'] as const,
@@ -632,7 +700,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       'target="_blank" class="text-blue-600 hover:underline">공사 건설공사 안전관리지침 제21조의4(작업장 출입 전 사전점검)</a><br />' + 
       '• 양식 : ' + 
       '<a href="https://drive.google.com/file/d/1Sm0sVgHVAareq4yxvgV7GAY1yqmjx494/view?usp=drive_link" ' + 
-      'target="_blank" class="text-blue-600 hover:underline">(양식) 작업장 출입 전후 체크</a>'
+      'target="_blank" class="text-blue-600 hover:underline">(양식) 작업장 출입 전후 체크</a>',
+    penalty: {
+      kind: '없음',
+      amount: null,
+      text: '없음'
+    }
   },  
   '안전보건협의체(월1회)': {
     states: ['공사중'] as const,
@@ -644,7 +717,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
     ],
     description:
      '• 대상 : 모든 건설현장<br />' +
-     '• 참고 : <a href="https://drive.google.com/file/d/1CgvwGSstXXwsnOCvUFlAbTjhvk1c-5ZW/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">각 종 협의체 비교표</a><br />• 관련 : <a href="https://www.law.go.kr/lsLinkCommonInfo.do?lspttninfSeq=154193&chrClsCd=010202" target="_blank" class="text-blue-600 hover:underline">산업안전보건법 시행규칙 제79조(협의체 구성 및 운영)</a><br />• 대상 : 하도급사가 있을경우 실시해야함<br />• 안전보건협의체 구성(매월) : 도급인 및 하도급인 전원<br />• 양식 : <a href="https://drive.google.com/file/d/1g8gW-Tgd4vqq9flNhcsQCcG6iWX9fn3b/view" target="_blank" class="text-blue-600 hover:underline">(양식)안전보건협의체 회의</a><br />• 합동 안전보건점검(1회/2개월) : 도급인, 도급 근로자, 하도급인, 하도급사 근로자<br />• 순회점검(1회/2일) : 도급인, 도급 근로자, 하도급인 근로자<br />• 양식 : <a href="https://drive.google.com/file/d/12_IhSP4bG0zDvYUEgcjYsJT5qAm1hvJm/view?usp=drivesdk" target="_blank" class="text-blue-600 hover:underline">(공사양식)순회점검일지</a><br />※ VAR에 따라 위험성평가 회의, 안전보건협의체 회의, 안전보건조정자 회의 하나의 양식으로 같이 진행<br />※ 도급인 : 현장대리인<br />※ 하도급인 : 하도급 현장대리인<br />※ 합동 안전보건점검은 일일점검으로 가름(단, 서명 확인필요)'
+     '• 참고 : <a href="https://drive.google.com/file/d/1CgvwGSstXXwsnOCvUFlAbTjhvk1c-5ZW/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">각 종 협의체 비교표</a><br />• 관련 : <a href="https://www.law.go.kr/lsLinkCommonInfo.do?lspttninfSeq=154193&chrClsCd=010202" target="_blank" class="text-blue-600 hover:underline">산업안전보건법 시행규칙 제79조(협의체 구성 및 운영)</a><br />• 대상 : 하도급사가 있을경우 실시해야함<br />• 안전보건협의체 구성(매월) : 도급인 및 하도급인 전원<br />• 양식 : <a href="https://drive.google.com/file/d/1g8gW-Tgd4vqq9flNhcsQCcG6iWX9fn3b/view" target="_blank" class="text-blue-600 hover:underline">(양식)안전보건협의체 회의</a><br />• 합동 안전보건점검(1회/2개월) : 도급인, 도급 근로자, 하도급인, 하도급사 근로자<br />• 순회점검(1회/2일) : 도급인, 도급 근로자, 하도급인 근로자<br />• 양식 : <a href="https://drive.google.com/file/d/12_IhSP4bG0zDvYUEgcjYsJT5qAm1hvJm/view?usp=drivesdk" target="_blank" class="text-blue-600 hover:underline">(공사양식)순회점검일지</a><br />※ VAR에 따라 위험성평가 회의, 안전보건협의체 회의, 안전보건조정자 회의 하나의 양식으로 같이 진행<br />※ 도급인 : 현장대리인<br />※ 하도급인 : 하도급 현장대리인<br />※ 합동 안전보건점검은 일일점검으로 가름(단, 서명 확인필요)',
+    penalty: {
+      kind: '과태료',
+      amount: 5000000,
+      text: '하위 3개 항목 중 하나라도 미이행 → 500만 원 이하'
+    }
   },
   '산업안전보건위원회(분기별1회), 노사협의체(2개월1회)': {
     states: ['공사중'] as const,
@@ -662,7 +740,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
      'target="_blank" class="text-blue-600 hover:underline">산업안전보건법 시행령 제34조(산업안전보건위원회 구성 대상)</a><br />'+
      '• 관련 : ' + 
      '<a href="https://www.law.go.kr/lsLinkCommonInfo.do?lspttninfSeq=154229&chrClsCd=010202" ' + 
-     'target="_blank" class="text-blue-600 hover:underline">산업안전보건법 시행령 제63조(노사협의체의 설치 대상)</a><br />'
+     'target="_blank" class="text-blue-600 hover:underline">산업안전보건법 시행령 제63조(노사협의체의 설치 대상)</a><br />',
+    penalty: {
+      kind: '과태료',
+      amount: 5000000,
+      text: '미실시 → 500만 원 이하'
+    }
   },
   '재해예방기술지도(15일 1회)': {
     states: ['공사중'] as const,
@@ -674,13 +757,23 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
     '• 참고 : <a href="https://drive.google.com/file/d/1tfVbiInKkIZ9dLNFeHgYeD7Davu_qb7n/view?usp=drive_link" target="_blank" class="text-blue-600 hover:underline">재해예방기술지도 변경통보(변경계약 이전 시행)</a><br />'+
     '• 제외 : 유해 위험방지계획서 제출현장<br />'+
     '• 참고 : 안전관리자 선임 대상(50억 이상, 23.7.1이후착공), 겸직 가능<br />'+
-    '• 참고 : 안전관리자 전임 대상(120억 이상)'
+    '• 참고 : 안전관리자 전임 대상(120억 이상)',
+    penalty: {
+      kind: '과태료',
+      amount: 3000000,
+      text: '미실시 → 300만 원 이하'
+    }
   },
   '유해위험방지계획서': {
     states: CONSTRUCTION_STATUS,
     costs: 'all',
     dependsOn: 'hasSpecialConstruction1',
-    description: '• 관련 : <a href="https://www.law.go.kr/LSW//lsLinkCommonInfo.do?lsJoLnkSeq=1026924307&chrClsCd=&ancYnChk=" target="_blank" class="text-blue-600 hover:underline">산업안전보건법 제42조(유해위험방지계획서의 작성ㆍ제출 등)</a>'
+    description: '• 관련 : <a href="https://www.law.go.kr/LSW//lsLinkCommonInfo.do?lsJoLnkSeq=1026924307&chrClsCd=&ancYnChk=" target="_blank" class="text-blue-600 hover:underline">산업안전보건법 제42조(유해위험방지계획서의 작성ㆍ제출 등)</a>',
+    penalty: {
+      kind: '과태료',
+      amount: 10000000,
+      text: '미제출 → 1,000만 원 이하'
+    }
   },  
   '휴게시설': {
     states: ['공사중'] as const,
@@ -700,7 +793,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
      '• 위치 : 근로자가 작업 중 신속히 이용할 수 있는 장소, 유해하거나 위험한 장소를 피할 것<br />' + 
      '• 환경 : 온도 18~28℃, 습도 50~55%, 조명 100~200럭스, 환기 가능<br />' + 
      '• 필수 : 의자/식수 구비, 외부 표지판 부착, 관리자 지정<br />' + 
-     '• 주의 : 창고 등 다른 용도 사용 금지'
+     '• 주의 : 창고 등 다른 용도 사용 금지',
+    penalty: {
+      kind: '과태료',
+      amount: 15000000,
+      text: '미설치 → 1,500만 원 이하'
+    }
   },
   '안전보건총괄책임자/관리책임자 선임': {
     states: CONSTRUCTION_STATUS,
@@ -719,7 +817,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '• 참고 : ' + 
       '<a href="https://m.blog.naver.com/PostView.naver?blogId=woonsamsa&logNo=222277085557&proxyReferer=https:%2F%2Fwww.google.com%2F" ' + 
       'target="_blank" class="text-blue-600 hover:underline">안전보건총괄책임자, 안전보건관리책임자 비교</a><br />' + 
-      '※ 하도급사가 없을 경우 현장대리인을 \'안전보건총괄책임자, 안전보건관리책임자\'로 선임'
+      '※ 하도급사가 없을 경우 현장대리인을 \'안전보건총괄책임자, 안전보건관리책임자\'로 선임',
+    penalty: {
+      kind: '과태료',
+      amount: 5000000,
+      text: '미선임 → 500만 원 이하'
+    }
   },  
   '작업장내 물질안전보건 자료 게시': {
     states: ['공사중'] as const,
@@ -746,7 +849,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '• 공종별 주요 대상물질:<br />' + 
       '  - 토공사: 유류, 산소, LPG, 아세틸렌, 벤토나이트<br />' + 
       '  - 골조공사: 시멘트, 박리제, 산소, LPG, 아세틸렌, 유류<br />' + 
-      '  - 마감공사: 방수제, 우레탄, 페인트, 신너, 시멘트, 접착제, 우레탄유, 금글제, 방동제<br />'      
+      '  - 마감공사: 방수제, 우레탄, 페인트, 신너, 시멘트, 접착제, 우레탄유, 금글제, 방동제<br />',
+    penalty: {
+      kind: '과태료',
+      amount: 5000000,
+      text: '미게시 → 500만 원 이하'
+    }      
   },
   '산업안전보건법령 요지 게시 및 안전보건표지 설치/부착': {
     states: ['공사중'] as const,
@@ -782,7 +890,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '  - 위험장소 경고 표지<br />' + 
       '  - 비상구 표지<br />' + 
       '  - 금연 표지<br />' + 
-      '  - 화기금지 표지'
+      '  - 화기금지 표지',
+    penalty: {
+      kind: '과태료',
+      amount: 5000000,
+      text: '미게시·미설치 → 500만 원 이하'
+    }
   },
   '비상대처훈련 실시 여부': {
     states: ['공사중'] as const,
@@ -809,7 +922,12 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '  - 건축공사시 단열재 시공시점부터는 월 1회 이상 비상대피 훈련을 실시<br />' + 
       '• 주의사항:<br />' + 
       '  - 훈련 후 일자, 목적, 참석자, 내용, 훈련사진을 기록<br />' + 
-      '  - 비상연락망 최신화 유지'
+      '  - 비상연락망 최신화 유지',
+    penalty: {
+      kind: '벌금',
+      amount: 5000000,
+      text: '미실시 → 500만 원 이하'
+    }
   },
   '폭염, 한파 안전보건조치': {
     states: ['공사중'] as const,
@@ -843,6 +961,11 @@ export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
       '  - 난방시설 설치 및 운영<br />' + 
       '  - 적절한 방한복 착용<br />' + 
       '  - 빙판길 미끄럼 방지대책<br />' + 
-      '  - 한파 관련 안전교육 실시'
+      '  - 한파 관련 안전교육 실시',
+    penalty: {
+      kind: '벌금',
+      amount: 50000000,
+      text: '미조치 → 5,000만 원 이하'
+    }
   }
 } as const; 

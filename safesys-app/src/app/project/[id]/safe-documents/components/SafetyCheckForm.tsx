@@ -236,7 +236,8 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
             title: subItem.title,
             states: undefined,
             costs: undefined,
-            dependsOn: undefined
+            dependsOn: undefined,
+            penalty: subItem.penalty
           })) : undefined
         };
         return acc;
@@ -1035,6 +1036,14 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
                             </div>
                           </div>
                         )}
+                        {item.penalty && (
+                          <p className="text-sm mb-2">
+                            <span className="text-gray-600">• {item.penalty.kind === '없음' ? '과태료' : item.penalty.kind} : </span>
+                            <span className={item.penalty.amount ? 'text-red-600 font-medium' : 'text-gray-500'}>
+                              {item.penalty.text}
+                            </span>
+                          </p>
+                        )}
                         {item.image && (
                           <div className="mb-3">
                             <button
@@ -1075,7 +1084,14 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
 
                                   return (
                                     <tr key={index} className="border-b border-gray-200">
-                                      <td className="border border-gray-300 p-2">{subItem.title}</td>
+                                      <td className="border border-gray-300 p-2">
+                                        {subItem.title}
+                                        {subItem.penalty && (
+                                          <span className={`block text-xs mt-0.5 ${subItem.penalty.amount ? 'text-red-600 font-medium' : 'text-gray-400'}`}>
+                                            {subItem.penalty.kind === '없음' ? '과태료' : subItem.penalty.kind} : {subItem.penalty.text}
+                                          </span>
+                                        )}
+                                      </td>
                                       {CHECK_OPTIONS.map((option) => (
                                         <td key={option} className="border border-gray-300 p-2 text-center">
                                           <input
