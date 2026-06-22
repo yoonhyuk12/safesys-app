@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import jsPDF from 'jspdf'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
+import { CHECKLIST_ITEMS } from './lib/checklistData'
 
 // 체크리스트 항목 표시 순서 및 라벨 정의
 const CHECKLIST_DISPLAY_ORDER: { key: string; label: string }[] = [
@@ -200,6 +201,75 @@ export default function SafeDocumentsPage() {
       context.textAlign = 'center'
       context.fillText(projectNameText, canvas.width / 2, boxY + (boxHeight / 2) + 10)
 
+      // 우측 상단 점수 표시 (이행건수 백분율)
+      const reportCompliant = record.compliant_items || 0
+      const reportTarget = reportCompliant + (record.non_compliant_items || 0)
+      const reportScoreText = reportTarget > 0 ? `${Math.round((reportCompliant / reportTarget) * 100)}점` : '-'
+
+      // 체크리스트 행 + 불이행 항목 벌금/과태료 집계 (상위 항목당 1회만 부과)
+      const checklistItems = record.checklist_items || {}
+      const checklistRows: Array<{ label: string; value: string; fine: number | null; admin: number | null }> = []
+      const chargedParents = new Set<string>()
+      let totalFine = 0   // 벌금 합계(원)
+      let totalAdmin = 0  // 과태료 합계(원)
+      let checklistIndex = 1
+      for (const item of CHECKLIST_DISPLAY_ORDER) {
+        const value = checklistItems[item.key]
+        if (!value) continue
+
+        let fine: number | null = null
+        let admin: number | null = null
+        if (value === '불이행') {
+          const parentKey = item.key.includes('.') ? item.key.split('.')[0] : item.key
+          const subTitle = item.key.includes('.') ? item.key.slice(parentKey.length + 1) : null
+          const parentItem = CHECKLIST_ITEMS[parentKey]
+          const subItem = subTitle && parentItem?.subItems
+            ? parentItem.subItems.find(s => s.title === subTitle)
+            : undefined
+          // 하위 항목별 과태료가 있으면 건별 부과, 없으면 항목 단위 1회 부과
+          const penalty = subItem?.penalty ?? parentItem?.penalty
+          const perSub = !!subItem?.penalty
+          if (penalty && penalty.amount && (perSub || !chargedParents.has(parentKey))) {
+            if (!perSub) chargedParents.add(parentKey)
+            if (penalty.kind === '벌금') {
+              fine = penalty.amount
+              totalFine += penalty.amount
+            } else if (penalty.kind === '과태료') {
+              admin = penalty.amount
+              totalAdmin += penalty.amount
+            }
+          }
+        }
+
+        checklistRows.push({ label: `${checklistIndex}. ${item.label}`, value, fine, admin })
+        checklistIndex++
+      }
+
+      context.textAlign = 'right'
+      context.font = 'bold 150px sans-serif'
+      context.fillStyle = '#2563eb'
+      context.fillText(reportScoreText, canvas.width - 200, 215)
+
+      context.font = '40px sans-serif'
+      context.fillStyle = '#666666'
+      context.fillText('*이행건수 백분율', canvas.width - 200, 320)
+
+      // 점수 하단: 부과 금액 (벌금 / 과태료 / 합계) 수직 배치
+      const toManwon = (won: number) => `${Math.round(won / 10000).toLocaleString()}만원`
+      const penRightX = canvas.width - 200
+      context.textAlign = 'right'
+      context.font = 'bold 40px sans-serif'
+      context.fillStyle = '#000000'
+      context.fillText('부과 금액', penRightX, 480)
+      context.font = '38px sans-serif'
+      context.fillStyle = '#dc2626'
+      context.fillText(`벌금  ${toManwon(totalFine)}`, penRightX, 535)
+      context.fillStyle = '#d97706'
+      context.fillText(`과태료  ${toManwon(totalAdmin)}`, penRightX, 583)
+      context.font = 'bold 42px sans-serif'
+      context.fillStyle = '#111111'
+      context.fillText(`합계  ${toManwon(totalFine + totalAdmin)}`, penRightX, 633)
+
       // 테이블 그리기 함수
       const drawTable = (x: number, y: number, title: string, rows: Array<[string, string]>) => {
         const padding = 60
@@ -259,7 +329,7 @@ export default function SafeDocumentsPage() {
       ]
 
       const startX = 200
-      let currentY = 550
+      let currentY = 660
 
       // 공사 여건과 점검자 정보 테이블 그리기
       drawTable(startX, currentY, '공사 여건', constructionData)
@@ -268,40 +338,51 @@ export default function SafeDocumentsPage() {
       currentY += 700
 
       // 체크리스트 결과 제목 및 요약
-      const checklistTitle = '■ 체크리스트 결과'
+      const checklistTitle = '■ 체크리스트 결과 (금액 단위: 만원)'
       const summaryText = `(이행: ${record.compliant_items}건, 불이행: ${record.non_compliant_items}건, 해당없음: ${record.not_applicable_items}건)`
 
       context.font = 'bold 50px sans-serif'
       context.textAlign = 'left'
       context.fillStyle = '#000000'
       context.fillText(checklistTitle, 200, currentY)
+      const titleWidth = context.measureText(checklistTitle).width
 
       context.font = '40px sans-serif'
       context.fillStyle = '#666666'
-      const titleWidth = context.measureText(checklistTitle).width
       context.fillText(summaryText, 200 + titleWidth + 40, currentY)
 
-      // 체크리스트 데이터 준비
-      const checklistItems = record.checklist_items || {}
-      const checklistData: Array<[string, string]> = []
-
-      let itemIndex = 1
-      for (const item of CHECKLIST_DISPLAY_ORDER) {
-        const value = checklistItems[item.key]
-        if (value) {
-          checklistData.push([`${itemIndex}. ${item.label}`, value])
-          itemIndex++
-        }
-      }
-
-      // 체크리스트 테이블 그리기
+      // 체크리스트 테이블 그리기 (점검 항목 | 판정 | 벌금 | 과태료, 금액 만원)
       const pageMargin = 200
       const maxChecklistWidth = canvas.width - (pageMargin * 2)
       const rowHeight = 80
       const maxY = canvas.height - 200
-      currentY += 80
+      const labelX = pageMargin + 30
+      const judgeX = pageMargin + 1300
+      const fineRightX = pageMargin + 1750
+      const adminRightX = pageMargin + maxChecklistWidth - 20
 
-      checklistData.forEach(([label, value], index) => {
+      // 컬럼 헤더 행 (페이지마다 반복)
+      const drawChecklistHeader = (y: number) => {
+        context.fillStyle = '#eef2ff'
+        context.fillRect(pageMargin, y, maxChecklistWidth, rowHeight)
+        context.strokeStyle = '#e5e7eb'
+        context.lineWidth = 2
+        context.strokeRect(pageMargin, y, maxChecklistWidth, rowHeight)
+        context.fillStyle = '#000000'
+        context.font = 'bold 40px sans-serif'
+        context.textAlign = 'left'
+        context.fillText('점검 항목', labelX, y + rowHeight / 2)
+        context.fillText('판정', judgeX, y + rowHeight / 2)
+        context.textAlign = 'right'
+        context.fillText('벌금', fineRightX, y + rowHeight / 2)
+        context.fillText('과태료', adminRightX, y + rowHeight / 2)
+        return y + rowHeight
+      }
+
+      currentY += 80
+      currentY = drawChecklistHeader(currentY)
+
+      checklistRows.forEach((row, index) => {
         if (currentY + rowHeight > maxY) {
           // 현재 페이지 저장
           const dataUrl = canvas.toDataURL('image/jpeg', 0.95)
@@ -318,6 +399,7 @@ export default function SafeDocumentsPage() {
           context.fillStyle = '#000000'
           context.fillText('■ 체크리스트 결과 (계속)', 200, currentY)
           currentY += 80
+          currentY = drawChecklistHeader(currentY)
         }
 
         // 행 배경
@@ -329,23 +411,237 @@ export default function SafeDocumentsPage() {
         context.lineWidth = 2
         context.strokeRect(pageMargin, currentY, maxChecklistWidth, rowHeight)
 
-        // 텍스트
-        context.fillStyle = value === '불이행' ? '#ff0000' : '#000000'
-        context.font = '45px sans-serif'
+        const isFail = row.value === '불이행'
+
+        // 점검 항목 / 판정
+        context.fillStyle = isFail ? '#ff0000' : '#000000'
+        context.font = '38px sans-serif'
         context.textAlign = 'left'
+        context.fillText(row.label, labelX, currentY + rowHeight / 2)
+        context.fillText(row.value, judgeX, currentY + rowHeight / 2)
 
-        const labelX = pageMargin + 30
-        const valueX = pageMargin + maxChecklistWidth - 300
-
-        context.fillText(label, labelX, currentY + rowHeight / 2)
-        context.fillText(`: ${value}`, valueX, currentY + rowHeight / 2)
+        // 벌금 / 과태료 (만원, 불이행 건만 표시)
+        context.textAlign = 'right'
+        context.font = 'bold 40px sans-serif'
+        if (row.fine != null) {
+          context.fillStyle = '#dc2626'
+          context.fillText((row.fine / 10000).toLocaleString(), fineRightX, currentY + rowHeight / 2)
+        }
+        if (row.admin != null) {
+          context.fillStyle = '#d97706'
+          context.fillText((row.admin / 10000).toLocaleString(), adminRightX, currentY + rowHeight / 2)
+        }
 
         currentY += rowHeight
       })
 
-      // 마지막 페이지 저장
+      // 체크리스트 마지막 페이지 저장
       const dataUrl = canvas.toDataURL('image/jpeg', 0.95)
       doc.addImage(dataUrl, 'JPEG', 0, 0, 210, 297)
+
+      // ===== 마지막 장: 과태료·벌금 부과 고지서 (납입고지서 양식) =====
+      doc.addPage()
+      context.fillStyle = '#ffffff'
+      context.fillRect(0, 0, canvas.width, canvas.height)
+      context.textBaseline = 'middle'
+
+      const won = (n: number) => `${n.toLocaleString()}원`
+      const nM = 110
+      const nRight = canvas.width - nM
+      const noticeHq = project?.managing_hq || '○○'
+      const noticeBranch = project?.managing_branch || '○○국토관리사무소'
+      const grandTotal = totalFine + totalAdmin
+      const failRows = checklistRows.filter(r => r.fine != null || r.admin != null)
+      const payNo = '00-00-0000-0000-0000-0000'
+
+      // 점선 절취선
+      const dotted = (y: number) => {
+        context.strokeStyle = '#666666'
+        context.lineWidth = 2
+        context.setLineDash([16, 12])
+        context.beginPath(); context.moveTo(nM, y); context.lineTo(nRight, y); context.stroke()
+        context.setLineDash([])
+      }
+      // 1차원 바코드(모형)
+      const drawBarcode = (x: number, y: number, w: number, h: number) => {
+        const pat = [3, 2, 5, 2, 3, 4, 2, 6, 3, 2, 4, 2, 3, 5, 2, 3, 2, 4, 6, 2, 3, 2, 5, 3, 2, 4, 2, 3, 2, 6, 3, 2, 4, 3, 2, 5, 2, 3]
+        let bx = x, i = 0
+        context.fillStyle = '#000000'
+        while (bx < x + w) {
+          const bw = pat[i % pat.length] * 2.4
+          if (i % 2 === 0) context.fillRect(bx, y, bw, h)
+          bx += bw; i++
+        }
+      }
+      // QR(모형): 3개 파인더 + 패턴
+      const drawQr = (x: number, y: number, s: number) => {
+        const n = 21, c = s / n
+        context.fillStyle = '#000000'
+        const finderOn = (r: number, col: number) => {
+          const rr = r < 7 ? r : r - (n - 7)
+          const cc = col < 7 ? col : col - (n - 7)
+          return rr === 0 || rr === 6 || cc === 0 || cc === 6 || (rr >= 2 && rr <= 4 && cc >= 2 && cc <= 4)
+        }
+        for (let r = 0; r < n; r++) {
+          for (let col = 0; col < n; col++) {
+            const tl = r < 7 && col < 7
+            const tr = r < 7 && col >= n - 7
+            const bl = r >= n - 7 && col < 7
+            const on = (tl || tr || bl) ? finderOn(r, col) : ((r * 13 + col * 7 + r * col * 3) % 5) < 2
+            if (on) context.fillRect(x + col * c, y + r * c, c + 0.6, c + 0.6)
+          }
+        }
+        context.strokeStyle = '#000000'; context.lineWidth = 2; context.strokeRect(x, y, s, s)
+      }
+      // 좌측 사이드 박스
+      const sidebarBox = (x: number, y: number, w: number, title: string, lines: string[]) => {
+        const headH = 56
+        context.fillStyle = '#2f3a4a'; context.fillRect(x, y, w, headH)
+        context.fillStyle = '#ffffff'; context.font = 'bold 34px sans-serif'; context.textAlign = 'center'
+        context.fillText(title, x + w / 2, y + headH / 2)
+        const bodyH = lines.length * 50 + 24
+        context.strokeStyle = '#888888'; context.lineWidth = 2; context.strokeRect(x, y + headH, w, bodyH)
+        context.fillStyle = '#000000'; context.font = '28px sans-serif'; context.textAlign = 'left'
+        lines.forEach((ln, i) => context.fillText(ln, x + 18, y + headH + 30 + i * 50))
+        return y + headH + bodyH
+      }
+      // 우측 납입고지서/영수증 본문
+      const stubMain = (x: number, y: number, w: number, title: string) => {
+        context.fillStyle = '#000000'; context.font = 'bold 48px sans-serif'; context.textAlign = 'left'
+        context.fillText(title, x, y + 10)
+        let yy = y + 70
+        // 납부번호 + 바코드
+        context.font = 'bold 32px sans-serif'; context.fillText('납부번호', x, yy + 32)
+        context.strokeStyle = '#000000'; context.lineWidth = 2; context.strokeRect(x + 170, yy, w - 170, 64)
+        context.font = '34px sans-serif'; context.fillText(payNo, x + 190, yy + 32)
+        drawBarcode(x + 170, yy + 74, w - 170, 52)
+        yy += 150
+        // 부과 대상
+        context.strokeRect(x, yy, w, 64); context.font = '30px sans-serif'
+        context.fillText(`성명(현장) : ${project?.project_name || ''}`, x + 18, yy + 32)
+        yy += 64
+        context.strokeRect(x, yy, w, 64)
+        context.fillText(`점검자 : ${record.inspector_affiliation || ''} ${record.inspector_name || ''}     점검일 : ${record.inspection_date || ''}`, x + 18, yy + 32)
+        yy += 96
+        // 세목 표
+        const c1 = x, c2 = x + Math.round(w * 0.42), c3 = x + Math.round(w * 0.74)
+        const rowH = 66
+        const cell = (cx: number, cw: number, yh: number, txt: string, opt?: { bold?: boolean; right?: boolean; bg?: string; color?: string }) => {
+          if (opt?.bg) { context.fillStyle = opt.bg; context.fillRect(cx, yh, cw, rowH) }
+          context.strokeStyle = '#000000'; context.lineWidth = 2; context.strokeRect(cx, yh, cw, rowH)
+          context.fillStyle = opt?.color || '#000000'
+          context.font = `${opt?.bold ? 'bold ' : ''}32px sans-serif`
+          context.textAlign = opt?.right ? 'right' : 'left'
+          context.fillText(txt, opt?.right ? cx + cw - 16 : cx + 16, yh + rowH / 2)
+          context.textAlign = 'left'
+        }
+        cell(c1, c2 - c1, yy, '세목', { bold: true, bg: '#eef2ff' })
+        cell(c2, c3 - c2, yy, '납기내 금액', { bold: true, bg: '#eef2ff' })
+        cell(c3, x + w - c3, yy, '비고', { bold: true, bg: '#eef2ff' })
+        yy += rowH
+        const taxRows: Array<[string, number, string]> = []
+        if (totalFine > 0) taxRows.push(['벌금', totalFine, '형사'])
+        if (totalAdmin > 0) taxRows.push(['과태료', totalAdmin, '행정'])
+        if (taxRows.length === 0) taxRows.push(['해당없음', 0, ''])
+        taxRows.forEach(([nm, amt, memo]) => {
+          cell(c1, c2 - c1, yy, nm)
+          cell(c2, c3 - c2, yy, won(amt), { right: true })
+          cell(c3, x + w - c3, yy, memo)
+          yy += rowH
+        })
+        cell(c1, c2 - c1, yy, '합계 금액', { bold: true, bg: '#f3f4f6' })
+        cell(c2, c3 - c2, yy, won(grandTotal), { right: true, bold: true, color: '#b91c1c' })
+        cell(c3, x + w - c3, yy, '', { bg: '#f3f4f6' })
+        yy += rowH + 44
+        // 영수 문구 + 수납인
+        context.fillStyle = '#000000'; context.font = '30px sans-serif'; context.textAlign = 'left'
+        context.fillText('위 금액을 정히 영수합니다.', x, yy)
+        context.fillText('년       월       일', x + w - 620, yy)
+        context.strokeStyle = '#cc0000'; context.lineWidth = 3
+        context.beginPath(); context.arc(x + w - 80, yy, 62, 0, Math.PI * 2); context.stroke()
+        context.fillStyle = '#cc0000'; context.font = 'bold 28px sans-serif'; context.textAlign = 'center'
+        context.fillText('수납인', x + w - 80, yy)
+        context.textAlign = 'left'
+      }
+
+      // ---------- 상단 경고 배너 (예상 금액 안내) ----------
+      context.fillStyle = '#fff7d6'
+      context.fillRect(nM, 30, nRight - nM, 92)
+      context.strokeStyle = '#cc0000'; context.lineWidth = 3
+      context.strokeRect(nM, 30, nRight - nM, 92)
+      context.fillStyle = '#b91c1c'; context.font = 'bold 30px sans-serif'; context.textAlign = 'center'
+      context.fillText('본 고지서는 실제 관련기관 점검 시 부과될 수 있는 예상 금액으로, 경각심 제고를 위해 제작되었습니다. (납부하실 필요 없습니다)', canvas.width / 2, 76)
+      context.textAlign = 'left'
+
+      // ---------- 상단 발신·재중 ----------
+      context.fillStyle = '#000000'; context.textAlign = 'left'
+      context.font = 'bold 40px sans-serif'
+      context.fillText(`한국농어촌공사 ${noticeHq}본부`, nM, 175)
+      context.font = 'bold 54px sans-serif'
+      context.fillText(noticeBranch, nM, 230)
+      context.font = '30px sans-serif'
+      context.fillText('(우 00000)  ○○도 ○○시 ○○로 000', nM, 295)
+      context.fillText('담당자 : ○○○   (000-000-0000)', nM, 340)
+
+      const rbX = 1240, rbY = 140, rbW = nRight - rbX, rbH = 370
+      context.strokeStyle = '#000000'; context.lineWidth = 4; context.strokeRect(rbX, rbY, rbW, rbH)
+      drawQr(rbX + 30, rbY + 45, 220)
+      const rbTextCx = rbX + 300 + (rbW - 300) / 2
+      context.fillStyle = '#000000'; context.textAlign = 'center'
+      context.font = 'bold 68px sans-serif'; context.fillText('납입고지서 재중', rbTextCx, rbY + 85)
+      context.font = '26px sans-serif'; context.fillText('※ 타인 수령 시 본인에게 전달해 주세요', rbTextCx, rbY + 145)
+      context.textAlign = 'left'; context.font = '30px sans-serif'
+      context.fillText(`수신 : ${record.inspector_affiliation || ''} ${record.inspector_name || ''} 귀하`, rbX + 290, rbY + 205)
+      context.fillText(`현장 : ${project?.project_name || ''}`, rbX + 290, rbY + 250)
+      context.font = 'bold 44px sans-serif'; context.textAlign = 'right'
+      context.fillText('000-000', nRight - 30, rbY + 305)
+      context.textAlign = 'left'
+      drawBarcode(rbX + 290, rbY + 325, rbW - 320, 28)
+
+      dotted(560)
+
+      // ---------- 납부자용 ----------
+      let sb = sidebarBox(nM, 610, 600, '부 과 내 역', [
+        '1. 위반사항 : 안전서류 점검 불이행',
+        `2. 교부일시 : ${record.inspection_date || '____. __. __'}`,
+        '3. 의견제출기한 : 고지일 + 10일',
+        `4. 부과금액 : ${won(grandTotal)}`,
+        '5. 자진납부 시 감경 가능',
+      ])
+      sb = sidebarBox(nM, sb + 24, 600, '산 출 근 거', [
+        '• 적용 : 산업안전보건법 / 건진법 등',
+        `• 불이행 항목 : ${failRows.length}건`,
+        `• 과태료 합계 : ${won(totalAdmin)}`,
+        `• 벌금 합계 : ${won(totalFine)}`,
+      ])
+      sidebarBox(nM, sb + 24, 600, '가 상 계 좌 (예시)', [
+        '○○은행',
+        '000-0000-0000-0000',
+        '예금주 : 과태료·벌금 수납',
+      ])
+      stubMain(nM + 660, 620, nRight - (nM + 660), '납입고지서 및 영수증 (납부자용)')
+
+      dotted(1700)
+
+      // ---------- 수납기관용 ----------
+      sidebarBox(nM, 1750, 600, '안 내 말 씀', [
+        '• 납기 내 미납 시 가산금 부과',
+        '• 인터넷 납부 : ○○ 사이트',
+        '• 본 고지서는 예상 부과액 안내용',
+        '• 실제 부과액은 처분기관 결정',
+        '• 문의 : 담당 부서',
+      ])
+      stubMain(nM + 660, 1760, nRight - (nM + 660), '납입고지서 및 영수증 (수납기관용)')
+
+      dotted(2840)
+
+      // ---------- 하단 안내 ----------
+      context.fillStyle = '#333333'; context.font = '30px sans-serif'; context.textAlign = 'center'
+      context.fillText('본 고지서는 점검 결과에 따른 예상 부과액이며, 실제 부과액·납부방법은 처분기관(국토관리사무소 등)의 여건에 맞게 변경될 수 있습니다.', canvas.width / 2, 2920)
+      context.textAlign = 'left'
+
+      const noticeUrl = canvas.toDataURL('image/jpeg', 0.95)
+      doc.addImage(noticeUrl, 'JPEG', 0, 0, 210, 297)
 
       // 다운로드
       doc.save(`안전서류_점검결과_${project?.project_name || ''}.pdf`)
@@ -665,6 +961,9 @@ export default function SafeDocumentsPage() {
                             <th className="px-3 py-2 text-left font-semibold text-gray-700 border-r border-gray-200 min-w-[80px]">
                               점검자
                             </th>
+                            <th className="px-3 py-2 text-center font-semibold text-gray-700 border-r border-gray-300 min-w-[70px] bg-blue-50" title="이행건 ÷ 작성대상서류(이행+불이행) × 100">
+                              점수
+                            </th>
                             <th className="px-3 py-2 text-center font-semibold text-gray-700 border-r border-gray-300 min-w-[70px] bg-red-50">
                               불이행
                             </th>
@@ -710,6 +1009,13 @@ export default function SafeDocumentsPage() {
                               </td>
                               <td className="px-3 py-2 border-r border-gray-200 text-gray-900">
                                 {record.inspector_name}
+                              </td>
+                              <td className="px-3 py-2 text-center border-r border-gray-300 font-bold text-blue-700 bg-blue-50">
+                                {(() => {
+                                  const compliant = record.compliant_items || 0
+                                  const target = compliant + (record.non_compliant_items || 0)
+                                  return target > 0 ? `${Math.round((compliant / target) * 100)}점` : '-'
+                                })()}
                               </td>
                               <td className={`px-3 py-2 text-center border-r border-gray-300 font-bold ${record.non_compliant_items > 0 ? 'text-red-600 bg-red-50' : 'text-green-600'
                                 }`}>
