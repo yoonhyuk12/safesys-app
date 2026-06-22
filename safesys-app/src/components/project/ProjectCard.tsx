@@ -752,8 +752,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
                 className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border ${segmentClass(q1Active, isQuarterDisabled('q1'))} rounded-l-md`}
                 onClick={(e) => handleQuarterClick(e, 'q1_active')}
               >
-                <span className="[@media(min-width:1413px)]:hidden">1Q</span>
-                <span className="hidden [@media(min-width:1413px)]:inline">1분기</span>
+                <span>1Q</span>
               </button>
               <button
                 type="button"
@@ -761,8 +760,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
                 className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q2Active, isQuarterDisabled('q2'))}`}
                 onClick={(e) => handleQuarterClick(e, 'q2_active')}
               >
-                <span className="[@media(min-width:1413px)]:hidden">2Q</span>
-                <span className="hidden [@media(min-width:1413px)]:inline">2분기</span>
+                <span>2Q</span>
               </button>
               <button
                 type="button"
@@ -770,8 +768,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
                 className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q3Active, isQuarterDisabled('q3'))}`}
                 onClick={(e) => handleQuarterClick(e, 'q3_active')}
               >
-                <span className="[@media(min-width:1413px)]:hidden">3Q</span>
-                <span className="hidden [@media(min-width:1413px)]:inline">3분기</span>
+                <span>3Q</span>
               </button>
               <button
                 type="button"
@@ -779,8 +776,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
                 className={`px-1 [@media(min-width:1413px)]:px-2 py-1 text-[11px] border -ml-px ${segmentClass(q4Active, isQuarterDisabled('q4'))}`}
                 onClick={(e) => handleQuarterClick(e, 'q4_active')}
               >
-                <span className="[@media(min-width:1413px)]:hidden">4Q</span>
-                <span className="hidden [@media(min-width:1413px)]:inline">4분기</span>
+                <span>4Q</span>
               </button>
               <button
                 type="button"
