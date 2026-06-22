@@ -77,27 +77,100 @@ const SafeDocumentView: React.FC<SafeDocumentViewProps> = ({
 
   // 지사별 점검 건수 집계
   const branchStats = useMemo(() => {
-    const stats = new Map<string, { total: number; nonCompliant: number; branches: string[] }>()
+    const stats = new Map<string, { total: number; avgScore: number | null; avgNonCompliant: number | null; branches: string[] }>()
 
     // 본부별로 지사 목록을 초기화
     const targetHq = selectedHq || selectedSafetyHq
     if (targetHq && BRANCH_OPTIONS[targetHq]) {
       BRANCH_OPTIONS[targetHq].forEach(branch => {
-        stats.set(branch, { total: 0, nonCompliant: 0, branches: [] })
+        stats.set(branch, { total: 0, avgScore: null, avgNonCompliant: null, branches: [] })
       })
     }
 
-    // 점검 데이터 집계
+    // 점검 건수 집계
     inspections.forEach(inspection => {
       const branch = inspection.managing_branch || '미지정'
-      const existing = stats.get(branch) || { total: 0, nonCompliant: 0, branches: [] }
+      const existing = stats.get(branch) || { total: 0, avgScore: null, avgNonCompliant: null, branches: [] }
       existing.total += 1
-      existing.nonCompliant += inspection.non_compliant_items || 0
       stats.set(branch, existing)
+    })
+
+    // 평균 점수·평균 불이행 건수: 프로젝트별 최근 점검 결과를 지사 단위로 평균
+    const latestByProject = new Map<string, SafeDocumentInspection>()
+    inspections.forEach(inspection => {
+      const prev = latestByProject.get(inspection.project_id)
+      if (!prev || new Date(inspection.inspection_date) > new Date(prev.inspection_date)) {
+        latestByProject.set(inspection.project_id, inspection)
+      }
+    })
+
+    const branchScores = new Map<string, number[]>()
+    const branchNonCompliant = new Map<string, number[]>()
+    latestByProject.forEach(inspection => {
+      const branch = inspection.managing_branch || '미지정'
+      const compliant = inspection.compliant_items || 0
+      const nonCompliant = inspection.non_compliant_items || 0
+
+      const ncArr = branchNonCompliant.get(branch) || []
+      ncArr.push(nonCompliant)
+      branchNonCompliant.set(branch, ncArr)
+
+      const target = compliant + nonCompliant
+      if (target === 0) return
+      const score = Math.round((compliant / target) * 100)
+      const scoreArr = branchScores.get(branch) || []
+      scoreArr.push(score)
+      branchScores.set(branch, scoreArr)
+    })
+
+    branchScores.forEach((scores, branch) => {
+      const existing = stats.get(branch)
+      if (existing && scores.length > 0) {
+        existing.avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+      }
+    })
+
+    branchNonCompliant.forEach((counts, branch) => {
+      const existing = stats.get(branch)
+      if (existing && counts.length > 0) {
+        existing.avgNonCompliant = Math.round((counts.reduce((a, b) => a + b, 0) / counts.length) * 10) / 10
+      }
     })
 
     return stats
   }, [inspections, selectedHq, selectedSafetyHq])
+
+  // 소계행: 전체 프로젝트의 최근 점검 결과 기준 집계
+  const overallStats = useMemo(() => {
+    const totalCount = inspections.length
+
+    const latestByProject = new Map<string, SafeDocumentInspection>()
+    inspections.forEach(inspection => {
+      const prev = latestByProject.get(inspection.project_id)
+      if (!prev || new Date(inspection.inspection_date) > new Date(prev.inspection_date)) {
+        latestByProject.set(inspection.project_id, inspection)
+      }
+    })
+
+    const scores: number[] = []
+    const nonCompliants: number[] = []
+    latestByProject.forEach(inspection => {
+      const compliant = inspection.compliant_items || 0
+      const nonCompliant = inspection.non_compliant_items || 0
+      nonCompliants.push(nonCompliant)
+      const target = compliant + nonCompliant
+      if (target > 0) scores.push(Math.round((compliant / target) * 100))
+    })
+
+    const avgScore = scores.length > 0
+      ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+      : null
+    const avgNonCompliant = nonCompliants.length > 0
+      ? Math.round((nonCompliants.reduce((a, b) => a + b, 0) / nonCompliants.length) * 10) / 10
+      : null
+
+    return { totalCount, avgScore, avgNonCompliant }
+  }, [inspections])
 
   // 선택된 지사의 프로젝트별 점검 현황
   const projectStats = useMemo(() => {
@@ -116,10 +189,16 @@ const SafeDocumentView: React.FC<SafeDocumentViewProps> = ({
         )
         : null
 
+      // 최근 점검 결과 기준 점수: 이행 ÷ (이행+불이행) × 100
+      const latestCompliant = latestInspection?.compliant_items || 0
+      const latestTarget = latestCompliant + (latestInspection?.non_compliant_items || 0)
+      const latestScore = latestTarget > 0 ? Math.round((latestCompliant / latestTarget) * 100) : null
+
       return {
         project,
         inspectionCount: projectInspections.length,
         nonCompliantCount: totalNonCompliant,
+        latestScore,
         latestDate: latestInspection?.inspection_date,
         latestInspector: latestInspection?.inspector_name,
       }
@@ -227,7 +306,10 @@ const SafeDocumentView: React.FC<SafeDocumentViewProps> = ({
                     점검 건수
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    불이행 건수
+                    평균 점수
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    평균 불이행 건수
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     상세
@@ -235,6 +317,42 @@ const SafeDocumentView: React.FC<SafeDocumentViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
+                {/* 소계행 */}
+                <tr className="bg-gray-100 font-semibold border-b-2 border-gray-300">
+                  <td className="px-4 py-3 text-sm text-center text-gray-900">소계</td>
+                  <td className="px-4 py-3 text-sm text-center">
+                    {overallStats.totalCount > 0 ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {overallStats.totalCount}건
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center">
+                    {overallStats.avgScore !== null ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {overallStats.avgScore}점
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">-</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center">
+                    {overallStats.avgNonCompliant === null ? (
+                      <span className="text-gray-400">-</span>
+                    ) : overallStats.avgNonCompliant > 0 ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        {overallStats.avgNonCompliant}건
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        0건
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3"></td>
+                </tr>
                 {Array.from(branchStats.entries()).map(([branch, stats]) => (
                   <tr
                     key={branch}
@@ -245,17 +363,32 @@ const SafeDocumentView: React.FC<SafeDocumentViewProps> = ({
                       {branch}
                     </td>
                     <td className="px-4 py-3 text-sm text-center">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        {stats.total}건
-                      </span>
+                      {stats.total > 0 && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {stats.total}건
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-center">
-                      {stats.nonCompliant > 0 ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                          {stats.nonCompliant}건
+                      {stats.avgScore !== null ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {stats.avgScore}점
                         </span>
                       ) : (
                         <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-center">
+                      {stats.avgNonCompliant === null ? (
+                        <span className="text-gray-400">-</span>
+                      ) : stats.avgNonCompliant > 0 ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                          {stats.avgNonCompliant}건
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          0건
+                        </span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -265,7 +398,7 @@ const SafeDocumentView: React.FC<SafeDocumentViewProps> = ({
                 ))}
                 {branchStats.size === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500">
                       해당 분기의 점검 데이터가 없습니다.
                     </td>
                   </tr>
@@ -308,6 +441,9 @@ const SafeDocumentView: React.FC<SafeDocumentViewProps> = ({
                     점검 건수
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    점수
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                     불이행 건수
                   </th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -322,7 +458,7 @@ const SafeDocumentView: React.FC<SafeDocumentViewProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {projectStats.map(({ project, inspectionCount, nonCompliantCount, latestDate, latestInspector }) => (
+                {projectStats.map(({ project, inspectionCount, nonCompliantCount, latestScore, latestDate, latestInspector }) => (
                   <tr
                     key={project.id}
                     onClick={() => onRowClickProject(project.id)}
@@ -342,7 +478,16 @@ const SafeDocumentView: React.FC<SafeDocumentViewProps> = ({
                           {inspectionCount}건
                         </span>
                       ) : (
-                        <span className="text-gray-400">미점검</span>
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-center">
+                      {latestScore !== null ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {latestScore}점
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm text-center">
@@ -371,7 +516,7 @@ const SafeDocumentView: React.FC<SafeDocumentViewProps> = ({
                 ))}
                 {projectStats.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
+                    <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
                       해당 지사에 프로젝트가 없습니다.
                     </td>
                   </tr>
