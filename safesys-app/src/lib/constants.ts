@@ -34,6 +34,7 @@ export const BRANCH_OPTIONS: { [key: string]: string[] } = {
   ],
   '경기': [
     '경기본부',
+    '지하수지질부',
     '여주·이천지사',
     '양평·광주·서울지사',
     '화성·수원지사',
@@ -47,6 +48,7 @@ export const BRANCH_OPTIONS: { [key: string]: string[] } = {
   ],
   '충남': [
     '충남본부',
+    '지하수지질부',
     '천안지사',
     '공주지사',
     '보령지사',
@@ -63,6 +65,7 @@ export const BRANCH_OPTIONS: { [key: string]: string[] } = {
   ],
   '강원': [
     '강원본부',
+    '지하수지질부',
     '홍천·춘천지사',
     '원주지사',
     '강릉지사',
@@ -71,6 +74,7 @@ export const BRANCH_OPTIONS: { [key: string]: string[] } = {
   ],
   '충북': [
     '충북본부',
+    '지하수지질부',
     '청주지사',
     '보은지사',
     '옥천·영동지사',
@@ -81,6 +85,7 @@ export const BRANCH_OPTIONS: { [key: string]: string[] } = {
   ],
   '전북': [
     '전북본부',
+    '지하수지질부',
     '남원지사',
     '순창지사',
     '동진지사',
@@ -94,6 +99,7 @@ export const BRANCH_OPTIONS: { [key: string]: string[] } = {
   ],
   '전남': [
     '전남본부',
+    '지하수지질부',
     '광주지사',
     '순천·광양·여수지사',
     '나주지사',
@@ -110,6 +116,7 @@ export const BRANCH_OPTIONS: { [key: string]: string[] } = {
   ],
   '경북': [
     '경북본부',
+    '지하수지질부',
     '포항·울릉지사',
     '경주지사',
     '안동지사',
@@ -130,6 +137,7 @@ export const BRANCH_OPTIONS: { [key: string]: string[] } = {
   ],
   '경남': [
     '경남본부',
+    '지하수지질부',
     '김해·양산·부산지사',
     '고성·통영·거제지사',
     '울산지사',
@@ -146,6 +154,7 @@ export const BRANCH_OPTIONS: { [key: string]: string[] } = {
   ],
   '제주': [
     '제주본부',
+    '지하수지질부',
     '서귀포제주지부',
     '농업용수통합광역화추진단'
   ],
