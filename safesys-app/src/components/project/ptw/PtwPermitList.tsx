@@ -8,6 +8,7 @@ interface PtwPermitListProps {
   records: PtwPermitRecord[]
   selectedId: string | null
   currentUserId?: string
+  canDelete?: boolean // 작성자 외 삭제 허용 여부 (소유자·공유받은자·발주청)
   onSelect: (record: PtwPermitRecord) => void
   onDelete: (record: PtwPermitRecord) => void
   onDownload: (record: PtwPermitRecord) => void
@@ -18,6 +19,7 @@ export default function PtwPermitList({
   records,
   selectedId,
   currentUserId,
+  canDelete,
   onSelect,
   onDelete,
   onDownload,
@@ -52,6 +54,7 @@ export default function PtwPermitList({
           {records.map((record, index) => {
             const config = PERMIT_TYPE_CONFIGS[record.permit_type]
             const isMine = !currentUserId || record.created_by === currentUserId
+            const showDelete = isMine || canDelete
             return (
               <tr
                 key={record.id}
@@ -91,7 +94,7 @@ export default function PtwPermitList({
                   </button>
                 </td>
                 <td className="px-1.5 py-2" onClick={(e) => e.stopPropagation()}>
-                  {isMine && (
+                  {showDelete && (
                     <button
                       onClick={() => onDelete(record)}
                       className="p-1.5 text-red-500 hover:bg-red-50 rounded-md mx-auto flex"

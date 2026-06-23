@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Plus, Download, Printer, X, PenTool, FileText } from 'lucide-react'
 import { Project } from '@/lib/projects'
@@ -28,9 +28,10 @@ import {
 } from '@/lib/ptw/permit-types'
 
 export default function PTWPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, userProfile, loading: authLoading } = useAuth()
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const projectId = params.id as string
 
   const [project, setProject] = useState<Project | null>(null)
@@ -42,6 +43,7 @@ export default function PTWPage() {
   } | null>(null)
   const [records, setRecords] = useState<PtwPermitRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [isSharedWithMe, setIsSharedWithMe] = useState(false)
 
   // 작성/수정 상태
   const [showForm, setShowForm] = useState(false)
@@ -59,7 +61,12 @@ export default function PTWPage() {
   const [signatureRole, setSignatureRole] = useState<string | null>(null)
 
   const handleBack = () => {
-    router.push(`/project/${projectId}`)
+    const returnUrl = searchParams.get('returnUrl')
+    if (returnUrl) {
+      router.push(returnUrl)
+    } else {
+      router.push(`/project/${projectId}`)
+    }
   }
 
   // 프로젝트 로드
@@ -73,6 +80,14 @@ export default function PTWPage() {
         .single()
       if (data) {
         setProject(data as Project)
+        // 현재 사용자가 이 프로젝트를 공유받았는지 확인 (삭제 권한 판정용)
+        const { data: shareRows } = await supabase
+          .from('project_shares')
+          .select('id')
+          .eq('project_id', projectId)
+          .eq('shared_with', user.id)
+          .limit(1)
+        setIsSharedWithMe(!!(shareRows && shareRows.length))
         // 프로젝트 소유자 프로필 (수급인/책임자 기본값용)
         const createdBy = (data as Project).created_by
         if (createdBy) {
@@ -354,6 +369,12 @@ export default function PTWPage() {
     setSignatures(next)
   }
 
+  // 삭제 권한: 작성자 본인 외에 프로젝트 소유자·공유받은자·발주청도 삭제 가능
+  const canManageAll =
+    userProfile?.role === '발주청' ||
+    (!!project?.created_by && project.created_by === user?.id) ||
+    isSharedWithMe
+
   const config = permitType ? PERMIT_TYPE_CONFIGS[permitType] : null
 
   if (authLoading) {
@@ -447,6 +468,7 @@ export default function PTWPage() {
                 records={records}
                 selectedId={editingRecordId}
                 currentUserId={user.id}
+                canDelete={canManageAll}
                 onSelect={handleSelectRecord}
                 onDelete={handleDelete}
                 onDownload={handleDownload}

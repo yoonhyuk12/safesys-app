@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2 } from 'lucide-react'
+import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2, ClipboardCheck } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, getHeatWaveCheckCountByUserBranch, getManagerInspectionCountByUserBranch, getHeadquartersInspectionCountByUserBranch, getTBMSafetyInspectionCountByUserBranch, getSafeDocumentInspectionCountByUserBranch, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type WorkerCountByProject, type MaterialCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
+import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, getHeatWaveCheckCountByUserBranch, getManagerInspectionCountByUserBranch, getHeadquartersInspectionCountByUserBranch, getTBMSafetyInspectionCountByUserBranch, getSafeDocumentInspectionCountByUserBranch, getPtwPermitsByUserBranch, getPtwPermitCountByUserBranch, getInspectionRequestCountsByUserBranch, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type PtwPermitSummary, type WorkerCountByProject, type MaterialCountByProject, type InspectionRequestCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
 import { getTBMRecords, type TBMRecord } from '@/lib/tbm'
 import { downloadProjectListExcel } from '@/lib/excel/project-list-export'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS, DEBUG_LOGS } from '@/lib/constants'
@@ -31,10 +31,12 @@ import SafetyManagerView from '@/components/dashboard/SafetyManagerView'
 import SafetyHeadquartersView from '@/components/dashboard/SafetyHeadquartersView'
 import SafetyTBMView from '@/components/dashboard/SafetyTBMView'
 import SafeDocumentView from '@/components/dashboard/SafeDocumentView'
+import SafetyPtwView from '@/components/dashboard/SafetyPtwView'
 import SafetyWorkerView from '@/components/dashboard/SafetyWorkerView'
 import SafetyNewWorkerOrientationView from '@/components/dashboard/SafetyNewWorkerOrientationView'
 import SafetyInspectionLedgerView from '@/components/dashboard/SafetyInspectionLedgerView'
 import BusinessMaterialView from '@/components/dashboard/BusinessMaterialView'
+import BusinessInspectionView from '@/components/dashboard/BusinessInspectionView'
 import TBMChatBot from '@/components/ui/TBMChatBot'
 import BulkProjectUploadModal from '@/components/project/BulkProjectUploadModal'
 import officeLocationsData from '@/lib/office-locations.json'
@@ -223,12 +225,16 @@ const Dashboard: React.FC = () => {
   const [headquartersInspections, setHeadquartersInspections] = useState<HeadquartersInspection[]>([])
   const [tbmSafetyInspections, setTbmSafetyInspections] = useState<TBMSafetyInspection[]>([])
   const [safeDocumentInspections, setSafeDocumentInspections] = useState<SafeDocumentInspection[]>([])
+  const [ptwPermits, setPtwPermits] = useState<PtwPermitSummary[]>([])
+  const [ptwYear, setPtwYear] = useState<number>(new Date().getFullYear())
   const [workerCounts, setWorkerCounts] = useState<WorkerCountByProject[]>([])
   const [safetyInspectionCounts, setSafetyInspectionCounts] = useState<SafetyInspectionCountByProject[]>([])
   const [safetyInspectionYear, setSafetyInspectionYear] = useState<number>(new Date().getFullYear())
   const [materialCounts, setMaterialCounts] = useState<MaterialCountByProject[]>([])
-  const [selectedBusinessCard, setSelectedBusinessCard] = useState<string | null>(null)
+  const [selectedBusinessCard, setSelectedBusinessCard] = useState<string | null>(() => (pathname === '/business' ? searchParams.get('card') : null))
   const [materialDataLoading, setMaterialDataLoading] = useState(false)
+  const [inspectionRequestCounts, setInspectionRequestCounts] = useState<InspectionRequestCountByProject[]>([])
+  const [inspectionRequestDataLoading, setInspectionRequestDataLoading] = useState(false)
   const [orientationStats, setOrientationStats] = useState<{ project_id: string; project_name: string; orientation_count: number; worker_count: number }[]>([])
   const [orientationDataLoading, setOrientationDataLoading] = useState(false)
   const [inspectionDataLoading, setInspectionDataLoading] = useState(false)
@@ -238,11 +244,13 @@ const Dashboard: React.FC = () => {
   const [headquartersInspectionCount, setHeadquartersInspectionCount] = useState<number>(0)
   const [tbmSafetyInspectionCount, setTbmSafetyInspectionCount] = useState<number>(0)
   const [safeDocumentInspectionCount, setSafeDocumentInspectionCount] = useState<number>(0)
+  const [ptwPermitCount, setPtwPermitCount] = useState<number>(0)
   // 안전현황 카드별 조회 상태 (조회 버튼 클릭 시에만 데이터 로딩)
-  type SafetyCardKey = 'tbmSafety' | 'safeDocument' | 'worker' | 'orientation' | 'safetyInspection' | 'manager' | 'headquarters' | 'heatwave'
+  type SafetyCardKey = 'tbmSafety' | 'safeDocument' | 'ptw' | 'worker' | 'orientation' | 'safetyInspection' | 'manager' | 'headquarters' | 'heatwave'
   const [inquiredCards, setInquiredCards] = useState<Record<SafetyCardKey, boolean>>({
     tbmSafety: false,
     safeDocument: false,
+    ptw: false,
     worker: false,
     orientation: false,
     safetyInspection: false,
@@ -253,6 +261,7 @@ const Dashboard: React.FC = () => {
   const [loadingCards, setLoadingCards] = useState<Record<SafetyCardKey, boolean>>({
     tbmSafety: false,
     safeDocument: false,
+    ptw: false,
     worker: false,
     orientation: false,
     safetyInspection: false,
@@ -393,7 +402,7 @@ const Dashboard: React.FC = () => {
           setSelectedBranch(branchName || '')
         }
         const card = segments[3]
-        if (card === 'heatwave' || card === 'manager' || card === 'headquarters' || card === 'tbm' || card === 'worker' || card === 'newWorkerOrientation' || card === 'safetyInspection') {
+        if (card === 'heatwave' || card === 'manager' || card === 'headquarters' || card === 'tbm' || card === 'ptw' || card === 'worker' || card === 'newWorkerOrientation' || card === 'safetyInspection') {
           if (selectedSafetyCard !== card) {
             setSelectedSafetyCard(card)
           }
@@ -405,7 +414,7 @@ const Dashboard: React.FC = () => {
       } else {
         const card = segments[1]
         console.log('🔍 경로 처리:', { pathname, segments, card, selectedSafetyCard })
-        if (card === 'heatwave' || card === 'manager' || card === 'headquarters' || card === 'tbm' || card === 'safeDocument' || card === 'worker' || card === 'newWorkerOrientation' || card === 'safetyInspection') {
+        if (card === 'heatwave' || card === 'manager' || card === 'headquarters' || card === 'tbm' || card === 'safeDocument' || card === 'ptw' || card === 'worker' || card === 'newWorkerOrientation' || card === 'safetyInspection') {
           if (selectedSafetyCard !== card) {
             console.log('✅ selectedSafetyCard 설정:', card)
             setSelectedSafetyCard(card)
@@ -851,6 +860,16 @@ const Dashboard: React.FC = () => {
           console.error('❌ 안전서류 점검 데이터 로드 실패:', result.error)
           setSafeDocumentInspections([])
         }
+      } else if (selectedSafetyCard === 'ptw') {
+        console.log('📋 작업허가제(PTW) 데이터만 조회 중...')
+        const result = await getPtwPermitsByUserBranch(userProfile, ptwYear, selectedHq, selectedBranch)
+        if (result.success && result.permits) {
+          console.log(`✅ 작업허가제(PTW) 조회 완료: ${result.permits.length}건`)
+          setPtwPermits(result.permits)
+        } else {
+          console.error('❌ 작업허가제(PTW) 데이터 로드 실패:', result.error)
+          setPtwPermits([])
+        }
       } else if (selectedSafetyCard === 'worker') {
         console.log('📋 근로자 등록현황 데이터만 조회 중...')
         const result = await getWorkerCountsByUserBranch(userProfile, selectedHq, selectedBranch)
@@ -877,7 +896,7 @@ const Dashboard: React.FC = () => {
     } finally {
       setInspectionDataLoading(false)
     }
-  }, [userProfile, selectedSafetyCard, selectedQuarter, selectedHq, selectedBranch, safetyInspectionYear])
+  }, [userProfile, selectedSafetyCard, selectedQuarter, selectedHq, selectedBranch, safetyInspectionYear, ptwYear])
 
   // 관리자 점검 선택 시 관리자 점검 데이터만 로드
   useEffect(() => {
@@ -977,6 +996,29 @@ const Dashboard: React.FC = () => {
     lastSafeDocParams.current = currentParams
     loadInspectionData()
   }, [user, userProfile, selectedSafetyCard, selectedQuarter, selectedHq, selectedBranch, safeDocumentInspections.length, loadInspectionData])
+
+  // 작업허가제(PTW) 선택 시 PTW 데이터만 로드
+  const lastPtwParams = useRef<{ year: number; hq: string; branch: string } | null>(null)
+  useEffect(() => {
+    if (!(user && userProfile && userProfile.role === '발주청' && selectedSafetyCard === 'ptw')) {
+      return
+    }
+    if (!isSelectionInitialized.current) return
+
+    const currentParams = { year: ptwYear, hq: selectedHq || '', branch: selectedBranch || '' }
+    if (lastPtwParams.current &&
+      lastPtwParams.current.year === currentParams.year &&
+      lastPtwParams.current.hq === currentParams.hq &&
+      lastPtwParams.current.branch === currentParams.branch &&
+      ptwPermits.length > 0) {
+      if (DEBUG_LOGS) console.log('✅ 작업허가제(PTW) 데이터 이미 로딩됨. 재로딩 스킵')
+      return
+    }
+
+    if (DEBUG_LOGS) console.log('🔍 작업허가제(PTW) 전용 데이터 로딩 시작')
+    lastPtwParams.current = currentParams
+    loadInspectionData()
+  }, [user, userProfile, selectedSafetyCard, ptwYear, selectedHq, selectedBranch, ptwPermits.length, loadInspectionData])
 
   // 근로자 등록현황 선택 시 근로자 데이터만 로드
   const lastWorkerParams = useRef<{ hq: string; branch: string } | null>(null)
@@ -1140,6 +1182,11 @@ const Dashboard: React.FC = () => {
           if (r.success) setSafeDocumentInspectionCount(r.count)
           break
         }
+        case 'ptw': {
+          const r = await getPtwPermitCountByUserBranch(userProfile, ptwYear, selectedHq, selectedBranch)
+          if (r.success) setPtwPermitCount(r.count)
+          break
+        }
         case 'worker': {
           const r = await getWorkerCountsByUserBranch(userProfile, selectedHq, selectedBranch)
           if (r.success && r.workerCounts) setWorkerCounts(r.workerCounts)
@@ -1230,6 +1277,35 @@ const Dashboard: React.FC = () => {
       })
       .finally(() => setMaterialDataLoading(false))
   }, [user, userProfile, viewMode, selectedHq, selectedBranch, materialCounts.length])
+
+  // 사업현황 진입 시 검사/검측 데이터 로드
+  const lastInspectionParams = useRef<{ hq: string; branch: string } | null>(null)
+  useEffect(() => {
+    if (!(user && userProfile && userProfile.role === '발주청' && viewMode === 'business')) {
+      return
+    }
+    if (!isSelectionInitialized.current) return
+
+    const currentParams = { hq: selectedHq || '', branch: selectedBranch || '' }
+    if (lastInspectionParams.current &&
+      lastInspectionParams.current.hq === currentParams.hq &&
+      lastInspectionParams.current.branch === currentParams.branch &&
+      inspectionRequestCounts.length > 0) {
+      if (DEBUG_LOGS) console.log('✅ 검사/검측 등록현황 데이터 이미 로딩됨. 재로딩 스킵')
+      return
+    }
+
+    if (DEBUG_LOGS) console.log('🔍 검사/검측 등록현황 전용 데이터 로딩 시작')
+    lastInspectionParams.current = currentParams
+    setInspectionRequestDataLoading(true)
+    getInspectionRequestCountsByUserBranch(userProfile, selectedHq || undefined, selectedBranch || undefined)
+      .then(result => {
+        if (result.success && result.inspectionCounts) {
+          setInspectionRequestCounts(result.inspectionCounts)
+        }
+      })
+      .finally(() => setInspectionRequestDataLoading(false))
+  }, [user, userProfile, viewMode, selectedHq, selectedBranch, inspectionRequestCounts.length])
 
   // 지도보기일 때 점검 데이터 로드
   useEffect(() => {
@@ -3108,6 +3184,30 @@ const Dashboard: React.FC = () => {
                   />
                 )}
 
+                {selectedSafetyCard === 'ptw' && (
+                  <SafetyPtwView
+                    loading={inspectionDataLoading}
+                    projects={projects}
+                    permits={ptwPermits}
+                    selectedSafetyHq={selectedSafetyHq}
+                    selectedSafetyBranch={selectedSafetyBranch}
+                    selectedHq={selectedHq}
+                    selectedYear={ptwYear}
+                    onBack={() => {
+                      setSelectedSafetyCard(null)
+                      setSelectedSafetyHq(null)
+                      setSelectedSafetyBranch(null)
+                      router.push('/safe')
+                    }}
+                    onSelectBranch={(branch) => {
+                      setSelectedSafetyBranch(branch)
+                      router.push(`/safe/branch/${encodeURIComponent(branch)}/ptw`)
+                    }}
+                    onRowClickProject={(projectId) => router.push(`/project/${projectId}/ptw?returnUrl=${encodeURIComponent(pathname || '/safe')}`)}
+                    onYearChange={(year) => setPtwYear(year)}
+                  />
+                )}
+
                 {selectedSafetyCard === 'worker' && (
                   <SafetyWorkerView
                     loading={inspectionDataLoading}
@@ -3294,6 +3394,40 @@ const Dashboard: React.FC = () => {
                         <div className="text-sm font-semibold text-purple-600 mb-0.5">
                           {safeDocumentInspectionCount}건
                         </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 작업허가제(PTW) 카드 */}
+                <div
+                  onClick={() => setSelectedSafetyCard('ptw')}
+                  className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-rose-300 hover:bg-rose-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]"
+                >
+                  <div className="flex flex-col items-center text-center">
+                    <div className="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-rose-200 transition-colors">
+                      <ClipboardCheck className="h-4 w-4 text-rose-600" />
+                    </div>
+                    <h4 className="text-xs font-medium text-gray-900 mb-1">작업허가제(PTW)</h4>
+                    <div className="text-xs text-gray-600">
+                      {loadingCards.ptw ? (
+                        <div className="flex justify-center my-1">
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-rose-200 border-t-rose-600"></div>
+                        </div>
+                      ) : !inquiredCards.ptw ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); inquireCard('ptw') }}
+                          className="mt-1 px-2 py-1 text-[11px] font-medium text-rose-700 bg-rose-50 border border-rose-200 rounded hover:bg-rose-100"
+                        >
+                          조회
+                        </button>
+                      ) : (
+                        <>
+                          <div className="text-sm font-semibold text-rose-600 mb-0.5">
+                            {ptwPermitCount}
+                          </div>
+                          <div className="text-xs">건 제출</div>
+                        </>
                       )}
                     </div>
                   </div>
@@ -3542,8 +3676,20 @@ const Dashboard: React.FC = () => {
                 materialCounts={materialCounts}
                 selectedHq={selectedHq}
                 selectedBranch={selectedBranch}
+                initialBranch={searchParams.get('branch')}
                 onBack={() => setSelectedBusinessCard(null)}
-                onRowClickProject={(projectId) => router.push(`/project/${projectId}/material-ledger`)}
+                onRowClickProject={(projectId, branch) => router.push(`/project/${projectId}/material-ledger?returnUrl=${encodeURIComponent(`/business?card=material&branch=${branch ?? ''}`)}`)}
+              />
+            ) : selectedBusinessCard === 'inspection' ? (
+              <BusinessInspectionView
+                loading={inspectionRequestDataLoading}
+                projects={projects}
+                inspectionCounts={inspectionRequestCounts}
+                selectedHq={selectedHq}
+                selectedBranch={selectedBranch}
+                initialBranch={searchParams.get('branch')}
+                onBack={() => setSelectedBusinessCard(null)}
+                onRowClickProject={(projectId, branch) => router.push(`/project/${projectId}/inspection-request?returnUrl=${encodeURIComponent(`/business?card=inspection&branch=${branch ?? ''}`)}`)}
               />
             ) : (
               <>
@@ -3570,6 +3716,24 @@ const Dashboard: React.FC = () => {
                       <div className="text-xs text-gray-600">
                         <div className="text-sm font-semibold text-amber-600 mb-0.5">
                           {materialCounts.reduce((s, m) => s + m.material_count, 0).toLocaleString()}건
+                        </div>
+                        <div className="text-xs">등록</div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* 검사/검측 카드 */}
+                  <div
+                    onClick={() => setSelectedBusinessCard('inspection')}
+                    className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-indigo-300 hover:bg-indigo-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]"
+                  >
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center mb-2">
+                        <ClipboardCheck className="h-4 w-4 text-indigo-600" />
+                      </div>
+                      <h4 className="text-xs font-medium text-gray-900 mb-1">검사/검측</h4>
+                      <div className="text-xs text-gray-600">
+                        <div className="text-sm font-semibold text-indigo-600 mb-0.5">
+                          {inspectionRequestCounts.reduce((s, m) => s + m.inspection_count, 0).toLocaleString()}건
                         </div>
                         <div className="text-xs">등록</div>
                       </div>

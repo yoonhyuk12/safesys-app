@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import type { UserProfile } from './supabase'
 import { BRANCH_OPTIONS, DEBUG_LOGS } from './constants'
+import { PERMIT_TYPE_CONFIGS, type PermitType } from './ptw/permit-types'
 
 export interface Project {
   id: string
@@ -2173,6 +2174,165 @@ export async function getSafeDocumentInspectionCountByUserBranch(
   }
 }
 
+// ── 작업허가제(PTW) 안전현황 ──────────────────────────────
+// 허가서 1건의 사인완료 여부: 종류별 필수 서명란(signRoles) 전원이 서명 이미지를 채웠는지
+function isPtwFullySigned(
+  permitType: PermitType,
+  signatures: Record<string, { signature?: string }> | null | undefined
+): boolean {
+  const config = PERMIT_TYPE_CONFIGS[permitType]
+  if (!config) return false
+  return config.signRoles.every((role) => {
+    const sig = signatures?.[role.key]
+    return typeof sig?.signature === 'string' && sig.signature.trim() !== ''
+  })
+}
+
+export interface PtwPermitSummary {
+  id: string
+  project_id: string
+  project_name?: string
+  managing_hq?: string
+  managing_branch?: string
+  permit_type: PermitType
+  is_signed: boolean   // 모든 서명란 작성 완료 여부
+  created_at: string
+}
+
+// PTW 허가서 목록 조회 (연도 필터, 발주청 권한 필터) — 사인완료 여부 계산 포함
+export async function getPtwPermitsByUserBranch(
+  userProfile: UserProfile,
+  year?: number,
+  selectedHq?: string,
+  selectedBranch?: string
+): Promise<{ success: boolean; permits?: PtwPermitSummary[]; error?: string }> {
+  try {
+    if (DEBUG_LOGS) console.log('작업허가제(PTW) 데이터 조회 시작:', { year, selectedHq, selectedBranch })
+
+    // form_data(대용량 JSONB)는 제외하고 사인완료 판정에 필요한 컬럼만 select
+    let query = supabase
+      .from('ptw_permits')
+      .select(`
+        id,
+        project_id,
+        permit_type,
+        signatures,
+        created_at,
+        projects!inner (
+          project_name,
+          managing_hq,
+          managing_branch,
+          is_active
+        )
+      `)
+
+    // 연도 필터: 제출 시각(created_at) 기준
+    if (year) {
+      query = query
+        .gte('created_at', `${year}-01-01`)
+        .lt('created_at', `${year + 1}-01-01`)
+    }
+
+    // 발주청 권한 필터
+    if (userProfile.role === '발주청') {
+      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+        // 전사 조회
+      } else {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          query = query.eq('projects.managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          query = query.eq('projects.managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) {
+      query = query.eq('projects.managing_hq', selectedHq)
+    }
+    if (selectedBranch) {
+      query = query.eq('projects.managing_branch', selectedBranch)
+    }
+
+    query = query.order('created_at', { ascending: false })
+
+    const { data, error } = await query
+
+    if (error) {
+      console.error('작업허가제(PTW) 조회 오류:', error)
+      return { success: false, error: error.message }
+    }
+
+    const permits: PtwPermitSummary[] = (data || []).map((item: any) => ({
+      id: item.id,
+      project_id: item.project_id,
+      project_name: item.projects?.project_name,
+      managing_hq: item.projects?.managing_hq,
+      managing_branch: item.projects?.managing_branch,
+      permit_type: item.permit_type,
+      is_signed: isPtwFullySigned(item.permit_type, item.signatures),
+      created_at: item.created_at,
+    }))
+
+    if (DEBUG_LOGS) console.log(`조회된 작업허가제(PTW) 수: ${permits.length}`)
+    return { success: true, permits }
+  } catch (error: any) {
+    console.error('작업허가제(PTW) 조회 실패:', error)
+    return { success: false, error: error.message || '작업허가제 데이터를 불러오는데 실패했습니다.' }
+  }
+}
+
+// PTW 허가서 건수만 조회 (카드 표시용 경량 쿼리)
+export async function getPtwPermitCountByUserBranch(
+  userProfile: UserProfile,
+  year?: number,
+  selectedHq?: string,
+  selectedBranch?: string
+): Promise<{ success: boolean; count: number; error?: string }> {
+  try {
+    let query = supabase
+      .from('ptw_permits')
+      .select('id, projects!inner(managing_hq, managing_branch)', { count: 'exact', head: true })
+
+    if (year) {
+      query = query
+        .gte('created_at', `${year}-01-01`)
+        .lt('created_at', `${year + 1}-01-01`)
+    }
+
+    if (userProfile.role === '발주청') {
+      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+        // 전사 조회
+      } else {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          query = query.eq('projects.managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          query = query.eq('projects.managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) {
+      query = query.eq('projects.managing_hq', selectedHq)
+    }
+    if (selectedBranch) {
+      query = query.eq('projects.managing_branch', selectedBranch)
+    }
+
+    const { count, error } = await query
+
+    if (error) {
+      return { success: false, count: 0, error: error.message }
+    }
+
+    return { success: true, count: count || 0 }
+  } catch (error: any) {
+    console.error('작업허가제(PTW) 건수 조회 실패:', error)
+    return { success: false, count: 0, error: error.message || '작업허가제 건수 조회에 실패했습니다.' }
+  }
+}
+
 // 자급자재 등록 건수 조회 (프로젝트별)
 export interface MaterialCountByProject {
   project_id: string
@@ -2270,6 +2430,106 @@ export async function getMaterialCountsByUserBranch(
   } catch (error: any) {
     console.error('자급자재 등록현황 조회 실패:', error)
     return { success: false, error: error.message || '자급자재 데이터를 불러오는데 실패했습니다.' }
+  }
+}
+
+export interface InspectionRequestCountByProject {
+  project_id: string
+  project_name: string
+  managing_hq: string
+  managing_branch: string
+  inspection_count: number
+}
+
+// 사용자 권한/선택 본부·지사 범위의 프로젝트별 검사·검측(검측요청서) 등록 건수를 집계한다.
+export async function getInspectionRequestCountsByUserBranch(
+  userProfile: UserProfile,
+  selectedHq?: string,
+  selectedBranch?: string
+): Promise<{ success: boolean; inspectionCounts?: InspectionRequestCountByProject[]; error?: string }> {
+  try {
+    if (DEBUG_LOGS) console.log('검사/검측 등록현황 조회 시작:', { selectedHq, selectedBranch })
+
+    let projectQuery = supabase
+      .from('projects')
+      .select('id, project_name, managing_hq, managing_branch, is_active')
+
+    if (userProfile.role === '발주청') {
+      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+        if (DEBUG_LOGS) console.log('✅ 본사 조직 사용자: 전사 검사/검측 현황 조회')
+      } else {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) {
+      projectQuery = projectQuery.eq('managing_hq', selectedHq)
+    }
+    if (selectedBranch) {
+      projectQuery = projectQuery.eq('managing_branch', selectedBranch)
+    }
+
+    const { data: projects, error: projectError } = await projectQuery
+
+    if (projectError) {
+      console.error('프로젝트 조회 오류:', projectError)
+      return { success: false, error: projectError.message }
+    }
+
+    if (!projects || projects.length === 0) {
+      return { success: true, inspectionCounts: [] }
+    }
+
+    const isCompletedProject = (p: any): boolean => {
+      if (p.is_active === undefined || p.is_active === null) return false
+      if (typeof p.is_active === 'boolean') return !p.is_active
+      if (typeof p.is_active === 'object') return p.is_active.completed === true
+      return false
+    }
+    const activeProjects = projects.filter(p => !isCompletedProject(p))
+
+    if (activeProjects.length === 0) {
+      return { success: true, inspectionCounts: [] }
+    }
+
+    const projectIds = activeProjects.map(p => p.id)
+
+    // inspection_requests 테이블에서 프로젝트별 건수 집계
+    const { data: requests, error: requestError } = await supabase
+      .from('inspection_requests')
+      .select('project_id')
+      .in('project_id', projectIds)
+
+    if (requestError) {
+      console.error('검사/검측 조회 오류:', requestError)
+      return { success: false, error: requestError.message }
+    }
+
+    // 프로젝트별 건수 집계
+    const countMap = new Map<string, number>()
+      ; (requests || []).forEach(r => {
+        countMap.set(r.project_id, (countMap.get(r.project_id) || 0) + 1)
+      })
+
+    const inspectionCounts: InspectionRequestCountByProject[] = activeProjects.map(p => ({
+      project_id: p.id,
+      project_name: p.project_name,
+      managing_hq: p.managing_hq,
+      managing_branch: p.managing_branch,
+      inspection_count: countMap.get(p.id) || 0,
+    }))
+
+    if (DEBUG_LOGS) console.log(`검사/검측 등록현황 조회 완료: ${inspectionCounts.length}개 프로젝트`)
+    return { success: true, inspectionCounts }
+
+  } catch (error: any) {
+    console.error('검사/검측 등록현황 조회 실패:', error)
+    return { success: false, error: error.message || '검사/검측 데이터를 불러오는데 실패했습니다.' }
   }
 }
 
