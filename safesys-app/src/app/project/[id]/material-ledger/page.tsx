@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -121,6 +121,7 @@ export default function MaterialLedgerPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const projectId = params.id as string
 
   const [project, setProject] = useState<any>(null)
@@ -273,11 +274,25 @@ export default function MaterialLedgerPage() {
     }
   }
 
+  // 진입 경로를 returnUrl 쿼리로 받은 경우 그 위치(지사 프로젝트 목록 등)로 정확히 복귀.
+  const navigateBack = () => {
+    const returnUrl = searchParams.get('returnUrl')
+    if (returnUrl) {
+      router.push(returnUrl)
+      return
+    }
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back()
+      return
+    }
+    router.push(`/project/${projectId}`)
+  }
+
   const handleBack = () => {
     if (selectedMaterialId) {
       setSelectedMaterialId(null)
     } else {
-      router.back()
+      navigateBack()
     }
   }
 
@@ -977,7 +992,7 @@ export default function MaterialLedgerPage() {
         <header className="bg-white shadow-sm border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-4">
             <div className="flex items-center h-16">
-              <button onClick={() => router.back()} className="mr-4 p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100">
+              <button onClick={navigateBack} className="mr-4 p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100">
                 <ArrowLeft className="h-5 w-5" />
               </button>
               <h1 className="text-xl font-bold text-gray-900">주요자재 수불부</h1>

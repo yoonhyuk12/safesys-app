@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { useRouter, useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Plus, Download, Printer, X, FileText } from 'lucide-react'
 import { Project } from '@/lib/projects'
@@ -22,6 +22,7 @@ export default function InspectionRequestPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const params = useParams()
+  const searchParams = useSearchParams()
   const projectId = params.id as string
 
   const [project, setProject] = useState<Project | null>(null)
@@ -41,6 +42,17 @@ export default function InspectionRequestPage() {
   const [ledgerDownloading, setLedgerDownloading] = useState(false)
 
   const handleBack = () => {
+    // 진입 경로를 returnUrl 쿼리로 받은 경우 그 위치(지사 프로젝트 목록 등)로 정확히 복귀.
+    const returnUrl = searchParams.get('returnUrl')
+    if (returnUrl) {
+      router.push(returnUrl)
+      return
+    }
+    // returnUrl이 없으면 히스토리 기반 복귀, 직접 진입 시 프로젝트 상세로 fallback.
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back()
+      return
+    }
     router.push(`/project/${projectId}`)
   }
 
