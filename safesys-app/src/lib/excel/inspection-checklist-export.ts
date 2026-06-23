@@ -69,10 +69,26 @@ const addSignatureImage = (
   if (!signature || !signature.startsWith('data:image')) return
   try {
     const imageId = wb.addImage({ base64: signature.split(',')[1], extension: 'png' })
-    ws.addImage(imageId, { tl: { col, row: rowNum - 1 }, ext: { width: 80, height: 28 } })
+    // 서명 크기 고정: 너비 3cm, 높이 1cm (96 DPI 기준 1cm ≈ 37.8px)
+    ws.addImage(imageId, { tl: { col, row: rowNum - 1 }, ext: { width: 113.4, height: 37.8 } })
   } catch {
     // 이미지 삽입 실패 시 무시
   }
+}
+
+// 성명(J, 서명 이미지 겹침)과 (인)(K)을 분리 배치해 서명이 (인)을 가리지 않게 한다.
+// J·K 사이 구분선은 제거해 기존 병합 셀처럼 한 칸으로 보이게 유지.
+const setSignatureNameCell = (ws: ExcelJS.Worksheet, rowNum: number, name: string) => {
+  const j = ws.getCell(`J${rowNum}`)
+  j.value = name
+  j.font = { size: 10 }
+  j.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true }
+  j.border = { top: thin, bottom: thin, left: thin }
+  const k = ws.getCell(`K${rowNum}`)
+  k.value = '(인)'
+  k.font = { size: 10 }
+  k.alignment = { vertical: 'middle', horizontal: 'center' }
+  k.border = { top: thin, bottom: thin, right: thin }
 }
 
 const downloadWorkbook = async (workbook: ExcelJS.Workbook, filename: string) => {
@@ -97,6 +113,7 @@ export function addChecklistSheet(
     pageSetup: {
       paperSize: 9, // A4
       orientation: 'portrait',
+      horizontalCentered: true, // 페이지 가로 가운데 맞춤
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 1,
@@ -217,19 +234,21 @@ export function addChecklistSheet(
 
   // 푸터 — 시공자 점검일자 / 현장대리인
   mergeSet(ws, `A${r}:B${r}`, '시공자 점검일자', { bold: true, fill: headerFill, align: { horizontal: 'center' } })
-  mergeSet(ws, `C${r}:F${r}`, formatDateKorean(record.contractor_check_date), { align: { horizontal: 'center' } })
+  // 점검일자가 비어 있으면 시트1(검측요청서)의 요청일자를 따른다
+  mergeSet(ws, `C${r}:F${r}`, formatDateKorean(record.contractor_check_date || record.request_date), { align: { horizontal: 'center' } })
   mergeSet(ws, `G${r}:I${r}`, '현장대리인', { bold: true, fill: headerFill, align: { horizontal: 'center' } })
-  mergeSet(ws, `J${r}:K${r}`, `${record.field_agent_name || ''}  (인)`, { align: { horizontal: 'center' } })
-  addSignatureImage(workbook, ws, record.field_agent_signature, 9.2, r)
+  setSignatureNameCell(ws, r, record.field_agent_name || '')
+  addSignatureImage(workbook, ws, record.field_agent_signature, 10.99, r)
   ws.getRow(r).height = 28
   r++
 
   // 푸터 — 감독원 검측일자 / 감독원
   mergeSet(ws, `A${r}:B${r}`, '감독원 검측일자', { bold: true, fill: headerFill, align: { horizontal: 'center' } })
-  mergeSet(ws, `C${r}:F${r}`, formatDateKorean(record.supervisor_check_date), { align: { horizontal: 'center' } })
+  // 검측일자가 비어 있으면 시트1(검측요청서)의 요청일자를 따른다
+  mergeSet(ws, `C${r}:F${r}`, formatDateKorean(record.supervisor_check_date || record.request_date), { align: { horizontal: 'center' } })
   mergeSet(ws, `G${r}:I${r}`, '감 독 원', { bold: true, fill: headerFill, align: { horizontal: 'center' } })
-  mergeSet(ws, `J${r}:K${r}`, `${record.supervisor_name || ''}  (인)`, { align: { horizontal: 'center' } })
-  addSignatureImage(workbook, ws, record.supervisor_signature, 9.2, r)
+  setSignatureNameCell(ws, r, record.supervisor_name || '')
+  addSignatureImage(workbook, ws, record.supervisor_signature, 10.99, r)
   ws.getRow(r).height = 28
   r++
 
@@ -241,6 +260,18 @@ export function addChecklistSheet(
     { size: 9, border: false, align: { horizontal: 'left' } }
   )
   ws.getRow(r).height = 24
+
+  // 3~6행(헤더)·35·36행(서명 푸터) 텍스트 크기 12 적용 (굵기 등 기존 속성은 유지)
+  for (const row of [3, 4, 5, 6, 35, 36]) {
+    ws.getRow(row).eachCell({ includeEmpty: false }, (cell) => {
+      cell.font = { ...cell.font, size: 12 }
+    })
+  }
+
+  // 제목~서명 푸터(2~36행) 행 높이를 30으로 일괄 통일 (37행 주석은 제외)
+  for (let row = 2; row <= 36; row++) {
+    ws.getRow(row).height = 30
+  }
 
   return ws
 }
