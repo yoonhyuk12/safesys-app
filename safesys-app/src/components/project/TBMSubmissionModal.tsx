@@ -283,6 +283,21 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
+  // 중점위험요인 선택 시 짝이 되는 대책을 자동 입력
+  const handleMainRiskChange = (value: string) => {
+    setFormData(prev => {
+      const risks = [prev.potentialRisk1, prev.potentialRisk2, prev.potentialRisk3]
+      const solutions = [prev.solution1, prev.solution2, prev.solution3]
+      const v = (value || '').trim()
+      const idx = v ? risks.findIndex(r => (r || '').trim() === v) : -1
+      return {
+        ...prev,
+        mainRiskSelection: value,
+        mainRiskSolution: idx >= 0 ? (solutions[idx] || '') : ''
+      }
+    })
+  }
+
   const getPhotoNameKey = (rawName: string) => {
     if (!rawName) return ''
 
@@ -461,20 +476,34 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
 
       if (result.success && result.data) {
         // AI 응답으로 필드 채우기
-        setFormData(prev => ({
-          ...prev,
-          potentialRisk1: result.data.potentialRisk1 || prev.potentialRisk1,
-          solution1: result.data.solution1 || prev.solution1,
-          potentialRisk2: result.data.potentialRisk2 || prev.potentialRisk2,
-          solution2: result.data.solution2 || prev.solution2,
-          potentialRisk3: result.data.potentialRisk3 || prev.potentialRisk3,
-          solution3: result.data.solution3 || prev.solution3,
-          mainRiskSelection: result.data.mainRiskSelection || prev.mainRiskSelection,
-          mainRiskSolution: result.data.mainRiskSolution || prev.mainRiskSolution,
-          riskFactor1: result.data.riskFactor1 || prev.riskFactor1,
-          riskFactor2: result.data.riskFactor2 || prev.riskFactor2,
-          riskFactor3: result.data.riskFactor3 || prev.riskFactor3
-        }))
+        // 중점위험요인은 잠재위험요인 중 하나로 정렬(짝 대책 자동), 잠재위험요소는 각 잠재위험요인과 연관된 별개 AI 결과 사용
+        setFormData(prev => {
+          const pr1 = result.data.potentialRisk1 || prev.potentialRisk1
+          const pr2 = result.data.potentialRisk2 || prev.potentialRisk2
+          const pr3 = result.data.potentialRisk3 || prev.potentialRisk3
+          const s1 = result.data.solution1 || prev.solution1
+          const s2 = result.data.solution2 || prev.solution2
+          const s3 = result.data.solution3 || prev.solution3
+          const risks = [pr1, pr2, pr3]
+          const solutions = [s1, s2, s3]
+          const aiMain = (result.data.mainRiskSelection || '').trim()
+          let mainIdx = aiMain ? risks.findIndex(r => (r || '').trim() === aiMain) : -1
+          if (mainIdx < 0) mainIdx = 0
+          return {
+            ...prev,
+            potentialRisk1: pr1,
+            solution1: s1,
+            potentialRisk2: pr2,
+            solution2: s2,
+            potentialRisk3: pr3,
+            solution3: s3,
+            mainRiskSelection: risks[mainIdx] || '',
+            mainRiskSolution: solutions[mainIdx] || '',
+            riskFactor1: result.data.riskFactor1 || prev.riskFactor1,
+            riskFactor2: result.data.riskFactor2 || prev.riskFactor2,
+            riskFactor3: result.data.riskFactor3 || prev.riskFactor3
+          }
+        })
 
         let completionMessage = '금일작업'
         if (formData.personnelInput && formData.equipmentInput) {
@@ -1175,6 +1204,17 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
 
   if (!isOpen) return null
 
+  // 중점위험요인 드롭다운 옵션 = 비어있지 않은 잠재위험요인 값
+  const potentialRiskOptions = [formData.potentialRisk1, formData.potentialRisk2, formData.potentialRisk3]
+    .map(v => (v || '').trim())
+    .filter(Boolean)
+
+  // 저장된 값이 현재 옵션에 없으면(예: 옛 기록 수정) 값 유실 방지를 위해 옵션에 포함
+  const riskOptionsWith = (current: string) => {
+    const c = (current || '').trim()
+    return c && !potentialRiskOptions.includes(c) ? [...potentialRiskOptions, c] : potentialRiskOptions
+  }
+
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1631,13 +1671,17 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       중점위험요인 <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
+                    <select
                       value={formData.mainRiskSelection}
-                      onChange={(e) => handleInputChange('mainRiskSelection', e.target.value)}
+                      onChange={(e) => handleMainRiskChange(e.target.value)}
                       className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                       required
-                    />
+                    >
+                      <option value="">잠재위험요인 중 선택</option>
+                      {riskOptionsWith(formData.mainRiskSelection).map((opt, idx) => (
+                        <option key={idx} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1646,14 +1690,14 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                     <input
                       type="text"
                       value={formData.mainRiskSolution}
-                      onChange={(e) => handleInputChange('mainRiskSolution', e.target.value)}
-                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                      required
+                      readOnly
+                      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-700 sm:text-sm"
+                      placeholder="중점위험요인 선택 시 자동 입력"
                     />
                   </div>
                 </div>
 
-                {/* 잠재위험요소 */}
+                {/* 잠재위험요소 (위 잠재위험요인과 연관된 단순 위험 요소 — 대책 아님) */}
                 <div className="grid grid-cols-3 gap-4">
                   {[1, 2, 3].map(num => (
                     <div key={num}>
