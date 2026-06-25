@@ -2980,18 +2980,31 @@ export default function HeadquartersInspectionPage() {
                                             <label className="block text-xs font-medium text-gray-700">
                                               점검 결과
                                             </label>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const updatedItems = [...newRecord.critical_items]
-                                                updatedItems[index].remarks = ''
-                                                setNewRecord({...newRecord, critical_items: updatedItems})
-                                              }}
-                                              className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
-                                            >
-                                              <Trash2 className="w-3 h-3" />
-                                              삭제
-                                            </button>
+                                            <div className="flex items-center gap-3">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const updatedItems = [...newRecord.critical_items]
+                                                  updatedItems[index].remarks = '해당사항 없음'
+                                                  setNewRecord({...newRecord, critical_items: updatedItems})
+                                                }}
+                                                className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 transition-colors"
+                                              >
+                                                해당없음
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const updatedItems = [...newRecord.critical_items]
+                                                  updatedItems[index].remarks = ''
+                                                  setNewRecord({...newRecord, critical_items: updatedItems})
+                                                }}
+                                                className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                              >
+                                                <Trash2 className="w-3 h-3" />
+                                                삭제
+                                              </button>
+                                            </div>
                                           </div>
                                           <textarea
                                             value={item.remarks}
@@ -3118,18 +3131,31 @@ export default function HeadquartersInspectionPage() {
                                             <label className="block text-xs font-medium text-gray-700">
                                               점검 결과
                                             </label>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const updatedItems = [...newRecord.caution_items]
-                                                updatedItems[index].remarks = ''
-                                                setNewRecord({...newRecord, caution_items: updatedItems})
-                                              }}
-                                              className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
-                                            >
-                                              <Trash2 className="w-3 h-3" />
-                                              삭제
-                                            </button>
+                                            <div className="flex items-center gap-3">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const updatedItems = [...newRecord.caution_items]
+                                                  updatedItems[index].remarks = '해당사항 없음'
+                                                  setNewRecord({...newRecord, caution_items: updatedItems})
+                                                }}
+                                                className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 transition-colors"
+                                              >
+                                                해당없음
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const updatedItems = [...newRecord.caution_items]
+                                                  updatedItems[index].remarks = ''
+                                                  setNewRecord({...newRecord, caution_items: updatedItems})
+                                                }}
+                                                className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                              >
+                                                <Trash2 className="w-3 h-3" />
+                                                삭제
+                                              </button>
+                                            </div>
                                           </div>
                                           <textarea
                                             value={item.remarks}
@@ -3264,18 +3290,31 @@ export default function HeadquartersInspectionPage() {
                                             <label className="block text-xs font-medium text-gray-700">
                                               점검 결과
                                             </label>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const updatedItems = [...newRecord.other_items]
-                                                updatedItems[index].remarks = ''
-                                                setNewRecord({...newRecord, other_items: updatedItems})
-                                              }}
-                                              className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
-                                            >
-                                              <Trash2 className="w-3 h-3" />
-                                              삭제
-                                            </button>
+                                            <div className="flex items-center gap-3">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const updatedItems = [...newRecord.other_items]
+                                                  updatedItems[index].remarks = '해당사항 없음'
+                                                  setNewRecord({...newRecord, other_items: updatedItems})
+                                                }}
+                                                className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 transition-colors"
+                                              >
+                                                해당없음
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const updatedItems = [...newRecord.other_items]
+                                                  updatedItems[index].remarks = ''
+                                                  setNewRecord({...newRecord, other_items: updatedItems})
+                                                }}
+                                                className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                              >
+                                                <Trash2 className="w-3 h-3" />
+                                                삭제
+                                              </button>
+                                            </div>
                                           </div>
                                           <textarea
                                             value={item.remarks}
@@ -3433,7 +3472,10 @@ export default function HeadquartersInspectionPage() {
                                                         checked={item.grade === g}
                                                         onChange={() => {
                                                           const updatedItems = [...newRecord.five_key_items]
-                                                          updatedItems[index] = { ...updatedItems[index], grade: g }
+                                                          const next = { ...updatedItems[index], grade: g }
+                                                          // 해당없음 선택 시 점검결과에 '해당사항 없음' 자동 입력
+                                                          if (g === 'N/A') next.remarks = '해당사항 없음'
+                                                          updatedItems[index] = next
                                                           setNewRecord({ ...newRecord, five_key_items: updatedItems })
                                                         }}
                                                         className="sr-only"
@@ -3450,18 +3492,31 @@ export default function HeadquartersInspectionPage() {
                                                 <label className="block text-xs font-medium text-gray-700">
                                                   점검 결과
                                                 </label>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    const updatedItems = [...newRecord.five_key_items]
-                                                    updatedItems[index] = { ...updatedItems[index], remarks: '' }
-                                                    setNewRecord({ ...newRecord, five_key_items: updatedItems })
-                                                  }}
-                                                  className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
-                                                >
-                                                  <Trash2 className="w-3 h-3" />
-                                                  삭제
-                                                </button>
+                                                <div className="flex items-center gap-3">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      const updatedItems = [...newRecord.five_key_items]
+                                                      updatedItems[index] = { ...updatedItems[index], remarks: '해당사항 없음' }
+                                                      setNewRecord({ ...newRecord, five_key_items: updatedItems })
+                                                    }}
+                                                    className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 transition-colors"
+                                                  >
+                                                    해당없음
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      const updatedItems = [...newRecord.five_key_items]
+                                                      updatedItems[index] = { ...updatedItems[index], remarks: '' }
+                                                      setNewRecord({ ...newRecord, five_key_items: updatedItems })
+                                                    }}
+                                                    className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition-colors"
+                                                  >
+                                                    <Trash2 className="w-3 h-3" />
+                                                    삭제
+                                                  </button>
+                                                </div>
                                               </div>
                                               <textarea
                                                 value={item.remarks}
