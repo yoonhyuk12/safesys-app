@@ -713,6 +713,7 @@ export interface HeadquartersInspection {
   critical_items?: any[]
   caution_items?: any[]
   other_items?: any[]
+  five_key_items?: any[]
 }
 
 // 발주청 사용자가 볼 수 있는 관리자 점검 현황 조회
@@ -1039,7 +1040,9 @@ export async function getHeadquartersInspectionsByUserBranch(
       // 보고서(점검표) 생성을 위해 필요한 항목 배열 포함
       critical_items: item.critical_items || [],
       caution_items: item.caution_items || [],
-      other_items: item.other_items || []
+      other_items: item.other_items || [],
+      // 5대 핵심 안전수칙(등급·점검결과) — 벌크 보고서 Page3에서 사용
+      five_key_items: item.five_key_items || []
     }))
 
     if (DEBUG_LOGS) console.log(`조회된 본부 불시점검 수: ${transformedInspections.length}`)
