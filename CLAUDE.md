@@ -370,6 +370,14 @@ const canSeeAllHq = userProfile?.role === '발주청' &&
 - `material_ledger` — 자재 원장
 - 모든 테이블에 RLS(Row Level Security) 적용
 
+### 프로젝트 종속 테이블 규칙 (필수)
+
+프로젝트에 속한 데이터를 저장하는 **새 테이블은 반드시** FK를 `project_id UUID REFERENCES projects(id) ON DELETE CASCADE`로 선언한다. 프로젝트 삭제 시 종속 등록건이 함께 삭제되도록 보장하기 위함이다.
+
+- 프로젝트 삭제는 `/api/projects/[id]/delete` 라우트가 service-role로 `projects` 행만 직접 지우고, 자식 행 삭제는 전적으로 `ON DELETE CASCADE`에 의존한다. cascade가 없는 자식 테이블은 삭제 시 FK 위반으로 실패하거나 고아 데이터로 남는다.
+- 2026-06-23 기준 `projects`를 참조하는 자식 테이블 15개 전부 CASCADE다. 새 기능의 테이블도 빠짐없이 이 패턴을 따라야 한다. 감사는 `pg_constraint`에서 `confrelid = 'projects'`인 FK의 `confdeltype = 'c'`(=CASCADE) 여부로 확인한다.
+- 새 테이블이 사진·파일을 **Storage**에 저장하고 URL 컬럼을 두면, DB 행은 cascade로 지워져도 Storage 파일은 남는다. 이때는 위 삭제 라우트의 URL 수집 로직에 그 테이블을 추가한다. (서명 등을 base64 TEXT로 DB에 저장하면 행과 함께 삭제되어 별도 작업이 불필요하다.)
+
 ### 마이그레이션
 
 `database/` 디렉토리에 14개 SQL 마이그레이션 파일

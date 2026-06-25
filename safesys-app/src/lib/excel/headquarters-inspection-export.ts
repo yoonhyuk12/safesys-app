@@ -1,77 +1,154 @@
+// 본부불시점검 현황을 「건설현장 특별점검 결과표」 양식 엑셀로 내보내는 모듈
 import ExcelJS from 'exceljs'
 import type { Project, HeadquartersInspection } from '@/lib/projects'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
 
-interface HeadquartersInspectionExcelData {
-  [key: string]: string // 동적 컬럼을 위한 인덱스 시그니처
+// 점검 항목 정의 — DB(critical/caution/other) 순서와 1:1 대응(인덱스 매핑)
+const GROUP_TITLES = {
+  critical: '(부딪힘, 물체에 맞음) 굴착기 등 사용 작업',
+  caution: '(추락) 가설구조물, 고소작업 등',
+  other: '기타사항',
+}
+
+const CRITICAL_HEADERS = [
+  '① 위험공종 작업허가제 승인, 작업계획서 작성 적정성',
+  '② 전조등, 후방영상장치 작동상태, 후사경의 설치상태, 운전자 안전띠',
+  '③ 작업장소 지형 및 지반상태',
+  '④ 건설기계 주변 접근금지, 작업지휘자, 신호수 배치',
+  '⑤ 인양작업시 안전조치',
+]
+const CAUTION_HEADERS = [
+  '① 가설통로 및 작업발판 안전조치',
+  '② 비계·동바리 구조 안전',
+  '③ 고소작업, 개구부 등 안전조치',
+]
+const OTHER_HEADERS = [
+  '법적이행사항 확인',
+  'VAR 매뉴얼 작동성 확인',
+  '취약(신규)근로자 안전관리 확인',
+  '기술지도 지적사항 확인',
+  '안전보건표지 설치',
+  'TBM 실시 확인',
+  '기타 현장 안전관리에 관한사항',
+]
+
+// 항목별 그룹/제목 평탄화 (총 15개)
+const ITEM_HEADERS: string[] = [...CRITICAL_HEADERS, ...CAUTION_HEADERS, ...OTHER_HEADERS]
+const ITEM_COUNT = ITEM_HEADERS.length // 15
+const GROUP_SPANS = [
+  { title: GROUP_TITLES.critical, count: CRITICAL_HEADERS.length },
+  { title: GROUP_TITLES.caution, count: CAUTION_HEADERS.length },
+  { title: GROUP_TITLES.other, count: OTHER_HEADERS.length },
+]
+
+// 고정 좌측 컬럼 (B~G) — 1-indexed 컬럼 번호
+const COL_HQ = 2           // B 본부/사업단
+const COL_BRANCH = 3       // C 지사
+const COL_UNIT = 4         // D 단위사업명
+const COL_PROJECT = 5      // E 세부사업명
+const COL_DISTRICT = 6     // F 지구명
+const COL_CONSTRUCTION = 7 // G 해당분기 공사중 여부
+const COL_DATE = 8         // H 점검일
+const FIRST_ITEM_COL = 9   // I — 첫 점검항목(여)
+
+// 각 항목 k(0-based)의 여/부/해당없음 컬럼 번호
+const yeoCol = (k: number) => FIRST_ITEM_COL + k * 3
+const buCol = (k: number) => FIRST_ITEM_COL + k * 3 + 1
+const naCol = (k: number) => FIRST_ITEM_COL + k * 3 + 2
+
+// 조치결과/비고 컬럼 (항목 영역 다음)
+const COL_SUBTOTAL = FIRST_ITEM_COL + ITEM_COUNT * 3 // BA 소계
+const COL_YEO_SUM = COL_SUBTOTAL + 1                  // BB 여
+const COL_BU_SUM = COL_SUBTOTAL + 2                   // BC 부
+const COL_NA_SUM = COL_SUBTOTAL + 3                   // BD 해당없음
+const COL_REMARK = COL_SUBTOTAL + 4                   // BE 비고
+const LAST_COL = COL_REMARK
+
+const HEADER_ROW_GROUP = 4   // 그룹/좌측 헤더
+const HEADER_ROW_ITEM = 5    // 항목 제목
+const HEADER_ROW_YN = 6      // 여/부/해당없음
+const TOTAL_ROW = 7          // 계
+const FIRST_DATA_ROW = 8
+
+// 1-indexed 컬럼 번호 → 엑셀 컬럼 문자
+function colLetter(col: number): string {
+  let s = ''
+  let n = col
+  while (n > 0) {
+    const m = (n - 1) % 26
+    s = String.fromCharCode(65 + m) + s
+    n = Math.floor((n - 1) / 26)
+  }
+  return s
+}
+
+interface ChecklistItem {
+  title?: string
+  status?: 'good' | 'bad' | ''
+  remarks?: string
+}
+
+// 지구명: 사업명의 공백 기준 첫 단어, 공백이 없으면 앞 3글자
+function districtNameFrom(projectName: string): string {
+  const name = (projectName || '').trim()
+  if (!name) return ''
+  const spaceIdx = name.indexOf(' ')
+  return spaceIdx >= 0 ? name.slice(0, spaceIdx) : name.slice(0, 3)
+}
+
+// 해당 분기 공사중 여부: is_active.q{N}(JSONB), 레거시 boolean은 그 값
+function isUnderConstruction(isActive: Project['is_active'], quarterNum: number): boolean {
+  if (typeof isActive === 'object' && isActive !== null) {
+    const key = `q${quarterNum}` as 'q1' | 'q2' | 'q3' | 'q4'
+    return !!isActive[key]
+  }
+  if (typeof isActive === 'boolean') return isActive
+  return false
 }
 
 /**
- * 숫자를 1,000 단위로 구분하여 포맷팅
- */
-function formatNumber(value: string | number | undefined): string {
-  if (!value) return ''
-  const numStr = String(value).replace(/,/g, '')
-  const num = parseFloat(numStr)
-  if (isNaN(num)) return String(value)
-  return num.toLocaleString('ko-KR')
-}
-
-/**
- * 본부불시점검 현황을 엑셀 파일로 다운로드
- * @param projects - 프로젝트 배열
+ * 본부불시점검 현황을 「특별점검 결과표」 양식 엑셀로 다운로드
+ * @param projects - 프로젝트 배열 (호출부에서 본부/지사 필터 적용됨)
  * @param headquartersInspections - 본부불시점검 배열
- * @param selectedQuarter - 선택된 분기 (예: '2025Q1')
+ * @param selectedQuarter - 선택된 분기 (예: '2026Q2')
  * @param filename - 저장할 파일명
  */
 export function downloadHeadquartersInspectionExcel(
   projects: Array<Project & {
-    user_profiles?: {
-      full_name?: string
-      phone_number?: string
-      company_name?: string
-    }
+    user_profiles?: { full_name?: string; phone_number?: string; company_name?: string }
   }>,
   headquartersInspections: HeadquartersInspection[],
   selectedQuarter: string,
   filename?: string
 ) {
-  // 분기 파싱
+  // 분기 파싱 및 날짜 범위 계산
   const [yearStr, qStr] = (selectedQuarter || '').split('Q')
   const year = parseInt(yearStr || '0', 10)
-  const selectedQuarterNum = parseInt(qStr || '0', 10)
-
-  // 동적 컬럼명 생성 (예: "1분기 점검여부", "2분기 점검여부")
-  const quarterInspectionColumnName = `${selectedQuarterNum}분기 점검여부`
-
-  // 분기 범위 계산
-  const startMonth = (selectedQuarterNum - 1) * 3 // 0-indexed
+  const quarterNum = parseInt(qStr || '0', 10)
+  const startMonth = (quarterNum - 1) * 3
   const start = new Date(year, startMonth, 1)
   const end = new Date(year, startMonth + 3, 0, 23, 59, 59, 999)
 
-  // 지사 순서 정의 (BRANCH_OPTIONS의 모든 지사를 순서대로)
-  const branchOrder: string[] = []
-  Object.values(BRANCH_OPTIONS).forEach(branches => {
-    branchOrder.push(...branches)
+  // 준공(completed) 제외
+  const activeProjects = projects.filter(p => {
+    if (typeof p.is_active === 'object' && p.is_active !== null) {
+      return !p.is_active.completed
+    }
+    return true // 레거시 boolean 등은 포함
   })
 
-  // 프로젝트 정렬: 본부 순서, 지사 순서, display_order 순서로 정렬
-  const sortedProjects = [...projects].sort((a, b) => {
-    // 1. 본부 순서로 정렬
+  // 정렬: 본부 순서 → 지사 순서 → display_order → 사업명
+  const sortedProjects = [...activeProjects].sort((a, b) => {
     const hqOrderA = HEADQUARTERS_OPTIONS.indexOf(a.managing_hq as any)
     const hqOrderB = HEADQUARTERS_OPTIONS.indexOf(b.managing_hq as any)
-
     if (hqOrderA !== hqOrderB) {
       if (hqOrderA === -1) return 1
       if (hqOrderB === -1) return -1
       return hqOrderA - hqOrderB
     }
-
-    // 2. 같은 본부 내에서는 지사 순서로 정렬
     const branchOptions = BRANCH_OPTIONS[a.managing_hq] || []
     const branchOrderA = branchOptions.indexOf(a.managing_branch)
     const branchOrderB = branchOptions.indexOf(b.managing_branch)
-
     if (branchOrderA !== branchOrderB) {
       if (branchOrderA === -1 && branchOrderB === -1) {
         return a.managing_branch.localeCompare(b.managing_branch, 'ko-KR')
@@ -80,236 +157,276 @@ export function downloadHeadquartersInspectionExcel(
       if (branchOrderB === -1) return -1
       return branchOrderA - branchOrderB
     }
-
-    // 3. 같은 지사 내에서는 display_order로 정렬
     const aOrder = typeof a.display_order === 'number' ? a.display_order : Number.POSITIVE_INFINITY
     const bOrder = typeof b.display_order === 'number' ? b.display_order : Number.POSITIVE_INFINITY
-    
-    if (aOrder !== bOrder) {
-      return aOrder - bOrder
-    }
-    
-    // display_order가 같거나 둘 다 없는 경우 사업명으로 정렬
+    if (aOrder !== bOrder) return aOrder - bOrder
     return (a.project_name || '').localeCompare(b.project_name || '', 'ko-KR')
   })
 
-  // 엑셀 데이터 매핑
-  const excelData: HeadquartersInspectionExcelData[] = sortedProjects.map(project => {
-    // is_active JSONB 파싱
-    let q1 = '', q2 = '', q3 = '', q4 = '', completed = ''
-
-    if (typeof project.is_active === 'object' && project.is_active !== null) {
-      q1 = project.is_active.q1 ? '○' : '×'
-      q2 = project.is_active.q2 ? '○' : '×'
-      q3 = project.is_active.q3 ? '○' : '×'
-      q4 = project.is_active.q4 ? '○' : '×'
-      completed = project.is_active.completed ? '완료' : '진행중'
-    } else if (typeof project.is_active === 'boolean') {
-      // 레거시 boolean 처리
-      const active = project.is_active ? '○' : '×'
-      q1 = q2 = q3 = q4 = active
-      completed = '진행중'
-    }
-
-    // 해당 분기 점검 여부 확인
-    const projectInspections = headquartersInspections.filter(ins => {
-      if (ins.project_id !== project.id) return false
-
-      const inspectionDate = ins.inspection_date ? new Date(ins.inspection_date) : null
-      if (!inspectionDate || Number.isNaN(inspectionDate.getTime())) return false
-
-      // 선택된 분기 범위 내에 있는지 확인
-      return inspectionDate >= start && inspectionDate <= end
-    })
-
-    const quarterInspected = projectInspections.length > 0 ? 'O' : 'X'
-
-    // 주소 조합
-    const fullAddress = project.site_address_detail
-      ? `${project.site_address} ${project.site_address_detail}`
-      : project.site_address
-
-    // 컬럼 순서를 명확히 하기 위해 순서대로 생성
-    const row: HeadquartersInspectionExcelData = {}
-
-    row['지사명'] = project.managing_branch || ''
-    row['사업분류'] = project.project_category || ''
-    row['사업명'] = project.project_name || ''
-    row['총사업비'] = formatNumber((project as any).total_budget)
-    row['당해년도사업비'] = formatNumber((project as any).current_year_budget)
-    row['건진법 안전관리계획 작성대상'] = (project as any).construction_law_safety_plan ? 'O' : 'X'
-    row['산안법 공사안전보건대장 작성대상'] = (project as any).industrial_law_safety_ledger ? 'O' : 'X'
-    row['재해예방기술지도 대상'] = (project as any).disaster_prevention_target ? 'O' : 'X'
-    row['공사감독직급'] = (project as any).supervisor_position || ''
-    row['공사감독명'] = (project as any).supervisor_name || ''
-    row['현장주소'] = fullAddress || ''
-    row['실제작업주소'] = (project as any).actual_work_address || ''
-    row['시공사명'] = project.user_profiles?.company_name || ''
-    row['이름'] = project.user_profiles?.full_name || ''
-    row['연락처'] = project.user_profiles?.phone_number || ''
-    row['1분기'] = q1
-    row['2분기'] = q2
-    row['3분기'] = q3
-    row['4분기'] = q4
-    row[quarterInspectionColumnName] = quarterInspected  // N분기 점검여부 (4분기 다음)
-    row['준공여부'] = completed
-    row['비고'] = ''
-
-    return row
-  })
-
-  // 소계 계산 함수
-  const calculateSubtotal = (columnName: string): string => {
-    const values = excelData.map(row => row[columnName])
-
-    // 빈 값 제거
-    const nonEmptyValues = values.filter(v => v && v.trim() !== '')
-
-    if (nonEmptyValues.length === 0) return ''
-
-    // 숫자 컬럼 체크 (총사업비, 당해년도사업비)
-    if (columnName === '총사업비' || columnName === '당해년도사업비') {
-      // 쉼표 제거 후 숫자로 변환하여 합계
-      const sum = nonEmptyValues.reduce((acc, val) => {
-        const numStr = String(val).replace(/,/g, '')
-        const num = parseFloat(numStr)
-        return acc + (isNaN(num) ? 0 : num)
-      }, 0)
-      return formatNumber(sum)
-    }
-
-    // O/X 컬럼 체크 (건진법, 산안법, 재해예방기술지도, 1~4분기, N분기 점검여부)
-    if (columnName === '건진법 안전관리계획 작성대상' ||
-        columnName === '산안법 공사안전보건대장 작성대상' ||
-        columnName === '재해예방기술지도 대상' ||
-        columnName === '1분기' ||
-        columnName === '2분기' ||
-        columnName === '3분기' ||
-        columnName === '4분기' ||
-        columnName === quarterInspectionColumnName) {
-      // 'O' 개수만 카운트
-      const oCount = values.filter(v => v === 'O' || v === 'o' || v === '○').length
-      return String(oCount)
-    }
-
-    // 준공여부 컬럼
-    if (columnName === '준공여부') {
-      const completedCount = values.filter(v => v === '완료').length
-      const inProgressCount = values.filter(v => v === '진행중').length
-      return `완료:${completedCount} 진행중:${inProgressCount}`
-    }
-
-    // 텍스트 컬럼 (지사명, 사업명, 공사감독직급, 공사감독명, 현장주소, 실제작업주소, 시공사명, 이름, 연락처)
-    // COUNTA: 비어있지 않은 셀의 개수
-    return String(nonEmptyValues.length)
+  // 프로젝트별 해당 분기 최신 점검 매칭
+  const latestInspectionOf = (projectId: string): HeadquartersInspection | undefined => {
+    return headquartersInspections
+      .filter(ins => {
+        if (ins.project_id !== projectId) return false
+        const d = ins.inspection_date ? new Date(ins.inspection_date) : null
+        if (!d || Number.isNaN(d.getTime())) return false
+        return d >= start && d <= end
+      })
+      .sort((a, b) => (b.inspection_date || '').localeCompare(a.inspection_date || ''))[0]
   }
 
-  // 소계 행 생성 (각 컬럼별 소계 값)
-  const subtotalRow: HeadquartersInspectionExcelData = {}
+  // 점검 1건의 항목을 15개 평탄 배열로 (critical 5 + caution 3 + other 7)
+  const flattenItems = (ins?: HeadquartersInspection): ChecklistItem[] => {
+    if (!ins) return []
+    const critical = (ins.critical_items as ChecklistItem[] | undefined) || []
+    const caution = (ins.caution_items as ChecklistItem[] | undefined) || []
+    const other = (ins.other_items as ChecklistItem[] | undefined) || []
+    return [...critical, ...caution, ...other]
+  }
 
-  subtotalRow['지사명'] = calculateSubtotal('지사명')
-  subtotalRow['사업분류'] = calculateSubtotal('사업분류')
-  subtotalRow['사업명'] = calculateSubtotal('사업명')
-  subtotalRow['총사업비'] = calculateSubtotal('총사업비')
-  subtotalRow['당해년도사업비'] = calculateSubtotal('당해년도사업비')
-  subtotalRow['건진법 안전관리계획 작성대상'] = calculateSubtotal('건진법 안전관리계획 작성대상')
-  subtotalRow['산안법 공사안전보건대장 작성대상'] = calculateSubtotal('산안법 공사안전보건대장 작성대상')
-  subtotalRow['재해예방기술지도 대상'] = calculateSubtotal('재해예방기술지도 대상')
-  subtotalRow['공사감독직급'] = calculateSubtotal('공사감독직급')
-  subtotalRow['공사감독명'] = calculateSubtotal('공사감독명')
-  subtotalRow['현장주소'] = calculateSubtotal('현장주소')
-  subtotalRow['실제작업주소'] = calculateSubtotal('실제작업주소')
-  subtotalRow['시공사명'] = calculateSubtotal('시공사명')
-  subtotalRow['이름'] = calculateSubtotal('이름')
-  subtotalRow['연락처'] = calculateSubtotal('연락처')
-  subtotalRow['1분기'] = calculateSubtotal('1분기')
-  subtotalRow['2분기'] = calculateSubtotal('2분기')
-  subtotalRow['3분기'] = calculateSubtotal('3분기')
-  subtotalRow['4분기'] = calculateSubtotal('4분기')
-  subtotalRow[quarterInspectionColumnName] = calculateSubtotal(quarterInspectionColumnName)
-  subtotalRow['준공여부'] = calculateSubtotal('준공여부')
-  subtotalRow['비고'] = ''  // 비고는 소계 없음
-
-  // ExcelJS 워크북 및 워크시트 생성
+  // ===== 워크북 생성 =====
   const workbook = new ExcelJS.Workbook()
-  const worksheet = workbook.addWorksheet('본부불시점검현황')
+  const worksheet = workbook.addWorksheet('특별점검결과표')
 
-  // 컬럼 정의 (순서대로)
-  const columns = [
-    { header: '지사명', key: '지사명', width: 15 },
-    { header: '사업분류', key: '사업분류', width: 20 },
-    { header: '사업명', key: '사업명', width: 30 },
-    { header: '총사업비', key: '총사업비', width: 15 },
-    { header: '당해년도사업비', key: '당해년도사업비', width: 18 },
-    { header: '건진법 안전관리계획 작성대상', key: '건진법 안전관리계획 작성대상', width: 15 },
-    { header: '산안법 공사안전보건대장 작성대상', key: '산안법 공사안전보건대장 작성대상', width: 15 },
-    { header: '재해예방기술지도 대상', key: '재해예방기술지도 대상', width: 15 },
-    { header: '공사감독직급', key: '공사감독직급', width: 12 },
-    { header: '공사감독명', key: '공사감독명', width: 12 },
-    { header: '현장주소', key: '현장주소', width: 40 },
-    { header: '실제작업주소', key: '실제작업주소', width: 40 },
-    { header: '시공사명', key: '시공사명', width: 15 },
-    { header: '이름', key: '이름', width: 10 },
-    { header: '연락처', key: '연락처', width: 15 },
-    { header: '1분기', key: '1분기', width: 8 },
-    { header: '2분기', key: '2분기', width: 8 },
-    { header: '3분기', key: '3분기', width: 8 },
-    { header: '4분기', key: '4분기', width: 8 },
-    { header: quarterInspectionColumnName, key: quarterInspectionColumnName, width: 12 },
-    { header: '준공여부', key: '준공여부', width: 12 },
-    { header: '비고', key: '비고', width: 20 }
+  // 열 너비
+  worksheet.getColumn(1).width = 3      // A 여백
+  worksheet.getColumn(COL_HQ).width = 10
+  worksheet.getColumn(COL_BRANCH).width = 13
+  worksheet.getColumn(COL_UNIT).width = 16
+  worksheet.getColumn(COL_PROJECT).width = 34
+  worksheet.getColumn(COL_DISTRICT).width = 10
+  worksheet.getColumn(COL_CONSTRUCTION).width = 11
+  worksheet.getColumn(COL_DATE).width = 12
+  for (let k = 0; k < ITEM_COUNT; k++) {
+    worksheet.getColumn(yeoCol(k)).width = 5
+    worksheet.getColumn(buCol(k)).width = 5
+    worksheet.getColumn(naCol(k)).width = 6
+  }
+  worksheet.getColumn(COL_SUBTOTAL).width = 7
+  worksheet.getColumn(COL_YEO_SUM).width = 6
+  worksheet.getColumn(COL_BU_SUM).width = 6
+  worksheet.getColumn(COL_NA_SUM).width = 8
+  worksheet.getColumn(COL_REMARK).width = 18
+
+  // ===== 제목 (R2) =====
+  worksheet.mergeCells(2, COL_HQ, 2, COL_DATE)
+  const titleCell = worksheet.getCell(2, COL_HQ)
+  titleCell.value = `○ ${year}년 ${quarterNum}분기 건설현장 특별점검 결과표`
+  titleCell.font = { bold: true, size: 16 }
+  titleCell.alignment = { horizontal: 'left', vertical: 'middle' }
+  worksheet.getRow(2).height = 30
+
+  // ===== 헤더 (R4~R6) =====
+  // 좌측 고정열 — R4:R6 병합
+  const leftHeaders: Array<[number, string]> = [
+    [COL_HQ, '본부/사업단'],
+    [COL_BRANCH, '지사'],
+    [COL_UNIT, '단위사업명'],
+    [COL_PROJECT, '세부사업명'],
+    [COL_DISTRICT, '지구명'],
+    [COL_CONSTRUCTION, '공사중 여부'],
+    [COL_DATE, '점검일'],
   ]
-
-  worksheet.columns = columns
-
-  // 제목행 스타일 - 진한 파란색 배경, 흰색 글자
-  const headerRow = worksheet.getRow(1)
-  headerRow.eachCell((cell) => {
-    cell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FF4472C4' }  // 진한 파란색
-    }
-    cell.font = {
-      color: { argb: 'FFFFFFFF' },    // 흰색
-      bold: true
-    }
-    cell.alignment = {
-      horizontal: 'center',
-      vertical: 'middle'
-    }
+  leftHeaders.forEach(([col, label]) => {
+    worksheet.mergeCells(HEADER_ROW_GROUP, col, HEADER_ROW_YN, col)
+    worksheet.getCell(HEADER_ROW_GROUP, col).value = label
   })
 
-  // 소계 행 추가
-  const subtotalRowData = worksheet.addRow(subtotalRow)
-
-  // 소계행 스타일 - 연한 회색-파란색 배경
-  subtotalRowData.eachCell((cell) => {
-    cell.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'FFD9E1F2' }  // 연한 회색-파란색
-    }
-    cell.font = {
-      bold: true
-    }
-    cell.alignment = {
-      horizontal: 'center',
-      vertical: 'middle'
-    }
+  // 그룹 제목 (R4) — 항목 영역을 그룹 단위로 병합
+  let groupStart = FIRST_ITEM_COL
+  GROUP_SPANS.forEach(g => {
+    const from = groupStart
+    const to = groupStart + g.count * 3 - 1
+    worksheet.mergeCells(HEADER_ROW_GROUP, from, HEADER_ROW_GROUP, to)
+    worksheet.getCell(HEADER_ROW_GROUP, from).value = g.title
+    groupStart = to + 1
   })
 
-  // 데이터 행 추가
-  excelData.forEach(row => {
-    worksheet.addRow(row)
+  // 항목 제목 (R5) — 항목별 3칸 병합
+  for (let k = 0; k < ITEM_COUNT; k++) {
+    worksheet.mergeCells(HEADER_ROW_ITEM, yeoCol(k), HEADER_ROW_ITEM, naCol(k))
+    worksheet.getCell(HEADER_ROW_ITEM, yeoCol(k)).value = ITEM_HEADERS[k]
+  }
+
+  // 여/부/해당없음 (R6)
+  for (let k = 0; k < ITEM_COUNT; k++) {
+    worksheet.getCell(HEADER_ROW_YN, yeoCol(k)).value = '여'
+    worksheet.getCell(HEADER_ROW_YN, buCol(k)).value = '부'
+    worksheet.getCell(HEADER_ROW_YN, naCol(k)).value = '해당없음'
+  }
+
+  // 조치결과 (BA4:BD5 병합) + R6 소계/여/부/해당없음
+  worksheet.mergeCells(HEADER_ROW_GROUP, COL_SUBTOTAL, HEADER_ROW_ITEM, COL_NA_SUM)
+  worksheet.getCell(HEADER_ROW_GROUP, COL_SUBTOTAL).value = '조치결과'
+  worksheet.getCell(HEADER_ROW_YN, COL_SUBTOTAL).value = '소계'
+  worksheet.getCell(HEADER_ROW_YN, COL_YEO_SUM).value = '여'
+  worksheet.getCell(HEADER_ROW_YN, COL_BU_SUM).value = '부'
+  worksheet.getCell(HEADER_ROW_YN, COL_NA_SUM).value = '해당없음'
+
+  // 비고 (BE4:BE6 병합)
+  worksheet.mergeCells(HEADER_ROW_GROUP, COL_REMARK, HEADER_ROW_YN, COL_REMARK)
+  worksheet.getCell(HEADER_ROW_GROUP, COL_REMARK).value = '비고'
+
+  // 헤더 행 높이
+  worksheet.getRow(HEADER_ROW_GROUP).height = 34
+  worksheet.getRow(HEADER_ROW_ITEM).height = 64
+  worksheet.getRow(HEADER_ROW_YN).height = 30
+
+  // ===== 데이터 행 =====
+  const dataRowCount = sortedProjects.length
+  const lastDataRow = FIRST_DATA_ROW + dataRowCount - 1
+
+  const flaggedRows = new Set<number>() // 공사중인데 해당 분기 점검 이력이 없는 행(강조 대상)
+  sortedProjects.forEach((project, idx) => {
+    const r = FIRST_DATA_ROW + idx
+    const row = worksheet.getRow(r)
+    const insp = latestInspectionOf(project.id)
+    const items = flattenItems(insp)
+    const underConstruction = isUnderConstruction(project.is_active, quarterNum)
+
+    row.getCell(COL_HQ).value = project.managing_hq || ''
+    row.getCell(COL_BRANCH).value = project.managing_branch || ''
+    row.getCell(COL_UNIT).value = (project.project_category as string) || ''
+    row.getCell(COL_PROJECT).value = project.project_name || ''
+    row.getCell(COL_DISTRICT).value = districtNameFrom(project.project_name || '')
+    // 해당 분기 공사중 여부
+    row.getCell(COL_CONSTRUCTION).value = underConstruction ? 'O' : 'X'
+    // 점검 없는 지구는 진짜 빈 셀(null) — 빈 문자열('')은 COUNTA가 카운트하므로 점검 건수 집계가 틀어짐
+    row.getCell(COL_DATE).value = insp?.inspection_date || null
+    // 공사중인데 해당 분기 점검 이력이 없으면 강조 대상
+    if (underConstruction && !insp) flaggedRows.add(r)
+
+    // 점검 이력이 있을 때만 마크
+    if (insp) {
+      for (let k = 0; k < ITEM_COUNT; k++) {
+        const item = items[k]
+        if (!item) continue // 항목 누락 시 공백 유지
+        if (item.status === 'good') row.getCell(yeoCol(k)).value = 'O'
+        else if (item.status === 'bad') row.getCell(buCol(k)).value = 'O'
+        else row.getCell(naCol(k)).value = 'O' // 미선택 → 해당없음
+      }
+    }
+
+    // 조치결과 행별 수식
+    const yeoRefs = Array.from({ length: ITEM_COUNT }, (_, k) => `${colLetter(yeoCol(k))}${r}`).join(',')
+    const buRefs = Array.from({ length: ITEM_COUNT }, (_, k) => `${colLetter(buCol(k))}${r}`).join(',')
+    const naRefs = Array.from({ length: ITEM_COUNT }, (_, k) => `${colLetter(naCol(k))}${r}`).join(',')
+    // 조치결과는 여/부 모두 '여'로 처리(조치완료) → 부는 0, 여에 여+부 합산
+    row.getCell(COL_YEO_SUM).value = { formula: `COUNTA(${yeoRefs},${buRefs})` }
+    row.getCell(COL_BU_SUM).value = 0
+    row.getCell(COL_NA_SUM).value = { formula: `COUNTA(${naRefs})` }
+    const bb = colLetter(COL_YEO_SUM)
+    const bd = colLetter(COL_NA_SUM)
+    row.getCell(COL_SUBTOTAL).value = { formula: `SUM(${bb}${r}:${bd}${r})` }
+    row.getCell(COL_REMARK).value = ''
   })
 
-  // 파일명 생성
+  // ===== 계 행 (R7) =====
+  const totalRow = worksheet.getRow(TOTAL_ROW)
+  totalRow.getCell(COL_HQ).value = '계'
+  // 세부사업명 개수
+  totalRow.getCell(COL_PROJECT).value = dataRowCount > 0
+    ? { formula: `COUNTA(${colLetter(COL_PROJECT)}${FIRST_DATA_ROW}:${colLetter(COL_PROJECT)}${lastDataRow})` }
+    : 0
+  // 공사중(O) 건수 합계
+  totalRow.getCell(COL_CONSTRUCTION).value = dataRowCount > 0
+    ? { formula: `COUNTIF(${colLetter(COL_CONSTRUCTION)}${FIRST_DATA_ROW}:${colLetter(COL_CONSTRUCTION)}${lastDataRow},"O")` }
+    : 0
+  // 점검일 개수 = 해당 분기 점검 건수
+  totalRow.getCell(COL_DATE).value = dataRowCount > 0
+    ? { formula: `COUNTA(${colLetter(COL_DATE)}${FIRST_DATA_ROW}:${colLetter(COL_DATE)}${lastDataRow})` }
+    : 0
+  // 각 점검항목 컬럼 COUNTA
+  for (let c = FIRST_ITEM_COL; c < COL_SUBTOTAL; c++) {
+    const L = colLetter(c)
+    totalRow.getCell(c).value = dataRowCount > 0
+      ? { formula: `COUNTA(${L}${FIRST_DATA_ROW}:${L}${lastDataRow})` }
+      : 0
+  }
+  // 조치결과 합계
+  ;[COL_YEO_SUM, COL_BU_SUM, COL_NA_SUM].forEach(c => {
+    const L = colLetter(c)
+    totalRow.getCell(c).value = dataRowCount > 0
+      ? { formula: `SUM(${L}${FIRST_DATA_ROW}:${L}${lastDataRow})` }
+      : 0
+  })
+  const bbL = colLetter(COL_YEO_SUM)
+  const bdL = colLetter(COL_NA_SUM)
+  totalRow.getCell(COL_SUBTOTAL).value = { formula: `SUM(${bbL}${TOTAL_ROW}:${bdL}${TOTAL_ROW})` }
+
+  // ===== 스타일 적용 =====
+  const thin = { style: 'thin' as const, color: { argb: 'FF808080' } }
+  const allBorder = { top: thin, left: thin, bottom: thin, right: thin }
+
+  // 샘플 양식 색상 — Office 표준 테마(theme)+tint 그대로 재현
+  // 굴착기=accent6(9), 추락=accent2(5), 기타사항=accent5(8)
+  const fillSolid = (fg: { theme: number; tint?: number }): ExcelJS.FillPattern =>
+    ({ type: 'pattern', pattern: 'solid', fgColor: fg as ExcelJS.Color })
+  const GRAY_FILL = fillSolid({ theme: 0, tint: -0.0499893185216834 }) // 좌측/조치결과
+  const WHITE_FILL = fillSolid({ theme: 0 })                            // 비고/점검일
+  // 공사중인데 점검 이력이 없는 행 강조(연한 빨강)
+  const HIGHLIGHT_FILL: ExcelJS.FillPattern = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFF9999' } }
+  const HEADER_TINT = 0.5999938962981048
+  const DATA_TINT = 0.7999816888943144
+  const groupThemeOf = (k: number) =>
+    k < CRITICAL_HEADERS.length ? 9
+      : k < CRITICAL_HEADERS.length + CAUTION_HEADERS.length ? 5
+        : 8
+  const colGroupTheme = (c: number) => groupThemeOf(Math.floor((c - FIRST_ITEM_COL) / 3))
+
+  // 헤더 영역 스타일 (R4~R6)
+  for (let rr = HEADER_ROW_GROUP; rr <= HEADER_ROW_YN; rr++) {
+    for (let c = COL_HQ; c <= LAST_COL; c++) {
+      const cell = worksheet.getCell(rr, c)
+      if (c >= FIRST_ITEM_COL && c < COL_SUBTOTAL) cell.fill = fillSolid({ theme: colGroupTheme(c), tint: HEADER_TINT })
+      else if (c === COL_REMARK) cell.fill = WHITE_FILL
+      else cell.fill = GRAY_FILL // 좌측(B~G) + 조치결과(BA~BD)
+      cell.font = { bold: true, size: 9 }
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      cell.border = allBorder
+    }
+  }
+
+  // 계 행 스타일 (샘플: 채우기 없음)
+  for (let c = COL_HQ; c <= LAST_COL; c++) {
+    const cell = worksheet.getCell(TOTAL_ROW, c)
+    cell.font = { bold: true, size: 10 }
+    cell.alignment = { horizontal: 'center', vertical: 'middle' }
+    cell.border = allBorder
+  }
+
+  // 데이터 행 스타일
+  for (let idx = 0; idx < dataRowCount; idx++) {
+    const r = FIRST_DATA_ROW + idx
+    const isFlagged = flaggedRows.has(r)
+    for (let c = COL_HQ; c <= LAST_COL; c++) {
+      const cell = worksheet.getCell(r, c)
+      if (isFlagged) cell.fill = HIGHLIGHT_FILL // 공사중·미점검 행 전체 강조
+      else if (c >= FIRST_ITEM_COL && c < COL_SUBTOTAL) cell.fill = fillSolid({ theme: colGroupTheme(c), tint: DATA_TINT })
+      else if (c >= COL_SUBTOTAL && c <= COL_NA_SUM) cell.fill = GRAY_FILL // 조치결과
+      else if (c === COL_DATE) cell.fill = WHITE_FILL                     // 점검일
+      cell.border = allBorder
+      // 좌측 텍스트열은 좌측정렬, 나머지(마크/집계)는 가운데
+      const isTextCol = c === COL_PROJECT || c === COL_UNIT
+      cell.alignment = {
+        horizontal: isTextCol ? 'left' : 'center',
+        vertical: 'middle',
+        wrapText: isTextCol,
+      }
+      cell.font = isFlagged
+        ? { size: 9, bold: true, color: { argb: 'FF9C0006' } }
+        : { size: 9 }
+    }
+  }
+
+  // 틀 고정: 헤더 7행 + 좌측 G열까지 고정
+  worksheet.views = [{ state: 'frozen', xSplit: COL_DATE, ySplit: TOTAL_ROW }]
+
+  // ===== 파일 다운로드 =====
   const today = new Date()
   const dateString = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`
-  const finalFilename = filename || `본부불시점검현황_${selectedQuarter}_${dateString}.xlsx`
+  const finalFilename = filename || `특별점검결과표_${selectedQuarter}_${dateString}.xlsx`
 
-  // 파일 다운로드
   workbook.xlsx.writeBuffer().then((buffer) => {
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
     const url = window.URL.createObjectURL(blob)

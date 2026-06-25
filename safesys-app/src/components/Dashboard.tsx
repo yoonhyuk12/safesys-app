@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2, ClipboardCheck } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
@@ -52,6 +52,13 @@ declare global {
     interface IntrinsicElements extends JSXIntrinsicElements { }
   }
 }
+
+// SSR에서 useLayoutEffect 경고를 피하기 위한 동형(isomorphic) 레이아웃 이펙트
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
+
+// FLIP 슬라이드 시간과, 그 동안 재정렬을 막는 잠금 시간(왔다 갔다 방지)
+const FLIP_DURATION_MS = 200
+const REORDER_LOCK_MS = 260
 
 const Dashboard: React.FC = () => {
   const { user, userProfile, signOut } = useAuth()
@@ -2000,6 +2007,11 @@ const Dashboard: React.FC = () => {
     const draggedProject = currentProjects[draggedIndex]
     if (draggedProject.managing_branch !== currentProjects[targetIndex].managing_branch) return
 
+    // 슬라이드 애니메이션이 끝나기 전에는 재정렬하지 않음 (왔다 갔다 방지)
+    const now = performance.now()
+    if (now - lastReorderAtRef.current < REORDER_LOCK_MS) return
+    lastReorderAtRef.current = now
+
     // 새로운 순서 계산
     const newProjects = [...currentProjects]
     const [dragged] = newProjects.splice(draggedIndex, 1)
@@ -2195,6 +2207,51 @@ const Dashboard: React.FC = () => {
     }
   }, [isProjectEditMode, draggedProjectId])
 
+  // ===== FLIP: 순서 변경 시 카드가 뚝 바뀌지 않고 부드럽게 밀려 이동하도록 애니메이션 =====
+  // 슬라이드는 개별 변환 속성 translate를 Web Animations API로 적용 → 카드 흔들림(transform: shake)과 합성되어 충돌하지 않음.
+  const prevProjectPosRef = useRef<Map<string, { x: number; y: number }>>(new Map())
+  // 재정렬 잠금용 타임스탬프 (슬라이드가 끝나기 전 재정렬 방지)
+  const lastReorderAtRef = useRef(0)
+  useIsomorphicLayoutEffect(() => {
+    if (!isProjectEditMode) {
+      prevProjectPosRef.current.clear()
+      return
+    }
+
+    const cards = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-project-edit-grid="true"] [data-project-card="true"]')
+    )
+
+    // 새 레이아웃 위치 측정 (offsetLeft/Top은 transform/translate의 영향을 받지 않음)
+    const newPos = new Map<string, { x: number; y: number }>()
+    for (const el of cards) {
+      const id = el.dataset.projectId
+      if (!id) continue
+      newPos.set(id, { x: el.offsetLeft, y: el.offsetTop })
+    }
+
+    // 이동한 카드를 "이전 위치 → 현재 위치"로 슬라이드
+    for (const el of cards) {
+      const id = el.dataset.projectId
+      if (!id) continue
+      const prev = prevProjectPosRef.current.get(id)
+      const next = newPos.get(id)!
+      if (!prev) continue
+      const dx = prev.x - next.x
+      const dy = prev.y - next.y
+      if (dx === 0 && dy === 0) continue
+      el.animate(
+        [
+          { translate: `${dx}px ${dy}px` },
+          { translate: '0px 0px' },
+        ],
+        { duration: FLIP_DURATION_MS, easing: 'ease' }
+      )
+    }
+
+    prevProjectPosRef.current = newPos
+  }, [isProjectEditMode, projects])
+
   // 외부 클릭 시 편집 모드 종료
   useEffect(() => {
     if (!isProjectEditMode) return
@@ -2311,6 +2368,11 @@ const Dashboard: React.FC = () => {
     const from = branchOrdered.findIndex(p => p.id === draggedId)
     const to = branchOrdered.findIndex(p => p.id === targetId)
     if (from === -1 || to === -1 || from === to) return
+
+    // 슬라이드 애니메이션이 끝나기 전에는 재정렬하지 않음 (왔다 갔다 방지)
+    const now = performance.now()
+    if (now - lastReorderAtRef.current < REORDER_LOCK_MS) return
+    lastReorderAtRef.current = now
 
     const nextBranch = [...branchOrdered]
     const [picked] = nextBranch.splice(from, 1)
