@@ -191,8 +191,10 @@ export default function ManagerInspectionPage() {
   // 폼 데이터 변경 시 sessionStorage에 저장
   useEffect(() => {
     if (typeof window === 'undefined' || !projectId) return
-    // 폼이 열려있지 않으면 저장하지 않음
-    if (!showAddForm) return
+    // 폼이 닫혀있거나 수정(편집) 모드면 저장하지 않는다.
+    // 수정 데이터는 이미 DB에 있고, editingRecordId는 draft에 복원되지 않아
+    // 새로고침 후 신규 등록으로 중복 저장될 위험이 있기 때문이다.
+    if (!showAddForm || editingRecordId) return
 
     try {
       // 사진(blob URL·File)은 새로고침 후 무효가 되므로 draft에 저장하지 않고 텍스트 입력만 보존한다
@@ -209,7 +211,7 @@ export default function ManagerInspectionPage() {
     } catch (error) {
       console.error('폼 데이터 저장 실패:', error)
     }
-  }, [projectId, showAddForm, newRecord, FORM_STORAGE_KEY])
+  }, [projectId, showAddForm, editingRecordId, newRecord, FORM_STORAGE_KEY])
 
   // sessionStorage 클리어 함수
   const clearFormStorage = useCallback(() => {
