@@ -305,7 +305,7 @@ function generatePhotoSheetHTML(
           </colgroup>
           <tr>
             <td style="${labelCell}">지구명</td>
-            <td style="${valueCell}">${branch || projectName}</td>
+            <td style="${valueCell}">${projectName || branch}</td>
             <td style="${labelCell}">세부작업</td>
             <td style="${valueCell}">${detailWork || ''}</td>
           </tr>
