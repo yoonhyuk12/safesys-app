@@ -2051,15 +2051,25 @@ export default function ManagerInspectionPage() {
                                     : 0
                                   const riskPhotoCount = countPhotos(record.risk_factors_json)
                                   const disasterPhotoCount = countPhotos((record as any).disaster_prevention_risk_factors_json)
-                                  // 미조치(음영) 판정: 사진 기능 도입(2026-05-22) 이후 시행건 기준
+                                  // 미조치(음영/비고) 판정: 카드 사진은 기능 도입(2026-05-22) 이후 시행건만 요구
                                   const afterPhotoFeature = record.inspection_date >= '2026-05-22'
                                   const hasDisasterContent = Array.isArray((record as any).disaster_prevention_risk_factors_json)
                                     && (record as any).disaster_prevention_risk_factors_json.some((f: any) => {
                                       const rf = (f?.risk_factor || '').trim()
                                       return rf !== '' && rf !== '해당없음'
                                     })
-                                  const photoIncomplete = afterPhotoFeature && (riskPhotoCount === 0 || (hasDisasterContent && disasterPhotoCount === 0))
                                   const signatureMissing = !record.signature
+                                  const noRiskAssessmentPhoto = !(record.risk_assessment_photo && record.risk_assessment_photo.trim())
+                                  const noRiskMeasurePhoto = afterPhotoFeature && riskPhotoCount === 0
+                                  const noDisasterMeasurePhoto = afterPhotoFeature && hasDisasterContent && disasterPhotoCount === 0
+                                  const photoIncomplete = noRiskMeasurePhoto || noDisasterMeasurePhoto
+                                  // 비고란에 표시할 '조치 안 된 내용' 목록
+                                  const pendingReasons: string[] = []
+                                  if (signatureMissing) pendingReasons.push('미서명')
+                                  if (noRiskAssessmentPhoto) pendingReasons.push('위험성평가서 사진')
+                                  if (noRiskMeasurePhoto) pendingReasons.push('위험성 대책 사진')
+                                  if (noDisasterMeasurePhoto) pendingReasons.push('재해예방 대책 사진')
+                                  const isIncomplete = pendingReasons.length > 0
                                   return (
                                   <tr
                                     key={record.id}
@@ -2134,7 +2144,7 @@ export default function ManagerInspectionPage() {
                                       <span className="text-gray-400 mx-1">/</span>
                                       <span className={disasterPhotoCount > 0 ? 'text-orange-700 font-semibold' : 'text-gray-400'}>{disasterPhotoCount}</span>
                                     </td>
-                                    <td className={`border border-gray-300 p-2 text-center ${signatureMissing ? 'bg-red-50 ring-1 ring-inset ring-red-500' : ''}`}>
+                                    <td className={`border border-gray-300 p-2 text-center ${isIncomplete ? 'bg-red-50 ring-1 ring-inset ring-red-500' : ''}`}>
                                       {isDownloadMode ? (
                                         <input
                                           type="checkbox"
@@ -2187,6 +2197,8 @@ export default function ManagerInspectionPage() {
                                         )
                                       ) : isEditMode ? (
                                         <span className="text-xs text-gray-500">클릭하여 수정</span>
+                                      ) : isIncomplete ? (
+                                        <span className="text-red-700 text-xs font-medium whitespace-pre-line">{pendingReasons.join('\n')}</span>
                                       ) : (
                                         record.remarks || '-'
                                       )}
