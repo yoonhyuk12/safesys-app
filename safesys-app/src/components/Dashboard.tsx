@@ -69,6 +69,7 @@ const Dashboard: React.FC = () => {
   const [projectsWithCoords, setProjectsWithCoords] = useState<ProjectWithCoords[]>([])
   const [hqPendingCounts, setHqPendingCounts] = useState<Record<string, number>>({})
   const [safetyPendingCounts, setSafetyPendingCounts] = useState<Record<string, number>>({})
+  const [managerPendingCounts, setManagerPendingCounts] = useState<Record<string, number>>({})
   const [heatWaveChecks, setHeatWaveChecks] = useState<HeatWaveCheck[]>([])
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const now = new Date()
@@ -1407,6 +1408,28 @@ const Dashboard: React.FC = () => {
           })
           setSafetyPendingCounts(sCounts)
         }
+
+        // 관리자점검 미완료 건수 조회 (서명 없음 또는 시행일 2026-05-22 이후 위험요인 카드 사진 없음)
+        const { data: managerInspections } = await (supabase as any)
+          .from('manager_inspections')
+          .select('project_id, signature, inspection_date, risk_factors_json, disaster_prevention_risk_factors_json')
+          .in('project_id', projectIds)
+
+        if (managerInspections) {
+          const countCardPhotos = (arr: any) => Array.isArray(arr)
+            ? arr.reduce((s: number, f: any) => s + (f?.photo_1 && String(f.photo_1).trim() ? 1 : 0) + (f?.photo_2 && String(f.photo_2).trim() ? 1 : 0), 0)
+            : 0
+          const mCounts: Record<string, number> = {}
+          managerInspections.forEach((ins: any) => {
+            const noSignature = !(ins.signature && String(ins.signature).trim())
+            const noPhotoAfterFeature = (ins.inspection_date >= '2026-05-22') &&
+              (countCardPhotos(ins.risk_factors_json) + countCardPhotos(ins.disaster_prevention_risk_factors_json) === 0)
+            if (noSignature || noPhotoAfterFeature) {
+              mCounts[ins.project_id] = (mCounts[ins.project_id] || 0) + 1
+            }
+          })
+          setManagerPendingCounts(mCounts)
+        }
       }
     } catch (err: any) {
       console.error('프로젝트 로드 실패:', err)
@@ -1487,6 +1510,28 @@ const Dashboard: React.FC = () => {
               }
             })
             setSafetyPendingCounts(sCounts)
+          }
+
+          // 관리자점검 미완료 건수 조회 (서명 없음 또는 시행일 2026-05-22 이후 위험요인 카드 사진 없음)
+          const { data: managerInspections } = await (supabase as any)
+            .from('manager_inspections')
+            .select('project_id, signature, inspection_date, risk_factors_json, disaster_prevention_risk_factors_json')
+            .in('project_id', projectIds)
+
+          if (managerInspections) {
+            const countCardPhotos = (arr: any) => Array.isArray(arr)
+              ? arr.reduce((s: number, f: any) => s + (f?.photo_1 && String(f.photo_1).trim() ? 1 : 0) + (f?.photo_2 && String(f.photo_2).trim() ? 1 : 0), 0)
+              : 0
+            const mCounts: Record<string, number> = {}
+            managerInspections.forEach((ins: any) => {
+              const noSignature = !(ins.signature && String(ins.signature).trim())
+              const noPhotoAfterFeature = (ins.inspection_date >= '2026-05-22') &&
+                (countCardPhotos(ins.risk_factors_json) + countCardPhotos(ins.disaster_prevention_risk_factors_json) === 0)
+              if (noSignature || noPhotoAfterFeature) {
+                mCounts[ins.project_id] = (mCounts[ins.project_id] || 0) + 1
+              }
+            })
+            setManagerPendingCounts(mCounts)
           }
         }
 
@@ -3952,7 +3997,7 @@ const Dashboard: React.FC = () => {
                                     onDrop={(e) => handleProjectDrop(e, project.id, displayItems)}
                                     isDragOver={dragOverProjectId === project.id}
                                     hqPendingCount={hqPendingCounts[project.id]}
-                                    safetyPendingCount={safetyPendingCounts[project.id]}
+                                    safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
                                   />
                                 ))}
                               </div>
@@ -4084,7 +4129,7 @@ const Dashboard: React.FC = () => {
                                     onDrop={(e) => handleProjectDrop(e, project.id, displayItems)}
                                     isDragOver={dragOverProjectId === project.id}
                                     hqPendingCount={hqPendingCounts[project.id]}
-                                    safetyPendingCount={safetyPendingCounts[project.id]}
+                                    safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
                                   />
                                 ))}
                               </div>
@@ -4240,7 +4285,7 @@ const Dashboard: React.FC = () => {
                                       isDragging={draggedProjectId === project.id}
                                       isDragOver={dragOverProjectId === project.id}
                                       hqPendingCount={hqPendingCounts[project.id]}
-                                      safetyPendingCount={safetyPendingCounts[project.id]}
+                                      safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
                                     />
                                   ))}
                                 </div>
@@ -4296,7 +4341,7 @@ const Dashboard: React.FC = () => {
                         isDragging={draggedProjectId === project.id}
                         isDragOver={dragOverProjectId === project.id}
                         hqPendingCount={hqPendingCounts[project.id]}
-                        safetyPendingCount={safetyPendingCounts[project.id]}
+                        safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
                       />
                     ))}
                   </div>
@@ -4330,6 +4375,7 @@ const Dashboard: React.FC = () => {
       onProjectIsActiveJsonChange={handleProjectIsActiveJsonChange}
       hqPendingCounts={hqPendingCounts}
       safetyPendingCounts={safetyPendingCounts}
+      managerPendingCounts={managerPendingCounts}
     />
   )
 

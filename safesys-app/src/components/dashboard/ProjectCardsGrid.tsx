@@ -18,6 +18,7 @@ interface ProjectCardsGridProps {
   onProjectIsActiveJsonChange: (project: Project, json: { q1: boolean; q2: boolean; q3: boolean; q4: boolean; completed: boolean }) => void
   hqPendingCounts?: Record<string, number>
   safetyPendingCounts?: Record<string, number>
+  managerPendingCounts?: Record<string, number>
 }
 
 const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
@@ -32,7 +33,8 @@ const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
   onProjectHandover,
   onProjectIsActiveJsonChange,
   hqPendingCounts,
-  safetyPendingCounts
+  safetyPendingCounts,
+  managerPendingCounts
 }) => {
   const [isEditMode, setIsEditMode] = useState(false)
   const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null)
@@ -309,7 +311,7 @@ const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
           isDragging={draggedProjectId === project.id}
           isDragOver={dragOverProjectId === project.id}
           hqPendingCount={hqPendingCounts?.[project.id]}
-          safetyPendingCount={safetyPendingCounts?.[project.id]}
+          safetyPendingCount={safetyPendingCounts?.[project.id]} managerPendingCount={managerPendingCounts?.[project.id]}
         />
       ))}
     </div>

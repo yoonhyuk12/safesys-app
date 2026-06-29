@@ -26,6 +26,7 @@ interface ContractorDashboardProps {
   onProjectIsActiveJsonChange: (project: Project, json: { q1: boolean; q2: boolean; q3: boolean; q4: boolean; completed: boolean }) => void
   hqPendingCounts?: Record<string, number>
   safetyPendingCounts?: Record<string, number>
+  managerPendingCounts?: Record<string, number>
 }
 
 const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
@@ -46,7 +47,8 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
   onProjectShare,
   onProjectIsActiveJsonChange,
   hqPendingCounts,
-  safetyPendingCounts
+  safetyPendingCounts,
+  managerPendingCounts
 }) => {
   if (loading) {
     return (
@@ -131,7 +133,7 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
                 editableQuarters={getEditableQuartersForProject?.(project) ?? null}
                 onIsActiveChange={onProjectIsActiveJsonChange}
                 hqPendingCount={hqPendingCounts?.[project.id]}
-                safetyPendingCount={safetyPendingCounts?.[project.id]}
+                safetyPendingCount={safetyPendingCounts?.[project.id]} managerPendingCount={managerPendingCounts?.[project.id]}
               />
             ))}
           </div>
@@ -167,7 +169,7 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
                 onIsActiveChange={onProjectIsActiveJsonChange}
                 onStatusChange={onProjectStatusChange}
                 hqPendingCount={hqPendingCounts?.[project.id]}
-                safetyPendingCount={safetyPendingCounts?.[project.id]}
+                safetyPendingCount={safetyPendingCounts?.[project.id]} managerPendingCount={managerPendingCounts?.[project.id]}
               />
             ))}
           </div>
