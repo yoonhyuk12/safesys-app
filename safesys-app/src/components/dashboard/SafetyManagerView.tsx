@@ -506,8 +506,11 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                           // 서명 확인 (상위 필드 또는 form_data)
                           const hasSignature = !!(i.signature && i.signature.trim() !== '') || !!(i.form_data?.signature && i.form_data.signature.trim() !== '')
 
-                          // 미완성 조건: 서명·위험성평가 사진이 없거나, 재해예방 항목이 등록된 대상 점검에 재해예방 보고서 사진이 없으면 미완성
-                          return !hasSignature || !hasRiskPhoto || (isDisasterPreventionTarget && hasRealDisasterContent(i) && !hasDisasterPhoto)
+                          // 재해예방: 대상 프로젝트에서 내용·보고서 사진 중 하나만 있으면 미완성(둘 다 또는 둘 다 없음만 완성)
+                          const disasterIncomplete = isDisasterPreventionTarget && (hasRealDisasterContent(i) !== hasDisasterPhoto)
+
+                          // 미완성 조건: 서명 없음 / 위험성평가 사진 없음 / 재해예방 내용·사진 불일치
+                          return !hasSignature || !hasRiskPhoto || disasterIncomplete
                         }).length
                         return sum + incompleteCount
                       }, 0)
@@ -579,8 +582,11 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                         // 서명 확인 (상위 필드 또는 form_data)
                         const hasSignature = !!(i.signature && i.signature.trim() !== '') || !!(i.form_data?.signature && i.form_data.signature.trim() !== '')
 
-                        // 미완성 조건: 서명·위험성평가 사진이 없거나, 재해예방 항목이 등록된 대상 점검에 재해예방 보고서 사진이 없으면 미완성
-                        return !hasSignature || !hasRiskPhoto || (isDisasterPreventionTarget && hasRealDisasterContent(i) && !hasDisasterPhoto)
+                        // 재해예방: 대상 프로젝트에서 내용·보고서 사진 중 하나만 있으면 미완성(둘 다 또는 둘 다 없음만 완성)
+                        const disasterIncomplete = isDisasterPreventionTarget && (hasRealDisasterContent(i) !== hasDisasterPhoto)
+
+                        // 미완성 조건: 서명 없음 / 위험성평가 사진 없음 / 재해예방 내용·사진 불일치
+                        return !hasSignature || !hasRiskPhoto || disasterIncomplete
                       }).length
                       // 사진 미업로드 점검 건수: 위험요인 카드 photo_1/photo_2가 전혀 없는 점검
                       const countFactorPhotosRow = (arr: any) => Array.isArray(arr)
@@ -921,8 +927,10 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                   // 2. 재해예방 항목이 등록된 대상 점검에 재해예방 보고서 사진이 없으면 미완성
                   // 서명 확인 (상위 필드 또는 form_data)
                   const hasSignature = !!(ins.signature && ins.signature.trim() !== '') || !!(ins.form_data?.signature && ins.form_data.signature.trim() !== '')
-                  // 둘 다 없어도 1건으로만 카운트 (OR 조건)
-                  const isIncomplete = !hasSignature || !hasRiskPhoto || (isDisasterPreventionTarget && hasRealDisasterContent(ins) && !hasDisasterPhoto)
+                  // 재해예방: 대상 프로젝트에서 내용·보고서 사진 중 하나만 있으면 미완성(둘 다 또는 둘 다 없음만 완성)
+                  const disasterIncomplete = isDisasterPreventionTarget && (hasRealDisasterContent(ins) !== hasDisasterPhoto)
+                  // 미완성: 서명 없음 / 위험성평가 사진 없음 / 재해예방 내용·사진 불일치
+                  const isIncomplete = !hasSignature || !hasRiskPhoto || disasterIncomplete
 
                   if (isIncomplete) {
                     entry.incompleteCount++
