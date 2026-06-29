@@ -170,6 +170,8 @@ npm run lint             # ESLint 검사
 
 **배포**: `vercel deploy --prod` — 사용자 명시적 요청 시에만 실행
 
+**중요 — main 푸시 = 자동 배포**: `main` 브랜치에 푸시하면 Vercel이 자동으로 프로덕션에 배포한다. 즉 `git push origin main`은 곧 운영 반영이다. 별도 `vercel deploy --prod`를 실행하지 않아도 푸시만으로 배포가 진행되므로, main 푸시는 운영에 즉시 나가는 변경임을 인지하고 진행한다.
+
 ## 아키텍처
 
 ### 기술 스택
