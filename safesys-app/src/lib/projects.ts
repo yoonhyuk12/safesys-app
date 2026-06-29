@@ -680,6 +680,8 @@ export interface ManagerInspection {
   inspection_photo?: string
   risk_assessment_photo?: string
   signature?: string
+  // 현황 화면 경량 조회용: 서명 존재 여부만 보유(서명 base64는 보고서 생성 시점에만 로드)
+  has_signature?: boolean
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   risk_factors_json?: any[]
   // 재해예방 기술지도 관련 필드
@@ -721,7 +723,8 @@ export async function getManagerInspectionsByUserBranch(
   userProfile: UserProfile,
   quarterYear?: string, // 2025Q1 형식
   selectedHq?: string,
-  selectedBranch?: string
+  selectedBranch?: string,
+  options?: { includeSignature?: boolean } // 기본 false: 현황 화면은 서명 base64를 제외한 경량 조회
 ): Promise<{ success: boolean; inspections?: ManagerInspection[]; error?: string }> {
   try {
     if (DEBUG_LOGS) console.log('관리자 점검 데이터 조회 시작:', { quarterYear, selectedHq, selectedBranch })
@@ -755,10 +758,24 @@ export async function getManagerInspectionsByUserBranch(
       }
     }
 
-    let query = supabase
-      .from('manager_inspections')
-      .select(`
-        *,
+    // 서명 base64는 행당 ~20KB(전체 응답의 90%+)이지만 현황 화면은 "서명 존재 여부"만 필요하다.
+    // 기본 조회에서는 signature를 제외하고, 존재 여부는 별도 경량 쿼리(id만)로 채운다.
+    // 실제 서명 본문은 보고서 생성 시점에만 includeSignature 옵션으로 가져온다.
+    const includeSignature = options?.includeSignature ?? false
+    const baseColumns = `
+        id,
+        project_id,
+        inspection_date,
+        inspector_name,
+        remarks,
+        created_at,
+        form_data,
+        construction_supervisor,
+        inspection_photo,
+        risk_assessment_photo,
+        risk_factors_json,
+        disaster_prevention_report_photo,
+        disaster_prevention_risk_factors_json,
         projects!inner (
           project_name,
           managing_hq,
@@ -767,43 +784,34 @@ export async function getManagerInspectionsByUserBranch(
         ),
         user_profiles (
           full_name
-        )
-      `)
+        )`
+    const selectColumns = includeSignature ? `signature,${baseColumns}` : baseColumns
 
-    // 날짜 범위 필터링
-    if (startDate && endDate) {
-      query = query
-        .gte('inspection_date', startDate)
-        .lte('inspection_date', endDate)
-    }
-
-    // 발주청 사용자의 권한에 따른 필터링
-    if (userProfile.role === '발주청') {
-      // 본사 조직은 전사 데이터 조회 가능
-      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
-        if (DEBUG_LOGS) console.log('✅ 본사 조직 사용자: 전사 관리자점검 조회')
-        // query에 추가 필터링 없음 (모든 점검 조회)
-      } else {
-        // 본부 단위 권한이 있는 경우
-        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
-          query = query.eq('projects.managing_hq', userProfile.hq_division)
-        }
-
-        // 지사 단위 권한이 있는 경우
-        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
-          query = query.eq('projects.managing_branch', userProfile.branch_division)
+    // 권한·기간·본부/지사 필터를 본 조회와 서명존재 조회에 동일하게 적용한다.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const applyScope = (q: any) => {
+      if (startDate && endDate) {
+        q = q.gte('inspection_date', startDate).lte('inspection_date', endDate)
+      }
+      if (userProfile.role === '발주청') {
+        if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+          // 본사 조직: 전사 조회(추가 필터 없음)
+        } else {
+          if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+            q = q.eq('projects.managing_hq', userProfile.hq_division)
+          }
+          if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+            q = q.eq('projects.managing_branch', userProfile.branch_division)
+          }
         }
       }
+      if (selectedHq) q = q.eq('projects.managing_hq', selectedHq)
+      if (selectedBranch) q = q.eq('projects.managing_branch', selectedBranch)
+      return q
     }
 
-    // 선택된 본부/지사 필터링
-    if (selectedHq) {
-      query = query.eq('projects.managing_hq', selectedHq)
-    }
-    if (selectedBranch) {
-      query = query.eq('projects.managing_branch', selectedBranch)
-    }
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = applyScope((supabase as any).from('manager_inspections').select(selectColumns))
     query = query.order('inspection_date', { ascending: false })
 
     const { data: inspections, error } = await query
@@ -811,6 +819,21 @@ export async function getManagerInspectionsByUserBranch(
     if (error) {
       console.error('관리자 점검 조회 오류:', error)
       return { success: false, error: error.message }
+    }
+
+    // 서명 존재 여부 경량 조회: 서명 본문 전송 없이 id만 받아 has_signature를 채운다.
+    const signedIds = new Set<string>()
+    if (!includeSignature && inspections && inspections.length > 0) {
+      const { data: signedRows, error: signedErr } = await applyScope(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any).from('manager_inspections').select('id, projects!inner ( managing_hq, managing_branch )').not('signature', 'is', null)
+      )
+      if (signedErr) {
+        console.error('서명 존재 여부 조회 오류:', signedErr)
+      } else {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ;(signedRows || []).forEach((r: any) => signedIds.add(r.id))
+      }
     }
 
     // 데이터 변환
@@ -830,6 +853,7 @@ export async function getManagerInspectionsByUserBranch(
       inspection_photo: item.inspection_photo,
       risk_assessment_photo: item.risk_assessment_photo,
       signature: item.signature,
+      has_signature: includeSignature ? !!(item.signature && String(item.signature).trim() !== '') : signedIds.has(item.id),
       risk_factors_json: item.risk_factors_json,
       // 재해예방 기술지도 관련 컬럼 포함
       disaster_prevention_report_photo: item.disaster_prevention_report_photo,

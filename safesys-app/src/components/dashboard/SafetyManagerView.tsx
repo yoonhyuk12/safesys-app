@@ -405,7 +405,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                         const project = projects.find((p) => p.id === inspection.project_id)
                         const ia: any = (project as any)?.is_active
                         const isTarget = ia && typeof ia === 'object' ? !!ia[`q${quarterNum}` as 'q1' | 'q2' | 'q3' | 'q4'] : false
-                        const hasSignature = !!inspection.signature
+                        const hasSignature = !!inspection.has_signature
                         const isSelected = selectedInspectionIds.includes(inspection.id)
 
                         return (
@@ -504,7 +504,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                             !!(i.form_data?.disaster_prevention_report_photo && i.form_data.disaster_prevention_report_photo.trim() !== '')
 
                           // 서명 확인 (상위 필드 또는 form_data)
-                          const hasSignature = !!(i.signature && i.signature.trim() !== '') || !!(i.form_data?.signature && i.form_data.signature.trim() !== '')
+                          const hasSignature = !!i.has_signature || !!(i.form_data?.signature && i.form_data.signature.trim() !== '')
 
                           // 재해예방: 대상 프로젝트에서 내용·보고서 사진 중 하나만 있으면 미완성(둘 다 또는 둘 다 없음만 완성)
                           const disasterIncomplete = isDisasterPreventionTarget && (hasRealDisasterContent(i) !== hasDisasterPhoto)
@@ -580,7 +580,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                           !!(i.form_data?.disaster_prevention_report_photo && i.form_data.disaster_prevention_report_photo.trim() !== '')
 
                         // 서명 확인 (상위 필드 또는 form_data)
-                        const hasSignature = !!(i.signature && i.signature.trim() !== '') || !!(i.form_data?.signature && i.form_data.signature.trim() !== '')
+                        const hasSignature = !!i.has_signature || !!(i.form_data?.signature && i.form_data.signature.trim() !== '')
 
                         // 재해예방: 대상 프로젝트에서 내용·보고서 사진 중 하나만 있으면 미완성(둘 다 또는 둘 다 없음만 완성)
                         const disasterIncomplete = isDisasterPreventionTarget && (hasRealDisasterContent(i) !== hasDisasterPhoto)
@@ -926,7 +926,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                   // 1. 위험성평가 사진이 없으면 미완성
                   // 2. 재해예방 항목이 등록된 대상 점검에 재해예방 보고서 사진이 없으면 미완성
                   // 서명 확인 (상위 필드 또는 form_data)
-                  const hasSignature = !!(ins.signature && ins.signature.trim() !== '') || !!(ins.form_data?.signature && ins.form_data.signature.trim() !== '')
+                  const hasSignature = !!ins.has_signature || !!(ins.form_data?.signature && ins.form_data.signature.trim() !== '')
                   // 재해예방: 대상 프로젝트에서 내용·보고서 사진 중 하나만 있으면 미완성(둘 다 또는 둘 다 없음만 완성)
                   const disasterIncomplete = isDisasterPreventionTarget && (hasRealDisasterContent(ins) !== hasDisasterPhoto)
                   // 미완성: 서명 없음 / 위험성평가 사진 없음 / 재해예방 내용·사진 불일치
