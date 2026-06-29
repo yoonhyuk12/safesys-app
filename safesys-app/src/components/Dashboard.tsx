@@ -301,6 +301,7 @@ const Dashboard: React.FC = () => {
   const [sharedProjects, setSharedProjects] = useState<Project[]>([])
   const userMenuRef = useRef<HTMLDivElement>(null)
   const isDataLoaded = useRef(false)
+  const pendingCountsLoaded = useRef(false)
   const isViewModeInitialized = useRef(false)
   const isSelectionInitialized = useRef(false)
   const lastHeatWaveParams = useRef<{ date: string; hq: string; branch: string; viewMode: string } | null>(null)
@@ -595,6 +596,18 @@ const Dashboard: React.FC = () => {
       }
     }
   }, [user, userProfile])
+
+  // 프로젝트 카드 배지(미조치 건수)는 list/map 등에서만 쓰이므로 안전현황(/safe)에선 로드하지 않음.
+  // 프로젝트 목록이 준비된 뒤, safety 뷰가 아닐 때 1회 집계한다.
+  useEffect(() => {
+    if (!(user && userProfile)) return
+    if (viewMode === 'safety') return
+    if (pendingCountsLoaded.current) return
+    const targetProjects = userProfile.role === '발주청' ? projects : [...projects, ...sharedProjects]
+    if (targetProjects.length === 0) return
+    pendingCountsLoaded.current = true
+    loadPendingCounts(targetProjects)
+  }, [user, userProfile, viewMode, projects, sharedProjects])
 
   // 본부별 공사중 토글 표시 설정 로드
   useEffect(() => {
@@ -1324,9 +1337,92 @@ const Dashboard: React.FC = () => {
   // 안전현황 메인 카드 데이터 자동 일괄조회는 비활성화됨.
   // 사용자가 각 카드의 "조회" 버튼을 누를 때 inquireCard() 함수로 개별 로딩.
 
+  // 프로젝트 카드의 미조치 건수 배지 집계(본부불시/안전점검/관리자점검).
+  // 관리자점검은 signature base64(약 13MB)를 받지 않고 has_signature(boolean)로 존재 여부만 판정한다.
+  const loadPendingCounts = async (projectList: Project[]) => {
+    if (!projectList || projectList.length === 0) return
+    const projectIds = projectList.map(p => p.id)
+    try {
+      const { data: hqInspections } = await (supabase as any)
+        .from('headquarters_inspections')
+        .select('project_id, action_photo_issue1, action_photo_issue2, issue_content2, site_photo_issue2, issue1_status, issue2_status')
+        .in('project_id', projectIds)
+
+      if (hqInspections) {
+        const counts: Record<string, number> = {}
+        hqInspections.forEach((ins: any) => {
+          const hasIssue2 = Boolean((ins.issue_content2 && ins.issue_content2.trim()) || ins.site_photo_issue2)
+          const issue1Done = Boolean(ins.action_photo_issue1) || ins.issue1_status === 'completed'
+          const issue2Done = !hasIssue2 ? true : (Boolean(ins.action_photo_issue2) || ins.issue2_status === 'completed')
+          if (!(issue1Done && issue2Done)) {
+            counts[ins.project_id] = (counts[ins.project_id] || 0) + 1
+          }
+        })
+        setHqPendingCounts(counts)
+      }
+
+      const { data: safetyInspections } = await (supabase as any)
+        .from('safety_inspections')
+        .select('project_id, id, inspection_type, additional_items, safety_inspection_results(id, findings, after_photo_url)')
+        .in('project_id', projectIds)
+
+      if (safetyInspections) {
+        const isPendingPhoto = (after: any) => {
+          if (after === 'N/A') return false
+          if (!after) return true
+          return typeof after === 'string' && after.trim() === ''
+        }
+        const sCounts: Record<string, number> = {}
+        safetyInspections.forEach((ins: any) => {
+          let pending = 0
+          if (ins.inspection_type === '특별점검(안전혁신건설-287)') {
+            const items = Array.isArray(ins.additional_items) ? ins.additional_items : []
+            pending = items.filter((it: any) => it && it.action && it.action !== '해당없음' && isPendingPhoto(it.after_photo_url)).length
+          } else {
+            const results = ins.safety_inspection_results || []
+            pending = results.filter((r: any) => {
+              const hasFindings = typeof r.findings === 'string' && r.findings.trim() !== ''
+              if (!hasFindings) return false
+              return isPendingPhoto(r.after_photo_url)
+            }).length
+          }
+          if (pending > 0) {
+            sCounts[ins.project_id] = (sCounts[ins.project_id] || 0) + pending
+          }
+        })
+        setSafetyPendingCounts(sCounts)
+      }
+
+      const dpTargetById: Record<string, boolean> = {}
+      projectList.forEach((p: any) => { dpTargetById[p.id] = !!p.disaster_prevention_target })
+      const { data: managerInspections } = await (supabase as any)
+        .from('manager_inspections')
+        .select('project_id, has_signature, risk_assessment_photo, disaster_prevention_report_photo, disaster_prevention_risk_factors_json')
+        .in('project_id', projectIds)
+
+      if (managerInspections) {
+        const mCounts: Record<string, number> = {}
+        managerInspections.forEach((ins: any) => {
+          const noSignature = !ins.has_signature
+          const noRiskAssessmentPhoto = !(ins.risk_assessment_photo && String(ins.risk_assessment_photo).trim())
+          const hasDisasterContent = Array.isArray(ins.disaster_prevention_risk_factors_json) && ins.disaster_prevention_risk_factors_json.some((f: any) => { const rf = (f?.risk_factor || '').trim(); return rf !== '' && rf !== '해당없음' })
+          const hasDisasterReportPhoto = !!(ins.disaster_prevention_report_photo && String(ins.disaster_prevention_report_photo).trim())
+          const disasterIncomplete = !!dpTargetById[ins.project_id] && (hasDisasterContent !== hasDisasterReportPhoto)
+          if (noSignature || noRiskAssessmentPhoto || disasterIncomplete) {
+            mCounts[ins.project_id] = (mCounts[ins.project_id] || 0) + 1
+          }
+        })
+        setManagerPendingCounts(mCounts)
+      }
+    } catch (err) {
+      console.error('미조치 건수 집계 실패:', err)
+    }
+  }
+
   const loadUserProjects = async () => {
     if (!user) return
 
+    pendingCountsLoaded.current = false
     setLoading(true)
     setError('')
 
@@ -1349,84 +1445,7 @@ const Dashboard: React.FC = () => {
         setError(result.error || '프로젝트를 불러오는데 실패했습니다.')
       }
 
-      // 본부 불시점검 미조치 건수 조회 (내 프로젝트 + 공유받은 프로젝트)
-      const allProjects = [...myProjects, ...shared]
-      if (allProjects.length > 0) {
-        const projectIds = allProjects.map(p => p.id)
-        const { data: hqInspections } = await (supabase as any)
-          .from('headquarters_inspections')
-          .select('project_id, action_photo_issue1, action_photo_issue2, issue_content2, site_photo_issue2, issue1_status, issue2_status')
-          .in('project_id', projectIds)
-
-        if (hqInspections) {
-          const counts: Record<string, number> = {}
-          hqInspections.forEach((ins: any) => {
-            const hasIssue2 = Boolean((ins.issue_content2 && ins.issue_content2.trim()) || ins.site_photo_issue2)
-            const issue1Done = Boolean(ins.action_photo_issue1) || ins.issue1_status === 'completed'
-            const issue2Done = !hasIssue2 ? true : (Boolean(ins.action_photo_issue2) || ins.issue2_status === 'completed')
-            if (!(issue1Done && issue2Done)) {
-              counts[ins.project_id] = (counts[ins.project_id] || 0) + 1
-            }
-          })
-          setHqPendingCounts(counts)
-        }
-
-        // 안전점검 미조치 건수 조회 (내 프로젝트 + 공유받은 프로젝트)
-        const { data: safetyInspections } = await (supabase as any)
-          .from('safety_inspections')
-          .select('project_id, id, inspection_type, additional_items, safety_inspection_results(id, findings, after_photo_url)')
-          .in('project_id', projectIds)
-
-        if (safetyInspections) {
-          const isPendingPhoto = (after: any) => {
-            if (after === 'N/A') return false
-            if (!after) return true
-            return typeof after === 'string' && after.trim() === ''
-          }
-          const sCounts: Record<string, number> = {}
-          safetyInspections.forEach((ins: any) => {
-            let pending = 0
-            if (ins.inspection_type === '특별점검(안전혁신건설-287)') {
-              const items = Array.isArray(ins.additional_items) ? ins.additional_items : []
-              pending = items.filter((it: any) => it && it.action && it.action !== '해당없음' && isPendingPhoto(it.after_photo_url)).length
-            } else {
-              const results = ins.safety_inspection_results || []
-              pending = results.filter((r: any) => {
-                const hasFindings = typeof r.findings === 'string' && r.findings.trim() !== ''
-                if (!hasFindings) return false
-                return isPendingPhoto(r.after_photo_url)
-              }).length
-            }
-            if (pending > 0) {
-              sCounts[ins.project_id] = (sCounts[ins.project_id] || 0) + pending
-            }
-          })
-          setSafetyPendingCounts(sCounts)
-        }
-
-        // 관리자점검 미완료 건수 조회 — 미완성 열과 동일 기준(서명/위험성평가 사진/재해예방 내용·보고서사진 불일치)
-        const dpTargetById: Record<string, boolean> = {}
-        allProjects.forEach((p: any) => { dpTargetById[p.id] = !!p.disaster_prevention_target })
-        const { data: managerInspections } = await (supabase as any)
-          .from('manager_inspections')
-          .select('project_id, signature, risk_assessment_photo, disaster_prevention_report_photo, disaster_prevention_risk_factors_json')
-          .in('project_id', projectIds)
-
-        if (managerInspections) {
-          const mCounts: Record<string, number> = {}
-          managerInspections.forEach((ins: any) => {
-            const noSignature = !(ins.signature && String(ins.signature).trim())
-            const noRiskAssessmentPhoto = !(ins.risk_assessment_photo && String(ins.risk_assessment_photo).trim())
-            const hasDisasterContent = Array.isArray(ins.disaster_prevention_risk_factors_json) && ins.disaster_prevention_risk_factors_json.some((f: any) => { const rf = (f?.risk_factor || '').trim(); return rf !== '' && rf !== '해당없음' })
-            const hasDisasterReportPhoto = !!(ins.disaster_prevention_report_photo && String(ins.disaster_prevention_report_photo).trim())
-            const disasterIncomplete = !!dpTargetById[ins.project_id] && (hasDisasterContent !== hasDisasterReportPhoto)
-            if (noSignature || noRiskAssessmentPhoto || disasterIncomplete) {
-              mCounts[ins.project_id] = (mCounts[ins.project_id] || 0) + 1
-            }
-          })
-          setManagerPendingCounts(mCounts)
-        }
-      }
+      // 미조치 건수 배지는 loadPendingCounts()에서 list/map 등 진입 시 별도 로드 (안전현황 진입 시 불필요)
     } catch (err: any) {
       console.error('프로젝트 로드 실패:', err)
       setError(err.message || '프로젝트를 불러오는데 실패했습니다.')
@@ -1438,6 +1457,7 @@ const Dashboard: React.FC = () => {
   const loadBranchProjects = async () => {
     if (!userProfile) return
 
+    pendingCountsLoaded.current = false
     setLoading(true)
     setError('')
 
@@ -1454,83 +1474,7 @@ const Dashboard: React.FC = () => {
         if (DEBUG_LOGS) console.log(`조회된 프로젝트 수: ${result.projects.length}`)
         setProjects(result.projects)
 
-        // 본부 불시점검 미조치 건수 조회
-        if (result.projects.length > 0) {
-          const projectIds = result.projects.map(p => p.id)
-          const { data: hqInspections } = await (supabase as any)
-            .from('headquarters_inspections')
-            .select('project_id, action_photo_issue1, action_photo_issue2, issue_content2, site_photo_issue2, issue1_status, issue2_status')
-            .in('project_id', projectIds)
-
-          if (hqInspections) {
-            const counts: Record<string, number> = {}
-            hqInspections.forEach((ins: any) => {
-              const hasIssue2 = Boolean((ins.issue_content2 && ins.issue_content2.trim()) || ins.site_photo_issue2)
-              const issue1Done = Boolean(ins.action_photo_issue1) || ins.issue1_status === 'completed'
-              const issue2Done = !hasIssue2 ? true : (Boolean(ins.action_photo_issue2) || ins.issue2_status === 'completed')
-              if (!(issue1Done && issue2Done)) {
-                counts[ins.project_id] = (counts[ins.project_id] || 0) + 1
-              }
-            })
-            setHqPendingCounts(counts)
-          }
-
-          // 안전점검 미조치 건수 조회
-          const { data: safetyInspections } = await (supabase as any)
-            .from('safety_inspections')
-            .select('project_id, id, inspection_type, additional_items, safety_inspection_results(id, findings, after_photo_url)')
-            .in('project_id', projectIds)
-
-          if (safetyInspections) {
-            const isPendingPhoto = (after: any) => {
-              if (after === 'N/A') return false
-              if (!after) return true
-              return typeof after === 'string' && after.trim() === ''
-            }
-            const sCounts: Record<string, number> = {}
-            safetyInspections.forEach((ins: any) => {
-              let pending = 0
-              if (ins.inspection_type === '특별점검(안전혁신건설-287)') {
-                const items = Array.isArray(ins.additional_items) ? ins.additional_items : []
-                pending = items.filter((it: any) => it && it.action && it.action !== '해당없음' && isPendingPhoto(it.after_photo_url)).length
-              } else {
-                const results = ins.safety_inspection_results || []
-                pending = results.filter((r: any) => {
-                  const hasFindings = typeof r.findings === 'string' && r.findings.trim() !== ''
-                  if (!hasFindings) return false
-                  return isPendingPhoto(r.after_photo_url)
-                }).length
-              }
-              if (pending > 0) {
-                sCounts[ins.project_id] = (sCounts[ins.project_id] || 0) + pending
-              }
-            })
-            setSafetyPendingCounts(sCounts)
-          }
-
-          // 관리자점검 미완료 건수 조회 — 미완성 열과 동일 기준(서명/위험성평가 사진/재해예방 내용·보고서사진 불일치)
-          const dpTargetById: Record<string, boolean> = {}
-          result.projects.forEach((p: any) => { dpTargetById[p.id] = !!p.disaster_prevention_target })
-          const { data: managerInspections } = await (supabase as any)
-            .from('manager_inspections')
-            .select('project_id, signature, risk_assessment_photo, disaster_prevention_report_photo, disaster_prevention_risk_factors_json')
-            .in('project_id', projectIds)
-
-          if (managerInspections) {
-            const mCounts: Record<string, number> = {}
-            managerInspections.forEach((ins: any) => {
-              const noSignature = !(ins.signature && String(ins.signature).trim())
-              const noRiskAssessmentPhoto = !(ins.risk_assessment_photo && String(ins.risk_assessment_photo).trim())
-              const hasDisasterContent = Array.isArray(ins.disaster_prevention_risk_factors_json) && ins.disaster_prevention_risk_factors_json.some((f: any) => { const rf = (f?.risk_factor || '').trim(); return rf !== '' && rf !== '해당없음' })
-              const hasDisasterReportPhoto = !!(ins.disaster_prevention_report_photo && String(ins.disaster_prevention_report_photo).trim())
-              const disasterIncomplete = !!dpTargetById[ins.project_id] && (hasDisasterContent !== hasDisasterReportPhoto)
-              if (noSignature || noRiskAssessmentPhoto || disasterIncomplete) {
-                mCounts[ins.project_id] = (mCounts[ins.project_id] || 0) + 1
-              }
-            })
-            setManagerPendingCounts(mCounts)
-          }
-        }
+        // 미조치 건수 배지는 loadPendingCounts()에서 list/map 등 진입 시 별도 로드 (안전현황 진입 시 불필요)
 
         // 좌표 정보가 있는 프로젝트들로 설정 (API 호출 없이)
         if (result.projects.length > 0) {
