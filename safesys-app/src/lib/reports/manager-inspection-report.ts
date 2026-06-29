@@ -289,6 +289,8 @@ function generatePhotoSheetHTML(
     const action = factor?.implementation === 'no' ? '미조치' : '조치완료'
     const photo1 = factor?.photo_1 || ''
     const photo2 = factor?.photo_2 || ''
+    // 재해예방 섹션에 예방조치 사진이 없으면 해당 섹션의 데이터셀을 공란 처리한다.
+    const blankData = isDisaster && !((photo1 && photo1.trim()) || (photo2 && photo2.trim()))
     const photoSectionLabel = isDisaster ? '예방대책 사진' : '위험성감소대책 이행 사진'
 
     return `
@@ -305,15 +307,15 @@ function generatePhotoSheetHTML(
           </colgroup>
           <tr>
             <td style="${labelCell}">지구명</td>
-            <td style="${valueCell}">${projectName || branch}</td>
+            <td style="${valueCell}">${blankData ? '' : (projectName || branch)}</td>
             <td style="${labelCell}">세부작업</td>
-            <td style="${valueCell}">${detailWork || ''}</td>
+            <td style="${valueCell}">${blankData ? '' : (detailWork || '')}</td>
           </tr>
           <tr>
             <td style="${labelCell}">일시(조치완료)</td>
-            <td style="${valueCell}">${inspectionDate}</td>
+            <td style="${valueCell}">${blankData ? '' : inspectionDate}</td>
             <td style="${labelCell}">확 인 자</td>
-            <td style="${valueCell}">${supervisor || ''}</td>
+            <td style="${valueCell}">${blankData ? '' : (supervisor || '')}</td>
           </tr>
           <tr>
             <td colspan="2" style="${photoLabel}">${photoSectionLabel}</td>
@@ -325,15 +327,15 @@ function generatePhotoSheetHTML(
           </tr>
           <tr>
             <td style="${labelCell}">유해위험요인</td>
-            <td colspan="3" style="${valueCellLeft}">${riskFactorText || '&nbsp;'}</td>
+            <td colspan="3" style="${valueCellLeft}">${blankData ? '&nbsp;' : (riskFactorText || '&nbsp;')}</td>
           </tr>
           <tr>
             <td style="${labelCell}">${isDisaster ? '예방대책 세부내용' : '위험성 감소대책'}</td>
-            <td colspan="3" style="${valueCellLeft}">${details || '&nbsp;'}</td>
+            <td colspan="3" style="${valueCellLeft}">${blankData ? '&nbsp;' : (details || '&nbsp;')}</td>
           </tr>
           <tr>
             <td style="${labelCell}">조치사항</td>
-            <td colspan="3" style="${valueCellLeft}">${action}</td>
+            <td colspan="3" style="${valueCellLeft}">${blankData ? '' : action}</td>
           </tr>
         </table>
       </div>
