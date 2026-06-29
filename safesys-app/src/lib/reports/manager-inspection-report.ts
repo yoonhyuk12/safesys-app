@@ -271,11 +271,13 @@ function generatePhotoSheetHTML(
   const photoLabel = 'border: 0.5px solid #000; padding: 4px; background-color: #f2f2f2; font-weight: bold; text-align: center; vertical-align: middle; font-size: 11px;'
   const photoCell = 'border: 0.5px solid #000; padding: 4px; height: 220px; text-align: center; vertical-align: middle; overflow: hidden;'
 
+  // 사진은 셀 중앙(수평·수직)에 정렬한다. html2canvas는 td의 vertical-align/object-fit를
+  // 제대로 렌더링하지 못하므로 flex 컨테이너로 감싸 중앙 정렬을 보장한다.
   const renderPhoto = (url: string | undefined): string => {
-    if (url && url.trim()) {
-      return `<img src="${url}" style="max-width: 100%; max-height: 210px; object-fit: contain;" />`
-    }
-    return '<span style="color: #aaa; font-size: 11px;">사진 없음</span>'
+    const inner = url && url.trim()
+      ? `<img src="${url}" style="max-width: 100%; max-height: 100%; object-fit: contain; display: block;" />`
+      : '<span style="color: #aaa; font-size: 11px;">사진 없음</span>'
+    return `<div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 212px;">${inner}</div>`
   }
 
   const renderSection = (
