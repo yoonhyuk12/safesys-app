@@ -220,11 +220,13 @@ export default function ProjectDetailPage() {
         setSafetyLedgerPendingCount(pendingPhotoCount)
       }
 
-      // 관리자점검(지사 안전점검) 미완료 건수 조회 — 아래 3개 중 하나라도 미완료면 카운트
-      // 1) 서명 없음, 2) 위험성평가서 사진 없음, 3) (2026-05-22 이후 시행건) 위험성평가 대책 사진(위험요인 카드 사진) 없음
+      // 관리자점검(지사 안전점검) 미완료 건수 조회 — 아래 4개 중 하나라도 미완료면 카운트
+      // 1) 서명 없음, 2) 위험성평가서 사진 없음
+      // 3) (2026-05-22 이후) 위험성평가 대책 사진(위험요인 카드 사진) 없음
+      // 4) (2026-05-22 이후) 재해예방 항목을 등록했는데 재해예방 대책 사진(카드 사진) 없음
       const { data: managerInspections } = await supabase
         .from('manager_inspections')
-        .select('signature, risk_assessment_photo, inspection_date, risk_factors_json')
+        .select('signature, risk_assessment_photo, inspection_date, risk_factors_json, disaster_prevention_risk_factors_json')
         .eq('project_id', projectId)
 
       if (managerInspections) {
@@ -234,8 +236,11 @@ export default function ProjectDetailPage() {
         const pendingCount = (managerInspections as any[]).filter((ins: any) => {
           const noSignature = !(ins.signature && String(ins.signature).trim())
           const noRiskAssessmentPhoto = !(ins.risk_assessment_photo && String(ins.risk_assessment_photo).trim())
-          const noMeasurePhotoAfterFeature = (ins.inspection_date >= '2026-05-22') && (countCardPhotos(ins.risk_factors_json) === 0)
-          return noSignature || noRiskAssessmentPhoto || noMeasurePhotoAfterFeature
+          const afterFeature = ins.inspection_date >= '2026-05-22'
+          const noRiskMeasurePhoto = afterFeature && countCardPhotos(ins.risk_factors_json) === 0
+          const hasDisasterContent = Array.isArray(ins.disaster_prevention_risk_factors_json) && ins.disaster_prevention_risk_factors_json.some((f: any) => { const rf = (f?.risk_factor || '').trim(); return rf !== '' && rf !== '해당없음' })
+          const noDisasterMeasurePhoto = afterFeature && hasDisasterContent && countCardPhotos(ins.disaster_prevention_risk_factors_json) === 0
+          return noSignature || noRiskAssessmentPhoto || noRiskMeasurePhoto || noDisasterMeasurePhoto
         }).length
         setManagerPendingCount(pendingCount)
       }
