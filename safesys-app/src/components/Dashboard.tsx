@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2, ClipboardCheck } from 'lucide-react'
+import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2, ClipboardCheck, GitMerge } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, getHeatWaveCheckCountByUserBranch, getManagerInspectionCountByUserBranch, getHeadquartersInspectionCountByUserBranch, getTBMSafetyInspectionCountByUserBranch, getSafeDocumentInspectionCountByUserBranch, getPtwPermitsByUserBranch, getPtwPermitCountByUserBranch, getInspectionRequestCountsByUserBranch, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type PtwPermitSummary, type WorkerCountByProject, type MaterialCountByProject, type InspectionRequestCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
@@ -14,6 +14,7 @@ import ProjectCard from '@/components/project/ProjectCard'
 import ProjectDeleteModal from '@/components/project/ProjectDeleteModal'
 import ProjectHandoverModal from '@/components/project/ProjectHandoverModal'
 import ProjectShareModal from '@/components/project/ProjectShareModal'
+import MergeProjectsModal from '@/components/project/MergeProjectsModal'
 import KakaoMap from '@/components/ui/KakaoMap'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import ProfileEditModal from '@/components/auth/ProfileEditModal'
@@ -298,6 +299,7 @@ const Dashboard: React.FC = () => {
 
   const [handoverModal, setHandoverModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
+  const [mergeModalOpen, setMergeModalOpen] = useState(false)
   const [sharedProjects, setSharedProjects] = useState<Project[]>([])
   const userMenuRef = useRef<HTMLDivElement>(null)
   const isDataLoaded = useRef(false)
@@ -4464,6 +4466,17 @@ const Dashboard: React.FC = () => {
       {/* 플로팅 버튼들 - 리스트 보기에서만 표시 */}
       {viewMode === 'list' && (
         <div className="fixed bottom-6 right-6 flex flex-row gap-3 items-center">
+          {/* 합치기 버튼 - 발주청만 표시 (공사중토글과 별개 게이팅) */}
+          {userProfile?.role === '발주청' && (
+            <button
+              onClick={() => setMergeModalOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-4 py-3 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
+              title="두 프로젝트 합치기"
+            >
+              <GitMerge className="h-5 w-5" />
+              <span className="font-medium text-sm">합치기</span>
+            </button>
+          )}
           {/* 공사중토글 버튼 - 권한 있는 사용자만 표시 */}
           {canEditQuarters && userProfile?.hq_division && (
             <>
@@ -4575,6 +4588,14 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 프로젝트 합치기 모달 */}
+      <MergeProjectsModal
+        isOpen={mergeModalOpen}
+        projects={projects}
+        onClose={() => setMergeModalOpen(false)}
+        onMerged={loadBranchProjects}
+      />
 
       {/* 삭제 확인 모달 */}
       <ProjectDeleteModal
