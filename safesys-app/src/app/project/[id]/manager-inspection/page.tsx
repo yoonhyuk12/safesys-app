@@ -308,12 +308,15 @@ export default function ManagerInspectionPage() {
             }
 
             const angle = direction === 'cw' ? Math.PI / 2 : -Math.PI / 2
-            canvas.width = img.height
-            canvas.height = img.width
+            // 업로드 시 모든 사진을 고정 프레임(960x720, 4:3)으로 늘려 저장하므로
+            // 회전 결과도 같은 프레임을 유지하도록 회전 후 프레임에 꽉 채워 그린다.
+            // (가로·세로를 스왑하면 4:3 미리보기/보고서에서 좌우에 흰 여백이 생긴다)
+            canvas.width = img.width
+            canvas.height = img.height
 
             ctx.translate(canvas.width / 2, canvas.height / 2)
             ctx.rotate(angle)
-            ctx.drawImage(img, -img.width / 2, -img.height / 2)
+            ctx.drawImage(img, -canvas.height / 2, -canvas.width / 2, canvas.height, canvas.width)
 
             canvas.toBlob((blob) => {
               try {
@@ -363,12 +366,15 @@ export default function ManagerInspectionPage() {
             }
 
             const angle = direction === 'cw' ? Math.PI / 2 : -Math.PI / 2
-            canvas.width = img.height
-            canvas.height = img.width
+            // 업로드 시 모든 사진을 고정 프레임(960x720, 4:3)으로 늘려 저장하므로
+            // 회전 결과도 같은 프레임을 유지하도록 회전 후 프레임에 꽉 채워 그린다.
+            // (가로·세로를 스왑하면 4:3 미리보기/보고서에서 좌우에 흰 여백이 생긴다)
+            canvas.width = img.width
+            canvas.height = img.height
 
             ctx.translate(canvas.width / 2, canvas.height / 2)
             ctx.rotate(angle)
-            ctx.drawImage(img, -img.width / 2, -img.height / 2)
+            ctx.drawImage(img, -canvas.height / 2, -canvas.width / 2, canvas.height, canvas.width)
 
             canvas.toBlob((blob) => {
               try {
