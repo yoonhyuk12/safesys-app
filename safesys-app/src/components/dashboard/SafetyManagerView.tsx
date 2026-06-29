@@ -15,6 +15,18 @@ const PHOTO_UPLOAD_FEATURE_START_DATE = '2026-05-22'
 const isAfterPhotoFeature = (inspectionDate?: string): boolean =>
   !!inspectionDate && inspectionDate >= PHOTO_UPLOAD_FEATURE_START_DATE
 
+// 점검에 실제 재해예방 항목이 등록되었는지 판정한다(위험요인이 비어있지 않고 '해당없음'이 아님).
+// 재해예방 항목이 없으면 재해예방 보고서 사진이 없어도 미완성으로 보지 않는다.
+const hasRealDisasterContent = (inspection: ManagerInspection): boolean => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const arr = (inspection as any)?.disaster_prevention_risk_factors_json
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return Array.isArray(arr) && arr.some((f: any) => {
+    const rf = (f?.risk_factor || '').trim()
+    return rf !== '' && rf !== '해당없음'
+  })
+}
+
 interface SafetyManagerViewProps {
   loading: boolean
   projects: Project[]
@@ -483,8 +495,8 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                           const hasDisasterPhoto = !!((i as any).disaster_prevention_report_photo && (i as any).disaster_prevention_report_photo.trim() !== '') ||
                             !!(i.form_data?.disaster_prevention_report_photo && i.form_data.disaster_prevention_report_photo.trim() !== '')
 
-                          // 미완성 조건: 위험성평가 사진이 없거나, 재해예방 대상인데 재해예방 보고서 사진이 없으면 미완성
-                          return !hasRiskPhoto || (isDisasterPreventionTarget && !hasDisasterPhoto)
+                          // 미완성 조건: 위험성평가 사진이 없거나, 재해예방 항목이 등록된 대상 점검에 재해예방 보고서 사진이 없으면 미완성
+                          return !hasRiskPhoto || (isDisasterPreventionTarget && hasRealDisasterContent(i) && !hasDisasterPhoto)
                         }).length
                         return sum + incompleteCount
                       }, 0)
@@ -550,8 +562,8 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                         const hasDisasterPhoto = !!((i as any).disaster_prevention_report_photo && (i as any).disaster_prevention_report_photo.trim() !== '') ||
                           !!(i.form_data?.disaster_prevention_report_photo && i.form_data.disaster_prevention_report_photo.trim() !== '')
 
-                        // 미완성 조건: 위험성평가 사진이 없거나, 재해예방 대상인데 재해예방 보고서 사진이 없으면 미완성
-                        return !hasRiskPhoto || (isDisasterPreventionTarget && !hasDisasterPhoto)
+                        // 미완성 조건: 위험성평가 사진이 없거나, 재해예방 항목이 등록된 대상 점검에 재해예방 보고서 사진이 없으면 미완성
+                        return !hasRiskPhoto || (isDisasterPreventionTarget && hasRealDisasterContent(i) && !hasDisasterPhoto)
                       }).length
                       // 사진 미업로드 점검 건수: 위험요인 카드 photo_1/photo_2가 전혀 없는 점검
                       const countFactorPhotosRow = (arr: any) => Array.isArray(arr)
@@ -880,9 +892,9 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
 
                   // 미완성 조건:
                   // 1. 위험성평가 사진이 없으면 미완성
-                  // 2. 재해예방 대상인데 재해예방 보고서 사진이 없으면 미완성
+                  // 2. 재해예방 항목이 등록된 대상 점검에 재해예방 보고서 사진이 없으면 미완성
                   // 둘 다 없어도 1건으로만 카운트 (OR 조건)
-                  const isIncomplete = !hasRiskPhoto || (isDisasterPreventionTarget && !hasDisasterPhoto)
+                  const isIncomplete = !hasRiskPhoto || (isDisasterPreventionTarget && hasRealDisasterContent(ins) && !hasDisasterPhoto)
 
                   if (isIncomplete) {
                     entry.incompleteCount++
