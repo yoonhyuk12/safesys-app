@@ -2129,12 +2129,12 @@ export default function ManagerInspectionPage() {
                                     >
                                       {isRiskFactorMissing ? '-' : `${riskFactorCount}개`}
                                     </td>
-                                    <td className={`border border-gray-300 p-2 text-center text-xs whitespace-nowrap ${photoIncomplete ? 'bg-red-50' : ''}`}>
+                                    <td className={`border border-gray-300 p-2 text-center text-xs whitespace-nowrap ${photoIncomplete ? 'bg-red-50 ring-1 ring-inset ring-red-500' : ''}`}>
                                       <span className={riskPhotoCount > 0 ? 'text-blue-700 font-semibold' : 'text-gray-400'}>{riskPhotoCount}</span>
                                       <span className="text-gray-400 mx-1">/</span>
                                       <span className={disasterPhotoCount > 0 ? 'text-orange-700 font-semibold' : 'text-gray-400'}>{disasterPhotoCount}</span>
                                     </td>
-                                    <td className={`border border-gray-300 p-2 text-center ${signatureMissing ? 'bg-red-50' : ''}`}>
+                                    <td className={`border border-gray-300 p-2 text-center ${signatureMissing ? 'bg-red-50 ring-1 ring-inset ring-red-500' : ''}`}>
                                       {isDownloadMode ? (
                                         <input
                                           type="checkbox"
