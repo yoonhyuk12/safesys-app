@@ -220,11 +220,11 @@ export default function ProjectDetailPage() {
         setSafetyLedgerPendingCount(pendingPhotoCount)
       }
 
-      // 관리자점검(지사 안전점검) 미완료 건수 조회
-      // - 서명 미완료, 또는 (사진 업로드 기능 도입 2026-05-22 이후 시행건인데) 위험요인 카드 사진이 한 장도 없음
+      // 관리자점검(지사 안전점검) 미완료 건수 조회 — 아래 3개 중 하나라도 미완료면 카운트
+      // 1) 서명 없음, 2) 위험성평가서 사진 없음, 3) (2026-05-22 이후 시행건) 위험성평가 대책 사진(위험요인 카드 사진) 없음
       const { data: managerInspections } = await supabase
         .from('manager_inspections')
-        .select('signature, form_data, inspection_date, risk_factors_json, disaster_prevention_risk_factors_json')
+        .select('signature, risk_assessment_photo, inspection_date, risk_factors_json')
         .eq('project_id', projectId)
 
       if (managerInspections) {
@@ -232,10 +232,10 @@ export default function ProjectDetailPage() {
           ? arr.reduce((s: number, f: any) => s + (f?.photo_1 && String(f.photo_1).trim() ? 1 : 0) + (f?.photo_2 && String(f.photo_2).trim() ? 1 : 0), 0)
           : 0
         const pendingCount = (managerInspections as any[]).filter((ins: any) => {
-          const noSignature = !((ins.signature && String(ins.signature).trim()) || (ins.form_data?.signature && String(ins.form_data.signature).trim()))
-          const noPhotoAfterFeature = (ins.inspection_date >= '2026-05-22') &&
-            (countCardPhotos(ins.risk_factors_json) + countCardPhotos(ins.disaster_prevention_risk_factors_json) === 0)
-          return noSignature || noPhotoAfterFeature
+          const noSignature = !(ins.signature && String(ins.signature).trim())
+          const noRiskAssessmentPhoto = !(ins.risk_assessment_photo && String(ins.risk_assessment_photo).trim())
+          const noMeasurePhotoAfterFeature = (ins.inspection_date >= '2026-05-22') && (countCardPhotos(ins.risk_factors_json) === 0)
+          return noSignature || noRiskAssessmentPhoto || noMeasurePhotoAfterFeature
         }).length
         setManagerPendingCount(pendingCount)
       }

@@ -1412,7 +1412,7 @@ const Dashboard: React.FC = () => {
         // 관리자점검 미완료 건수 조회 (서명 없음 또는 시행일 2026-05-22 이후 위험요인 카드 사진 없음)
         const { data: managerInspections } = await (supabase as any)
           .from('manager_inspections')
-          .select('project_id, signature, inspection_date, risk_factors_json, disaster_prevention_risk_factors_json')
+          .select('project_id, signature, risk_assessment_photo, inspection_date, risk_factors_json')
           .in('project_id', projectIds)
 
         if (managerInspections) {
@@ -1422,9 +1422,9 @@ const Dashboard: React.FC = () => {
           const mCounts: Record<string, number> = {}
           managerInspections.forEach((ins: any) => {
             const noSignature = !(ins.signature && String(ins.signature).trim())
-            const noPhotoAfterFeature = (ins.inspection_date >= '2026-05-22') &&
-              (countCardPhotos(ins.risk_factors_json) + countCardPhotos(ins.disaster_prevention_risk_factors_json) === 0)
-            if (noSignature || noPhotoAfterFeature) {
+            const noRiskAssessmentPhoto = !(ins.risk_assessment_photo && String(ins.risk_assessment_photo).trim())
+            const noMeasurePhotoAfterFeature = (ins.inspection_date >= '2026-05-22') && (countCardPhotos(ins.risk_factors_json) === 0)
+            if (noSignature || noRiskAssessmentPhoto || noMeasurePhotoAfterFeature) {
               mCounts[ins.project_id] = (mCounts[ins.project_id] || 0) + 1
             }
           })
@@ -1515,7 +1515,7 @@ const Dashboard: React.FC = () => {
           // 관리자점검 미완료 건수 조회 (서명 없음 또는 시행일 2026-05-22 이후 위험요인 카드 사진 없음)
           const { data: managerInspections } = await (supabase as any)
             .from('manager_inspections')
-            .select('project_id, signature, inspection_date, risk_factors_json, disaster_prevention_risk_factors_json')
+            .select('project_id, signature, risk_assessment_photo, inspection_date, risk_factors_json')
             .in('project_id', projectIds)
 
           if (managerInspections) {
@@ -1525,9 +1525,9 @@ const Dashboard: React.FC = () => {
             const mCounts: Record<string, number> = {}
             managerInspections.forEach((ins: any) => {
               const noSignature = !(ins.signature && String(ins.signature).trim())
-              const noPhotoAfterFeature = (ins.inspection_date >= '2026-05-22') &&
-                (countCardPhotos(ins.risk_factors_json) + countCardPhotos(ins.disaster_prevention_risk_factors_json) === 0)
-              if (noSignature || noPhotoAfterFeature) {
+              const noRiskAssessmentPhoto = !(ins.risk_assessment_photo && String(ins.risk_assessment_photo).trim())
+              const noMeasurePhotoAfterFeature = (ins.inspection_date >= '2026-05-22') && (countCardPhotos(ins.risk_factors_json) === 0)
+              if (noSignature || noRiskAssessmentPhoto || noMeasurePhotoAfterFeature) {
                 mCounts[ins.project_id] = (mCounts[ins.project_id] || 0) + 1
               }
             })
