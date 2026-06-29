@@ -42,6 +42,20 @@ interface ManagerInspectionRecord {
   }
 }
 
+// draft(임시저장) 저장·복원 시 위험요인의 사진(blob URL·File)은 제외하고 텍스트 입력만 보존한다
+function stripFactorPhotos(factors: any[]): any[] {
+  return (Array.isArray(factors) ? factors : []).map((f) => ({
+    detail_work: f?.detail_work || '',
+    risk_factor: f?.risk_factor || '',
+    details: f?.details || '',
+    implementation: f?.implementation === 'no' ? 'no' : 'yes',
+    photo_1: '',
+    photo_2: '',
+    photo_1_file: null,
+    photo_2_file: null,
+  }))
+}
+
 export default function ManagerInspectionPage() {
   const { user, userProfile, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -154,18 +168,15 @@ export default function ManagerInspectionPage() {
       const savedData = sessionStorage.getItem(FORM_STORAGE_KEY)
       if (savedData) {
         const parsed = JSON.parse(savedData)
-        // File 객체는 저장 불가하므로 preview URL만 복원
+        // 사진(blob URL·File)은 새로고침을 넘기지 못하므로 복원하지 않고 텍스트 입력만 되살린다
         setNewRecord(prev => ({
           ...prev,
           inspection_date: parsed.inspection_date || prev.inspection_date,
           construction_supervisor: parsed.construction_supervisor || '',
           inspector_name: parsed.inspector_name || '',
-          inspection_photo_preview: parsed.inspection_photo_preview || '',
-          risk_assessment_photo_preview: parsed.risk_assessment_photo_preview || '',
-          disaster_prevention_report_photo_preview: parsed.disaster_prevention_report_photo_preview || '',
           remarks: parsed.remarks || '',
-          risk_factors: parsed.risk_factors || prev.risk_factors,
-          disaster_prevention_risk_factors: parsed.disaster_prevention_risk_factors || prev.disaster_prevention_risk_factors
+          risk_factors: parsed.risk_factors ? stripFactorPhotos(parsed.risk_factors) : prev.risk_factors,
+          disaster_prevention_risk_factors: parsed.disaster_prevention_risk_factors ? stripFactorPhotos(parsed.disaster_prevention_risk_factors) : prev.disaster_prevention_risk_factors
         }))
         // 저장된 데이터가 있으면 폼 열기 상태도 복원
         if (parsed.showAddForm) {
@@ -184,16 +195,14 @@ export default function ManagerInspectionPage() {
     if (!showAddForm) return
 
     try {
+      // 사진(blob URL·File)은 새로고침 후 무효가 되므로 draft에 저장하지 않고 텍스트 입력만 보존한다
       const dataToSave = {
         inspection_date: newRecord.inspection_date,
         construction_supervisor: newRecord.construction_supervisor,
         inspector_name: newRecord.inspector_name,
-        inspection_photo_preview: newRecord.inspection_photo_preview,
-        risk_assessment_photo_preview: newRecord.risk_assessment_photo_preview,
-        disaster_prevention_report_photo_preview: newRecord.disaster_prevention_report_photo_preview,
         remarks: newRecord.remarks,
-        risk_factors: newRecord.risk_factors,
-        disaster_prevention_risk_factors: newRecord.disaster_prevention_risk_factors,
+        risk_factors: stripFactorPhotos(newRecord.risk_factors),
+        disaster_prevention_risk_factors: stripFactorPhotos(newRecord.disaster_prevention_risk_factors),
         showAddForm: true
       }
       sessionStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(dataToSave))
