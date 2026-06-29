@@ -2051,24 +2051,25 @@ export default function ManagerInspectionPage() {
                                     : 0
                                   const riskPhotoCount = countPhotos(record.risk_factors_json)
                                   const disasterPhotoCount = countPhotos((record as any).disaster_prevention_risk_factors_json)
-                                  // 미조치(음영/비고) 판정: 카드 사진은 기능 도입(2026-05-22) 이후 시행건만 요구
-                                  const afterPhotoFeature = record.inspection_date >= '2026-05-22'
+                                  // 미완성 판정: 미완성 열과 동일 기준(서명 / 위험성평가 사진 / 재해예방 내용·보고서사진 불일치)
+                                  const dpTarget = !!(project as any)?.disaster_prevention_target
                                   const hasDisasterContent = Array.isArray((record as any).disaster_prevention_risk_factors_json)
                                     && (record as any).disaster_prevention_risk_factors_json.some((f: any) => {
                                       const rf = (f?.risk_factor || '').trim()
                                       return rf !== '' && rf !== '해당없음'
                                     })
-                                  const signatureMissing = !record.signature
+                                  const hasDisasterReportPhoto = !!(record.disaster_prevention_report_photo && record.disaster_prevention_report_photo.trim())
+                                  const signatureMissing = !(record.signature && record.signature.trim())
                                   const noRiskAssessmentPhoto = !(record.risk_assessment_photo && record.risk_assessment_photo.trim())
-                                  const noRiskMeasurePhoto = afterPhotoFeature && riskPhotoCount === 0
-                                  const noDisasterMeasurePhoto = afterPhotoFeature && hasDisasterContent && disasterPhotoCount === 0
-                                  const photoIncomplete = noRiskMeasurePhoto || noDisasterMeasurePhoto
-                                  // 비고란에 표시할 '조치 안 된 내용' 목록
+                                  const disasterPhotoMissing = dpTarget && hasDisasterContent && !hasDisasterReportPhoto   // 내용O 사진X
+                                  const disasterContentMissing = dpTarget && hasDisasterReportPhoto && !hasDisasterContent // 사진O 내용X
+                                  const photoIncomplete = noRiskAssessmentPhoto || disasterPhotoMissing
+                                  // 비고란에 표시할 '조치 안 된 내용' 목록 (미완성 열과 동일 기준)
                                   const pendingReasons: string[] = []
                                   if (signatureMissing) pendingReasons.push('미서명')
-                                  if (noRiskAssessmentPhoto) pendingReasons.push('위험성평가서 사진')
-                                  if (noRiskMeasurePhoto) pendingReasons.push('위험성 대책 사진')
-                                  if (noDisasterMeasurePhoto) pendingReasons.push('재해예방 대책 사진')
+                                  if (noRiskAssessmentPhoto) pendingReasons.push('위험성평가 사진')
+                                  if (disasterPhotoMissing) pendingReasons.push('재해예방 사진')
+                                  if (disasterContentMissing) pendingReasons.push('재해예방 내용')
                                   const isIncomplete = pendingReasons.length > 0
                                   return (
                                   <tr

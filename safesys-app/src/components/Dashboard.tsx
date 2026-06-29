@@ -914,12 +914,18 @@ const Dashboard: React.FC = () => {
     if (!isSelectionInitialized.current) return
 
     const currentParams = { quarter: selectedQuarter, hq: selectedHq || '', branch: selectedBranch || '' }
-    if (lastManagerParams.current &&
-      lastManagerParams.current.quarter === currentParams.quarter &&
-      lastManagerParams.current.hq === currentParams.hq &&
-      lastManagerParams.current.branch === currentParams.branch &&
-      managerInspections.length > 0) {
-      if (DEBUG_LOGS) console.log('✅ 관리자 점검 데이터 이미 로딩됨. 재로딩 스킵')
+    const prevParams = lastManagerParams.current
+    // 이미 로드된 범위가 요청 범위를 포함하면 재조회를 생략한다.
+    // 본부 지사목록(branch='')을 먼저 조회하면 그 본부 전체 지사 데이터가 메모리에 있으므로,
+    // 지사행을 눌러 특정 지사로 들어가도(뷰가 selectedSafetyBranch로 필터링) 재조회가 불필요하다.
+    // 조건: 같은 분기·본부 + (직전 조회가 본부 전체였거나 동일 지사) + 데이터 보유.
+    const alreadyCovers = !!prevParams &&
+      prevParams.quarter === currentParams.quarter &&
+      prevParams.hq === currentParams.hq &&
+      (prevParams.branch === '' || prevParams.branch === currentParams.branch) &&
+      managerInspections.length > 0
+    if (alreadyCovers) {
+      if (DEBUG_LOGS) console.log('✅ 관리자 점검 데이터 이미 로딩됨(상위 범위 포함). 재로딩 스킵')
       return
     }
 
@@ -1409,25 +1415,23 @@ const Dashboard: React.FC = () => {
           setSafetyPendingCounts(sCounts)
         }
 
-        // 관리자점검 미완료 건수 조회 (서명 없음 또는 시행일 2026-05-22 이후 위험요인 카드 사진 없음)
+        // 관리자점검 미완료 건수 조회 — 미완성 열과 동일 기준(서명/위험성평가 사진/재해예방 내용·보고서사진 불일치)
+        const dpTargetById: Record<string, boolean> = {}
+        allProjects.forEach((p: any) => { dpTargetById[p.id] = !!p.disaster_prevention_target })
         const { data: managerInspections } = await (supabase as any)
           .from('manager_inspections')
-          .select('project_id, signature, risk_assessment_photo, inspection_date, risk_factors_json, disaster_prevention_risk_factors_json')
+          .select('project_id, signature, risk_assessment_photo, disaster_prevention_report_photo, disaster_prevention_risk_factors_json')
           .in('project_id', projectIds)
 
         if (managerInspections) {
-          const countCardPhotos = (arr: any) => Array.isArray(arr)
-            ? arr.reduce((s: number, f: any) => s + (f?.photo_1 && String(f.photo_1).trim() ? 1 : 0) + (f?.photo_2 && String(f.photo_2).trim() ? 1 : 0), 0)
-            : 0
           const mCounts: Record<string, number> = {}
           managerInspections.forEach((ins: any) => {
             const noSignature = !(ins.signature && String(ins.signature).trim())
             const noRiskAssessmentPhoto = !(ins.risk_assessment_photo && String(ins.risk_assessment_photo).trim())
-            const afterFeature = ins.inspection_date >= '2026-05-22'
-            const noRiskMeasurePhoto = afterFeature && countCardPhotos(ins.risk_factors_json) === 0
             const hasDisasterContent = Array.isArray(ins.disaster_prevention_risk_factors_json) && ins.disaster_prevention_risk_factors_json.some((f: any) => { const rf = (f?.risk_factor || '').trim(); return rf !== '' && rf !== '해당없음' })
-            const noDisasterMeasurePhoto = afterFeature && hasDisasterContent && countCardPhotos(ins.disaster_prevention_risk_factors_json) === 0
-            if (noSignature || noRiskAssessmentPhoto || noRiskMeasurePhoto || noDisasterMeasurePhoto) {
+            const hasDisasterReportPhoto = !!(ins.disaster_prevention_report_photo && String(ins.disaster_prevention_report_photo).trim())
+            const disasterIncomplete = !!dpTargetById[ins.project_id] && (hasDisasterContent !== hasDisasterReportPhoto)
+            if (noSignature || noRiskAssessmentPhoto || disasterIncomplete) {
               mCounts[ins.project_id] = (mCounts[ins.project_id] || 0) + 1
             }
           })
@@ -1515,25 +1519,23 @@ const Dashboard: React.FC = () => {
             setSafetyPendingCounts(sCounts)
           }
 
-          // 관리자점검 미완료 건수 조회 (서명 없음 또는 시행일 2026-05-22 이후 위험요인 카드 사진 없음)
+          // 관리자점검 미완료 건수 조회 — 미완성 열과 동일 기준(서명/위험성평가 사진/재해예방 내용·보고서사진 불일치)
+          const dpTargetById: Record<string, boolean> = {}
+          result.projects.forEach((p: any) => { dpTargetById[p.id] = !!p.disaster_prevention_target })
           const { data: managerInspections } = await (supabase as any)
             .from('manager_inspections')
-            .select('project_id, signature, risk_assessment_photo, inspection_date, risk_factors_json, disaster_prevention_risk_factors_json')
+            .select('project_id, signature, risk_assessment_photo, disaster_prevention_report_photo, disaster_prevention_risk_factors_json')
             .in('project_id', projectIds)
 
           if (managerInspections) {
-            const countCardPhotos = (arr: any) => Array.isArray(arr)
-              ? arr.reduce((s: number, f: any) => s + (f?.photo_1 && String(f.photo_1).trim() ? 1 : 0) + (f?.photo_2 && String(f.photo_2).trim() ? 1 : 0), 0)
-              : 0
             const mCounts: Record<string, number> = {}
             managerInspections.forEach((ins: any) => {
               const noSignature = !(ins.signature && String(ins.signature).trim())
               const noRiskAssessmentPhoto = !(ins.risk_assessment_photo && String(ins.risk_assessment_photo).trim())
-              const afterFeature = ins.inspection_date >= '2026-05-22'
-              const noRiskMeasurePhoto = afterFeature && countCardPhotos(ins.risk_factors_json) === 0
               const hasDisasterContent = Array.isArray(ins.disaster_prevention_risk_factors_json) && ins.disaster_prevention_risk_factors_json.some((f: any) => { const rf = (f?.risk_factor || '').trim(); return rf !== '' && rf !== '해당없음' })
-              const noDisasterMeasurePhoto = afterFeature && hasDisasterContent && countCardPhotos(ins.disaster_prevention_risk_factors_json) === 0
-              if (noSignature || noRiskAssessmentPhoto || noRiskMeasurePhoto || noDisasterMeasurePhoto) {
+              const hasDisasterReportPhoto = !!(ins.disaster_prevention_report_photo && String(ins.disaster_prevention_report_photo).trim())
+              const disasterIncomplete = !!dpTargetById[ins.project_id] && (hasDisasterContent !== hasDisasterReportPhoto)
+              if (noSignature || noRiskAssessmentPhoto || disasterIncomplete) {
                 mCounts[ins.project_id] = (mCounts[ins.project_id] || 0) + 1
               }
             })
@@ -3046,11 +3048,17 @@ const Dashboard: React.FC = () => {
                         await new Promise(requestAnimationFrame)
                         const abortController = new AbortController()
                           ; (window as any).__safe_cancel_manager_report__ = () => abortController.abort()
+                        // 현황 로드는 서명 base64를 제외하므로, 보고서에는 서명을 포함한 데이터를 다시 가져온다.
+                        let reportInspections = managerInspections
+                        if (userProfile) {
+                          const fullRes = await getManagerInspectionsByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch, { includeSignature: true })
+                          if (fullRes.success && fullRes.inspections) reportInspections = fullRes.inspections
+                        }
                         if (selectedSafetyBranch) {
                           const { downloadBranchManagerReports } = await import('@/lib/reports/manager-inspection-branch')
                           await downloadBranchManagerReports({
                             projects,
-                            inspections: managerInspections,
+                            inspections: reportInspections,
                             selectedProjectIds: selectedProjectIdsForReport,
                             selectedQuarter,
                             selectedHq,
@@ -3071,7 +3079,7 @@ const Dashboard: React.FC = () => {
                           })
                           const projectInspections: { project: any; inspections: any[] }[] = []
                           filteredProjects.forEach((p: any) => {
-                            const ins = managerInspections.filter((i: any) => i.project_id === p.id && isInSelectedQuarter(i.inspection_date))
+                            const ins = reportInspections.filter((i: any) => i.project_id === p.id && isInSelectedQuarter(i.inspection_date))
                             if (ins.length > 0) projectInspections.push({ project: p, inspections: ins })
                           })
                           if (projectInspections.length === 0) { alert('선택한 조건에 해당하는 점검 결과가 없습니다.'); return }
