@@ -1083,12 +1083,11 @@ const Dashboard: React.FC = () => {
   // 메인 /safe 페이지에서는 카드별 조회 버튼으로만 로딩 → 메인에서는 차단, 상세 카드(orientation) 진입시에만 동작
   const lastOrientationParams = useRef<{ hq: string; branch: string } | null>(null)
   useEffect(() => {
-    if (!(user && userProfile && userProfile.role === '발주청' && viewMode === 'safety')) {
+    // 현장안내 카드에서만 자동 로드 (다른 카드 페이지에서 불필요한 5MB 요청 방지)
+    if (!(user && userProfile && userProfile.role === '발주청' && viewMode === 'safety' && selectedSafetyCard === 'newWorkerOrientation')) {
       return
     }
     if (!isSelectionInitialized.current) return
-    // 메인 /safe (selectedSafetyCard === null)에서는 자동 로드 차단 - 카드의 조회 버튼으로만 로드
-    if (!selectedSafetyCard) return
 
     const currentParams = { hq: selectedHq || '', branch: selectedBranch || '' }
     if (lastOrientationParams.current &&
@@ -1116,11 +1115,9 @@ const Dashboard: React.FC = () => {
           return
         }
 
-        // new_worker_orientations 테이블에서 프로젝트별 집계
+        // 서버측 집계 RPC로 프로젝트별 (현장안내 건수, 작업자 수)만 조회 (서명 base64 전송 제외)
         const { data, error } = await (supabase as any)
-          .from('new_worker_orientations')
-          .select('project_id, workers')
-          .in('project_id', activeProjectIds)
+          .rpc('orientation_stats', { p_project_ids: activeProjectIds })
 
         if (error) {
           console.error('현장안내 데이터 로드 실패:', error)
@@ -1128,16 +1125,13 @@ const Dashboard: React.FC = () => {
           return
         }
 
-        // 프로젝트별 집계
+        // RPC가 project_id별로 집계해 반환하므로 그대로 매핑
         const statsMap = new Map<string, { orientation_count: number; worker_count: number }>()
-          ; (data || []).forEach((record: any) => {
-            const pid = record.project_id
-            const existing = statsMap.get(pid) || { orientation_count: 0, worker_count: 0 }
-            existing.orientation_count += 1
-            const workers = record.workers || []
-            const filledWorkers = workers.filter((w: any) => w.name && w.name.trim() !== '')
-            existing.worker_count += filledWorkers.length
-            statsMap.set(pid, existing)
+          ; (data || []).forEach((row: any) => {
+            statsMap.set(row.project_id, {
+              orientation_count: Number(row.orientation_count) || 0,
+              worker_count: Number(row.worker_count) || 0,
+            })
           })
 
         const result = projects
@@ -1223,22 +1217,17 @@ const Dashboard: React.FC = () => {
             break
           }
           const { data, error } = await (supabase as any)
-            .from('new_worker_orientations')
-            .select('project_id, workers')
-            .in('project_id', activeProjectIds)
+            .rpc('orientation_stats', { p_project_ids: activeProjectIds })
           if (error) {
             setOrientationStats([])
             break
           }
           const statsMap = new Map<string, { orientation_count: number; worker_count: number }>()
-          ;(data || []).forEach((record: any) => {
-            const pid = record.project_id
-            const existing = statsMap.get(pid) || { orientation_count: 0, worker_count: 0 }
-            existing.orientation_count += 1
-            const workers = record.workers || []
-            const filledWorkers = workers.filter((w: any) => w.name && w.name.trim() !== '')
-            existing.worker_count += filledWorkers.length
-            statsMap.set(pid, existing)
+          ;(data || []).forEach((row: any) => {
+            statsMap.set(row.project_id, {
+              orientation_count: Number(row.orientation_count) || 0,
+              worker_count: Number(row.worker_count) || 0,
+            })
           })
           const result = projects
             .filter(p => activeProjectIds.includes(p.id))
