@@ -2051,6 +2051,15 @@ export default function ManagerInspectionPage() {
                                     : 0
                                   const riskPhotoCount = countPhotos(record.risk_factors_json)
                                   const disasterPhotoCount = countPhotos((record as any).disaster_prevention_risk_factors_json)
+                                  // 미조치(음영) 판정: 사진 기능 도입(2026-05-22) 이후 시행건 기준
+                                  const afterPhotoFeature = record.inspection_date >= '2026-05-22'
+                                  const hasDisasterContent = Array.isArray((record as any).disaster_prevention_risk_factors_json)
+                                    && (record as any).disaster_prevention_risk_factors_json.some((f: any) => {
+                                      const rf = (f?.risk_factor || '').trim()
+                                      return rf !== '' && rf !== '해당없음'
+                                    })
+                                  const photoIncomplete = afterPhotoFeature && (riskPhotoCount === 0 || (hasDisasterContent && disasterPhotoCount === 0))
+                                  const signatureMissing = !record.signature
                                   return (
                                   <tr
                                     key={record.id}
@@ -2120,12 +2129,12 @@ export default function ManagerInspectionPage() {
                                     >
                                       {isRiskFactorMissing ? '-' : `${riskFactorCount}개`}
                                     </td>
-                                    <td className="border border-gray-300 p-2 text-center text-xs whitespace-nowrap">
+                                    <td className={`border border-gray-300 p-2 text-center text-xs whitespace-nowrap ${photoIncomplete ? 'bg-red-50' : ''}`}>
                                       <span className={riskPhotoCount > 0 ? 'text-blue-700 font-semibold' : 'text-gray-400'}>{riskPhotoCount}</span>
                                       <span className="text-gray-400 mx-1">/</span>
                                       <span className={disasterPhotoCount > 0 ? 'text-orange-700 font-semibold' : 'text-gray-400'}>{disasterPhotoCount}</span>
                                     </td>
-                                    <td className="border border-gray-300 p-2 text-center">
+                                    <td className={`border border-gray-300 p-2 text-center ${signatureMissing ? 'bg-red-50' : ''}`}>
                                       {isDownloadMode ? (
                                         <input
                                           type="checkbox"
