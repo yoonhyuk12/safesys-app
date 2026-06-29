@@ -7,12 +7,13 @@ import SignaturePad from '@/components/ui/SignaturePad'
 import type { Project, ManagerInspection } from '@/lib/projects'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
 
-// 위험요인 카드 사진 업로드 기능 도입 시점(2026-05-22 KST = 2026-05-21 15:00 UTC).
-// 이 시점 이전에 등록된 점검은 사진 업로드 기능 자체가 없었으므로 '사진 미업로드' 집계에서 제외한다.
-const PHOTO_UPLOAD_FEATURE_START_MS = new Date('2026-05-21T15:00:00Z').getTime()
+// 위험요인 카드 사진 업로드 기능 도입 시점(2026-05-22). 이 날짜 이전에 시행된 점검은
+// 사진 업로드 기능 자체가 없었으므로 '사진 미업로드' 집계에서 제외한다.
+// inspection_date는 'YYYY-MM-DD' 형식이라 문자열 비교로 안전하게 판정한다.
+const PHOTO_UPLOAD_FEATURE_START_DATE = '2026-05-22'
 
-const isAfterPhotoFeature = (createdAt?: string): boolean =>
-  !!createdAt && new Date(createdAt).getTime() >= PHOTO_UPLOAD_FEATURE_START_MS
+const isAfterPhotoFeature = (inspectionDate?: string): boolean =>
+  !!inspectionDate && inspectionDate >= PHOTO_UPLOAD_FEATURE_START_DATE
 
 interface SafetyManagerViewProps {
   loading: boolean
@@ -495,7 +496,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                       const totalNoPhotoCount = branchProjects.reduce((sum, p) => {
                         const projectInspections = managerInspections.filter(i => i.project_id === p.id)
                         const noPhotoCount = projectInspections.filter(i =>
-                          isAfterPhotoFeature(i.created_at) &&
+                          isAfterPhotoFeature(i.inspection_date) &&
                           countFactorPhotos((i as any).risk_factors_json) + countFactorPhotos((i as any).disaster_prevention_risk_factors_json) === 0
                         ).length
                         return sum + noPhotoCount
@@ -557,7 +558,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                         ? arr.reduce((s: number, f: any) => s + (f?.photo_1 && String(f.photo_1).trim() ? 1 : 0) + (f?.photo_2 && String(f.photo_2).trim() ? 1 : 0), 0)
                         : 0
                       const noPhotoCount = projectInspections.filter(i =>
-                        isAfterPhotoFeature(i.created_at) &&
+                        isAfterPhotoFeature(i.inspection_date) &&
                         countFactorPhotosRow((i as any).risk_factors_json) + countFactorPhotosRow((i as any).disaster_prevention_risk_factors_json) === 0
                       ).length
                       const ia: any = (project as any).is_active
@@ -892,7 +893,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                     ? arr.reduce((sum: number, f: any) => sum + (f?.photo_1 && String(f.photo_1).trim() ? 1 : 0) + (f?.photo_2 && String(f.photo_2).trim() ? 1 : 0), 0)
                     : 0
                   const totalFactorPhotos = countFactorPhotos((ins as any).risk_factors_json) + countFactorPhotos((ins as any).disaster_prevention_risk_factors_json)
-                  if (isAfterPhotoFeature(ins.created_at) && totalFactorPhotos === 0) {
+                  if (isAfterPhotoFeature(ins.inspection_date) && totalFactorPhotos === 0) {
                     entry.noPhotoCount++
                   }
 
