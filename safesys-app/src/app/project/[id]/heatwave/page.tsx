@@ -1750,7 +1750,7 @@ export default function HeatWaveCheckPage() {
 
                     {/* 점검표 테이블 */}
                     <div className="overflow-x-auto">
-                      <table className="w-full border-collapse border-2 border-gray-800 text-xs">
+                      <table className="w-full min-w-[720px] border-collapse border-2 border-gray-800 text-xs">
                         <thead>
                           <tr className="bg-gray-200">
                             <th rowSpan={2} className="border border-gray-800 p-2 w-20">측정<br/>시간<br/>(2시간<br/>간격)</th>
