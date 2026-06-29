@@ -42,6 +42,7 @@ export default function ProjectDetailPage() {
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [hqPendingCount, setHqPendingCount] = useState(0)
   const [safetyLedgerPendingCount, setSafetyLedgerPendingCount] = useState(0)
+  const [managerPendingCount, setManagerPendingCount] = useState(0)
   const [ptwCount, setPtwCount] = useState<number | null>(null)
   const [inspectionRequestCount, setInspectionRequestCount] = useState<number | null>(null)
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
@@ -217,6 +218,26 @@ export default function ProjectDetailPage() {
           return count + pending
         }, 0)
         setSafetyLedgerPendingCount(pendingPhotoCount)
+      }
+
+      // 관리자점검(지사 안전점검) 미완료 건수 조회
+      // - 서명 미완료, 또는 (사진 업로드 기능 도입 2026-05-22 이후 시행건인데) 위험요인 카드 사진이 한 장도 없음
+      const { data: managerInspections } = await supabase
+        .from('manager_inspections')
+        .select('signature, form_data, inspection_date, risk_factors_json, disaster_prevention_risk_factors_json')
+        .eq('project_id', projectId)
+
+      if (managerInspections) {
+        const countCardPhotos = (arr: any) => Array.isArray(arr)
+          ? arr.reduce((s: number, f: any) => s + (f?.photo_1 && String(f.photo_1).trim() ? 1 : 0) + (f?.photo_2 && String(f.photo_2).trim() ? 1 : 0), 0)
+          : 0
+        const pendingCount = (managerInspections as any[]).filter((ins: any) => {
+          const noSignature = !((ins.signature && String(ins.signature).trim()) || (ins.form_data?.signature && String(ins.form_data.signature).trim()))
+          const noPhotoAfterFeature = (ins.inspection_date >= '2026-05-22') &&
+            (countCardPhotos(ins.risk_factors_json) + countCardPhotos(ins.disaster_prevention_risk_factors_json) === 0)
+          return noSignature || noPhotoAfterFeature
+        }).length
+        setManagerPendingCount(pendingCount)
       }
 
       // 프로젝트 생성인의 프로필 정보 조회
@@ -811,7 +832,7 @@ export default function ProjectDetailPage() {
                     key={name}
                     title={name}
                     titleSuffix={name === '시공' && constructionProgress !== null ? `(${constructionProgress}%)` : undefined}
-                    pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) : undefined}
+                    pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) + (managerPendingCount || 0) : undefined}
                     color={name === '시공' ? 'blue' : name === '안전' ? 'green' : name === '품질' ? 'amber' : 'purple'}
                     isOpen={openCabinet === name}
                     onClick={() => toggleCabinet(name)}
@@ -1044,6 +1065,7 @@ export default function ProjectDetailPage() {
                     projectName={project?.project_name}
                     managingBranch={project?.managing_branch}
                     onClick={() => router.push(`/project/${projectId}/manager-inspection`)}
+                    badgeCount={managerPendingCount}
                     pdcaCategory="C"
                   />
                 )}
