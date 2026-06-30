@@ -196,6 +196,7 @@ export async function getYearlyPersonnelByOrg(year: number): Promise<YearlyPerso
       .neq('today_work', '작업없음')
       .gte('meeting_date', start)
       .lte('meeting_date', end)
+      .order('id', { ascending: true }) // 페이지 간 행 중복/누락 방지(안정 정렬)
       .range(from, from + pageSize - 1)
 
     if (error) {

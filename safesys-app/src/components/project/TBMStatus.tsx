@@ -239,10 +239,9 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
         }
       }
 
-      // 총원(personnel_total_count) 합계. NULL/미계산이면 0으로 본다.
-      if (typeof record.personnel_total_count === 'number') {
-        stats.personnelTotalCount = (stats.personnelTotalCount || 0) + record.personnel_total_count
-      }
+      // 당일 총원 합계. 값이 없으면 내역(personnel_count)에서 추정해 per-record 표시와 일치시킨다.
+      stats.personnelTotalCount = (stats.personnelTotalCount || 0) +
+        (typeof record.personnel_total_count === 'number' ? record.personnel_total_count : parsePersonnelCount(record.attendees))
     })
 
     // TBM 안전활동 점검 데이터를 통해 확인 수 계산
@@ -355,10 +354,9 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
         }
       }
 
-      // 총원(personnel_total_count) 합계. NULL/미계산이면 0으로 본다.
-      if (typeof record.personnel_total_count === 'number') {
-        stats.personnelTotalCount = (stats.personnelTotalCount || 0) + record.personnel_total_count
-      }
+      // 당일 총원 합계. 값이 없으면 내역(personnel_count)에서 추정해 per-record 표시와 일치시킨다.
+      stats.personnelTotalCount = (stats.personnelTotalCount || 0) +
+        (typeof record.personnel_total_count === 'number' ? record.personnel_total_count : parsePersonnelCount(record.attendees))
     })
 
     // TBM 안전활동 점검 데이터를 통해 확인 수 계산
@@ -500,9 +498,9 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
       return sum
     }, 0)
 
-    // 총원(personnel_total_count) 합계. NULL/미계산이면 0으로 본다.
+    // 당일 총원 합계. 값이 없으면 내역에서 추정해 per-record 표시와 일치시킨다.
     const totalPersonnelCount = filteredRecords.reduce((sum, record) =>
-      sum + (typeof record.personnel_total_count === 'number' ? record.personnel_total_count : 0), 0)
+      sum + (typeof record.personnel_total_count === 'number' ? record.personnel_total_count : parsePersonnelCount(record.attendees)), 0)
 
     // TBM확인 수 계산 (해당 지사의 TBM 안전활동 점검 수)
     const totalTBMInspection = selectedBranch
