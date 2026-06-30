@@ -2019,7 +2019,7 @@ export default function ManagerInspectionPage() {
                   {/* 점검 목록 테이블 */}
                   <div className="bg-gray-50 rounded-lg p-4 flex-1 overflow-auto">
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[600px] border-collapse border border-gray-300 text-sm">
+                      <table className="w-full min-w-[600px] lg:min-w-0 border-collapse border border-gray-300 text-sm">
                         <thead>
                           <tr className="bg-gray-200">
                             <th className="border border-gray-300 p-1 text-center font-bold text-xs">연번</th>
