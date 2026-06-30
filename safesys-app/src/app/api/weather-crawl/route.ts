@@ -1,3 +1,4 @@
+// 측정시각 직전 정각의 기상청 초단기실황(관측값)으로 체감온도를 산출하는 API 라우트
 import { NextRequest, NextResponse } from 'next/server';
 
 // 좌표를 기상청 격자 좌표로 변환하는 함수
@@ -75,53 +76,48 @@ function calculateApparentTemperature(temperature: number, humidity: number, win
   return Math.round(at * 10) / 10;
 }
 
-// 측정 시각과 가장 가까운 예보 시간대의 기온/습도/풍속을 선택
-function pickNearestForecast(xml: string, targetDate: string, targetTime: string) {
-  const byTime = new Map<string, { TMP?: number; REH?: number; WSD?: number }>();
+// 초단기실황(getUltraSrtNcst) 응답에서 category별 관측값(obsrValue)을 추출
+function parseObservation(xml: string): Record<string, number> {
+  const out: Record<string, number> = {};
   const itemRegex = /<item>([\s\S]*?)<\/item>/g;
   let m: RegExpExecArray | null;
   while ((m = itemRegex.exec(xml)) !== null) {
     const block = m[1];
     const category = block.match(/<category>([^<]+)<\/category>/)?.[1];
-    const fcstDate = block.match(/<fcstDate>([^<]+)<\/fcstDate>/)?.[1];
-    const fcstTime = block.match(/<fcstTime>([^<]+)<\/fcstTime>/)?.[1];
-    const fcstValue = block.match(/<fcstValue>([^<]+)<\/fcstValue>/)?.[1];
-    if (!category || !fcstDate || !fcstTime || fcstValue == null) continue;
-    if (category !== 'TMP' && category !== 'REH' && category !== 'WSD') continue;
-    const key = `${fcstDate}${fcstTime}`;
-    const rec = byTime.get(key) || {};
-    rec[category as 'TMP' | 'REH' | 'WSD'] = parseFloat(fcstValue);
-    byTime.set(key, rec);
+    const obsrValue = block.match(/<obsrValue>([^<]+)<\/obsrValue>/)?.[1];
+    if (!category || obsrValue == null) continue;
+    const v = parseFloat(obsrValue);
+    if (!Number.isNaN(v)) out[category] = v;
   }
+  return out;
+}
 
-  // 타임존 영향 없이 비교하기 위해 양쪽 모두 Date.UTC로 환산 (오프셋이 상쇄됨)
-  const toMs = (yyyymmdd: string, hhmm: string) =>
-    Date.UTC(
-      Number(yyyymmdd.slice(0, 4)),
-      Number(yyyymmdd.slice(4, 6)) - 1,
-      Number(yyyymmdd.slice(6, 8)),
-      Number(hhmm.slice(0, 2)),
-      Number(hhmm.slice(2, 4))
-    );
-
-  const targetMs = toMs(targetDate, targetTime.padStart(4, '0'));
-  let best: { key: string; rec: { TMP?: number; REH?: number; WSD?: number } } | null = null;
-  let bestDiff = Infinity;
-  for (const [key, rec] of byTime) {
-    if (rec.TMP == null) continue;
-    const diff = Math.abs(toMs(key.slice(0, 8), key.slice(8, 12)) - targetMs);
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = { key, rec };
-    }
+// 측정시각 기준 후보 발표시각(base_date/base_time) 목록을 최신순으로 생성
+// 초단기실황은 매 정각 관측이며 정각 직후엔 아직 미제공일 수 있으므로,
+// 가장 최근 정각부터 직전 정각으로 폴백할 수 있게 여러 후보를 반환한다.
+// 예: 06:18 -> [0600, 0500], 06:03 -> [0600, 0500](0600 미제공 시 0500 사용)
+function getNcstBaseCandidates(at: Date, count = 2): { baseDate: string; baseTime: string }[] {
+  const candidates: { baseDate: string; baseTime: string }[] = [];
+  const d = new Date(at.getTime());
+  d.setMinutes(0, 0, 0); // 측정시각이 속한 정각으로 내림
+  for (let i = 0; i < count; i++) {
+    const baseDate =
+      `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+    const baseTime = `${String(d.getHours()).padStart(2, '0')}00`;
+    candidates.push({ baseDate, baseTime });
+    d.setHours(d.getHours() - 1); // 직전 정각으로
   }
-  if (!best) return null;
-  return {
-    temperature: best.rec.TMP as number,
-    humidity: best.rec.REH,
-    windSpeed: best.rec.WSD,
-    fcstDateTime: best.key
-  };
+  return candidates;
+}
+
+// 기상청 게이트웨이가 순간 호출 폭주 시 429를 반환하는 경우가 있어 짧은 대기 후 1회 재시도
+async function fetchWithRetry(url: string, retries = 1, delayMs = 700): Promise<Response> {
+  let response = await fetch(url);
+  for (let attempt = 0; attempt < retries && response.status === 429; attempt++) {
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+    response = await fetch(url);
+  }
+  return response;
 }
 
 export async function POST(request: NextRequest) {
@@ -135,128 +131,129 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`실제 기상청 API 체감온도 계산 시작: 위도=${lat}, 경도=${lng}`);
-
-    // 기상청 API 키 (테스트용 하드코딩)
-    const apiKey = "ptN2Cl7gvmcWwHRgvN4UI4PF5sHIu6M1VuiDP9yvRJwRKBg8GCsFFTDtVBFtNzFQHlUWD7G4rSOtV3hTg3ny8w==";
-    const cleanApiKey = apiKey.replace(/\s+/g, '').trim();
+    // 기상청 API 허브(apihub.kma.go.kr) 인증키 — 사용자가 .env.local에 등록 (KMA 권장)
+    const hubKey = (
+      process.env.KMA ||
+      process.env.KMA_API_KEY ||
+      process.env.NEXT_PUBLIC_KMA_API_KEY ||
+      ''
+    ).replace(/\s+/g, '').trim();
+    // data.go.kr 공유 폴백 키 (허브 키 미적용/실패 시 백업)
+    const dataGoKrFallbackKey = "ptN2Cl7gvmcWwHRgvN4UI4PF5sHIu6M1VuiDP9yvRJwRKBg8GCsFFTDtVBFtNzFQHlUWD7G4rSOtV3hTg3ny8w==";
 
     // 좌표를 격자 좌표로 변환
     const { x, y } = convertToGridCoords(lat, lng);
-    
-    // 현재 날짜와 시간 구하기
-    const now = new Date();
-    const currentHour = now.getHours();
-    
-    // 기상청 단기예보 API 발표 시간 (하루 8회)
-    const forecastTimes = [2, 5, 8, 11, 14, 17, 20, 23];
-    
-    // 현재 시간보다 이전의 가장 가까운 예보 시간 찾기
-    let baseTime = 23; // 기본값은 전날 23시
-    const targetDate = new Date(now);
-    
-    for (let i = forecastTimes.length - 1; i >= 0; i--) {
-      if (forecastTimes[i] <= currentHour) {
-        baseTime = forecastTimes[i];
-        break;
-      }
+
+    // 측정시각(있으면) 기준, 없으면 현재 시각 기준으로 직전 정각 실황 발표시각 계산
+    let measuredAt: Date;
+    if (targetDateParam && targetTimeParam) {
+      const ds = String(targetDateParam);
+      const ts = String(targetTimeParam).padStart(4, '0');
+      measuredAt = new Date(
+        Number(ds.slice(0, 4)),
+        Number(ds.slice(4, 6)) - 1,
+        Number(ds.slice(6, 8)),
+        Number(ts.slice(0, 2)),
+        Number(ts.slice(2, 4))
+      );
+    } else {
+      measuredAt = new Date();
     }
-    
-    // 현재 시간이 새벽 2시 이전이면 전날 23시 사용
-    if (currentHour < 2) {
-      baseTime = 23;
-      targetDate.setDate(targetDate.getDate() - 1);
-    }
-    
-    const baseDate = targetDate.getFullYear().toString() + 
-                    (targetDate.getMonth() + 1).toString().padStart(2, '0') + 
-                    targetDate.getDate().toString().padStart(2, '0');
-    const baseTimeStr = baseTime.toString().padStart(2, '0') + '00';
-    
-    console.log('기상청 API 호출 정보:', {
-      현재시간: `${currentHour}시`,
-      사용할예보시간: baseTimeStr,
-      날짜: baseDate,
+    // 측정시각이 속한 정각부터 직전 정각까지 후보를 만들어, 미제공 시 폴백
+    const baseCandidates = getNcstBaseCandidates(measuredAt, 2);
+
+    console.log('기상청 초단기실황 호출 정보:', {
+      측정시각: `${measuredAt.getHours()}시 ${measuredAt.getMinutes()}분`,
+      후보기준시각: baseCandidates.map(c => `${c.baseDate} ${c.baseTime}`),
       격자좌표: { x, y }
     });
 
-    // 기상청 단기예보 조회서비스 API 호출 (온도 데이터)
-    const url = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst`;
-    const params = new URLSearchParams({
-      serviceKey: cleanApiKey,
-      pageNo: '1',
-      numOfRows: '1000',
-      dataType: 'XML',
-      base_date: baseDate,
-      base_time: baseTimeStr,
-      nx: x.toString(),
-      ny: y.toString()
-    });
-
-    const response = await fetch(`${url}?${params}`);
-    
-    if (!response.ok) {
-      throw new Error(`기상청 API 호출 실패: ${response.status}`);
-    }
-
-    const responseText = await response.text();
-    console.log('기상청 API 응답 (처음 1000자):', responseText.substring(0, 1000));
-
-    let temperature: number;
-    let humidity: number;
-    let windSpeed: number;
-    let matchedDateTime: string | null = null;
-
-    if (targetDateParam && targetTimeParam) {
-      // 측정 시각과 가장 가까운 예보 시간대의 값 선택
-      const picked = pickNearestForecast(responseText, targetDateParam, targetTimeParam);
-      if (!picked) {
-        throw new Error('기상청 API에서 온도 데이터를 찾을 수 없습니다.');
+    // 주어진 발표시각에 대해 호출 대상 목록을 구성
+    // 우선순위: ① 사용자 허브 키(apihub) → ② data.go.kr 공유 폴백 키
+    // 두 엔드포인트 모두 동일한 초단기실황(obsrValue XML) 형식을 반환한다.
+    const buildProviders = (baseDate: string, baseTime: string): { name: string; url: string }[] => {
+      const common: Record<string, string> = {
+        pageNo: '1',
+        numOfRows: '100',
+        dataType: 'XML',
+        base_date: baseDate,
+        base_time: baseTime,
+        nx: x.toString(),
+        ny: y.toString()
+      };
+      const list: { name: string; url: string }[] = [];
+      if (hubKey) {
+        const p = new URLSearchParams({ ...common, authKey: hubKey });
+        list.push({
+          name: 'apihub',
+          url: `https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0/getUltraSrtNcst?${p}`
+        });
       }
-      temperature = picked.temperature;
-      humidity = picked.humidity ?? 60; // 기본값 60%
-      windSpeed = picked.windSpeed ?? 0;
-      matchedDateTime = picked.fcstDateTime;
-      console.log('가까운 예보 시간대 선택:', { targetDateParam, targetTimeParam, matchedDateTime });
-    } else {
-      // 기존 동작: 응답의 첫 예보값 사용 (시각 미지정 호출 하위호환)
-      const temperatureMatch = responseText.match(/<category>TMP<\/category>[\s\S]*?<fcstValue>([^<]+)<\/fcstValue>/);
-      const humidityMatch = responseText.match(/<category>REH<\/category>[\s\S]*?<fcstValue>([^<]+)<\/fcstValue>/);
-      const windSpeedMatch = responseText.match(/<category>WSD<\/category>[\s\S]*?<fcstValue>([^<]+)<\/fcstValue>/);
-
-      console.log('파싱 결과:', {
-        temperatureMatch: temperatureMatch ? temperatureMatch[1] : '없음',
-        humidityMatch: humidityMatch ? humidityMatch[1] : '없음',
-        windSpeedMatch: windSpeedMatch ? windSpeedMatch[1] : '없음'
+      const p2 = new URLSearchParams({ ...common, serviceKey: dataGoKrFallbackKey });
+      list.push({
+        name: 'data.go.kr',
+        url: `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst?${p2}`
       });
+      return list;
+    };
 
-      if (!temperatureMatch) {
-        throw new Error('기상청 API에서 온도 데이터를 찾을 수 없습니다.');
+    let obs: Record<string, number> | null = null;
+    let usedProvider = '';
+    let baseDate = '';
+    let baseTime = '';
+    let lastStatus = 0;
+    // 최신 정각부터 시도하고, 관측값이 없으면(아직 미제공) 직전 정각으로 폴백
+    for (const cand of baseCandidates) {
+      for (const provider of buildProviders(cand.baseDate, cand.baseTime)) {
+        const res = await fetchWithRetry(provider.url);
+        lastStatus = res.status;
+        if (!res.ok) {
+          console.warn(`기상청(${provider.name}) base=${cand.baseTime} 응답 비정상: HTTP ${res.status}`);
+          continue;
+        }
+        const text = await res.text();
+        const parsed = parseObservation(text);
+        if (parsed.T1H != null && !Number.isNaN(parsed.T1H)) {
+          obs = parsed;
+          usedProvider = provider.name;
+          baseDate = cand.baseDate;
+          baseTime = cand.baseTime;
+          console.log(`기상청 관측값 획득 (provider=${provider.name}, base=${cand.baseDate} ${cand.baseTime})`);
+          break;
+        }
+        console.warn(`기상청(${provider.name}) base=${cand.baseTime} 응답에 관측값(T1H) 없음`);
       }
-
-      temperature = parseFloat(temperatureMatch[1]);
-      humidity = humidityMatch ? parseFloat(humidityMatch[1]) : 60; // 기본값 60%
-      windSpeed = windSpeedMatch ? parseFloat(windSpeedMatch[1]) : 0;
+      if (obs) break;
     }
-    
-    // 개선된 체감온도 계산 (풍속, 습도, 온도 모두 고려)
+
+    // 가짜 값을 채우지 않고 명확한 오류를 반환해 직접 입력을 유도
+    if (!obs) {
+      const msg = lastStatus === 429
+        ? '기상청 호출량 한도가 일시적으로 초과되었습니다. 잠시 후 다시 시도하거나 체감온도를 직접 입력해 주세요.'
+        : '기상청 관측값을 가져오지 못했습니다. 잠시 후 다시 시도하거나 체감온도를 직접 입력해 주세요.';
+      return NextResponse.json({ error: msg, rateLimited: lastStatus === 429 }, { status: 200 });
+    }
+
+    const temperature = obs.T1H; // 기온(°C)
+    const humidity = obs.REH ?? 60; // 상대습도(%), 없으면 기본값 60
+    const windSpeed = obs.WSD ?? 0; // 풍속(m/s), 없으면 0
+
     const apparentTemperature = calculateApparentTemperature(temperature, humidity, windSpeed);
-    
-    console.log('기상청 API 데이터:', {
-      temperature: `${temperature}°C`,
-      humidity: `${humidity}%`,
-      windSpeed: `${windSpeed}m/s`
+
+    console.log('기상청 초단기실황 기반 체감온도:', {
+      체감온도: `${apparentTemperature}°C`,
+      기온: `${temperature}°C`,
+      습도: `${humidity}%`,
+      풍속: `${windSpeed}m/s`,
+      기준시각: `${baseDate} ${baseTime}`
     });
-    
-    // 개선된 체감온도 계산 결과
-    console.log(`기상청 데이터 기반 체감온도: ${apparentTemperature}°C (기본온도: ${temperature}°C, 습도: ${humidity}%, 풍속: ${windSpeed}m/s)`);
 
     return NextResponse.json({
-      apparentTemperature: apparentTemperature,
+      apparentTemperature,
       weatherData: {
-        temperature: temperature,
-        humidity: humidity || 60,
-        windSpeed: windSpeed || 0
+        temperature,
+        humidity,
+        windSpeed
       },
       calculation: {
         method: temperature <= 10 && windSpeed > 1.3
@@ -269,68 +266,21 @@ export async function POST(request: NextRequest) {
         }
       },
       apiInfo: {
-        baseDate: baseDate,
-        baseTime: baseTimeStr,
+        baseDate,
+        baseTime,
         gridCoords: { x, y },
-        matchedDateTime: matchedDateTime
+        matchedDateTime: `${baseDate}${baseTime}`,
+        provider: usedProvider
       },
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    console.error('실제 기상청 API 체감온도 계산 오류:', error);
-    
-    // 에러 발생 시 현재 계절에 맞는 fallback 값 반환
-    const now = new Date();
-    const month = now.getMonth() + 1; // 1-12월
-    
-    // 계절별 기본값 설정
-    let fallbackTemp = 25;
-    let fallbackHumidity = 60;
-    let fallbackWindSpeed = 2;
-    
-    if (month >= 6 && month <= 8) {
-      // 여름 (6-8월)
-      fallbackTemp = 32;
-      fallbackHumidity = 70;
-      fallbackWindSpeed = 1.5;
-    } else if (month >= 12 || month <= 2) {
-      // 겨울 (12-2월)
-      fallbackTemp = 5;
-      fallbackHumidity = 50;
-      fallbackWindSpeed = 3;
-    } else if (month >= 3 && month <= 5) {
-      // 봄 (3-5월)
-      fallbackTemp = 18;
-      fallbackHumidity = 55;
-      fallbackWindSpeed = 2.5;
-    } else {
-      // 가을 (9-11월)
-      fallbackTemp = 20;
-      fallbackHumidity = 65;
-      fallbackWindSpeed = 2;
-    }
-    
-    const fallbackApparentTemp = calculateApparentTemperature(fallbackTemp, fallbackHumidity, fallbackWindSpeed);
-    
+    console.error('기상청 초단기실황 체감온도 계산 오류:', error);
+    // 안전점검 기록에 가짜 온도가 들어가지 않도록, 실패 시에는 추정값을 채우지 않고 오류만 반환
     return NextResponse.json({
-      apparentTemperature: fallbackApparentTemp,
-      weatherData: {
-        temperature: fallbackTemp,
-        humidity: fallbackHumidity,
-        windSpeed: fallbackWindSpeed
-      },
-      calculation: {
-        method: 'Fallback',
-        factors: {
-          season: month >= 6 && month <= 8 ? '여름' : 
-                  month >= 12 || month <= 2 ? '겨울' :
-                  month >= 3 && month <= 5 ? '봄' : '가을',
-          note: '기상청 API 오류로 계절별 기본값 사용'
-        }
-      },
-      error: '기상청 API 호출 실패, 계절별 기본값 사용',
+      error: '기상청 체감온도 조회 중 오류가 발생했습니다. 잠시 후 다시 시도하거나 직접 입력해 주세요.',
       details: error instanceof Error ? error.message : String(error)
-    });
+    }, { status: 200 });
   }
-} 
+}
