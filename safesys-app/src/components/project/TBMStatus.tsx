@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Activity, Calendar, Users, FileText, ChevronRight, AlertTriangle, Building2, Eye, Video, RefreshCw, ArrowUp, Phone, Copy, X, CheckCircle, Trash2, Download, FileSpreadsheet, MessageSquare, Check } from 'lucide-react'
+import { Activity, Calendar, Users, FileText, ChevronRight, AlertTriangle, Building2, Eye, Video, RefreshCw, ArrowUp, Phone, Copy, X, CheckCircle, Trash2, Download, FileSpreadsheet, MessageSquare, Check, Sigma, Star } from 'lucide-react'
 import KakaoMap from '@/components/ui/KakaoMap'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import NavigationSelector from '@/components/ui/NavigationSelector'
@@ -2407,10 +2407,16 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                           TBM<br />실시<br /><span className="text-[10px]">(건)</span>
                         </th>
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          누적<br />총원<br /><span className="text-[10px]">(당해)</span>
+<div className="flex items-center justify-center gap-0.5" title="누적 총원(당해년도)">
+                            <Sigma className="h-3.5 w-3.5" />
+                            <Users className="h-3.5 w-3.5" />
+                          </div>
                         </th>
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          당일<br />총원<br /><span className="text-[10px]">(신규)</span>
+<div className="flex items-center justify-center gap-0.5" title="당일 총원(신규)">
+                            <Users className="h-3.5 w-3.5" />
+                            <Star className="h-3 w-3" />
+                          </div>
                         </th>
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                           위험<br /><span className="text-[10px]">(건)</span>
@@ -2573,10 +2579,16 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                           TBM<br />실시<br /><span className="text-[10px]">(건)</span>
                         </th>
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          누적<br />총원<br /><span className="text-[10px]">(당해)</span>
+<div className="flex items-center justify-center gap-0.5" title="누적 총원(당해년도)">
+                            <Sigma className="h-3.5 w-3.5" />
+                            <Users className="h-3.5 w-3.5" />
+                          </div>
                         </th>
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          당일<br />총원<br /><span className="text-[10px]">(신규)</span>
+<div className="flex items-center justify-center gap-0.5" title="당일 총원(신규)">
+                            <Users className="h-3.5 w-3.5" />
+                            <Star className="h-3 w-3" />
+                          </div>
                         </th>
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                           위험<br /><span className="text-[10px]">(건)</span>
