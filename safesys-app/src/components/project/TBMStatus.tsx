@@ -3083,10 +3083,10 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 TBM 실시<br /><span className="text-[10px]">(건)</span>
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                당일 총원(신규)<br /><span className="text-[10px]">(명)</span>
+                                누적 총원<br /><span className="text-[10px]">(당해)</span>
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                누적 총원<br /><span className="text-[10px]">(당해)</span>
+                                당일 총원(신규)<br /><span className="text-[10px]">(명)</span>
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
                                 위험공종<br /><span className="text-[10px]">(건)</span>
@@ -3144,12 +3144,12 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
                                     <div className="text-sm text-blue-900 font-extrabold">
-                                      {summary.dailyTotal === 0 && summary.dailyNew === 0 ? '-' : (<span>{formatK(summary.dailyTotal)}{summary.dailyNew > 0 && <span className="text-blue-600">({formatK(summary.dailyNew)})</span>}</span>)}
+                                      {summary.personnelTotalCount === 0 ? '-' : formatK(summary.personnelTotalCount)}
                                     </div>
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
                                     <div className="text-sm text-blue-900 font-extrabold">
-                                      {summary.personnelTotalCount === 0 ? '-' : formatK(summary.personnelTotalCount)}
+                                      {summary.dailyTotal === 0 && summary.dailyNew === 0 ? '-' : (<span>{formatK(summary.dailyTotal)}{summary.dailyNew > 0 && <span className="text-blue-600">({formatK(summary.dailyNew)})</span>}</span>)}
                                     </div>
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
@@ -3206,6 +3206,15 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 </td>
                                 <td className="px-4 whitespace-nowrap align-middle text-center">
                                   <div className="text-sm text-gray-900">
+                                    {stats.personnelTotalCount === 0 ? (
+                                      <span className="text-gray-500">-</span>
+                                    ) : (
+                                      <span className="font-semibold text-gray-900">{formatK(stats.personnelTotalCount)}</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-4 whitespace-nowrap align-middle text-center">
+                                  <div className="text-sm text-gray-900">
                                     {stats.dailyTotal === 0 && stats.dailyNew === 0 ? (
                                       <span className="text-gray-500">-</span>
                                     ) : (
@@ -3215,15 +3224,6 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                           <span className="text-blue-600 text-xs font-bold">({formatK(stats.dailyNew)})</span>
                                         )}
                                       </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="px-4 whitespace-nowrap align-middle text-center">
-                                  <div className="text-sm text-gray-900">
-                                    {stats.personnelTotalCount === 0 ? (
-                                      <span className="text-gray-500">-</span>
-                                    ) : (
-                                      <span className="font-semibold text-gray-900">{formatK(stats.personnelTotalCount)}</span>
                                     )}
                                   </div>
                                 </td>
@@ -3293,10 +3293,10 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 TBM 실시<br /><span className="text-[10px]">(건)</span>
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
-                                당일 총원(신규)<br /><span className="text-[10px]">(명)</span>
+                                누적 총원<br /><span className="text-[10px]">(당해)</span>
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
-                                누적 총원<br /><span className="text-[10px]">(당해)</span>
+                                당일 총원(신규)<br /><span className="text-[10px]">(명)</span>
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
                                 위험공종<br /><span className="text-[10px]">(건)</span>
@@ -3354,12 +3354,12 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
                                     <div className="text-sm text-blue-900 font-extrabold">
-                                      {summary.dailyTotal === 0 && summary.dailyNew === 0 ? '-' : (<span>{formatK(summary.dailyTotal)}{summary.dailyNew > 0 && <span className="text-blue-600">({formatK(summary.dailyNew)})</span>}</span>)}
+                                      {summary.personnelTotalCount === 0 ? '-' : formatK(summary.personnelTotalCount)}
                                     </div>
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
                                     <div className="text-sm text-blue-900 font-extrabold">
-                                      {summary.personnelTotalCount === 0 ? '-' : formatK(summary.personnelTotalCount)}
+                                      {summary.dailyTotal === 0 && summary.dailyNew === 0 ? '-' : (<span>{formatK(summary.dailyTotal)}{summary.dailyNew > 0 && <span className="text-blue-600">({formatK(summary.dailyNew)})</span>}</span>)}
                                     </div>
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
@@ -3416,6 +3416,15 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 </td>
                                 <td className="px-4 whitespace-nowrap align-middle text-center">
                                   <div className="text-sm text-gray-900">
+                                    {stats.personnelTotalCount === 0 ? (
+                                      <span className="text-gray-500">-</span>
+                                    ) : (
+                                      <span className="font-semibold text-gray-900">{formatK(stats.personnelTotalCount)}</span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-4 whitespace-nowrap align-middle text-center">
+                                  <div className="text-sm text-gray-900">
                                     {stats.dailyTotal === 0 && stats.dailyNew === 0 ? (
                                       <span className="text-gray-500">-</span>
                                     ) : (
@@ -3425,15 +3434,6 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                           <span className="text-blue-600 text-xs font-bold">({formatK(stats.dailyNew)})</span>
                                         )}
                                       </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="px-4 whitespace-nowrap align-middle text-center">
-                                  <div className="text-sm text-gray-900">
-                                    {stats.personnelTotalCount === 0 ? (
-                                      <span className="text-gray-500">-</span>
-                                    ) : (
-                                      <span className="font-semibold text-gray-900">{formatK(stats.personnelTotalCount)}</span>
                                     )}
                                   </div>
                                 </td>
