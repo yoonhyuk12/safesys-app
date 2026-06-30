@@ -283,12 +283,17 @@ export default function HeatWaveInspectionModal({
       const savedData = loadFromStorage()
       
       if (savedData) {
-        // 저장된 데이터가 있으면 복원
-        setFormData(savedData)
+        // 저장된 데이터가 있으면 복원하되, 측정일시·체감온도는 항상 새로 입력받음
+        // (예전 임시저장 데이터의 시각·온도가 새 점검에 그대로 섞여 들어가는 것을 방지)
+        setFormData({
+          ...savedData,
+          measureDateTime: getCurrentDateTime(),
+          temperature: ''
+        })
       } else {
         // 저장된 데이터가 없으면 현재 일시로 초기화
         const currentDateTime = getCurrentDateTime()
-        
+
         setFormData(prev => ({
           ...prev,
           measureDateTime: currentDateTime
@@ -350,7 +355,8 @@ export default function HeatWaveInspectionModal({
 
       const data = await response.json()
       if (data.apparentTemperature === undefined || data.apparentTemperature === null) {
-        throw new Error('체감온도 데이터를 가져오지 못했습니다.')
+        // 라우트가 내려준 구체적 사유(429 한도 초과 등)를 그대로 사용
+        throw new Error(data.error || '체감온도 데이터를 가져오지 못했습니다.')
       }
 
       const newData = { ...formData, temperature: String(data.apparentTemperature) }
@@ -368,7 +374,7 @@ export default function HeatWaveInspectionModal({
       setWeatherInfo(`📍 ${locationLabel} · ${timeLabel} 기준 기상청 공식 체감온도`)
     } catch (error) {
       console.error('기상청 체감온도 조회 오류:', error)
-      alert('기상청 체감온도를 가져오는 중 오류가 발생했습니다. 직접 입력하거나 다시 시도해주세요.')
+      alert(error instanceof Error ? error.message : '기상청 체감온도를 가져오는 중 오류가 발생했습니다. 직접 입력하거나 다시 시도해주세요.')
     } finally {
       setWeatherLoading(false)
     }
