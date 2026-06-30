@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import SignaturePad from '@/components/ui/SignaturePad'
 import VworldMapAddressModal from '@/components/ui/VworldMapAddressModal'
+import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
 
 interface TBMSubmissionModalProps {
   isOpen: boolean
@@ -28,6 +29,7 @@ interface FormData {
   baseAddress: string
   detailAddress: string
   personnelInput: string
+  personnelTotalCount: string
   newWorkerCount: string
   equipmentInput: string
   riskWorkType: string
@@ -170,6 +172,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
     baseAddress: '',
     detailAddress: '',
     personnelInput: '',
+    personnelTotalCount: '',
     newWorkerCount: '',
     equipmentInput: '',
     riskWorkType: '',
@@ -197,15 +200,23 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
     longitude: ''
   })
 
+  // 투입인원 총원칸을 사용자가 직접 수정했는지 추적. true면 내역 변경 시 자동 재계산하지 않는다.
+  const [personnelTotalManual, setPersonnelTotalManual] = useState(false)
+
   useEffect(() => {
     if (isOpen) {
       if (editingSubmission) {
+        // 레거시 행은 총원 컬럼이 비어 있으므로 내역에서 자동 계산해 채운다.
+        const editAuto = parsePersonnelCount(editingSubmission.personnel_count)
+        const editStored = editingSubmission.personnel_total_count
+        const editHasStored = editStored !== null && editStored !== undefined
         setFormData({
           todayWork: editingSubmission.today_work || '',
           noWorkCheck: editingSubmission.today_work === '작업없음',
           baseAddress: editingSubmission.address || '',
           detailAddress: editingSubmission.detail_address || '',
           personnelInput: editingSubmission.personnel_count || '',
+          personnelTotalCount: editHasStored ? String(editStored) : (editAuto ? String(editAuto) : ''),
           newWorkerCount: editingSubmission.new_worker_count?.toString() || '',
           equipmentInput: editingSubmission.equipment_input || '',
           riskWorkType: editingSubmission.risk_work_type || '',
@@ -232,6 +243,8 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
           latitude: editingSubmission.latitude?.toString() || '',
           longitude: editingSubmission.longitude?.toString() || ''
         })
+        // 저장된 총원이 자동 계산값과 다르면 수동 수정된 값으로 간주해 자동 재계산을 막는다.
+        setPersonnelTotalManual(editHasStored && Number(editStored) !== editAuto)
       } else {
         // 프로젝트 정보로 기본값 설정
         setFormData(prev => ({
@@ -242,6 +255,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
           baseAddress: '',
           detailAddress: '',
           personnelInput: '',
+          personnelTotalCount: '',
           newWorkerCount: '',
           equipmentInput: '',
           riskWorkType: '',
@@ -267,6 +281,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
           latitude: '',
           longitude: ''
         }))
+        setPersonnelTotalManual(false)
       }
     }
   }, [isOpen, selectedDate, editingSubmission])
@@ -281,6 +296,17 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
 
   const handleInputChange = (field: keyof FormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  // 투입인원 내역 변경 시, 사용자가 총원을 직접 수정하지 않았다면 내역에서 자동 합산한다.
+  const handlePersonnelInputChange = (value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      personnelInput: value,
+      personnelTotalCount: personnelTotalManual
+        ? prev.personnelTotalCount
+        : (parsePersonnelCount(value) ? String(parsePersonnelCount(value)) : '')
+    }))
   }
 
   // 중점위험요인 선택 시 짝이 되는 대책을 자동 입력
@@ -693,12 +719,16 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
 
   // 선택한 데이터를 폼에 적용
   const applyRecentData = (data: any) => {
+    const recentAuto = parsePersonnelCount(data.personnel_count || '')
+    const recentStored = data.personnel_total_count
+    const recentHasStored = recentStored !== null && recentStored !== undefined
     setFormData(prev => ({
       ...prev,
       todayWork: data.today_work || prev.todayWork,
       baseAddress: data.address || prev.baseAddress,
       detailAddress: data.detail_address || prev.detailAddress,
       personnelInput: data.personnel_count || prev.personnelInput,
+      personnelTotalCount: recentHasStored ? String(recentStored) : (recentAuto ? String(recentAuto) : prev.personnelTotalCount),
       newWorkerCount: data.new_worker_count?.toString() || prev.newWorkerCount,
       equipmentInput: data.equipment_input || prev.equipmentInput,
       riskWorkType: data.risk_work_type || prev.riskWorkType,
@@ -722,6 +752,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       latitude: data.latitude?.toString() || prev.latitude,
       longitude: data.longitude?.toString() || prev.longitude,
     }))
+    setPersonnelTotalManual(recentHasStored && Number(recentStored) !== recentAuto)
     setRecentCandidates([])
     alert('최근 제출 데이터를 불러왔습니다.')
   }
@@ -785,6 +816,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       baseAddress: '',
       detailAddress: '',
       personnelInput: '',
+      personnelTotalCount: '',
       newWorkerCount: '',
       equipmentInput: '',
       riskWorkType: '',
@@ -811,6 +843,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       latitude: '',
       longitude: ''
     })
+    setPersonnelTotalManual(false)
 
     // 파일 입력 초기화
     if (fileInputRef.current) {
@@ -884,6 +917,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         address: formData.baseAddress,
         detail_address: formData.detailAddress,
         personnel_count: formData.personnelInput,
+        personnel_total_count: formData.noWorkCheck ? 0 : (formData.personnelTotalCount ? parseInt(formData.personnelTotalCount, 10) : null),
         new_worker_count: formData.newWorkerCount ? parseInt(formData.newWorkerCount) : null,
         equipment_input: formData.equipmentInput,
         risk_work_type: formData.riskWorkType,
@@ -1058,6 +1092,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         address: formData.baseAddress,
         detail_address: formData.detailAddress,
         personnel_count: formData.personnelInput,
+        personnel_total_count: formData.noWorkCheck ? 0 : (formData.personnelTotalCount ? parseInt(formData.personnelTotalCount, 10) : null),
         new_worker_count: formData.newWorkerCount ? parseInt(formData.newWorkerCount) : null,
         equipment_input: formData.equipmentInput,
         risk_work_type: formData.riskWorkType,
@@ -1147,7 +1182,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
               `⏰ <b>교육시간:</b> ${formData.educationStartTime} ~ ${formData.educationEndTime}\n\n` +
               `📝 <b>금일작업:</b>\n${formData.todayWork}\n\n` +
               `📖 <b>교육내용:</b>\n${formData.otherRemarks || '(미입력)'}\n\n` +
-              `👷 <b>투입인원:</b>\n${formData.personnelInput || '(미입력)'}\n\n` +
+              `👷 <b>투입인원${formData.personnelTotalCount ? ` (총 ${formData.personnelTotalCount}명)` : ''}:</b>\n${formData.personnelInput || '(미입력)'}\n\n` +
               `🚜 <b>투입장비:</b>\n${formData.equipmentInput || '(미입력)'}\n\n` +
               `👤 <b>작성자:</b> ${formData.name}\n` +
               `📞 <b>연락처:</b> ${formData.contact}`
@@ -1362,11 +1397,49 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                   </label>
                   <textarea
                     value={formData.personnelInput}
-                    onChange={(e) => handleInputChange('personnelInput', e.target.value)}
+                    onChange={(e) => handlePersonnelInputChange(e.target.value)}
                     className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     rows={3}
                     placeholder="예시)&#13;&#10;- 작업반장 1명"
                   />
+                  <div className="mt-2 flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                      총 투입인원(명)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.personnelTotalCount}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4)
+                        setPersonnelTotalManual(true)
+                        setFormData(prev => ({ ...prev, personnelTotalCount: value }))
+                      }}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      min="0"
+                      max="9999"
+                      placeholder="0"
+                    />
+                    {personnelTotalManual ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPersonnelTotalManual(false)
+                          setFormData(prev => ({
+                            ...prev,
+                            personnelTotalCount: parsePersonnelCount(prev.personnelInput)
+                              ? String(parsePersonnelCount(prev.personnelInput))
+                              : ''
+                          }))
+                        }}
+                        className="text-xs text-blue-600 hover:text-blue-700 inline-flex items-center gap-1"
+                        title="내역에서 자동 계산"
+                      >
+                        <RefreshCw className="h-3 w-3" /> 자동
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400 whitespace-nowrap">자동 계산됨</span>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
