@@ -4,19 +4,45 @@
  * 자유 텍스트 personnel_count에서 총 투입인원(명)을 추정한다.
  * 현장 담당자가 직종별로 자유롭게 적은 텍스트를 합산하는 best-effort 휴리스틱이다.
  *
+ * 규칙
+ * 1. "총원/총인원/합계/총계/전체/총 N명"처럼 총인원이 선언된 줄이 있으면 그 값을 우선 사용한다.
+ *    직종 내역과 중복 합산하지 않는다. (예: "총원 5명\n보통인부 2명" → 7이 아니라 5)
+ * 2. 선언된 총인원이 없으면 직종별 숫자를 합산한다. "X인 Y조"는 X×Y로 계산한다.
+ *
  * 예)
  * - "작업반장 1명\n관로공 2명\n신호수 1명" → 4
  * - "직영 1\n설비 4\n철골 1\n석공 5\n수장 14" → 25
  * - "3인 1조" → 3 (인원 = 인 × 조)
+ * - "총원 5명\n보통인부 2명" → 5 (선언된 총원 우선)
  * - "" / "작업없음" → 0
  */
 export function parsePersonnelCount(text?: string | null): number {
   if (!text) return 0
 
+  // 1) 총원/합계/전체/총 N명 등 '선언된 총인원'이 있으면 그 값을 우선 사용한다.
+  //    직종 내역과의 중복 합산을 막는다. ("총무"·"전공"·"합판" 등은 숫자가 인접해야 매칭되므로 오인하지 않는다.)
+  const declaredRegex = /(?:총\s*원|총\s*인원|총\s*인력|총\s*계|합\s*계|전\s*체(?:\s*인원)?|총)\s*[:\-]?\s*(\d+)\s*명?/g
+  let declaredTotal = 0
+  let hasDeclared = false
+  for (const match of text.matchAll(declaredRegex)) {
+    hasDeclared = true
+    declaredTotal += parseInt(match[1], 10)
+  }
+  if (hasDeclared) return declaredTotal
+
+  // 2) 선언된 총인원이 없으면 직종별 숫자를 합산한다.
+  //    이때 시각(07시30분, 08:30)·팀 순번(1팀)은 인원이 아니므로 먼저 제거한다.
+  //    ("07시30분"의 7·30, "1팀투입"의 1을 인원으로 오인 합산하던 문제 방지)
+  const cleaned = text
+    .replace(/\d{1,2}[ \t]*시(?:[ \t]*\d{1,2})?(?:[ \t]*분)?/g, ' ') // 07시 / 07시30 / 07시30분
+    .replace(/\d{1,2}[ \t]*분/g, ' ')                                 // 30분 (시 없이)
+    .replace(/\d{1,2}[ \t]*:[ \t]*\d{2}/g, ' ')                       // 08:30
+    .replace(/\d+[ \t]*팀/g, ' ')                                      // 1팀, 2팀 (RC팀 등 숫자 없는 팀명은 보존)
+
   let total = 0
 
   // "X인 Y조" 패턴은 인원 = X × Y로 계산 (예: 3인 1조 = 3명, 2인 3조 = 6명)
-  const working = text.replace(/(\d+)\s*인\s*(\d+)\s*조/g, (_match, perTeam: string, teams: string) => {
+  const working = cleaned.replace(/(\d+)\s*인\s*(\d+)\s*조/g, (_match, perTeam: string, teams: string) => {
     total += parseInt(perTeam, 10) * parseInt(teams, 10)
     return ' '
   })
