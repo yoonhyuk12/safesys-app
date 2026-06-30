@@ -33,6 +33,7 @@ export interface TBMRecord {
   education_content?: string
   contact?: string
   new_workers?: string
+  personnel_total_count?: number
   education_photo_url?: string
 }
 
@@ -114,6 +115,7 @@ export async function getTBMRecords(
         education_content: item.other_remarks,
         contact: item.reporter_contact,
         new_workers: item.new_worker_count != null ? String(item.new_worker_count) : undefined,
+        personnel_total_count: typeof item.personnel_total_count === 'number' ? item.personnel_total_count : undefined,
         education_photo_url: item.education_photo_url || undefined
       }))
       
@@ -171,6 +173,63 @@ export async function getTBMRecords(
 /**
  * TBM 통계를 조회합니다 (Supabase 또는 구글 시트)
  */
+// 당해년도 본부·지사별 누적 투입인원/신규인원 집계 결과
+export interface YearlyPersonnelTotals {
+  byHq: Map<string, { total: number; newWorkers: number }>           // key: 본부명
+  byBranch: Map<string, { total: number; newWorkers: number }>       // key: `${본부}||${지사}`
+}
+
+// 당해년도(year) 제출된 TBM에서 본부·지사별 누적 투입인원(personnel_total_count)과 신규인원(new_worker_count)을 합산한다.
+export async function getYearlyPersonnelByOrg(year: number): Promise<YearlyPersonnelTotals> {
+  const byHq = new Map<string, { total: number; newWorkers: number }>()
+  const byBranch = new Map<string, { total: number; newWorkers: number }>()
+  if (!USE_SUPABASE) return { byHq, byBranch }
+
+  const start = `${year}-01-01`
+  const end = `${year}-12-31`
+  const pageSize = 1000
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('tbm_submissions')
+      .select('headquarters, branch, personnel_total_count, new_worker_count')
+      .eq('status', 'submitted')
+      .neq('today_work', '작업없음')
+      .gte('meeting_date', start)
+      .lte('meeting_date', end)
+      .range(from, from + pageSize - 1)
+
+    if (error) {
+      console.error('당해년도 투입인원 집계 조회 오류:', error)
+      break
+    }
+    if (!data || data.length === 0) break
+
+    for (const row of data) {
+      const hq = row.headquarters || ''
+      const branch = row.branch || ''
+      const total = typeof row.personnel_total_count === 'number' ? row.personnel_total_count : 0
+      const newWorkers = typeof row.new_worker_count === 'number' ? row.new_worker_count : 0
+
+      if (hq) {
+        const h = byHq.get(hq) || { total: 0, newWorkers: 0 }
+        h.total += total
+        h.newWorkers += newWorkers
+        byHq.set(hq, h)
+      }
+      if (hq && branch) {
+        const key = `${hq}||${branch}`
+        const b = byBranch.get(key) || { total: 0, newWorkers: 0 }
+        b.total += total
+        b.newWorkers += newWorkers
+        byBranch.set(key, b)
+      }
+    }
+    if (data.length < pageSize) break
+  }
+
+  return { byHq, byBranch }
+}
+
 export async function getTBMStats(
   date: string,
   hq?: string,
