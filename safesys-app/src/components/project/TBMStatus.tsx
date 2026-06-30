@@ -55,6 +55,8 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
   const [tbmRecords, setTbmRecords] = useState<TBMRecord[]>([])
   // 총원(신규) 컬럼용 당해년도 누적 집계 (본부/지사별)
   const [yearlyPersonnel, setYearlyPersonnel] = useState<{ byHq: Map<string, { total: number; newWorkers: number }>; byBranch: Map<string, { total: number; newWorkers: number }> }>({ byHq: new Map(), byBranch: new Map() })
+  // 1000 이상은 1k·64.1k 형태로 축약 표기
+  const formatK = (n: number): string => n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n)
   const [allTbmRecords, setAllTbmRecords] = useState<TBMRecord[]>([]) // 전체 캐시된 데이터
   const [tbmSafetyInspections, setTbmSafetyInspections] = useState<TBMSafetyInspection[]>([]) // TBM 안전활동 점검 데이터
   const [error, setError] = useState<string>('')
@@ -267,6 +269,8 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
 
     // '총원(신규)' 컬럼은 선택 날짜 합계가 아니라 당해년도 누적값으로 표시한다.
     hqStatsMap.forEach((stat) => {
+      stat.dailyTotal = stat.personnelTotalCount || 0
+      stat.dailyNew = stat.newWorkersCount || 0
       const yp = yearlyPersonnel.byHq.get(stat.hqName)
       stat.personnelTotalCount = yp ? yp.total : 0
       stat.newWorkersCount = yp ? yp.newWorkers : 0
@@ -382,6 +386,8 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
 
     // '총원(신규)' 컬럼은 선택 날짜 합계가 아니라 당해년도 누적값으로 표시한다.
     branchStatsMap.forEach((stat) => {
+      stat.dailyTotal = stat.personnelTotalCount || 0
+      stat.dailyNew = stat.newWorkersCount || 0
       const yp = yearlyPersonnel.byBranch.get(`${selectedHq}||${stat.branchName}`)
       stat.personnelTotalCount = yp ? yp.total : 0
       stat.newWorkersCount = yp ? yp.newWorkers : 0
@@ -3077,10 +3083,10 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 TBM 실시<br /><span className="text-[10px]">(건)</span>
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                TBM확인<br /><span className="text-[10px]">(건)</span>
+                                당일 총원(신규)<br /><span className="text-[10px]">(명)</span>
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                총원(신규)<br /><span className="text-[10px]">(당해 누적)</span>
+                                누적 총원<br /><span className="text-[10px]">(당해)</span>
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
                                 위험공종<br /><span className="text-[10px]">(건)</span>
@@ -3103,7 +3109,9 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 riskWorkCount: acc.riskWorkCount + stat.riskWorkCount,
                                 cctvUsageCount: acc.cctvUsageCount + stat.cctvUsageCount,
                                 newWorkersCount: acc.newWorkersCount + stat.newWorkersCount,
-                                personnelTotalCount: acc.personnelTotalCount + (stat.personnelTotalCount || 0)
+                                personnelTotalCount: acc.personnelTotalCount + (stat.personnelTotalCount || 0),
+                                dailyTotal: acc.dailyTotal + (stat.dailyTotal || 0),
+                                dailyNew: acc.dailyNew + (stat.dailyNew || 0)
                               }), {
                                 activeQuarterCount: 0,
                                 tbmCount: 0,
@@ -3111,7 +3119,9 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 riskWorkCount: 0,
                                 cctvUsageCount: 0,
                                 newWorkersCount: 0,
-                                personnelTotalCount: 0
+                                personnelTotalCount: 0,
+                                dailyTotal: 0,
+                                dailyNew: 0
                               })
 
                               return (
@@ -3134,20 +3144,12 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
                                     <div className="text-sm text-blue-900 font-extrabold">
-                                      {summary.tbmInspectionCount === 0 ? '-' : (() => {
-                                        const percentage = summary.tbmCount > 0 ? Math.round((summary.tbmInspectionCount / summary.tbmCount) * 100) : 0
-                                        return (
-                                          <span>
-                                            <span className="text-blue-900">{summary.tbmInspectionCount}</span>
-                                            <span className="text-blue-600 text-sm">({percentage}%)</span>
-                                          </span>
-                                        )
-                                      })()}
+                                      {summary.dailyTotal === 0 && summary.dailyNew === 0 ? '-' : (<span>{formatK(summary.dailyTotal)}{summary.dailyNew > 0 && <span className="text-blue-600">({formatK(summary.dailyNew)})</span>}</span>)}
                                     </div>
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
                                     <div className="text-sm text-blue-900 font-extrabold">
-                                      {summary.personnelTotalCount === 0 && summary.newWorkersCount === 0 ? '-' : (<span>{summary.personnelTotalCount}{summary.newWorkersCount > 0 && <span className="text-blue-600">({summary.newWorkersCount})</span>}</span>)}
+                                      {summary.personnelTotalCount === 0 ? '-' : formatK(summary.personnelTotalCount)}
                                     </div>
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
@@ -3203,29 +3205,25 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                   </div>
                                 </td>
                                 <td className="px-4 whitespace-nowrap align-middle text-center">
-                                  <div className="text-sm text-gray-900 font-semibold">
-                                    {stats.tbmInspectionCount === 0 ? '-' : (() => {
-                                      const percentage = stats.tbmCount > 0 ? Math.round((stats.tbmInspectionCount / stats.tbmCount) * 100) : 0
-                                      return (
-                                        <span>
-                                          <span>{stats.tbmInspectionCount}</span>
-                                          <span className="text-blue-600 text-sm">({percentage}%)</span>
-                                        </span>
-                                      )
-                                    })()}
+                                  <div className="text-sm text-gray-900">
+                                    {stats.dailyTotal === 0 && stats.dailyNew === 0 ? (
+                                      <span className="text-gray-500">-</span>
+                                    ) : (
+                                      <span className="inline-flex items-baseline gap-0.5">
+                                        <span className="font-semibold text-gray-900">{formatK(stats.dailyTotal)}</span>
+                                        {stats.dailyNew > 0 && (
+                                          <span className="text-blue-600 text-xs font-bold">({formatK(stats.dailyNew)})</span>
+                                        )}
+                                      </span>
+                                    )}
                                   </div>
                                 </td>
                                 <td className="px-4 whitespace-nowrap align-middle text-center">
                                   <div className="text-sm text-gray-900">
-                                    {stats.personnelTotalCount === 0 && stats.newWorkersCount === 0 ? (
+                                    {stats.personnelTotalCount === 0 ? (
                                       <span className="text-gray-500">-</span>
                                     ) : (
-                                      <span className="inline-flex items-baseline gap-0.5">
-                                        <span className="font-semibold text-gray-900">{stats.personnelTotalCount}</span>
-                                        {stats.newWorkersCount > 0 && (
-                                          <span className="text-blue-600 text-xs font-bold">({stats.newWorkersCount})</span>
-                                        )}
-                                      </span>
+                                      <span className="font-semibold text-gray-900">{formatK(stats.personnelTotalCount)}</span>
                                     )}
                                   </div>
                                 </td>
@@ -3295,10 +3293,10 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 TBM 실시<br /><span className="text-[10px]">(건)</span>
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
-                                TBM확인<br /><span className="text-[10px]">(건)</span>
+                                당일 총원(신규)<br /><span className="text-[10px]">(명)</span>
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
-                                총원(신규)<br /><span className="text-[10px]">(당해 누적)</span>
+                                누적 총원<br /><span className="text-[10px]">(당해)</span>
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
                                 위험공종<br /><span className="text-[10px]">(건)</span>
@@ -3321,7 +3319,9 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 riskWorkCount: acc.riskWorkCount + stat.riskWorkCount,
                                 cctvUsageCount: acc.cctvUsageCount + stat.cctvUsageCount,
                                 newWorkersCount: acc.newWorkersCount + stat.newWorkersCount,
-                                personnelTotalCount: acc.personnelTotalCount + (stat.personnelTotalCount || 0)
+                                personnelTotalCount: acc.personnelTotalCount + (stat.personnelTotalCount || 0),
+                                dailyTotal: acc.dailyTotal + (stat.dailyTotal || 0),
+                                dailyNew: acc.dailyNew + (stat.dailyNew || 0)
                               }), {
                                 activeQuarterCount: 0,
                                 tbmCount: 0,
@@ -3329,7 +3329,9 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 riskWorkCount: 0,
                                 cctvUsageCount: 0,
                                 newWorkersCount: 0,
-                                personnelTotalCount: 0
+                                personnelTotalCount: 0,
+                                dailyTotal: 0,
+                                dailyNew: 0
                               })
 
                               return (
@@ -3352,20 +3354,12 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
                                     <div className="text-sm text-blue-900 font-extrabold">
-                                      {summary.tbmInspectionCount === 0 ? '-' : (() => {
-                                        const percentage = summary.tbmCount > 0 ? Math.round((summary.tbmInspectionCount / summary.tbmCount) * 100) : 0
-                                        return (
-                                          <span>
-                                            <span className="text-blue-900">{summary.tbmInspectionCount}</span>
-                                            <span className="text-blue-600 text-sm">({percentage}%)</span>
-                                          </span>
-                                        )
-                                      })()}
+                                      {summary.dailyTotal === 0 && summary.dailyNew === 0 ? '-' : (<span>{formatK(summary.dailyTotal)}{summary.dailyNew > 0 && <span className="text-blue-600">({formatK(summary.dailyNew)})</span>}</span>)}
                                     </div>
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
                                     <div className="text-sm text-blue-900 font-extrabold">
-                                      {summary.personnelTotalCount === 0 && summary.newWorkersCount === 0 ? '-' : (<span>{summary.personnelTotalCount}{summary.newWorkersCount > 0 && <span className="text-blue-600">({summary.newWorkersCount})</span>}</span>)}
+                                      {summary.personnelTotalCount === 0 ? '-' : formatK(summary.personnelTotalCount)}
                                     </div>
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
@@ -3421,29 +3415,25 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                   </div>
                                 </td>
                                 <td className="px-4 whitespace-nowrap align-middle text-center">
-                                  <div className="text-sm text-gray-900 font-semibold">
-                                    {stats.tbmInspectionCount === 0 ? '-' : (() => {
-                                      const percentage = stats.tbmCount > 0 ? Math.round((stats.tbmInspectionCount / stats.tbmCount) * 100) : 0
-                                      return (
-                                        <span>
-                                          <span className="text-gray-900">{stats.tbmInspectionCount}</span>
-                                          <span className="text-blue-600 text-sm">({percentage}%)</span>
-                                        </span>
-                                      )
-                                    })()}
+                                  <div className="text-sm text-gray-900">
+                                    {stats.dailyTotal === 0 && stats.dailyNew === 0 ? (
+                                      <span className="text-gray-500">-</span>
+                                    ) : (
+                                      <span className="inline-flex items-baseline gap-0.5">
+                                        <span className="font-semibold text-gray-900">{formatK(stats.dailyTotal)}</span>
+                                        {stats.dailyNew > 0 && (
+                                          <span className="text-blue-600 text-xs font-bold">({formatK(stats.dailyNew)})</span>
+                                        )}
+                                      </span>
+                                    )}
                                   </div>
                                 </td>
                                 <td className="px-4 whitespace-nowrap align-middle text-center">
                                   <div className="text-sm text-gray-900">
-                                    {stats.personnelTotalCount === 0 && stats.newWorkersCount === 0 ? (
+                                    {stats.personnelTotalCount === 0 ? (
                                       <span className="text-gray-500">-</span>
                                     ) : (
-                                      <span className="inline-flex items-baseline gap-0.5">
-                                        <span className="font-semibold text-gray-900">{stats.personnelTotalCount}</span>
-                                        {stats.newWorkersCount > 0 && (
-                                          <span className="text-blue-600 text-xs font-bold">({stats.newWorkersCount})</span>
-                                        )}
-                                      </span>
+                                      <span className="font-semibold text-gray-900">{formatK(stats.personnelTotalCount)}</span>
                                     )}
                                   </div>
                                 </td>
