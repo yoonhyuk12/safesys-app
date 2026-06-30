@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Plus, Calendar, FileText, ChevronLeft, ChevronRight, X, Download, Trash2, FolderDown } from 'lucide-react'
@@ -1168,6 +1168,13 @@ export default function HeatWaveCheckPage() {
     }
   }
 
+  // 점검 모달에 전달할 좌표 객체 - 렌더마다 새 객체가 생성되면
+  // 모달의 useEffect가 매 리렌더링마다 재실행되어 기상청 API가 불필요하게 반복 호출됨
+  const projectCoords = useMemo(() => {
+    if (project?.latitude == null || project?.longitude == null) return undefined
+    return { lat: project.latitude as number, lng: project.longitude as number }
+  }, [project?.latitude, project?.longitude])
+
   // 로딩 중
   if (authLoading || loading) {
     return (
@@ -1750,7 +1757,7 @@ export default function HeatWaveCheckPage() {
 
                     {/* 점검표 테이블 */}
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[720px] border-collapse border-2 border-gray-800 text-xs">
+                      <table className="w-full min-w-[720px] lg:min-w-0 border-collapse border-2 border-gray-800 text-xs">
                         <thead>
                           <tr className="bg-gray-200">
                             <th rowSpan={2} className="border border-gray-800 p-2 w-20">측정<br/>시간<br/>(2시간<br/>간격)</th>
@@ -1933,9 +1940,7 @@ export default function HeatWaveCheckPage() {
         onClose={handleCloseInspectionModal}
         onSave={handleSaveInspection}
         projectAddress={project?.site_address}
-        projectCoords={project?.latitude !== null && project?.longitude !== null && project?.latitude !== undefined && project?.longitude !== undefined ? 
-          { lat: project.latitude as number, lng: project.longitude as number } : undefined
-        }
+        projectCoords={projectCoords}
       />
 
       {/* PDF 전용 숨김 보고서 컴포넌트 */}
