@@ -179,14 +179,15 @@ export interface YearlyPersonnelTotals {
   byBranch: Map<string, { total: number; newWorkers: number }>       // key: `${본부}||${지사}`
 }
 
-// 당해년도(year) 제출된 TBM에서 본부·지사별 누적 투입인원(personnel_total_count)과 신규인원(new_worker_count)을 합산한다.
-export async function getYearlyPersonnelByOrg(year: number): Promise<YearlyPersonnelTotals> {
+// 연초부터 기준일(asOfDate, YYYY-MM-DD)까지 제출된 TBM에서 본부·지사별 누적 투입인원·신규인원을 합산한다.
+export async function getYearlyPersonnelByOrg(asOfDate: string): Promise<YearlyPersonnelTotals> {
   const byHq = new Map<string, { total: number; newWorkers: number }>()
   const byBranch = new Map<string, { total: number; newWorkers: number }>()
-  if (!USE_SUPABASE) return { byHq, byBranch }
+  if (!USE_SUPABASE || !asOfDate) return { byHq, byBranch }
 
-  const start = `${year}-01-01`
-  const end = `${year}-12-31`
+  // 연초 ~ 기준일까지 누적 (과거 일자를 선택하면 그 날짜 기준으로 집계)
+  const start = `${asOfDate.slice(0, 4)}-01-01`
+  const end = asOfDate
   const pageSize = 1000
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
