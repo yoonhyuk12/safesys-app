@@ -644,7 +644,17 @@ export default function NewWorkerOrientationPage() {
                       <span className="text-sm font-medium min-w-[80px]">
                         현장안내자 {index + 1}
                       </span>
-                      <span className="text-sm text-gray-600 w-20">{sig.name || '(이름없음)'}</span>
+                      <input
+                        type="text"
+                        value={sig.name}
+                        onChange={(e) => {
+                          const newSigs = [...formData.mentor_signatures]
+                          newSigs[index] = { ...newSigs[index], name: e.target.value }
+                          setFormData({ ...formData, mentor_signatures: newSigs })
+                        }}
+                        placeholder="성명"
+                        className="border border-gray-300 rounded px-2 py-1 text-sm w-24"
+                      />
                       {sig.signature ? (
                         <button type="button" onClick={() => openSignatureModal({ type: 'mentor', index })}>
                           <img src={sig.signature} alt="서명" className="h-8 border rounded cursor-pointer hover:opacity-80" />
