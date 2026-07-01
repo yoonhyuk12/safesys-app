@@ -15,6 +15,8 @@ interface SupervisorDiaryGeneratorProps {
   managingHq: string
   managingBranch: string
   defaultEndDate: string // 기본 종료일 (페이지에서 선택된 날짜)
+  projectLatitude?: number // 프로젝트 등록 좌표 (TBM 제출에 좌표가 없을 때 날씨 조회 폴백용)
+  projectLongitude?: number
 }
 
 export default function SupervisorDiaryGenerator({
@@ -25,6 +27,8 @@ export default function SupervisorDiaryGenerator({
   managingHq,
   managingBranch,
   defaultEndDate,
+  projectLatitude,
+  projectLongitude,
 }: SupervisorDiaryGeneratorProps) {
   const [step, setStep] = useState<'date' | 'options' | null>(null)
   const [loadingDates, setLoadingDates] = useState(false)
@@ -594,6 +598,11 @@ export default function SupervisorDiaryGenerator({
                           longitude = submission.longitude
                           break
                         }
+                      }
+                      // TBM 제출에 좌표가 없으면 프로젝트 등록 좌표로 폴백 (날씨 조회 누락 방지)
+                      if (latitude == null || longitude == null) {
+                        latitude = projectLatitude ?? undefined
+                        longitude = projectLongitude ?? undefined
                       }
 
                       setStep(null)

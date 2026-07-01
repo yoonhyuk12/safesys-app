@@ -275,6 +275,8 @@ export default function SupervisorDiaryPage() {
         managingHq={project.managing_hq}
         managingBranch={project.managing_branch}
         defaultEndDate={selectedDate}
+        projectLatitude={project.latitude ?? undefined}
+        projectLongitude={project.longitude ?? undefined}
       />
     </div>
   )
