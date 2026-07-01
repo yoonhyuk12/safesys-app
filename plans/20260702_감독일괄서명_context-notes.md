@@ -22,3 +22,13 @@
 - **배치 조정(사용자 지시)**: 감독 펜통은 발주청 캐비넷 서랍 안(공사감독 일지 옆, size="sm" self-end)으로 이동. 펜통 기본 크기도 한 단계 축소(w-14~lg:w-20). 기존 md 사이즈의 `sm:w-18`은 Tailwind에 없는 무효 클래스였음 — 수정하며 제거.
 - **현장소장 → 시공사 개명(사용자 지시)**: signer 키 site_manager → `contractor`, 라벨 "시공사 일괄서명". 시공사 측 기타 확인자 서명도 포함하도록 성과총괄표 검토자(reviewer_signature, 품질시험담당자)를 대상에 추가 — 시공사 대상 총 6종.
 - **TBM 안전활동 점검표 감독 대상 제외(사용자 지시)**: 이 점검표는 매일 생기는 기록이 아니라 감독이 TBM 입회 점검 시 그때그때 작성·즉시 서명하는 수시 문서라서 일괄서명 대상에서 제외 — 감독 대상 4종으로 축소. 모달 안내 문구에 명시.
+
+## 2026-07-02 (확장 2차: 레지스트리 통합·지급자재·JSONB·뱃지)
+
+- **단일 레지스트리 도입(사용자 "자동 포함" 요청)**: 대상 정의를 `src/lib/bulk-sign/bulk-sign-targets.ts` 하나로 모아 API·모달·건수집계가 공유. 새 서류는 이 파일에 항목 추가만 하면 됨. CLAUDE.md "일괄서명 대상 등록 규칙 (필수)" 신설.
+- **지급자재 수불부 추가(사용자 발견)**: 서명 컬럼명이 `supervisor_confirm`이라 `%signature%` 전수조사에서 누락됐던 것. `material_ledger_entries`는 project_id가 없어 `projectScope`(materials 조인)와 `hasUpdatedAt: false` 옵션을 레지스트리에 신설해 지원.
+- **제외 4종 재포함(사용자 지시 번복)**: "등록됐는데 서명 안 됐으면 여기서도" — TBM 점검표(재포함), 폭염점검(확인자, 시공사 그룹), 정기안전점검(roleArray: 공사감독원/현장대리인 역할별), PTW(keyedObject: permitter·confirmer=감독, writer·applicant=시공사). 이제 제외는 점검자·감시인·작업자 등 개인 지정 서명뿐.
+- **JSONB 처리 방식**: keyedObject는 PostgREST JSON 경로 필터(`signatures->key->>signature`)로 서버 필터·head count 가능(실 DB 검증: PTW 허가자 미서명 4건). roleArray는 배열 내부 조건이라 서버 필터 불가 — 행을 받아 클라이언트 판정(프로젝트 단위 소량). API 적용은 둘 다 행별 read-modify-write이며 `applyJsonbSignature`가 미서명 항목에만 채워 덮어쓰기 방지.
+- **폭염점검 서명 형식 주의**: 기존 개별 제출은 Storage URL을 저장하지만 일괄서명은 base64 data URL을 저장 — 표시는 `<img src>`라 둘 다 동작.
+- **펜통 빨간 뱃지(사용자 요청)**: `bulk-sign-counts.ts`의 head count 집계로 미서명 총건수를 펜통 우측 상단에 표시, 모달 닫을 때 재조회.
+- **관리자 점검**: 처음부터 포함되어 있음(has_signature=false 필터) — 사용자 확인 요청에 재확인.

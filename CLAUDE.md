@@ -380,6 +380,16 @@ const canSeeAllHq = userProfile?.role === '발주청' &&
 - 2026-06-23 기준 `projects`를 참조하는 자식 테이블 15개 전부 CASCADE다. 새 기능의 테이블도 빠짐없이 이 패턴을 따라야 한다. 감사는 `pg_constraint`에서 `confrelid = 'projects'`인 FK의 `confdeltype = 'c'`(=CASCADE) 여부로 확인한다.
 - 새 테이블이 사진·파일을 **Storage**에 저장하고 URL 컬럼을 두면, DB 행은 cascade로 지워져도 Storage 파일은 남는다. 이때는 위 삭제 라우트의 URL 수집 로직에 그 테이블을 추가한다. (서명 등을 base64 TEXT로 DB에 저장하면 행과 함께 삭제되어 별도 작업이 불필요하다.)
 
+### 일괄서명 대상 등록 규칙 (필수)
+
+새 서류 테이블에 **감독(공사감독원) 서명** 또는 **시공사(현장소장·확인자·담당자) 서명** 컬럼(base64 TEXT)을 만들면, 반드시 `src/lib/bulk-sign/bulk-sign-targets.ts` 레지스트리에 항목을 추가해 프로젝트 상세의 일괄서명(만년필 펜통 버튼)에 포함시킨다. API 라우트(`/api/bulk-sign`)와 모달(`BulkSignModal`)이 이 파일 하나를 공유하므로 항목 추가만으로 양쪽에 반영된다.
+
+- 감독 서명 컬럼 → `supervisor.targets`, 시공사 서명 컬럼 → `contractor.targets`에 추가한다.
+- `selectColumns`에 서명(base64) 컬럼을 넣지 않는다 — 목록 조회 용량 폭증. 표시용 컬럼 + `toItem` 변환만 지정한다.
+- 테이블에 `project_id`가 없으면 `projectScope: { joinTable }`(부모 조인), `updated_at`이 없으면 `hasUpdatedAt: false`를 지정한다. 서명 컬럼명이 `signature`가 아닐 수 있으니 실제 컬럼명을 확인한다 (예: `material_ledger_entries.supervisor_confirm`).
+- JSONB 서명 구조도 지원한다 — 역할 배열은 `jsonb: { kind: 'roleArray', role }`(예: `safety_inspections.signatures`의 공사감독원/현장대리인), 역할 객체는 `{ kind: 'keyedObject', key, field }`(예: `ptw_permits.signatures`의 permitter/confirmer/writer/applicant).
+- 점검자·감시인·작업자 등 **이름이 특정된 개인의 서명**만 등록하지 않는다. 제외 판단은 모달 하단 안내 문구와 해당 plans 컨텍스트 노트에 기록한다.
+
 ### 마이그레이션
 
 `database/` 디렉토리에 14개 SQL 마이그레이션 파일
