@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getKmaHubKey } from "@/lib/kma-auth";
 
 type WeatherResult = {
   date: string;
@@ -32,9 +33,6 @@ const STATION_NAMES: Record<string, string> = {
   '272': '밀양', '273': '산청', '276': '국풍령', '277': '남해', '278': '함평',
   '279': '순천', '281': '북광주', '288': '구미', '289': '영천',
 };
-
-// 기상청 API 키
-const AUTH_KEY = "_mpe0uWTQuKqXtLlk_LinA";
 
 // 주요 ASOS 관측소 좌표 (하드코딩 - API 호출 없이 바로 사용)
 const ASOS_STATIONS: { stnId: string; name: string; lat: number; lon: number }[] = [
@@ -266,7 +264,7 @@ export async function GET(req: Request) {
     const station = getNearestStation(lat, lon);
 
     // 2. 일자료 API 호출 (단일 날짜)
-    const url = `https://apihub.kma.go.kr/api/typ01/url/kma_sfcdd3.php?tm1=${date}&tm2=${date}&stn=${station.stnId}&help=0&mode=0&authKey=${encodeURIComponent(AUTH_KEY)}`;
+    const url = `https://apihub.kma.go.kr/api/typ01/url/kma_sfcdd3.php?tm1=${date}&tm2=${date}&stn=${station.stnId}&help=0&mode=0&authKey=${encodeURIComponent(getKmaHubKey())}`;
     const text = await fetchText(url);
     const dataMap = parseDailyData(text);
     const dayData = dataMap.get(date);

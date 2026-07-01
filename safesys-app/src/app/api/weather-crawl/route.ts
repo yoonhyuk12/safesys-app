@@ -1,5 +1,6 @@
 // 측정시각 직전 정각의 기상청 초단기실황(관측값)으로 체감온도를 산출하는 API 라우트
 import { NextRequest, NextResponse } from 'next/server';
+import { getKmaHubKey } from '@/lib/kma-auth';
 
 // 좌표를 기상청 격자 좌표로 변환하는 함수
 function convertToGridCoords(lat: number, lng: number) {
@@ -131,13 +132,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 기상청 API 허브(apihub.kma.go.kr) 인증키 — 사용자가 .env.local에 등록 (KMA 권장)
-    const hubKey = (
-      process.env.KMA ||
-      process.env.KMA_API_KEY ||
-      process.env.NEXT_PUBLIC_KMA_API_KEY ||
-      ''
-    ).replace(/\s+/g, '').trim();
+    // 기상청 API 허브(apihub.kma.go.kr) 인증키 — lib/kma-auth.ts에서 공통 관리
+    const hubKey = getKmaHubKey();
     // data.go.kr 공유 폴백 키 (허브 키 미적용/실패 시 백업)
     const dataGoKrFallbackKey = "ptN2Cl7gvmcWwHRgvN4UI4PF5sHIu6M1VuiDP9yvRJwRKBg8GCsFFTDtVBFtNzFQHlUWD7G4rSOtV3hTg3ny8w==";
 
