@@ -50,6 +50,15 @@ body {
   color-scheme: light only;
 }
 
+/* html2canvas 텍스트 하단 쏠림 방지 (PDF 보고서 전체에 영향)
+   html2canvas는 폰트 baseline을 측정하려고 body에 1×1 img를 삽입해 offsetTop을 재는데,
+   Tailwind preflight의 img { display: block }이 이 img를 별도 줄로 밀어내 baseline이
+   실제보다 크게 측정되고, 그 결과 캔버스의 모든 텍스트가 셀 하단으로 밀려 그려진다.
+   측정용 1×1 img만 inline으로 복원하면 해결된다. */
+img[width="1"][height="1"] {
+  display: inline;
+}
+
 /* 흔들거리는 애니메이션 (편집 모드용) */
 @keyframes shake {
   0%, 100% {
