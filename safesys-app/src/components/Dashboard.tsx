@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2, ClipboardCheck, GitMerge, FlaskConical } from 'lucide-react'
+import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2, ClipboardCheck, GitMerge, FlaskConical, TestTubes } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, getHeatWaveCheckCountByUserBranch, getManagerInspectionCountByUserBranch, getHeadquartersInspectionCountByUserBranch, getTBMSafetyInspectionCountByUserBranch, getSafeDocumentInspectionCountByUserBranch, getPtwPermitsByUserBranch, getPtwPermitCountByUserBranch, getInspectionRequestCountsByUserBranch, getQualityMonthlyReportStatusByUserBranch, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type PtwPermitSummary, type WorkerCountByProject, type MaterialCountByProject, type InspectionRequestCountByProject, type QualityReportStatusByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
+import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, getHeatWaveCheckCountByUserBranch, getManagerInspectionCountByUserBranch, getHeadquartersInspectionCountByUserBranch, getTBMSafetyInspectionCountByUserBranch, getSafeDocumentInspectionCountByUserBranch, getPtwPermitsByUserBranch, getPtwPermitCountByUserBranch, getInspectionRequestCountsByUserBranch, getQualityMonthlyReportStatusByUserBranch, getQualityTestCountsByUserBranch, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type PtwPermitSummary, type WorkerCountByProject, type MaterialCountByProject, type InspectionRequestCountByProject, type QualityReportStatusByProject, type QualityTestCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
 import { getTBMRecords, type TBMRecord } from '@/lib/tbm'
 import { downloadProjectListExcel } from '@/lib/excel/project-list-export'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS, DEBUG_LOGS } from '@/lib/constants'
@@ -39,6 +39,7 @@ import SafetyInspectionLedgerView from '@/components/dashboard/SafetyInspectionL
 import BusinessMaterialView from '@/components/dashboard/BusinessMaterialView'
 import BusinessInspectionView from '@/components/dashboard/BusinessInspectionView'
 import BusinessQualityReportView from '@/components/dashboard/BusinessQualityReportView'
+import BusinessQualityTestView from '@/components/dashboard/BusinessQualityTestView'
 import TBMChatBot from '@/components/ui/TBMChatBot'
 import BulkProjectUploadModal from '@/components/project/BulkProjectUploadModal'
 import officeLocationsData from '@/lib/office-locations.json'
@@ -288,6 +289,8 @@ const Dashboard: React.FC = () => {
   const [inspectionRequestDataLoading, setInspectionRequestDataLoading] = useState(false)
   const [qualityReportStatuses, setQualityReportStatuses] = useState<QualityReportStatusByProject[]>([])
   const [qualityReportDataLoading, setQualityReportDataLoading] = useState(false)
+  const [qualityTestCounts, setQualityTestCounts] = useState<QualityTestCountByProject[]>([])
+  const [qualityTestDataLoading, setQualityTestDataLoading] = useState(false)
   const [orientationStats, setOrientationStats] = useState<{ project_id: string; project_name: string; orientation_count: number; worker_count: number }[]>([])
   const [orientationDataLoading, setOrientationDataLoading] = useState(false)
   const [inspectionDataLoading, setInspectionDataLoading] = useState(false)
@@ -1418,6 +1421,35 @@ const Dashboard: React.FC = () => {
       })
       .finally(() => setQualityReportDataLoading(false))
   }, [user, userProfile, viewMode, selectedHq, selectedBranch, qualityReportStatuses.length])
+
+  // 사업현황 진입 시 품질시험 실시대장 등록현황 로드
+  const lastQualityTestParams = useRef<{ hq: string; branch: string } | null>(null)
+  useEffect(() => {
+    if (!(user && userProfile && userProfile.role === '발주청' && viewMode === 'business')) {
+      return
+    }
+    if (!isSelectionInitialized.current) return
+
+    const currentParams = { hq: selectedHq || '', branch: selectedBranch || '' }
+    if (lastQualityTestParams.current &&
+      lastQualityTestParams.current.hq === currentParams.hq &&
+      lastQualityTestParams.current.branch === currentParams.branch &&
+      qualityTestCounts.length > 0) {
+      if (DEBUG_LOGS) console.log('✅ 품질시험 실시대장 등록현황 데이터 이미 로딩됨. 재로딩 스킵')
+      return
+    }
+
+    if (DEBUG_LOGS) console.log('🔍 품질시험 실시대장 등록현황 전용 데이터 로딩 시작')
+    lastQualityTestParams.current = currentParams
+    setQualityTestDataLoading(true)
+    getQualityTestCountsByUserBranch(userProfile, selectedHq || undefined, selectedBranch || undefined)
+      .then(result => {
+        if (result.success && result.testCounts) {
+          setQualityTestCounts(result.testCounts)
+        }
+      })
+      .finally(() => setQualityTestDataLoading(false))
+  }, [user, userProfile, viewMode, selectedHq, selectedBranch, qualityTestCounts.length])
 
   // 지도보기일 때 점검 데이터 로드
   useEffect(() => {
@@ -3849,6 +3881,14 @@ const Dashboard: React.FC = () => {
                 onBack={() => setSelectedBusinessCard(null)}
                 onRowClickProject={(projectId, branch) => router.push(`/project/${projectId}/quality-monthly-report?returnUrl=${encodeURIComponent(`/business?card=quality&branch=${branch ?? ''}`)}`)}
               />
+            ) : selectedBusinessCard === 'qualityTest' ? (
+              <BusinessQualityTestView
+                loading={qualityTestDataLoading}
+                testCounts={qualityTestCounts}
+                initialBranch={searchParams.get('branch')}
+                onBack={() => setSelectedBusinessCard(null)}
+                onRowClickProject={(projectId, branch) => router.push(`/project/${projectId}/quality-test-ledger?returnUrl=${encodeURIComponent(`/business?card=qualityTest&branch=${branch ?? ''}`)}`)}
+              />
             ) : (
               <>
                 <div className="bg-white/80 backdrop-blur rounded-lg border border-white/20 shadow-sm p-3 lg:p-4">
@@ -3912,6 +3952,24 @@ const Dashboard: React.FC = () => {
                           {qualityReportStatuses.filter(s => s.current_month_submitted).length}/{qualityReportStatuses.length}개
                         </div>
                         <div className="text-xs">{new Date().getMonth() + 1}월 제출</div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* 품질시험 대장 카드 — 본부별→지사별 실시대장 제출현황 */}
+                  <div
+                    onClick={() => setSelectedBusinessCard('qualityTest')}
+                    className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-sky-300 hover:bg-sky-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]"
+                  >
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-8 h-8 bg-sky-100 rounded-lg flex items-center justify-center mb-2">
+                        <TestTubes className="h-4 w-4 text-sky-600" />
+                      </div>
+                      <h4 className="text-xs font-medium text-gray-900 mb-1">품질시험 대장</h4>
+                      <div className="text-xs text-gray-600">
+                        <div className="text-sm font-semibold text-sky-600 mb-0.5">
+                          {qualityTestCounts.reduce((s, m) => s + m.test_count, 0).toLocaleString()}건
+                        </div>
+                        <div className="text-xs">등록</div>
                       </div>
                     </div>
                   </div>

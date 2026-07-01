@@ -2560,6 +2560,105 @@ export async function getInspectionRequestCountsByUserBranch(
   }
 }
 
+export interface QualityTestCountByProject {
+  project_id: string
+  project_name: string
+  managing_hq: string
+  managing_branch: string
+  test_count: number
+}
+
+// 사용자 권한/선택 본부·지사 범위의 프로젝트별 품질시험 실시대장 등록 건수를 집계한다.
+export async function getQualityTestCountsByUserBranch(
+  userProfile: UserProfile,
+  selectedHq?: string,
+  selectedBranch?: string
+): Promise<{ success: boolean; testCounts?: QualityTestCountByProject[]; error?: string }> {
+  try {
+    if (DEBUG_LOGS) console.log('품질시험 실시대장 등록현황 조회 시작:', { selectedHq, selectedBranch })
+
+    let projectQuery = supabase
+      .from('projects')
+      .select('id, project_name, managing_hq, managing_branch, is_active')
+
+    if (userProfile.role === '발주청') {
+      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+        if (DEBUG_LOGS) console.log('✅ 본사 조직 사용자: 전사 품질시험 현황 조회')
+      } else {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) {
+      projectQuery = projectQuery.eq('managing_hq', selectedHq)
+    }
+    if (selectedBranch) {
+      projectQuery = projectQuery.eq('managing_branch', selectedBranch)
+    }
+
+    const { data: projects, error: projectError } = await projectQuery
+
+    if (projectError) {
+      console.error('프로젝트 조회 오류:', projectError)
+      return { success: false, error: projectError.message }
+    }
+
+    if (!projects || projects.length === 0) {
+      return { success: true, testCounts: [] }
+    }
+
+    const isCompletedProject = (p: any): boolean => {
+      if (p.is_active === undefined || p.is_active === null) return false
+      if (typeof p.is_active === 'boolean') return !p.is_active
+      if (typeof p.is_active === 'object') return p.is_active.completed === true
+      return false
+    }
+    const activeProjects = projects.filter(p => !isCompletedProject(p))
+
+    if (activeProjects.length === 0) {
+      return { success: true, testCounts: [] }
+    }
+
+    const projectIds = activeProjects.map(p => p.id)
+
+    // quality_test_records 테이블에서 프로젝트별 건수 집계
+    const { data: records, error: recordError } = await supabase
+      .from('quality_test_records')
+      .select('project_id')
+      .in('project_id', projectIds)
+
+    if (recordError) {
+      console.error('품질시험 실시대장 조회 오류:', recordError)
+      return { success: false, error: recordError.message }
+    }
+
+    const countMap = new Map<string, number>()
+      ; (records || []).forEach(r => {
+        countMap.set(r.project_id, (countMap.get(r.project_id) || 0) + 1)
+      })
+
+    const testCounts: QualityTestCountByProject[] = activeProjects.map(p => ({
+      project_id: p.id,
+      project_name: p.project_name,
+      managing_hq: p.managing_hq,
+      managing_branch: p.managing_branch,
+      test_count: countMap.get(p.id) || 0,
+    }))
+
+    if (DEBUG_LOGS) console.log(`품질시험 실시대장 등록현황 조회 완료: ${testCounts.length}개 프로젝트`)
+    return { success: true, testCounts }
+
+  } catch (error: any) {
+    console.error('품질시험 실시대장 등록현황 조회 실패:', error)
+    return { success: false, error: error.message || '품질시험 데이터를 불러오는데 실패했습니다.' }
+  }
+}
+
 export interface QualityReportStatusByProject {
   project_id: string
   project_name: string
