@@ -247,6 +247,16 @@ export default function QualityMonthlyReportPage() {
             <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate flex-1">
               품질시험 월례보고서
             </h1>
+            <a
+              href="https://drive.google.com/uc?export=download&id=1O_t3c16DVdSqm2JQbWpzORT91y0AgJz_"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 text-xs sm:text-sm shrink-0"
+              title="품질시험 월례보고서 양식(hwp) 다운로드"
+            >
+              <Download className="h-4 w-4" />
+              <span className="whitespace-nowrap">양식(hwp)</span>
+            </a>
           </div>
         </div>
       </header>
