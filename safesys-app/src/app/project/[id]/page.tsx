@@ -88,6 +88,7 @@ export default function ProjectDetailPage() {
   const [managerPendingCount, setManagerPendingCount] = useState(0)
   const [ptwCount, setPtwCount] = useState<number | null>(null)
   const [inspectionRequestCount, setInspectionRequestCount] = useState<number | null>(null)
+  const [qualityMonthlyReportCount, setQualityMonthlyReportCount] = useState<number | null>(null)
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
   const [openCabinet, setOpenCabinet] = useState<'시공' | '안전' | '품질' | '발주청' | null>(null)
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
@@ -183,6 +184,19 @@ export default function ProjectDetailPage() {
       if (!countError) setInspectionRequestCount(count ?? 0)
     }
     loadInspectionRequestCount()
+  }, [user, projectId])
+
+  // 품질시험 월례보고서 건수 조회 (서류철 카드 표시용)
+  useEffect(() => {
+    if (!user || !projectId) return
+    const loadQualityMonthlyReportCount = async () => {
+      const { count, error: countError } = await (supabase as any)
+        .from('quality_monthly_reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+      if (!countError) setQualityMonthlyReportCount(count ?? 0)
+    }
+    loadQualityMonthlyReportCount()
   }, [user, projectId])
 
   // 외부 클릭 시 메뉴 닫기
@@ -998,6 +1012,22 @@ export default function ProjectDetailPage() {
                   projectId={projectId}
                   onClick={() => router.push(`/project/${projectId}/material-ledger`)}
                   bottomLabel="사업"
+                />
+              </div>
+            </div>
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>C (점검)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="품질시험
+월례보고서"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  docCount={qualityMonthlyReportCount ?? undefined}
+                  onClick={() => router.push(`/project/${projectId}/quality-monthly-report`)}
+                  pdcaCategory="C"
+                  bottomLabel="품질"
                 />
               </div>
             </div>
