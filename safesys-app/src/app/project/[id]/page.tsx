@@ -20,6 +20,49 @@ import PWAInstallButtonHeader from '@/components/common/PWAInstallButtonHeader'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
 import NavigationSelector from '@/components/ui/NavigationSelector'
 
+// 캐비넷에서 서류가 아래로 펼쳐져 나오고(열림), 다시 위로 접혀 들어가는(닫힘) 여닫이 애니메이션 래퍼
+function CabinetDrawer({ open, instantClose = false, children }: { open: boolean; instantClose?: boolean; children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(open)
+  const [expanded, setExpanded] = useState(open)
+
+  useEffect(() => {
+    if (open) {
+      setMounted(true) // 열릴 때는 먼저 마운트
+    } else if (instantClose) {
+      // 다른 캐비넷으로 전환하는 경우: 이전 패널은 즉시 정리해 두 패널이 겹쳐 쌓이는 레이아웃 점프를 막는다.
+      setExpanded(false)
+      setMounted(false)
+    } else {
+      setExpanded(false) // 완전히 닫을 때만 접힘 트랜지션 후 언마운트
+      const t = setTimeout(() => setMounted(false), 350)
+      return () => clearTimeout(t)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  useEffect(() => {
+    // 마운트 직후 다음 프레임에 펼침 상태로 전환해 "나오는" 트랜지션을 트리거한다.
+    if (mounted && open && !expanded) {
+      const r = requestAnimationFrame(() => setExpanded(true))
+      return () => cancelAnimationFrame(r)
+    }
+  }, [mounted, open, expanded])
+
+  if (!mounted) return null
+
+  return (
+    <div
+      className="origin-top transition-all duration-300 ease-out motion-reduce:transition-none"
+      style={{
+        opacity: expanded ? 1 : 0,
+        transform: expanded ? 'translateY(0) scale(1)' : 'translateY(-24px) scale(0.96)',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
 export default function ProjectDetailPage() {
   const { user, userProfile, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -71,6 +114,8 @@ export default function ProjectDetailPage() {
       playCabinetSound('close')
       setOpenCabinet(null)
     } else {
+      // 다른 캐비넷이 이미 열려 있으면 그 캐비넷이 닫히는 소리도 함께 재생
+      if (openCabinet) playCabinetSound('close')
       playCabinetSound('open')
       setOpenCabinet(name)
     }
@@ -866,7 +911,7 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* 문서철 그리드 - 시공 캐비넷 */}
-          {openCabinet === '시공' && (
+          <CabinetDrawer open={openCabinet === '시공'} instantClose={openCabinet !== null}>
           <div className="flex flex-wrap justify-center gap-3">
             <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
               <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>P (계획)</div>
@@ -920,10 +965,10 @@ export default function ProjectDetailPage() {
               </div>
             </div>
           </div>
-          )}
+          </CabinetDrawer>
 
           {/* 문서철 그리드 - 품질 캐비넷 */}
-          {openCabinet === '품질' && (
+          <CabinetDrawer open={openCabinet === '품질'} instantClose={openCabinet !== null}>
           <div className="flex flex-wrap justify-center gap-3">
             <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
               <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>P (계획)</div>
@@ -954,10 +999,10 @@ export default function ProjectDetailPage() {
               </div>
             </div>
           </div>
-          )}
+          </CabinetDrawer>
 
           {/* 문서철 그리드 - PDCA 그룹핑 (안전 캐비넷) */}
-          {openCabinet === '안전' && (
+          <CabinetDrawer open={openCabinet === '안전'} instantClose={openCabinet !== null}>
           <div className="flex flex-wrap justify-center gap-3">
             {/* P (계획) */}
             <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
@@ -1137,10 +1182,10 @@ export default function ProjectDetailPage() {
               </div>
             </div>
           </div>
-          )}
+          </CabinetDrawer>
 
           {/* 문서철 그리드 - 발주청 캐비넷 */}
-          {openCabinet === '발주청' && (
+          <CabinetDrawer open={openCabinet === '발주청'} instantClose={openCabinet !== null}>
           <div className="flex flex-wrap justify-center gap-3">
             <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
               <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>C (점검)</div>
@@ -1158,7 +1203,7 @@ export default function ProjectDetailPage() {
               </div>
             </div>
           </div>
-          )}
+          </CabinetDrawer>
         </div>
       </main>
 
