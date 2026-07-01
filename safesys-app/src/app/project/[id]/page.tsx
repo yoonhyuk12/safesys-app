@@ -895,14 +895,7 @@ export default function ProjectDetailPage() {
           {/* 서류 캐비넷 — 좁은 화면에서는 줄 나눔 */}
           <div className="mb-10 flex justify-center">
             <div className="flex flex-wrap items-end justify-center gap-x-4 sm:gap-x-6 lg:gap-x-8 gap-y-10">
-              {/* 일괄서명 만년필 펜통 — 캐비넷 좌측 (감독용은 발주청만) */}
-              {userProfile?.role === '발주청' && (
-                <PenHolderButton
-                  label="감독 일괄서명"
-                  theme="purple"
-                  onClick={() => setBulkSignSigner('supervisor')}
-                />
-              )}
+              {/* 현장소장 일괄서명 만년필 펜통 — 캐비넷 좌측 (감독용은 발주청 캐비넷 안) */}
               <PenHolderButton
                 label="현장소장 일괄서명"
                 theme="blue"
@@ -1272,6 +1265,13 @@ export default function ProjectDetailPage() {
                   onClick={() => router.push(`/project/${projectId}/supervisor-diary`)}
                   pdcaCategory="C"
                   bottomLabel="감독"
+                />
+                <PenHolderButton
+                  label="감독 일괄서명"
+                  theme="purple"
+                  size="sm"
+                  className="self-end"
+                  onClick={() => setBulkSignSigner('supervisor')}
                 />
               </div>
             </div>

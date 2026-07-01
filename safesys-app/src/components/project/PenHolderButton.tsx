@@ -10,6 +10,13 @@ interface PenHolderButtonProps {
   label: string // 펜통 명판 텍스트 (예: "감독 일괄서명" — 공백에서 줄바꿈)
   theme: PenTheme
   onClick: () => void
+  size?: 'md' | 'sm' // sm: 캐비넷 서랍 안 배치용 축소 사이즈
+  className?: string
+}
+
+const SIZE_CLASSES: Record<'md' | 'sm', { button: string; plateText: string }> = {
+  md: { button: 'w-14 sm:w-16 lg:w-20 h-28 sm:h-32 lg:h-40', plateText: 'text-[9px] sm:text-[10px] lg:text-xs' },
+  sm: { button: 'w-11 sm:w-12 lg:w-16 h-20 sm:h-24 lg:h-32', plateText: 'text-[8px] sm:text-[9px] lg:text-[10px]' },
 }
 
 const PEN_THEMES: Record<PenTheme, { barrel: string; cup: string; cupRim: string; frame: string }> = {
@@ -29,8 +36,9 @@ const PEN_THEMES: Record<PenTheme, { barrel: string; cup: string; cupRim: string
 
 const GOLD = 'linear-gradient(90deg, #a16207 0%, #facc15 45%, #ca8a04 100%)'
 
-const PenHolderButton: React.FC<PenHolderButtonProps> = ({ label, theme, onClick }) => {
+const PenHolderButton: React.FC<PenHolderButtonProps> = ({ label, theme, onClick, size = 'md', className = '' }) => {
   const colors = PEN_THEMES[theme]
+  const sizeClasses = SIZE_CLASSES[size]
   const [line1, ...rest] = label.split(' ')
   const line2 = rest.join(' ')
 
@@ -39,7 +47,7 @@ const PenHolderButton: React.FC<PenHolderButtonProps> = ({ label, theme, onClick
       type="button"
       data-cabinet
       onClick={onClick}
-      className="group relative w-16 sm:w-18 lg:w-24 h-32 sm:h-36 lg:h-48 cursor-pointer transition-transform duration-200 hover:scale-105"
+      className={`group relative ${sizeClasses.button} cursor-pointer transition-transform duration-200 hover:scale-105 ${className}`}
       title={label}
     >
       {/* 만년필 — 펜촉이 위로 꽂힌 모습, 호버 시 살짝 뽑힘 */}
@@ -92,7 +100,7 @@ const PenHolderButton: React.FC<PenHolderButtonProps> = ({ label, theme, onClick
           style={{ boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.15)' }}
         >
           <span
-            className="block whitespace-nowrap text-[9px] sm:text-[10px] lg:text-xs font-bold text-gray-800 leading-tight text-center"
+            className={`block whitespace-nowrap ${sizeClasses.plateText} font-bold text-gray-800 leading-tight text-center`}
             style={{ fontFamily: 'ChosunBg, serif' }}
           >
             {line1}
