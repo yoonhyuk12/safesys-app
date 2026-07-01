@@ -924,6 +924,7 @@ export default function ProjectDetailPage() {
                   isActive={false}
                   externalUrl="https://docs.google.com/forms/d/e/1FAIpQLSdY1beSxNGj6niH6_jG7onccyQsUoIBfldYbIWsbMkc7VoQKA/viewform"
                   pdcaCategory="P"
+                  bottomLabel="시공"
                 />
                 <DocumentFolder
                   title="공정표"
@@ -961,6 +962,7 @@ export default function ProjectDetailPage() {
                   docCount={inspectionRequestCount ?? undefined}
                   onClick={() => router.push(`/project/${projectId}/inspection-request`)}
                   pdcaCategory="C"
+                  bottomLabel="시공"
                 />
               </div>
             </div>
@@ -981,6 +983,7 @@ export default function ProjectDetailPage() {
                   isActive={false}
                   externalUrl="https://docs.google.com/forms/d/e/1FAIpQLSeSTpnRsOBiy0myufl0itGdeDeVzfkYWeybqBhR7ThDef5HHw/viewform"
                   pdcaCategory="P"
+                  bottomLabel="품질"
                 />
               </div>
             </div>
