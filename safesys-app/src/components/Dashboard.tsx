@@ -1,10 +1,10 @@
 'use client'
 
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2, ClipboardCheck, GitMerge } from 'lucide-react'
+import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2, ClipboardCheck, GitMerge, FlaskConical } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, getHeatWaveCheckCountByUserBranch, getManagerInspectionCountByUserBranch, getHeadquartersInspectionCountByUserBranch, getTBMSafetyInspectionCountByUserBranch, getSafeDocumentInspectionCountByUserBranch, getPtwPermitsByUserBranch, getPtwPermitCountByUserBranch, getInspectionRequestCountsByUserBranch, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type PtwPermitSummary, type WorkerCountByProject, type MaterialCountByProject, type InspectionRequestCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
+import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, getHeatWaveCheckCountByUserBranch, getManagerInspectionCountByUserBranch, getHeadquartersInspectionCountByUserBranch, getTBMSafetyInspectionCountByUserBranch, getSafeDocumentInspectionCountByUserBranch, getPtwPermitsByUserBranch, getPtwPermitCountByUserBranch, getInspectionRequestCountsByUserBranch, getQualityMonthlyReportStatusByUserBranch, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type PtwPermitSummary, type WorkerCountByProject, type MaterialCountByProject, type InspectionRequestCountByProject, type QualityReportStatusByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
 import { getTBMRecords, type TBMRecord } from '@/lib/tbm'
 import { downloadProjectListExcel } from '@/lib/excel/project-list-export'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS, DEBUG_LOGS } from '@/lib/constants'
@@ -38,6 +38,7 @@ import SafetyNewWorkerOrientationView from '@/components/dashboard/SafetyNewWork
 import SafetyInspectionLedgerView from '@/components/dashboard/SafetyInspectionLedgerView'
 import BusinessMaterialView from '@/components/dashboard/BusinessMaterialView'
 import BusinessInspectionView from '@/components/dashboard/BusinessInspectionView'
+import BusinessQualityReportView from '@/components/dashboard/BusinessQualityReportView'
 import TBMChatBot from '@/components/ui/TBMChatBot'
 import BulkProjectUploadModal from '@/components/project/BulkProjectUploadModal'
 import officeLocationsData from '@/lib/office-locations.json'
@@ -285,6 +286,8 @@ const Dashboard: React.FC = () => {
   const [materialDataLoading, setMaterialDataLoading] = useState(false)
   const [inspectionRequestCounts, setInspectionRequestCounts] = useState<InspectionRequestCountByProject[]>([])
   const [inspectionRequestDataLoading, setInspectionRequestDataLoading] = useState(false)
+  const [qualityReportStatuses, setQualityReportStatuses] = useState<QualityReportStatusByProject[]>([])
+  const [qualityReportDataLoading, setQualityReportDataLoading] = useState(false)
   const [orientationStats, setOrientationStats] = useState<{ project_id: string; project_name: string; orientation_count: number; worker_count: number }[]>([])
   const [orientationDataLoading, setOrientationDataLoading] = useState(false)
   const [inspectionDataLoading, setInspectionDataLoading] = useState(false)
@@ -1386,6 +1389,35 @@ const Dashboard: React.FC = () => {
       })
       .finally(() => setInspectionRequestDataLoading(false))
   }, [user, userProfile, viewMode, selectedHq, selectedBranch, inspectionRequestCounts.length])
+
+  // 사업현황 진입 시 품질시험 월례보고서 제출현황 로드
+  const lastQualityReportParams = useRef<{ hq: string; branch: string } | null>(null)
+  useEffect(() => {
+    if (!(user && userProfile && userProfile.role === '발주청' && viewMode === 'business')) {
+      return
+    }
+    if (!isSelectionInitialized.current) return
+
+    const currentParams = { hq: selectedHq || '', branch: selectedBranch || '' }
+    if (lastQualityReportParams.current &&
+      lastQualityReportParams.current.hq === currentParams.hq &&
+      lastQualityReportParams.current.branch === currentParams.branch &&
+      qualityReportStatuses.length > 0) {
+      if (DEBUG_LOGS) console.log('✅ 품질시험 월례보고서 제출현황 데이터 이미 로딩됨. 재로딩 스킵')
+      return
+    }
+
+    if (DEBUG_LOGS) console.log('🔍 품질시험 월례보고서 제출현황 전용 데이터 로딩 시작')
+    lastQualityReportParams.current = currentParams
+    setQualityReportDataLoading(true)
+    getQualityMonthlyReportStatusByUserBranch(userProfile, selectedHq || undefined, selectedBranch || undefined)
+      .then(result => {
+        if (result.success && result.reportStatuses) {
+          setQualityReportStatuses(result.reportStatuses)
+        }
+      })
+      .finally(() => setQualityReportDataLoading(false))
+  }, [user, userProfile, viewMode, selectedHq, selectedBranch, qualityReportStatuses.length])
 
   // 지도보기일 때 점검 데이터 로드
   useEffect(() => {
@@ -3809,6 +3841,14 @@ const Dashboard: React.FC = () => {
                 onBack={() => setSelectedBusinessCard(null)}
                 onRowClickProject={(projectId, branch) => router.push(`/project/${projectId}/inspection-request?returnUrl=${encodeURIComponent(`/business?card=inspection&branch=${branch ?? ''}`)}`)}
               />
+            ) : selectedBusinessCard === 'quality' ? (
+              <BusinessQualityReportView
+                loading={qualityReportDataLoading}
+                reportStatuses={qualityReportStatuses}
+                initialBranch={searchParams.get('branch')}
+                onBack={() => setSelectedBusinessCard(null)}
+                onRowClickProject={(projectId, branch) => router.push(`/project/${projectId}/quality-monthly-report?returnUrl=${encodeURIComponent(`/business?card=quality&branch=${branch ?? ''}`)}`)}
+              />
             ) : (
               <>
                 <div className="bg-white/80 backdrop-blur rounded-lg border border-white/20 shadow-sm p-3 lg:p-4">
@@ -3854,6 +3894,24 @@ const Dashboard: React.FC = () => {
                           {inspectionRequestCounts.reduce((s, m) => s + m.inspection_count, 0).toLocaleString()}건
                         </div>
                         <div className="text-xs">등록</div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* 품질시험 월례보고서 카드 — 본부별→지사별 제출현황 */}
+                  <div
+                    onClick={() => setSelectedBusinessCard('quality')}
+                    className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-emerald-300 hover:bg-emerald-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]"
+                  >
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center mb-2">
+                        <FlaskConical className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <h4 className="text-xs font-medium text-gray-900 mb-1">품질 월례보고</h4>
+                      <div className="text-xs text-gray-600">
+                        <div className="text-sm font-semibold text-emerald-600 mb-0.5">
+                          {qualityReportStatuses.filter(s => s.current_month_submitted).length}/{qualityReportStatuses.length}개
+                        </div>
+                        <div className="text-xs">{new Date().getMonth() + 1}월 제출</div>
                       </div>
                     </div>
                   </div>

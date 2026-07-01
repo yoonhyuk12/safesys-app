@@ -2560,6 +2560,126 @@ export async function getInspectionRequestCountsByUserBranch(
   }
 }
 
+export interface QualityReportStatusByProject {
+  project_id: string
+  project_name: string
+  managing_hq: string
+  managing_branch: string
+  report_count: number // 누적 제출 건수
+  current_month_submitted: boolean // 이번 달 보고서 제출 여부
+  latest_report_label: string // 최근 제출 연월 표시 (예: '26.07'), 없으면 ''
+}
+
+// 사용자 권한/선택 본부·지사 범위의 프로젝트별 품질시험 월례보고서 제출 현황을 집계한다.
+export async function getQualityMonthlyReportStatusByUserBranch(
+  userProfile: UserProfile,
+  selectedHq?: string,
+  selectedBranch?: string
+): Promise<{ success: boolean; reportStatuses?: QualityReportStatusByProject[]; error?: string }> {
+  try {
+    if (DEBUG_LOGS) console.log('품질시험 월례보고서 제출현황 조회 시작:', { selectedHq, selectedBranch })
+
+    let projectQuery = supabase
+      .from('projects')
+      .select('id, project_name, managing_hq, managing_branch, is_active')
+
+    if (userProfile.role === '발주청') {
+      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+        if (DEBUG_LOGS) console.log('✅ 본사 조직 사용자: 전사 품질시험 월례보고서 현황 조회')
+      } else {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) {
+      projectQuery = projectQuery.eq('managing_hq', selectedHq)
+    }
+    if (selectedBranch) {
+      projectQuery = projectQuery.eq('managing_branch', selectedBranch)
+    }
+
+    const { data: projects, error: projectError } = await projectQuery
+
+    if (projectError) {
+      console.error('프로젝트 조회 오류:', projectError)
+      return { success: false, error: projectError.message }
+    }
+
+    if (!projects || projects.length === 0) {
+      return { success: true, reportStatuses: [] }
+    }
+
+    const isCompletedProject = (p: any): boolean => {
+      if (p.is_active === undefined || p.is_active === null) return false
+      if (typeof p.is_active === 'boolean') return !p.is_active
+      if (typeof p.is_active === 'object') return p.is_active.completed === true
+      return false
+    }
+    const activeProjects = projects.filter(p => !isCompletedProject(p))
+
+    if (activeProjects.length === 0) {
+      return { success: true, reportStatuses: [] }
+    }
+
+    const projectIds = activeProjects.map(p => p.id)
+
+    // quality_monthly_reports에서 프로젝트별 제출 연월 조회
+    const { data: reports, error: reportError } = await supabase
+      .from('quality_monthly_reports')
+      .select('project_id, report_year, report_month')
+      .in('project_id', projectIds)
+
+    if (reportError) {
+      console.error('품질시험 월례보고서 조회 오류:', reportError)
+      return { success: false, error: reportError.message }
+    }
+
+    const now = new Date()
+    const currentYear = now.getFullYear()
+    const currentMonth = now.getMonth() + 1
+
+    // 프로젝트별 집계: 누적 건수, 이번 달 제출 여부, 최근 제출 연월
+    const statMap = new Map<string, { count: number; currentSubmitted: boolean; latestYm: number }>()
+    ;(reports || []).forEach((r: any) => {
+      const existing = statMap.get(r.project_id) || { count: 0, currentSubmitted: false, latestYm: 0 }
+      existing.count += 1
+      if (r.report_year === currentYear && r.report_month === currentMonth) {
+        existing.currentSubmitted = true
+      }
+      const ym = r.report_year * 100 + r.report_month
+      if (ym > existing.latestYm) existing.latestYm = ym
+      statMap.set(r.project_id, existing)
+    })
+
+    const reportStatuses: QualityReportStatusByProject[] = activeProjects.map(p => {
+      const stat = statMap.get(p.id)
+      return {
+        project_id: p.id,
+        project_name: p.project_name,
+        managing_hq: p.managing_hq,
+        managing_branch: p.managing_branch,
+        report_count: stat?.count || 0,
+        current_month_submitted: stat?.currentSubmitted || false,
+        latest_report_label: stat && stat.latestYm > 0
+          ? `${String(Math.floor(stat.latestYm / 100)).slice(-2)}.${String(stat.latestYm % 100).padStart(2, '0')}`
+          : '',
+      }
+    })
+
+    if (DEBUG_LOGS) console.log(`품질시험 월례보고서 제출현황 조회 완료: ${reportStatuses.length}개 프로젝트`)
+    return { success: true, reportStatuses }
+
+  } catch (error: any) {
+    console.error('품질시험 월례보고서 제출현황 조회 실패:', error)
+    return { success: false, error: error.message || '품질시험 월례보고서 데이터를 불러오는데 실패했습니다.' }
+  }
+}
+
 // ===== 프로젝트 공유 기능 =====
 
 export interface ProjectShare {

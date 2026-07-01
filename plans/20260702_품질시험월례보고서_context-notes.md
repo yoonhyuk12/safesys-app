@@ -15,3 +15,5 @@
 - **MCP 마이그레이션 차단**: `apply_migration`이 auto mode 권한 분류기에서 거부됨(프로덕션 DDL). CLAUDE.md 방침대로 `database/add_quality_monthly_reports_table.sql`을 사용자가 Supabase 웹 콘솔에서 직접 실행해야 기능이 동작한다. 테이블 없이도 앱은 깨지지 않음(건수 미표시, 목록 빈 화면, 저장 시 오류 알림).
 - **`rows` 컬럼명 회피**: PostgreSQL 예약어 충돌 가능성이 있어 `report_rows`로 명명.
 - **커밋은 로컬만**: main 푸시 = Vercel 자동 배포라서, 마이그레이션 미적용 상태로 푸시하지 않음. 코드 자체는 테이블 부재에 안전하지만 사용자 판단에 맡김.
+- **HWP 양식 버튼**: 보고서 페이지 헤더 우측에 구글 드라이브 직접 다운로드 링크(`uc?export=download`) 추가 — 신규근로자 둘러보기 페이지의 기존 패턴 재사용.
+- **사업현황(/business) 제출현황 카드**: 기존 카드(자급자재·검사/검측)는 지사→프로젝트 2단이지만, 사용자가 "본부별 > 지사별"을 명시해 본부→지사→프로젝트 3단 드릴다운으로 구현(`BusinessQualityReportView`). "제출" 판정 = 해당 월 `quality_monthly_reports` 행 존재. 이번 달 기준 제출/미제출 집계이며, 데이터 로딩은 발주청 + business 뷰 게이팅(기존 검사/검측 useEffect 패턴 복제).
