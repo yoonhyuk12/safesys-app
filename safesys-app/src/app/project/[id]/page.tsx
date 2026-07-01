@@ -16,6 +16,7 @@ import BusinessCardEasel from '@/components/project/BusinessCardEasel'
 import HeatWaveCheckModal from '@/components/project/HeatWaveCheckModal'
 import BulkSignModal, { BulkSignSigner } from '@/components/project/BulkSignModal'
 import PenHolderButton from '@/components/project/PenHolderButton'
+import { countUnsignedBySigner } from '@/lib/bulk-sign/bulk-sign-counts'
 import ProjectHandoverModal from '@/components/project/ProjectHandoverModal'
 import ProjectShareModal from '@/components/project/ProjectShareModal'
 import PWAInstallButtonHeader from '@/components/common/PWAInstallButtonHeader'
@@ -77,6 +78,8 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState('')
   const [isHeatWaveModalOpen, setIsHeatWaveModalOpen] = useState(false)
   const [bulkSignSigner, setBulkSignSigner] = useState<BulkSignSigner | null>(null)
+  const [supervisorUnsignedCount, setSupervisorUnsignedCount] = useState<number | null>(null)
+  const [contractorUnsignedCount, setContractorUnsignedCount] = useState<number | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [handoverModal, setHandoverModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
@@ -163,6 +166,21 @@ export default function ProjectDetailPage() {
     })
     return () => { cancelled = true }
   }, [project?.id, project?.construction_start_date, project?.construction_end_date])
+
+  // 일괄서명 미서명 건수 조회 (펜통 버튼 빨간 뱃지용) — 모달 닫을 때도 재조회
+  const loadUnsignedCounts = () => {
+    if (!projectId) return
+    countUnsignedBySigner(projectId, 'contractor').then(setContractorUnsignedCount).catch(() => {})
+    if (userProfile?.role === '발주청') {
+      countUnsignedBySigner(projectId, 'supervisor').then(setSupervisorUnsignedCount).catch(() => {})
+    }
+  }
+
+  useEffect(() => {
+    if (!user || !projectId) return
+    loadUnsignedCounts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, projectId, userProfile?.role])
 
   // PTW 허가서 건수 조회 (서류철 카드 표시용)
   useEffect(() => {
@@ -899,6 +917,7 @@ export default function ProjectDetailPage() {
               <PenHolderButton
                 label="시공사 일괄서명"
                 theme="blue"
+                badgeCount={contractorUnsignedCount ?? undefined}
                 onClick={() => setBulkSignSigner('contractor')}
               />
               {project.business_card_pdf_url && (
@@ -1271,6 +1290,7 @@ export default function ProjectDetailPage() {
                   theme="purple"
                   size="sm"
                   className="self-end"
+                  badgeCount={supervisorUnsignedCount ?? undefined}
                   onClick={() => setBulkSignSigner('supervisor')}
                 />
               </div>
@@ -1296,7 +1316,10 @@ export default function ProjectDetailPage() {
       {/* 감독·시공사 일괄서명 모달 */}
       <BulkSignModal
         isOpen={bulkSignSigner !== null}
-        onClose={() => setBulkSignSigner(null)}
+        onClose={() => {
+          setBulkSignSigner(null)
+          loadUnsignedCounts()
+        }}
         projectId={projectId}
         projectName={project?.project_name}
         signer={bulkSignSigner ?? 'supervisor'}

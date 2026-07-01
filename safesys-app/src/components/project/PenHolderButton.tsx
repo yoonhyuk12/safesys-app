@@ -12,6 +12,7 @@ interface PenHolderButtonProps {
   onClick: () => void
   size?: 'md' | 'sm' // sm: 캐비넷 서랍 안 배치용 축소 사이즈
   className?: string
+  badgeCount?: number // 우측 상단 빨간 뱃지 (미서명 건수)
 }
 
 const SIZE_CLASSES: Record<'md' | 'sm', { button: string; plateText: string }> = {
@@ -36,7 +37,7 @@ const PEN_THEMES: Record<PenTheme, { barrel: string; cup: string; cupRim: string
 
 const GOLD = 'linear-gradient(90deg, #a16207 0%, #facc15 45%, #ca8a04 100%)'
 
-const PenHolderButton: React.FC<PenHolderButtonProps> = ({ label, theme, onClick, size = 'md', className = '' }) => {
+const PenHolderButton: React.FC<PenHolderButtonProps> = ({ label, theme, onClick, size = 'md', className = '', badgeCount }) => {
   const colors = PEN_THEMES[theme]
   const sizeClasses = SIZE_CLASSES[size]
   const [line1, ...rest] = label.split(' ')
@@ -118,6 +119,13 @@ const PenHolderButton: React.FC<PenHolderButtonProps> = ({ label, theme, onClick
           style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.05) 100%)' }}
         />
       </div>
+
+      {/* 미서명 건수 뱃지 */}
+      {badgeCount != null && badgeCount > 0 && (
+        <div className="absolute top-0 -right-1 lg:-right-2 z-20 flex items-center justify-center min-w-5 h-5 lg:min-w-6 lg:h-6 px-1 bg-red-500 text-white text-xs lg:text-sm font-bold rounded-full shadow-lg border-2 border-white">
+          {badgeCount}
+        </div>
+      )}
     </button>
   )
 }
