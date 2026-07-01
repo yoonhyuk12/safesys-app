@@ -24,8 +24,13 @@
 - **복구**: service-role 일회용 스크립트로 NULL 75건의 project_id를 생존 프로젝트(a3be1237)로 설정. 검증 결과 사리현 TBM 77건 전부 a3be1237 연결, NULL 0. (MCP는 읽기 전용이라 UPDATE 불가 → `.env.local` service-role 키 스크립트 사용)
 - **근본 수정**: `merge_projects` RPC에 "source 이름·본부·지사로 매칭되는 NULL project_id TBM도 target으로 이전" 블록 추가(`moved_legacy_tbm` 반환). `tbm_safety_inspections`는 601건 전부 project_id 보유 → 무관(수정 불필요).
 
+## 2026-07-02 검증 + v3 — 비정규화 텍스트 동기화
+
+- **전수 검증(실 DB 대조) 결과 project_id 이관은 누락 없음**: projects 참조 FK 정확히 15개(전부 단일 `project_id` uuid, 전부 CASCADE)로 RPC UPDATE 목록과 1:1 일치. FK 없는 소프트 참조 컬럼 없음. project_id 포함 유니크는 처리된 2곳뿐(나머지는 PK만). 손자 테이블(material_ledger_entries, safety_inspection_photos/results)은 부모 id 불변이라 무관. 충돌 삭제되는 work_daily_reports·project_shares에 Storage URL 컬럼 없음. v2(레거시 TBM 블록)는 콘솔 재적용 완료 상태 확인(pg_proc 대조).
+- **v3 결정(사용자 지시)**: 병합 시 이전되는 행의 비정규화 텍스트를 합산처(target) 값으로 동기화. 대상 컬럼은 `tbm_submissions.project_name/headquarters/branch`, `tbm_safety_inspections.project_name`(전 테이블 컬럼 조회로 이 둘뿐임을 확인). 근거는 TBM 현황이 이 텍스트로 필터·그룹핑하므로(tbm.ts:82-83, TBMStatus.tsx:3954) 옛 이름이 남으면 별도 항목으로 보이거나 옛 지사 필터에 잡힘. 두 테이블 모두 텍스트 유니크 제약 없어 충돌 불가.
+- **백필**: 지난 병합(사리현) 흔적으로 남은 옛 이름 텍스트 77건은 `backfill_merged_tbm_project_text.sql`로 정리(옛 이름 명시로 한정, 멱등). 병합과 무관한 이름 불일치(수기 입력 편차 — 석정 66건·호곡 46건 등)는 의도적으로 건드리지 않음.
+
 ## 남은 일
 
-- **사용자가 보완된 `database/migrations/add_merge_projects_function.sql`를 Supabase 콘솔에서 재실행**해야 함(create or replace, 재적용 안전).
-- 재적용 전까지 "합치기" 버튼 사용 금지(레거시 TBM 또 사라짐).
-- 재적용 후 테스트용 두 프로젝트(레거시 TBM 포함)로 병합 검증.
+- **사용자가 Supabase 콘솔에서 실행할 것 2건**: ① `add_merge_projects_function.sql` 재실행(v3, create or replace라 재적용 안전) ② `backfill_merged_tbm_project_text.sql` 실행 후 파일 하단 검증 쿼리 0건 확인.
+- v3 적용 후 테스트용 두 프로젝트(레거시 TBM 포함)로 병합 검증 — 이전된 행의 이름·본부·지사가 합산처 값인지 확인.

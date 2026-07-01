@@ -13,6 +13,9 @@ declare
   v_src_name   text;
   v_src_hq     text;
   v_src_branch text;
+  v_tgt_name   text;
+  v_tgt_hq     text;
+  v_tgt_branch text;
 begin
   if p_source = p_target then
     raise exception '대상과 합산처가 같습니다';
@@ -31,6 +34,12 @@ begin
     into v_src_name, v_src_hq, v_src_branch
     from projects where id = p_source;
 
+  -- 표시 일관성: TBM 계열 테이블은 이름·본부·지사를 텍스트로도 갖고 화면·필터가 이 텍스트를
+  -- 쓰므로, 이전되는 행의 텍스트를 target(합산처) 값으로 함께 덮어써야 한다.
+  select project_name, managing_hq, managing_branch
+    into v_tgt_name, v_tgt_hq, v_tgt_branch
+    from projects where id = p_target;
+
   -- 유니크 충돌 회피: target에 이미 같은 키가 있으면 source 행을 먼저 제거(target 우선).
   -- 이때 삭제된 source 행은 "합쳐지지 않고 폐기"되므로 건수를 집계해 반환·로깅한다.
   delete from work_daily_reports s
@@ -45,6 +54,7 @@ begin
   get diagnostics v_dropped_shares = row_count;
 
   -- 15개 자식 테이블 project_id 이전
+  -- (TBM 계열 2개는 비정규화된 이름·본부·지사 텍스트도 target 값으로 동기화)
   update headquarters_inspections   set project_id = p_target where project_id = p_source;
   update heat_wave_checks           set project_id = p_target where project_id = p_source;
   update inspection_requests        set project_id = p_target where project_id = p_source;
@@ -55,8 +65,11 @@ begin
   update ptw_permits                set project_id = p_target where project_id = p_source;
   update safe_document_inspections  set project_id = p_target where project_id = p_source;
   update safety_inspections         set project_id = p_target where project_id = p_source;
-  update tbm_safety_inspections     set project_id = p_target where project_id = p_source;
-  update tbm_submissions            set project_id = p_target where project_id = p_source;
+  update tbm_safety_inspections     set project_id = p_target, project_name = v_tgt_name
+   where project_id = p_source;
+  update tbm_submissions            set project_id = p_target, project_name = v_tgt_name,
+                                        headquarters = v_tgt_hq, branch = v_tgt_branch
+   where project_id = p_source;
   update work_daily_reports         set project_id = p_target where project_id = p_source;
   update worker_registration_tokens set project_id = p_target where project_id = p_source;
   update workers                    set project_id = p_target where project_id = p_source;
@@ -65,7 +78,10 @@ begin
   -- 이름·본부·지사로 화면에 매칭되던 제출분도 target으로 이전한다.
   -- (미이전 시 source 삭제와 함께 매칭 프로젝트가 사라져 화면에서 보이지 않게 됨)
   update tbm_submissions
-     set project_id = p_target
+     set project_id   = p_target,
+         project_name = v_tgt_name,
+         headquarters = v_tgt_hq,
+         branch       = v_tgt_branch
    where project_id is null
      and project_name = v_src_name
      and headquarters = v_src_hq
@@ -93,4 +109,4 @@ revoke execute on function merge_projects(uuid, uuid) from public, anon, authent
 grant  execute on function merge_projects(uuid, uuid) to service_role;
 
 comment on function merge_projects(uuid, uuid) is
-  'source 프로젝트의 자식 행 15종을 target으로 이전 후 source를 삭제(병합). 유니크 충돌(work_daily_reports·project_shares)은 target 우선으로 source 중복 행을 폐기하고 그 건수를 jsonb로 반환. 서버(service-role)에서만 호출.';
+  'source 프로젝트의 자식 행 15종을 target으로 이전 후 source를 삭제(병합). TBM 계열(tbm_submissions·tbm_safety_inspections)의 이름·본부·지사 텍스트도 target 값으로 동기화. 유니크 충돌(work_daily_reports·project_shares)은 target 우선으로 source 중복 행을 폐기하고 그 건수를 jsonb로 반환. 서버(service-role)에서만 호출.';
