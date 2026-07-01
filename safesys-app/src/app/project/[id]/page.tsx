@@ -1293,7 +1293,7 @@ export default function ProjectDetailPage() {
         />
       )}
 
-      {/* 감독·현장소장 일괄서명 모달 */}
+      {/* 감독·시공사 일괄서명 모달 */}
       <BulkSignModal
         isOpen={bulkSignSigner !== null}
         onClose={() => setBulkSignSigner(null)}
