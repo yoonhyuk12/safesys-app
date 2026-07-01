@@ -14,6 +14,7 @@ import DocumentFolder from '@/components/project/DocumentFolder'
 import DocumentCabinet from '@/components/project/DocumentCabinet'
 import BusinessCardEasel from '@/components/project/BusinessCardEasel'
 import HeatWaveCheckModal from '@/components/project/HeatWaveCheckModal'
+import SupervisorBulkSignModal from '@/components/project/SupervisorBulkSignModal'
 import ProjectHandoverModal from '@/components/project/ProjectHandoverModal'
 import ProjectShareModal from '@/components/project/ProjectShareModal'
 import PWAInstallButtonHeader from '@/components/common/PWAInstallButtonHeader'
@@ -74,6 +75,7 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [isHeatWaveModalOpen, setIsHeatWaveModalOpen] = useState(false)
+  const [isBulkSignModalOpen, setIsBulkSignModalOpen] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [handoverModal, setHandoverModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
@@ -1257,6 +1259,15 @@ export default function ProjectDetailPage() {
                   pdcaCategory="C"
                   bottomLabel="감독"
                 />
+                <DocumentFolder
+                  title="감독 일괄서명"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => setIsBulkSignModalOpen(true)}
+                  pdcaCategory="C"
+                  bottomLabel="감독"
+                />
               </div>
             </div>
           </div>
@@ -1276,6 +1287,14 @@ export default function ProjectDetailPage() {
           project={project}
         />
       )}
+
+      {/* 감독 일괄서명 모달 */}
+      <SupervisorBulkSignModal
+        isOpen={isBulkSignModalOpen}
+        onClose={() => setIsBulkSignModalOpen(false)}
+        projectId={projectId}
+        projectName={project?.project_name}
+      />
 
       {/* 프로젝트 인계 모달 */}
       <ProjectHandoverModal
