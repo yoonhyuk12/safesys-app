@@ -1,6 +1,6 @@
 'use client'
 
-// 감독(공사감독원)이 프로젝트의 미서명 문서 5종을 전체/부분 선택해 일괄 서명하는 모달
+// 감독(공사감독원)·현장소장(시공사)이 프로젝트의 미서명 문서를 전체/부분 선택해 일괄 서명하는 모달
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { X, PenTool, RefreshCw } from 'lucide-react'
@@ -8,11 +8,14 @@ import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignaturePad from '@/components/ui/SignaturePad'
 
-interface SupervisorBulkSignModalProps {
+export type BulkSignSigner = 'supervisor' | 'site_manager'
+
+interface BulkSignModalProps {
   isOpen: boolean
   onClose: () => void
   projectId: string
   projectName?: string
+  signer: BulkSignSigner
 }
 
 // 미서명 항목 1건 — key = `${type}:${id}`
@@ -29,120 +32,210 @@ interface UnsignedGroup {
   items: UnsignedItem[]
 }
 
-// 타입별 미서명 목록 조회 정의 — 서명 base64 컬럼은 용량 문제로 select하지 않는다
-const GROUP_DEFS = [
+interface GroupDef {
+  type: string
+  title: string
+  load: (projectId: string) => Promise<UnsignedItem[]>
+}
+
+// 공용 로더 — 서명 base64 컬럼은 용량 문제로 select하지 않는다
+const loadUnsignedRows = async (
+  projectId: string,
+  table: string,
+  selectCols: string,
+  unsignedFilter: { boolColumn: string } | { signColumn: string },
+  orderColumn: string
+): Promise<Array<Record<string, unknown>>> => {
+  let query = supabase
+    .from(table)
+    .select(selectCols)
+    .eq('project_id', projectId)
+
+  if ('boolColumn' in unsignedFilter) {
+    query = query.eq(unsignedFilter.boolColumn, false)
+  } else {
+    query = query.or(`${unsignedFilter.signColumn}.is.null,${unsignedFilter.signColumn}.eq.`)
+  }
+
+  const { data, error } = await query.order(orderColumn, { ascending: false })
+  if (error) throw error
+  return (data || []) as unknown as Array<Record<string, unknown>>
+}
+
+const str = (v: unknown): string => (typeof v === 'string' ? v : '')
+
+// 감독(공사감독원) 서명 대상 5종
+const SUPERVISOR_GROUPS: GroupDef[] = [
   {
     type: 'manager_inspection',
     title: '관리자 일상점검',
-    load: async (projectId: string): Promise<UnsignedItem[]> => {
-      const { data, error } = await supabase
-        .from('manager_inspections')
-        .select('id, inspection_date, inspector_name')
-        .eq('project_id', projectId)
-        .eq('has_signature', false)
-        .order('inspection_date', { ascending: false })
-      if (error) throw error
-      return ((data || []) as Array<{ id: string; inspection_date?: string; inspector_name?: string }>).map((r) => ({
+    load: async (projectId) => {
+      const rows = await loadUnsignedRows(projectId, 'manager_inspections', 'id, inspection_date, inspector_name', { boolColumn: 'has_signature' }, 'inspection_date')
+      return rows.map((r) => ({
         type: 'manager_inspection',
-        id: r.id,
-        date: r.inspection_date || '',
-        label: r.inspector_name ? `점검자 ${r.inspector_name}` : '',
+        id: str(r.id),
+        date: str(r.inspection_date),
+        label: r.inspector_name ? `점검자 ${str(r.inspector_name)}` : '',
       }))
     },
   },
   {
     type: 'tbm_safety_inspection',
     title: 'TBM 안전활동 점검표',
-    load: async (projectId: string): Promise<UnsignedItem[]> => {
-      const { data, error } = await supabase
-        .from('tbm_safety_inspections')
-        .select('id, tbm_date, work_content')
-        .eq('project_id', projectId)
-        .or('signature.is.null,signature.eq.')
-        .order('tbm_date', { ascending: false })
-      if (error) throw error
-      return ((data || []) as Array<{ id: string; tbm_date?: string; work_content?: string }>).map((r) => ({
+    load: async (projectId) => {
+      const rows = await loadUnsignedRows(projectId, 'tbm_safety_inspections', 'id, tbm_date, work_content', { signColumn: 'signature' }, 'tbm_date')
+      return rows.map((r) => ({
         type: 'tbm_safety_inspection',
-        id: r.id,
-        date: r.tbm_date || '',
-        label: r.work_content || '',
+        id: str(r.id),
+        date: str(r.tbm_date),
+        label: str(r.work_content),
       }))
     },
   },
   {
     type: 'inspection_request',
     title: '검사/검측 요청서 (공사감독원 서명)',
-    load: async (projectId: string): Promise<UnsignedItem[]> => {
-      const { data, error } = await supabase
-        .from('inspection_requests')
-        .select('id, request_no, request_date, location_and_type')
-        .eq('project_id', projectId)
-        .or('supervisor_signature.is.null,supervisor_signature.eq.')
-        .order('request_date', { ascending: false })
-      if (error) throw error
-      return ((data || []) as Array<{ id: string; request_no?: string; request_date?: string; location_and_type?: string }>).map((r) => ({
+    load: async (projectId) => {
+      const rows = await loadUnsignedRows(projectId, 'inspection_requests', 'id, request_no, request_date, location_and_type', { signColumn: 'supervisor_signature' }, 'request_date')
+      return rows.map((r) => ({
         type: 'inspection_request',
-        id: r.id,
-        date: r.request_date || '',
-        label: [r.request_no, r.location_and_type].filter(Boolean).join(' · '),
+        id: str(r.id),
+        date: str(r.request_date),
+        label: [str(r.request_no), str(r.location_and_type)].filter(Boolean).join(' · '),
       }))
     },
   },
   {
     type: 'quality_test_record',
     title: '품질검사 실시대장 (건설사업관리기술인 서명)',
-    load: async (projectId: string): Promise<UnsignedItem[]> => {
-      const { data, error } = await supabase
-        .from('quality_test_records')
-        .select('id, test_date, test_item, target_material')
-        .eq('project_id', projectId)
-        .or('supervision_engineer_signature.is.null,supervision_engineer_signature.eq.')
-        .order('test_date', { ascending: false })
-      if (error) throw error
-      return ((data || []) as Array<{ id: string; test_date?: string; test_item?: string; target_material?: string }>).map((r) => ({
+    load: async (projectId) => {
+      const rows = await loadUnsignedRows(projectId, 'quality_test_records', 'id, test_date, test_item, target_material', { signColumn: 'supervision_engineer_signature' }, 'test_date')
+      return rows.map((r) => ({
         type: 'quality_test_record',
-        id: r.id,
-        date: r.test_date || '',
-        label: [r.target_material, r.test_item].filter(Boolean).join(' · '),
+        id: str(r.id),
+        date: str(r.test_date),
+        label: [str(r.target_material), str(r.test_item)].filter(Boolean).join(' · '),
       }))
     },
   },
   {
     type: 'quality_summary_report',
     title: '품질검사 성과총괄표 (확인자 서명)',
-    load: async (projectId: string): Promise<UnsignedItem[]> => {
-      const { data, error } = await supabase
-        .from('quality_summary_reports')
-        .select('id, report_date')
-        .eq('project_id', projectId)
-        .or('confirmer_signature.is.null,confirmer_signature.eq.')
-        .order('report_date', { ascending: false })
-      if (error) throw error
-      return ((data || []) as Array<{ id: string; report_date?: string }>).map((r) => ({
+    load: async (projectId) => {
+      const rows = await loadUnsignedRows(projectId, 'quality_summary_reports', 'id, report_date', { signColumn: 'confirmer_signature' }, 'report_date')
+      return rows.map((r) => ({
         type: 'quality_summary_report',
-        id: r.id,
-        date: r.report_date || '',
+        id: str(r.id),
+        date: str(r.report_date),
         label: '성과총괄표',
       }))
     },
   },
 ]
 
+// 현장소장(시공사) 서명 대상 5종
+const SITE_MANAGER_GROUPS: GroupDef[] = [
+  {
+    type: 'inspection_request_field_agent',
+    title: '검사/검측 요청서 (현장대리인 서명)',
+    load: async (projectId) => {
+      const rows = await loadUnsignedRows(projectId, 'inspection_requests', 'id, request_no, request_date, location_and_type', { signColumn: 'field_agent_signature' }, 'request_date')
+      return rows.map((r) => ({
+        type: 'inspection_request_field_agent',
+        id: str(r.id),
+        date: str(r.request_date),
+        label: [str(r.request_no), str(r.location_and_type)].filter(Boolean).join(' · '),
+      }))
+    },
+  },
+  {
+    type: 'new_worker_orientation',
+    title: '신규근로자 둘러보기 일지 (확인자 서명)',
+    load: async (projectId) => {
+      const rows = await loadUnsignedRows(projectId, 'new_worker_orientations', 'id, orientation_date, workers', { signColumn: 'manager_signature' }, 'orientation_date')
+      return rows.map((r) => ({
+        type: 'new_worker_orientation',
+        id: str(r.id),
+        date: str(r.orientation_date),
+        label: Array.isArray(r.workers) && r.workers.length > 0 ? `신규근로자 ${r.workers.length}명` : '',
+      }))
+    },
+  },
+  {
+    type: 'quality_test_record_engineer',
+    title: '품질검사 실시대장 (품질관리기술인 서명)',
+    load: async (projectId) => {
+      const rows = await loadUnsignedRows(projectId, 'quality_test_records', 'id, test_date, test_item, target_material', { signColumn: 'quality_engineer_signature' }, 'test_date')
+      return rows.map((r) => ({
+        type: 'quality_test_record_engineer',
+        id: str(r.id),
+        date: str(r.test_date),
+        label: [str(r.target_material), str(r.test_item)].filter(Boolean).join(' · '),
+      }))
+    },
+  },
+  {
+    type: 'quality_verification_request',
+    title: '확인시험 의뢰서 (보냄 서명)',
+    load: async (projectId) => {
+      const rows = await loadUnsignedRows(projectId, 'quality_verification_requests', 'id, request_no, request_date, test_items', { signColumn: 'sender_signature' }, 'request_date')
+      return rows.map((r) => ({
+        type: 'quality_verification_request',
+        id: str(r.id),
+        date: str(r.request_date),
+        label: [str(r.request_no), str(r.test_items)].filter(Boolean).join(' · '),
+      }))
+    },
+  },
+  {
+    type: 'quality_summary_report_writer',
+    title: '품질검사 성과총괄표 (작성자 서명)',
+    load: async (projectId) => {
+      const rows = await loadUnsignedRows(projectId, 'quality_summary_reports', 'id, report_date', { signColumn: 'writer_signature' }, 'report_date')
+      return rows.map((r) => ({
+        type: 'quality_summary_report_writer',
+        id: str(r.id),
+        date: str(r.report_date),
+        label: '성과총괄표',
+      }))
+    },
+  },
+]
+
+const SIGNER_CONFIG: Record<BulkSignSigner, { title: string; note: string; groups: GroupDef[]; headerClass: string; accentClass: string }> = {
+  supervisor: {
+    title: '감독 일괄서명',
+    note: '※ 정기안전점검·PTW 작업허가서·폭염점검 서명은 서명자 지정·허가 행위가 필요해 각 문서에서 개별 서명해야 합니다.',
+    groups: SUPERVISOR_GROUPS,
+    headerClass: 'bg-purple-700',
+    accentClass: 'accent-purple-600',
+  },
+  site_manager: {
+    title: '현장소장 일괄서명',
+    note: '※ PTW 작업허가서·정기안전점검·작업자 서명은 서명자 지정이 필요해 각 문서에서 개별 서명해야 합니다.',
+    groups: SITE_MANAGER_GROUPS,
+    headerClass: 'bg-blue-700',
+    accentClass: 'accent-blue-600',
+  },
+}
+
 const itemKey = (item: UnsignedItem) => `${item.type}:${item.id}`
 
-export default function SupervisorBulkSignModal({ isOpen, onClose, projectId, projectName }: SupervisorBulkSignModalProps) {
+export default function BulkSignModal({ isOpen, onClose, projectId, projectName, signer }: BulkSignModalProps) {
   const [loading, setLoading] = useState(false)
   const [groups, setGroups] = useState<UnsignedGroup[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showSignaturePad, setShowSignaturePad] = useState(false)
   const [signing, setSigning] = useState(false)
 
+  const config = SIGNER_CONFIG[signer]
+
   const loadUnsigned = useCallback(async () => {
     setLoading(true)
     setSelected(new Set())
     try {
       const results = await Promise.all(
-        GROUP_DEFS.map(async (def) => {
+        SIGNER_CONFIG[signer].groups.map(async (def) => {
           try {
             return { type: def.type, title: def.title, items: await def.load(projectId) }
           } catch (e) {
@@ -156,7 +249,7 @@ export default function SupervisorBulkSignModal({ isOpen, onClose, projectId, pr
     } finally {
       setLoading(false)
     }
-  }, [projectId])
+  }, [projectId, signer])
 
   useEffect(() => {
     if (isOpen && projectId) loadUnsigned()
@@ -209,13 +302,13 @@ export default function SupervisorBulkSignModal({ isOpen, onClose, projectId, pr
         items[item.type].push(item.id)
       })
 
-      const res = await fetch('/api/supervisor-bulk-sign', {
+      const res = await fetch('/api/bulk-sign', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ project_id: projectId, signature_data: signatureData, items }),
+        body: JSON.stringify({ project_id: projectId, signature_data: signatureData, signer, items }),
       })
       const json = await res.json()
       if (!res.ok || !json.success) {
@@ -240,14 +333,14 @@ export default function SupervisorBulkSignModal({ isOpen, onClose, projectId, pr
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 */}
-        <div className="bg-purple-700 text-white px-4 py-3 rounded-t-lg flex items-center justify-between">
+        <div className={`${config.headerClass} text-white px-4 py-3 rounded-t-lg flex items-center justify-between`}>
           <div className="flex items-center gap-2 min-w-0">
             <PenTool className="h-5 w-5 shrink-0" />
             <h2 className="font-semibold text-sm sm:text-base truncate">
-              감독 일괄서명{projectName ? ` — ${projectName}` : ''}
+              {config.title}{projectName ? ` — ${projectName}` : ''}
             </h2>
           </div>
-          <button onClick={onClose} className="text-white hover:text-purple-200 shrink-0">
+          <button onClick={onClose} className="text-white hover:opacity-70 shrink-0">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -261,7 +354,7 @@ export default function SupervisorBulkSignModal({ isOpen, onClose, projectId, pr
           ) : totalCount === 0 ? (
             <div className="text-center py-16">
               <p className="text-gray-700 font-medium mb-1">서명할 문서가 없습니다.</p>
-              <p className="text-sm text-gray-400">이 프로젝트의 감독 서명 대상 문서가 모두 서명 완료 상태입니다.</p>
+              <p className="text-sm text-gray-400">이 프로젝트의 서명 대상 문서가 모두 서명 완료 상태입니다.</p>
             </div>
           ) : (
             <div className="space-y-4">
@@ -275,7 +368,7 @@ export default function SupervisorBulkSignModal({ isOpen, onClose, projectId, pr
                         type="checkbox"
                         checked={groupAllSelected}
                         onChange={() => toggleGroup(group)}
-                        className="h-4 w-4 accent-purple-600"
+                        className={`h-4 w-4 ${config.accentClass}`}
                       />
                       <span className="text-sm font-semibold text-gray-800">{group.title}</span>
                       <span className="text-xs text-red-600 font-medium">미서명 {group.items.length}건</span>
@@ -284,13 +377,13 @@ export default function SupervisorBulkSignModal({ isOpen, onClose, projectId, pr
                       {group.items.map((item) => (
                         <label
                           key={itemKey(item)}
-                          className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-purple-50/50"
+                          className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50"
                         >
                           <input
                             type="checkbox"
                             checked={selected.has(itemKey(item))}
                             onChange={() => toggleItem(item)}
-                            className="h-4 w-4 accent-purple-600 shrink-0"
+                            className={`h-4 w-4 shrink-0 ${config.accentClass}`}
                           />
                           <span className="text-sm text-gray-700 whitespace-nowrap shrink-0">{item.date}</span>
                           <span className="text-sm text-gray-500 truncate">{item.label}</span>
@@ -300,9 +393,7 @@ export default function SupervisorBulkSignModal({ isOpen, onClose, projectId, pr
                   </div>
                 )
               })}
-              <p className="text-xs text-gray-400">
-                ※ 정기안전점검·PTW 작업허가서·폭염점검 서명은 서명자 지정·허가 행위가 필요해 각 문서에서 개별 서명해야 합니다.
-              </p>
+              <p className="text-xs text-gray-400">{config.note}</p>
             </div>
           )}
         </div>
@@ -316,7 +407,7 @@ export default function SupervisorBulkSignModal({ isOpen, onClose, projectId, pr
                 checked={allSelected}
                 onChange={toggleAll}
                 disabled={totalCount === 0}
-                className="h-4 w-4 accent-purple-600"
+                className={`h-4 w-4 ${config.accentClass}`}
               />
               전체선택
             </label>
@@ -333,7 +424,7 @@ export default function SupervisorBulkSignModal({ isOpen, onClose, projectId, pr
           <button
             onClick={() => setShowSignaturePad(true)}
             disabled={selectedCount === 0}
-            className="flex items-center gap-1.5 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+            className={`flex items-center gap-1.5 px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed ${signer === 'supervisor' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
             <PenTool className="h-4 w-4" />
             서명하기 ({selectedCount}건)

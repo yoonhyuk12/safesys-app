@@ -14,7 +14,8 @@ import DocumentFolder from '@/components/project/DocumentFolder'
 import DocumentCabinet from '@/components/project/DocumentCabinet'
 import BusinessCardEasel from '@/components/project/BusinessCardEasel'
 import HeatWaveCheckModal from '@/components/project/HeatWaveCheckModal'
-import SupervisorBulkSignModal from '@/components/project/SupervisorBulkSignModal'
+import BulkSignModal, { BulkSignSigner } from '@/components/project/BulkSignModal'
+import PenHolderButton from '@/components/project/PenHolderButton'
 import ProjectHandoverModal from '@/components/project/ProjectHandoverModal'
 import ProjectShareModal from '@/components/project/ProjectShareModal'
 import PWAInstallButtonHeader from '@/components/common/PWAInstallButtonHeader'
@@ -75,7 +76,7 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [isHeatWaveModalOpen, setIsHeatWaveModalOpen] = useState(false)
-  const [isBulkSignModalOpen, setIsBulkSignModalOpen] = useState(false)
+  const [bulkSignSigner, setBulkSignSigner] = useState<BulkSignSigner | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [handoverModal, setHandoverModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
@@ -894,6 +895,19 @@ export default function ProjectDetailPage() {
           {/* 서류 캐비넷 — 좁은 화면에서는 줄 나눔 */}
           <div className="mb-10 flex justify-center">
             <div className="flex flex-wrap items-end justify-center gap-x-4 sm:gap-x-6 lg:gap-x-8 gap-y-10">
+              {/* 일괄서명 만년필 펜통 — 캐비넷 좌측 (감독용은 발주청만) */}
+              {userProfile?.role === '발주청' && (
+                <PenHolderButton
+                  label="감독 일괄서명"
+                  theme="purple"
+                  onClick={() => setBulkSignSigner('supervisor')}
+                />
+              )}
+              <PenHolderButton
+                label="현장소장 일괄서명"
+                theme="blue"
+                onClick={() => setBulkSignSigner('site_manager')}
+              />
               {project.business_card_pdf_url && (
                 <BusinessCardEasel onClick={handleBusinessCardClick} />
               )}
@@ -1259,15 +1273,6 @@ export default function ProjectDetailPage() {
                   pdcaCategory="C"
                   bottomLabel="감독"
                 />
-                <DocumentFolder
-                  title="감독 일괄서명"
-                  year={new Date().getFullYear().toString()}
-                  isActive={false}
-                  projectId={projectId}
-                  onClick={() => setIsBulkSignModalOpen(true)}
-                  pdcaCategory="C"
-                  bottomLabel="감독"
-                />
               </div>
             </div>
           </div>
@@ -1288,12 +1293,13 @@ export default function ProjectDetailPage() {
         />
       )}
 
-      {/* 감독 일괄서명 모달 */}
-      <SupervisorBulkSignModal
-        isOpen={isBulkSignModalOpen}
-        onClose={() => setIsBulkSignModalOpen(false)}
+      {/* 감독·현장소장 일괄서명 모달 */}
+      <BulkSignModal
+        isOpen={bulkSignSigner !== null}
+        onClose={() => setBulkSignSigner(null)}
         projectId={projectId}
         projectName={project?.project_name}
+        signer={bulkSignSigner ?? 'supervisor'}
       />
 
       {/* 프로젝트 인계 모달 */}
