@@ -89,6 +89,7 @@ export default function ProjectDetailPage() {
   const [ptwCount, setPtwCount] = useState<number | null>(null)
   const [inspectionRequestCount, setInspectionRequestCount] = useState<number | null>(null)
   const [qualityMonthlyReportCount, setQualityMonthlyReportCount] = useState<number | null>(null)
+  const [qualityTestRecordCount, setQualityTestRecordCount] = useState<number | null>(null)
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
   const [openCabinet, setOpenCabinet] = useState<'시공' | '안전' | '품질' | '발주청' | null>(null)
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
@@ -197,6 +198,19 @@ export default function ProjectDetailPage() {
       if (!countError) setQualityMonthlyReportCount(count ?? 0)
     }
     loadQualityMonthlyReportCount()
+  }, [user, projectId])
+
+  // 품질시험 실시대장 건수 조회 (서류철 카드 표시용)
+  useEffect(() => {
+    if (!user || !projectId) return
+    const loadQualityTestRecordCount = async () => {
+      const { count, error: countError } = await (supabase as any)
+        .from('quality_test_records')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+      if (!countError) setQualityTestRecordCount(count ?? 0)
+    }
+    loadQualityTestRecordCount()
   }, [user, projectId])
 
   // 외부 클릭 시 메뉴 닫기
@@ -1026,6 +1040,16 @@ export default function ProjectDetailPage() {
                   projectId={projectId}
                   docCount={qualityMonthlyReportCount ?? undefined}
                   onClick={() => router.push(`/project/${projectId}/quality-monthly-report`)}
+                  pdcaCategory="C"
+                  bottomLabel="품질"
+                />
+                <DocumentFolder
+                  title="품질시험 결과 관리대장"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  docCount={qualityTestRecordCount ?? undefined}
+                  onClick={() => router.push(`/project/${projectId}/quality-test-ledger`)}
                   pdcaCategory="C"
                   bottomLabel="품질"
                 />
