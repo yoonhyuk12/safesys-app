@@ -8,6 +8,7 @@ import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import HeatWaveInspectionModal from '@/components/project/HeatWaveInspectionModal'
+import { applyHtml2canvasTextFix } from '@/lib/reports/html2canvas-text-fix'
 
 interface HeatWaveInspectionData {
   measureDateTime: string
@@ -21,6 +22,89 @@ interface HeatWaveInspectionData {
   inspectionPhotos?: File[]
   inspectorName: string
   signature?: string
+}
+
+// 'YYYY-MM-DD' → 'YYYY년 M월 D일 (요일)' 표기
+function formatKoreanDateLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const weekday = ['일', '월', '화', '수', '목', '금', '토'][new Date(y, m - 1, d).getDay()]
+  return `${y}년 ${m}월 ${d}일 (${weekday})`
+}
+
+// 컨테이너 내 모든 이미지 로드 완료 대기 (로드 실패한 이미지는 그대로 진행)
+function waitForImages(el: HTMLElement): Promise<unknown> {
+  return Promise.all(
+    Array.from(el.querySelectorAll('img')).map(img =>
+      img.complete
+        ? Promise.resolve()
+        : new Promise<void>(resolve => {
+            img.onload = () => resolve()
+            img.onerror = () => resolve()
+          })
+    )
+  )
+}
+
+// HTML 문자열 삽입 전 특수문자 이스케이프 (XSS 방지)
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+// 사진대지 한 페이지(사진 최대 2장) HTML 생성 - 관리대장(1페이지)과 동일한 서식
+function generatePhotoPageHTML(
+  photos: { url: string; time: string }[],
+  startIndex: number,
+  pageIndex: number,
+  totalPages: number,
+  projectName: string,
+  dateLabel: string
+): string {
+  const labelCell = 'border: 0.5px solid rgb(17, 24, 39); padding: 9px 8px; text-align: center; vertical-align: middle; font-weight: bold; background-color: rgb(243, 244, 246); line-height: 1.4;'
+  const valueCell = 'border: 0.5px solid rgb(17, 24, 39); padding: 9px 12px; text-align: left; vertical-align: middle; line-height: 1.4;'
+
+  const photoRows = photos.map((photo, i) => `
+    <tr>
+      <td style="border: 0.5px solid rgb(17, 24, 39); padding: 0;">
+        <div style="height: 430px; display: flex; align-items: center; justify-content: center; background-color: rgb(249, 250, 251);">
+          <img src="${escapeHtml(photo.url)}" style="max-width: 100%; max-height: 100%;" />
+        </div>
+        <div style="border-top: 0.5px solid rgb(17, 24, 39); background-color: rgb(243, 244, 246); padding: 7px 12px; font-size: 12px; font-weight: bold; display: flex; justify-content: space-between;">
+          <span>사진 ${startIndex + i + 1}</span>
+          <span>측정시간 ${escapeHtml(photo.time)}</span>
+        </div>
+      </td>
+    </tr>`).join('')
+
+  return `
+    <div style="text-align: center; padding-bottom: 14px; border-bottom: 2px solid rgb(17, 24, 39); margin-bottom: 20px;">
+      <h1 style="font-size: 26px; font-weight: bold; letter-spacing: 6px; padding-left: 6px; margin: 0;">사진대지</h1>
+    </div>
+    <table style="width: 100%; border-collapse: collapse; border: 1.5px solid rgb(17, 24, 39); margin-bottom: 14px; font-size: 13px; table-layout: fixed;">
+      <colgroup>
+        <col style="width: 16%;" /><col style="width: 36%;" /><col style="width: 16%;" /><col style="width: 32%;" />
+      </colgroup>
+      <tbody>
+        <tr>
+          <td style="${labelCell}">공 사 명</td>
+          <td style="${valueCell}">${escapeHtml(projectName)}</td>
+          <td style="${labelCell}">점검일자</td>
+          <td style="${valueCell}">${escapeHtml(dateLabel)}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="font-size: 12px; font-weight: bold; margin-bottom: 8px;">
+      □ 체감온도 측정 및 5대 기본수칙 이행 사진
+      <span style="font-weight: normal; color: rgb(107, 114, 128);">(${pageIndex + 1}/${totalPages})</span>
+    </div>
+    <table style="width: 100%; border-collapse: collapse; border: 1.5px solid rgb(17, 24, 39); table-layout: fixed;">
+      <tbody>${photoRows}
+      </tbody>
+    </table>`
 }
 
 export default function HeatWaveCheckPage() {
@@ -453,6 +537,66 @@ export default function HeatWaveCheckPage() {
   // 렌더 동기화 유틸: 두 번의 rAF로 상태/DOM 반영을 보장
   const waitForRender = () => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
 
+  // 사진대지 페이지들을 PDF에 추가 - 점검 사진을 2장씩 한 페이지로 구성해 캡처
+  // (generatePhotoPageHTML 내부에서 모든 외부 값을 escapeHtml 처리함)
+  const addPhotoPagesToPdf = async (
+    pdf: import('jspdf').jsPDF,
+    html2canvas: (typeof import('html2canvas'))['default'],
+    checks: Array<{ check_time: string; photos?: string[] | null }>,
+    dateStr: string,
+    scale: number
+  ) => {
+    const photoEntries = [...checks]
+      .sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime())
+      .flatMap(check => (check.photos || []).filter(Boolean).map(url => ({
+        url,
+        time: new Date(check.check_time).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+      })))
+    if (photoEntries.length === 0) return
+
+    const pageWidth = 210
+    const pageHeight = 297
+    const margin = 15
+    const maxImgHeight = pageHeight - margin * 2
+
+    const groups: { url: string; time: string }[][] = []
+    for (let i = 0; i < photoEntries.length; i += 2) {
+      groups.push(photoEntries.slice(i, i + 2))
+    }
+
+    for (let g = 0; g < groups.length; g++) {
+      const container = document.createElement('div')
+      container.style.cssText = 'position: absolute; top: -9999px; left: -9999px; width: 210mm; background-color: white; padding: 24px 28px; font-family: "Malgun Gothic", sans-serif; color: rgb(17, 24, 39);'
+      container.innerHTML = generatePhotoPageHTML(
+        groups[g], g * 2, g, groups.length,
+        project?.project_name || '',
+        formatKoreanDateLabel(dateStr)
+      )
+      document.body.appendChild(container)
+      try {
+        await waitForImages(container)
+        const canvas = await html2canvas(container, {
+          scale,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false
+        })
+        // 세로가 넘치면 비율을 유지한 채 축소 (왜곡 방지)
+        let imgW = pageWidth - margin * 2
+        let imgH = (canvas.height * imgW) / canvas.width
+        if (imgH > maxImgHeight) {
+          imgW = (imgW * maxImgHeight) / imgH
+          imgH = maxImgHeight
+        }
+        pdf.addPage()
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', margin + (pageWidth - margin * 2 - imgW) / 2, margin, imgW, imgH)
+      } finally {
+        document.body.removeChild(container)
+      }
+    }
+  }
+
   // 일괄 다운로드 함수 - 기존 handleSavePDF 함수를 그대로 활용하여 여러 날짜 순차 생성
   const handleBulkDownload = async () => {
     if (selectedDates.size === 0) {
@@ -463,6 +607,7 @@ export default function HeatWaveCheckPage() {
     if (!project) return
 
     setIsBulkDownloading(true)
+    const restoreTextFix = applyHtml2canvasTextFix()
     try {
       // 동적 import로 라이브러리 로드 (기존과 동일)
       const html2canvas = (await import('html2canvas')).default
@@ -495,6 +640,8 @@ export default function HeatWaveCheckPage() {
           return element.classList?.contains('ignore-pdf') || false
         },
         onclone: (clonedDoc: Document) => {
+          // 캡처 대상(hiddenReportRef)은 인라인 스타일로 완결되어 있어
+          // 전역 th/td 강제 규칙을 주입하면 오히려 보고서 디자인이 깨진다.
           const style = clonedDoc.createElement('style')
           style.textContent = `
             * {
@@ -502,32 +649,8 @@ export default function HeatWaveCheckPage() {
             }
             body {
               margin: 0 !important;
-              padding: 20px !important;
               background: white !important;
               font-family: 'Malgun Gothic', sans-serif !important;
-            }
-            .text-red-600 { color: rgb(220, 38, 38) !important; }
-            .text-blue-600 { color: rgb(37, 99, 235) !important; }
-            .text-green-600 { color: rgb(22, 163, 74) !important; }
-            .text-gray-600 { color: rgb(75, 85, 99) !important; }
-            .text-gray-700 { color: rgb(55, 65, 81) !important; }
-            .text-gray-800 { color: rgb(31, 41, 55) !important; }
-            .text-gray-900 { color: rgb(17, 24, 39) !important; }
-            .border-gray-800 { border-color: rgb(31, 41, 55) !important; }
-            .border { border-color: rgb(209, 213, 219) !important; }
-            table { 
-              border-collapse: collapse !important;
-              width: 100% !important;
-            }
-            th, td { 
-              text-align: center !important; 
-              vertical-align: middle !important;
-              border: 1px solid rgb(31, 41, 55) !important;
-              padding: 8px !important;
-            }
-            th { 
-              background-color: rgb(229, 231, 235) !important;
-              font-weight: bold !important;
             }
           `
           clonedDoc.head.appendChild(style)
@@ -596,123 +719,8 @@ export default function HeatWaveCheckPage() {
             heightLeft -= maxImgHeight
           }
 
-          // 사진 페이지 추가 (기존과 동일한 로직)
-          const sortedChecks = [...dayChecks].sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime())
-          const allPhotos = sortedChecks.flatMap(check => check.photos || []).filter(photo => photo)
-          
-          if (allPhotos.length > 0) {
-            // 사진을 2개씩 그룹으로 나누기
-            const photoGroups = []
-            for (let i = 0; i < allPhotos.length; i += 2) {
-              photoGroups.push(allPhotos.slice(i, i + 2))
-            }
-
-            // 각 그룹마다 페이지 생성
-            for (let groupIndex = 0; groupIndex < photoGroups.length; groupIndex++) {
-              pdf.addPage()
-              
-              // 페이지 제목을 캔버스로 생성하여 이미지로 추가
-              try {
-                const titleCanvas = document.createElement('canvas')
-                const titleCtx = titleCanvas.getContext('2d')
-                if (!titleCtx) throw new Error('Canvas context not available')
-                
-                titleCanvas.width = 400
-                titleCanvas.height = 80
-                
-                titleCtx.fillStyle = 'white'
-                titleCtx.fillRect(0, 0, titleCanvas.width, titleCanvas.height)
-                
-                titleCtx.font = 'bold 36px Arial, sans-serif'
-                titleCtx.fillStyle = 'black'
-                titleCtx.textAlign = 'center'
-                titleCtx.textBaseline = 'middle'
-                titleCtx.fillText('사진대지', titleCanvas.width / 2, titleCanvas.height / 2)
-                
-                const titleImageData = titleCanvas.toDataURL('image/png')
-                const titleWidth = 60 // mm (크기 증가)
-                const titleHeight = 12 // mm (크기 증가)
-                const titleX = (pageWidth - titleWidth) / 2
-                
-                pdf.addImage(titleImageData, 'PNG', titleX, margin + 5, titleWidth, titleHeight)
-                
-                // 사진 관련 설명 텍스트 추가
-                const subtitleCanvas = document.createElement('canvas')
-                const subtitleCtx = subtitleCanvas.getContext('2d')
-                if (subtitleCtx) {
-                  subtitleCanvas.width = 600
-                  subtitleCanvas.height = 60
-                  
-                  subtitleCtx.fillStyle = 'white'
-                  subtitleCtx.fillRect(0, 0, subtitleCanvas.width, subtitleCanvas.height)
-                  
-                  subtitleCtx.font = 'bold 28px Arial, sans-serif'
-                  subtitleCtx.fillStyle = 'black'
-                  subtitleCtx.textAlign = 'left'
-                  subtitleCtx.textBaseline = 'middle'
-                  subtitleCtx.fillText('□ 체감온도 측정 관련 / 5대 기본수칙', 20, subtitleCanvas.height / 2)
-                  
-                  const subtitleImageData = subtitleCanvas.toDataURL('image/png')
-                  const subtitleWidth = 120 // mm
-                  const subtitleHeight = 12 // mm
-                  const subtitleX = margin
-                  
-                  pdf.addImage(subtitleImageData, 'PNG', subtitleX, margin + 20, subtitleWidth, subtitleHeight)
-                }
-              } catch (e) {
-                // 제목 생성 실패 시 영문으로 대체
-                pdf.setFontSize(20)
-                pdf.setFont('helvetica', 'bold')
-                pdf.text('Photo Report', pageWidth / 2, margin + 12, { align: 'center' })
-                
-                // 서브타이틀도 텍스트로 추가
-                pdf.setFontSize(14)
-                pdf.setFont('helvetica', 'bold')
-                pdf.text('□ 체감온도 측정 관련 / 5대 기본수칙', margin, margin + 25)
-              }
-              
-              const photoGroup = photoGroups[groupIndex]
-              const photoWidth = imgWidth * 0.8 // 사진 너비 (전체 너비의 80%)
-              const photoHeight = (pageHeight - margin * 2 - 50) / 2 - 10 // 사진 높이 (제목과 설명 텍스트 여백 고려)
-              
-              // 표 테두리 그리기
-              const tableStartY = margin + 40 // 설명 텍스트 공간 추가
-              const tableHeight = photoGroup.length === 1 ? photoHeight + 20 : photoHeight * 2 + 30 // 사진 개수에 따라 높이 조정
-              const tableX = (pageWidth - imgWidth) / 2
-              
-              // 외곽 테두리
-              pdf.setLineWidth(0.5)
-              pdf.rect(tableX, tableStartY, imgWidth, tableHeight)
-              
-              // 중간 구분선 (사진 2개를 나누는 선)
-              if (photoGroup.length > 1) {
-                const middleY = tableStartY + tableHeight / 2
-                pdf.line(tableX, middleY, tableX + imgWidth, middleY)
-              }
-              
-              // 각 그룹의 사진들 처리
-              for (let photoIndex = 0; photoIndex < photoGroup.length; photoIndex++) {
-                const photo = photoGroup[photoIndex]
-                
-                try {
-                  const photoY = tableStartY + photoIndex * (tableHeight / 2) + 10 // 테이블 상단 여백 + 사진별 위치 + 내부 여백
-                  const photoX = (pageWidth - photoWidth) / 2 // 가운데 정렬
-                  
-                  // 사진 추가 시도
-                  pdf.addImage(photo, 'JPEG', photoX, photoY, photoWidth, photoHeight * 0.8) // 높이 조정하여 여백 확보
-                  
-                } catch (error) {
-                  console.warn(`사진 ${groupIndex * 2 + photoIndex + 1} 추가 실패:`, error)
-                  // 사진 추가 실패 시 텍스트로 대체
-                  pdf.setFontSize(12)
-                  pdf.text(`사진 ${groupIndex * 2 + photoIndex + 1} (로드 실패)`, 
-                    pageWidth / 2, 
-                    tableStartY + photoIndex * (tableHeight / 2) + tableHeight / 4, 
-                    { align: 'center' })
-                }
-              }
-            }
-          }
+          // 사진대지 페이지 추가 (HTML 템플릿을 캡처해 관리대장과 동일한 서식 유지)
+          await addPhotoPagesToPdf(pdf, html2canvas, dayChecks, date, isMobile ? 1.5 : 2)
 
           // 원래 상태로 복원
           setSelectedDate(originalSelectedDate)
@@ -828,6 +836,7 @@ export default function HeatWaveCheckPage() {
         alert('PDF 저장 중 오류가 발생했습니다.')
       }
     } finally {
+      restoreTextFix()
       setIsBulkDownloading(false)
     }
   }
@@ -837,6 +846,7 @@ export default function HeatWaveCheckPage() {
     if (!hiddenReportRef.current || !selectedDate || !project) return
 
     setIsPdfGenerating(true)
+    const restoreTextFix = applyHtml2canvasTextFix()
     try {
       // 동적 import로 라이브러리 로드
       const html2canvas = (await import('html2canvas')).default
@@ -865,6 +875,8 @@ export default function HeatWaveCheckPage() {
           return element.classList?.contains('ignore-pdf') || false
         },
         onclone: (clonedDoc: Document) => {
+          // 캡처 대상(hiddenReportRef)은 인라인 스타일로 완결되어 있어
+          // 전역 th/td 강제 규칙을 주입하면 오히려 보고서 디자인이 깨진다.
           const style = clonedDoc.createElement('style')
           style.textContent = `
             * {
@@ -872,32 +884,8 @@ export default function HeatWaveCheckPage() {
             }
             body {
               margin: 0 !important;
-              padding: 20px !important;
               background: white !important;
               font-family: 'Malgun Gothic', sans-serif !important;
-            }
-            .text-red-600 { color: rgb(220, 38, 38) !important; }
-            .text-blue-600 { color: rgb(37, 99, 235) !important; }
-            .text-green-600 { color: rgb(22, 163, 74) !important; }
-            .text-gray-600 { color: rgb(75, 85, 99) !important; }
-            .text-gray-700 { color: rgb(55, 65, 81) !important; }
-            .text-gray-800 { color: rgb(31, 41, 55) !important; }
-            .text-gray-900 { color: rgb(17, 24, 39) !important; }
-            .border-gray-800 { border-color: rgb(31, 41, 55) !important; }
-            .border { border-color: rgb(209, 213, 219) !important; }
-            table { 
-              border-collapse: collapse !important;
-              width: 100% !important;
-            }
-            th, td { 
-              text-align: center !important; 
-              vertical-align: middle !important;
-              border: 1px solid rgb(31, 41, 55) !important;
-              padding: 8px !important;
-            }
-            th { 
-              background-color: rgb(229, 231, 235) !important;
-              font-weight: bold !important;
             }
           `
           clonedDoc.head.appendChild(style)
@@ -936,149 +924,8 @@ export default function HeatWaveCheckPage() {
         heightLeft -= maxImgHeight
       }
 
-      // 사진 페이지 추가 (시간 순으로 정렬)
-      const sortedChecks = selectedDateChecks.sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime())
-      const allPhotos = sortedChecks.flatMap(check => check.photos || []).filter(photo => photo)
-      
-      if (allPhotos.length > 0) {
-        // 사진을 2개씩 그룹으로 나누기
-        const photoGroups = []
-        for (let i = 0; i < allPhotos.length; i += 2) {
-          photoGroups.push(allPhotos.slice(i, i + 2))
-        }
-
-        // 각 그룹마다 페이지 생성
-        for (let groupIndex = 0; groupIndex < photoGroups.length; groupIndex++) {
-          pdf.addPage()
-          
-          // 페이지 제목을 캔버스로 생성하여 이미지로 추가
-          try {
-            const titleCanvas = document.createElement('canvas')
-            const titleCtx = titleCanvas.getContext('2d')
-            if (!titleCtx) throw new Error('Canvas context not available')
-            
-            titleCanvas.width = 400
-            titleCanvas.height = 80
-            
-            titleCtx.fillStyle = 'white'
-            titleCtx.fillRect(0, 0, titleCanvas.width, titleCanvas.height)
-            
-            titleCtx.font = 'bold 36px Arial, sans-serif'
-            titleCtx.fillStyle = 'black'
-            titleCtx.textAlign = 'center'
-            titleCtx.textBaseline = 'middle'
-            titleCtx.fillText('사진대지', titleCanvas.width / 2, titleCanvas.height / 2)
-            
-            const titleImageData = titleCanvas.toDataURL('image/png')
-            const titleWidth = 60 // mm (크기 증가)
-            const titleHeight = 12 // mm (크기 증가)
-            const titleX = (pageWidth - titleWidth) / 2
-            
-            pdf.addImage(titleImageData, 'PNG', titleX, margin + 5, titleWidth, titleHeight)
-            
-            // 사진 관련 설명 텍스트 추가
-            const subtitleCanvas = document.createElement('canvas')
-            const subtitleCtx = subtitleCanvas.getContext('2d')
-            if (subtitleCtx) {
-              subtitleCanvas.width = 600
-              subtitleCanvas.height = 60
-              
-              subtitleCtx.fillStyle = 'white'
-              subtitleCtx.fillRect(0, 0, subtitleCanvas.width, subtitleCanvas.height)
-              
-              subtitleCtx.font = 'bold 28px Arial, sans-serif'
-              subtitleCtx.fillStyle = 'black'
-              subtitleCtx.textAlign = 'left'
-              subtitleCtx.textBaseline = 'middle'
-              subtitleCtx.fillText('□ 체감온도 측정 관련 / 5대 기본수칙', 20, subtitleCanvas.height / 2)
-              
-              const subtitleImageData = subtitleCanvas.toDataURL('image/png')
-              const subtitleWidth = 120 // mm
-              const subtitleHeight = 12 // mm
-              const subtitleX = margin
-              
-              pdf.addImage(subtitleImageData, 'PNG', subtitleX, margin + 20, subtitleWidth, subtitleHeight)
-            }
-          } catch (e) {
-            // 제목 생성 실패 시 영문으로 대체
-            pdf.setFontSize(20)
-            pdf.setFont('helvetica', 'bold')
-            pdf.text('Photo Report', pageWidth / 2, margin + 12, { align: 'center' })
-            
-            // 서브타이틀도 텍스트로 추가
-            pdf.setFontSize(14)
-            pdf.setFont('helvetica', 'bold')
-            pdf.text('□ 체감온도 측정 관련 / 5대 기본수칙', margin, margin + 25)
-          }
-          
-          const photoGroup = photoGroups[groupIndex]
-          const photoWidth = imgWidth * 0.8 // 사진 너비 (전체 너비의 80%)
-          const photoHeight = (pageHeight - margin * 2 - 50) / 2 - 10 // 사진 높이 (제목과 설명 텍스트 여백 고려)
-          
-          // 표 테두리 그리기
-          const tableStartY = margin + 40 // 설명 텍스트 공간 추가
-          const tableHeight = photoGroup.length === 1 ? photoHeight + 20 : photoHeight * 2 + 30 // 사진 개수에 따라 높이 조정
-          const tableX = (pageWidth - imgWidth) / 2
-          
-          // 외곽 테두리
-          pdf.setLineWidth(0.5)
-          pdf.rect(tableX, tableStartY, imgWidth, tableHeight)
-          
-          // 중간 구분선 (사진 2개를 나누는 선)
-          if (photoGroup.length > 1) {
-            const middleY = tableStartY + tableHeight / 2
-            pdf.line(tableX, middleY, tableX + imgWidth, middleY)
-          }
-          
-          // 각 그룹의 사진들 처리
-          for (let photoIndex = 0; photoIndex < photoGroup.length; photoIndex++) {
-            const photoUrl = photoGroup[photoIndex]
-            const yPosition = tableStartY + 10 + (photoIndex * (photoHeight + 10)) // 표 안쪽 여백 고려
-            
-            try {
-              // 사진을 이미지로 로드
-              const img = new Image()
-              img.crossOrigin = 'anonymous'
-              
-              await new Promise<void>((resolve, reject) => {
-                img.onload = () => {
-                  try {
-                    // 캔버스를 사용해 이미지를 base64로 변환
-                    const tempCanvas = document.createElement('canvas')
-                    tempCanvas.width = img.width
-                    tempCanvas.height = img.height
-                    const ctx = tempCanvas.getContext('2d')
-                    if (!ctx) {
-                      resolve()
-                      return
-                    }
-                    ctx.drawImage(img, 0, 0)
-                    
-                    const imageData = tempCanvas.toDataURL('image/jpeg', 0.8)
-                    
-                    // PDF에 이미지 추가
-                    const centerX = (pageWidth - photoWidth) / 2
-                    pdf.addImage(imageData, 'JPEG', centerX, yPosition, photoWidth, photoHeight)
-                    
-                    resolve()
-                  } catch (error) {
-                    console.warn('사진 처리 중 오류:', error)
-                    resolve() // 오류가 있어도 계속 진행
-                  }
-                }
-                img.onerror = () => {
-                  console.warn('사진 로드 실패:', photoUrl)
-                  resolve() // 실패해도 계속 진행
-                }
-                img.src = photoUrl
-              })
-            } catch (error) {
-              console.warn('사진 처리 중 오류:', error)
-              // 오류가 있어도 계속 진행
-            }
-          }
-        }
-      }
+      // 사진대지 페이지 추가 (HTML 템플릿을 캡처해 관리대장과 동일한 서식 유지)
+      await addPhotoPagesToPdf(pdf, html2canvas, selectedDateChecks, selectedDate, isMobile ? 1.5 : 2)
 
       // 파일명 생성
       const fileName = `폭염대비_주요활동_관리대장_${selectedDate.replace(/-/g, '')}_${project.project_name}.pdf`
@@ -1164,6 +1011,7 @@ export default function HeatWaveCheckPage() {
         alert('PDF 저장 중 오류가 발생했습니다.')
       }
     } finally {
+      restoreTextFix()
       setIsPdfGenerating(false)
     }
   }
@@ -1174,6 +1022,52 @@ export default function HeatWaveCheckPage() {
     if (project?.latitude == null || project?.longitude == null) return undefined
     return { lat: project.latitude as number, lng: project.longitude as number }
   }, [project?.latitude, project?.longitude])
+
+  // PDF 보고서(hiddenReportRef) 공통 셀 스타일
+  const pdfLabelCell: React.CSSProperties = {
+    border: '0.5px solid rgb(17, 24, 39)',
+    padding: '9px 8px',
+    textAlign: 'center',
+    verticalAlign: 'middle',
+    fontWeight: 'bold',
+    backgroundColor: 'rgb(243, 244, 246)',
+    color: 'rgb(17, 24, 39)',
+    lineHeight: 1.4
+  }
+  const pdfValueCell: React.CSSProperties = {
+    border: '0.5px solid rgb(17, 24, 39)',
+    padding: '9px 12px',
+    textAlign: 'left',
+    verticalAlign: 'middle',
+    color: 'rgb(17, 24, 39)',
+    lineHeight: 1.4
+  }
+  const pdfHeadCell: React.CSSProperties = {
+    border: '0.5px solid rgb(17, 24, 39)',
+    padding: '8px 4px',
+    textAlign: 'center',
+    verticalAlign: 'middle',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    backgroundColor: 'rgb(243, 244, 246)',
+    color: 'rgb(17, 24, 39)',
+    lineHeight: 1.4
+  }
+  const pdfBodyCell: React.CSSProperties = {
+    border: '0.5px solid rgb(17, 24, 39)',
+    padding: '6px 4px',
+    height: '42px',
+    textAlign: 'center',
+    verticalAlign: 'middle',
+    color: 'rgb(17, 24, 39)',
+    lineHeight: 1.4
+  }
+  // 이행여부 ○/× 표기 (미이행은 적색으로 강조)
+  const renderPdfMark = (ok: boolean) => (
+    <span style={{ fontWeight: 'bold', fontSize: '15px', color: ok ? 'rgb(17, 24, 39)' : 'rgb(220, 38, 38)' }}>
+      {ok ? '○' : '×'}
+    </span>
+  )
 
   // 로딩 중
   if (authLoading || loading) {
@@ -1954,379 +1848,137 @@ export default function HeatWaveCheckPage() {
             left: '-9999px',
             width: '210mm',
             backgroundColor: 'white',
-            padding: '20px',
-            fontFamily: 'Malgun Gothic, sans-serif'
+            padding: '24px 28px',
+            fontFamily: 'Malgun Gothic, sans-serif',
+            color: 'rgb(17, 24, 39)'
           }}
         >
-          {/* PDF용 보고서 헤더 */}
-          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: 'black', marginBottom: '20px' }}>
-              폭염대비 주요활동 및 관리 대장({selectedDate.replace(/-/g, '.')})
+          {/* 보고서 제목 */}
+          <div style={{ textAlign: 'center', paddingBottom: '14px', borderBottom: '2px solid rgb(17, 24, 39)', marginBottom: '20px' }}>
+            <h1 style={{ fontSize: '26px', fontWeight: 'bold', letterSpacing: '6px', paddingLeft: '6px', margin: 0, color: 'rgb(17, 24, 39)' }}>
+              폭염대비 주요활동 및 관리대장
             </h1>
-            <div style={{ textAlign: 'left', fontSize: '16px', fontWeight: 'bold', color: 'black' }}>
-              □ 공사명 : {project?.project_name || ''}
-            </div>
           </div>
 
-          {/* PDF용 테이블 - 고정된 그리드 방식 */}
-          <div style={{ 
-            width: '100%', 
-            border: '2px solid rgb(31, 41, 55)',
-            fontSize: '12px',
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr 0.8fr 1fr 0.8fr 1fr 1fr 1.2fr 1fr'
-          }}>
-            {/* 첫 번째 헤더 행 */}
-            <div style={{ 
-              gridColumn: '1 / 2',
-              gridRow: '1 / 3',
-              border: '1px solid rgb(31, 41, 55)', 
-              padding: '8px',
-              fontSize: '11px',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgb(229, 231, 235)',
-              color: 'rgb(0, 0, 0)',
-              lineHeight: '1.2'
-            }}>
-              측정<br/>시간<br/>(2시간<br/>간격)
-            </div>
-            <div style={{ 
-              gridColumn: '2 / 3',
-              gridRow: '1 / 3',
-              border: '1px solid rgb(31, 41, 55)', 
-              padding: '8px',
-              fontSize: '11px',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgb(229, 231, 235)',
-              color: 'rgb(0, 0, 0)',
-              lineHeight: '1.3'
-            }}>
-              체감<br/>온도
-            </div>
-            <div style={{ 
-              gridColumn: '3 / 8',
-              gridRow: '1 / 2',
-              border: '1px solid rgb(31, 41, 55)', 
-              padding: '8px',
-              fontSize: '13px',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgb(229, 231, 235)',
-              color: 'rgb(0, 0, 0)'
-            }}>
-              5대 기본수칙(점검표)
-            </div>
-            <div style={{ 
-              gridColumn: '8 / 9',
-              gridRow: '1 / 3',
-              border: '1px solid rgb(31, 41, 55)', 
-              padding: '8px',
-              fontSize: '11px',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgb(229, 231, 235)',
-              color: 'rgb(0, 0, 0)',
-              lineHeight: '1.2'
-            }}>
-              작업시간<br/>조정<br/>(여부)
-            </div>
-            <div style={{ 
-              gridColumn: '9',
-              gridRow: '1 / 3',
-              border: '1px solid rgb(31, 41, 55)', 
-              padding: '8px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgb(229, 231, 235)',
-              color: 'rgb(0, 0, 0)'
-            }}>
-              비고
-            </div>
+          {/* 기본정보 */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid rgb(17, 24, 39)', marginBottom: '18px', fontSize: '13px', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '36%' }} />
+              <col style={{ width: '16%' }} />
+              <col style={{ width: '32%' }} />
+            </colgroup>
+            <tbody>
+              <tr>
+                <td style={pdfLabelCell}>공 사 명</td>
+                <td colSpan={3} style={pdfValueCell}>{project?.project_name || ''}</td>
+              </tr>
+              <tr>
+                <td style={pdfLabelCell}>점검일자</td>
+                <td style={pdfValueCell}>{formatKoreanDateLabel(selectedDate)}</td>
+                <td style={pdfLabelCell}>확 인 자</td>
+                <td style={pdfValueCell}>{(() => {
+                  const sortedChecks = [...selectedDateChecks].sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime())
+                  const lastInspector = sortedChecks.reverse().find(check => check.inspector_name)?.inspector_name
+                  return lastInspector || (project as any)?.user_profiles?.full_name || userProfile?.full_name || ''
+                })()}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          {/* 점검결과 표 */}
+          <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid rgb(17, 24, 39)', fontSize: '13px', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '20%' }} />
+            </colgroup>
+            <thead>
+              <tr>
+                <th rowSpan={2} style={pdfHeadCell}>측정시간<br /><span style={{ fontSize: '10px', fontWeight: 'normal', color: 'rgb(75, 85, 99)' }}>(2시간 간격)</span></th>
+                <th rowSpan={2} style={pdfHeadCell}>체감온도</th>
+                <th colSpan={5} style={pdfHeadCell}>5대 기본수칙 이행여부</th>
+                <th rowSpan={2} style={pdfHeadCell}>작업시간<br />조정여부</th>
+                <th rowSpan={2} style={pdfHeadCell}>비고</th>
+              </tr>
+              <tr>
+                <th style={pdfHeadCell}>물</th>
+                <th style={pdfHeadCell}>바람·그늘</th>
+                <th style={pdfHeadCell}>휴식</th>
+                <th style={pdfHeadCell}>보냉장구</th>
+                <th style={pdfHeadCell}>응급조치</th>
+              </tr>
+            </thead>
+            <tbody>
             
-            {/* 두 번째 헤더 행 */}
-            <div style={{ 
-              gridColumn: '3 / 4',
-              gridRow: '2 / 3',
-              border: '1px solid rgb(31, 41, 55)', 
-              padding: '6px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgb(229, 231, 235)',
-              color: 'rgb(0, 0, 0)'
-            }}>물</div>
-            <div style={{ 
-              gridColumn: '4 / 5',
-              gridRow: '2 / 3',
-              border: '1px solid rgb(31, 41, 55)', 
-              padding: '6px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgb(229, 231, 235)',
-              color: 'rgb(0, 0, 0)',
-              lineHeight: '1.3'
-            }}>바람,<br/>그늘</div>
-            <div style={{ 
-              gridColumn: '5 / 6',
-              gridRow: '2 / 3',
-              border: '1px solid rgb(31, 41, 55)', 
-              padding: '6px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgb(229, 231, 235)',
-              color: 'rgb(0, 0, 0)'
-            }}>휴식</div>
-            <div style={{ 
-              gridColumn: '6 / 7',
-              gridRow: '2 / 3',
-              border: '1px solid rgb(31, 41, 55)', 
-              padding: '6px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgb(229, 231, 235)',
-              color: 'rgb(0, 0, 0)',
-              lineHeight: '1.3'
-            }}>보냉<br/>장구</div>
-            <div style={{ 
-              gridColumn: '7 / 8',
-              gridRow: '2 / 3',
-              border: '1px solid rgb(31, 41, 55)', 
-              padding: '6px',
-              fontSize: '12px',
-              fontWeight: 'bold',
-              textAlign: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              backgroundColor: 'rgb(229, 231, 235)',
-              color: 'rgb(0, 0, 0)',
-              lineHeight: '1.3'
-            }}>응급<br/>조치</div>
+              {/* 데이터 행들 */}
+              {selectedDateChecks.map((check, index) => (
+                <tr key={index}>
+                  <td style={{ ...pdfBodyCell, fontWeight: 'bold' }}>
+                    {new Date(check.check_time).toLocaleTimeString('ko-KR', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false
+                    })}
+                  </td>
+                  <td style={{ ...pdfBodyCell, fontWeight: 'bold', color: Number(check.feels_like_temp) >= 33 ? 'rgb(220, 38, 38)' : 'rgb(17, 24, 39)' }}>
+                    {check.feels_like_temp}℃
+                  </td>
+                  <td style={pdfBodyCell}>{renderPdfMark(check.water_supply)}</td>
+                  <td style={pdfBodyCell}>{renderPdfMark(check.ventilation)}</td>
+                  <td style={pdfBodyCell}>{renderPdfMark(check.rest_time)}</td>
+                  <td style={pdfBodyCell}>{renderPdfMark(check.cooling_equipment)}</td>
+                  <td style={pdfBodyCell}>{renderPdfMark(check.emergency_care)}</td>
+                  <td style={pdfBodyCell}>{renderPdfMark(check.work_time_adjustment)}</td>
+                  <td style={pdfBodyCell}></td>
+                </tr>
+              ))}
             
-            {/* 데이터 행들 */}
-            {selectedDateChecks.map((check, index) => (
-              <React.Fragment key={index}>
-                <div style={{ 
-                  gridColumn: '1 / 2',
-                  border: '1px solid rgb(31, 41, 55)', 
-                  padding: '8px', 
-                  height: '60px',
-                  textAlign: 'center',
-                  color: 'rgb(0, 0, 0)',
-                  fontWeight: 'bold',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  {new Date(check.check_time).toLocaleTimeString('ko-KR', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false
-                  })}
-                </div>
-                <div style={{ 
-                  gridColumn: '2 / 3',
-                  border: '1px solid rgb(31, 41, 55)', 
-                  padding: '8px', 
-                  height: '60px',
-                  textAlign: 'center',
-                  fontWeight: 'bold',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  {check.feels_like_temp}℃
-                </div>
-                <div style={{ 
-                  gridColumn: '3 / 4',
-                  border: '1px solid rgb(31, 41, 55)', 
-                  padding: '8px', 
-                  height: '60px',
-                  textAlign: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <span style={{ 
-                    fontWeight: 'bold', 
-                    color: 'rgb(0, 0, 0)'
-                  }}>
-                    {check.water_supply ? 'O' : 'X'}
-                  </span>
-                </div>
-                <div style={{ 
-                  gridColumn: '4 / 5',
-                  border: '1px solid rgb(31, 41, 55)', 
-                  padding: '8px', 
-                  height: '60px',
-                  textAlign: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <span style={{ 
-                    fontWeight: 'bold', 
-                    color: 'rgb(0, 0, 0)'
-                  }}>
-                    {check.ventilation ? 'O' : 'X'}
-                  </span>
-                </div>
-                <div style={{ 
-                  gridColumn: '5 / 6',
-                  border: '1px solid rgb(31, 41, 55)', 
-                  padding: '8px', 
-                  height: '60px',
-                  textAlign: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <span style={{ 
-                    fontWeight: 'bold', 
-                    color: 'rgb(0, 0, 0)'
-                  }}>
-                    {check.rest_time ? 'O' : 'X'}
-                  </span>
-                </div>
-                <div style={{ 
-                  gridColumn: '6 / 7',
-                  border: '1px solid rgb(31, 41, 55)', 
-                  padding: '8px', 
-                  height: '60px',
-                  textAlign: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <span style={{ 
-                    fontWeight: 'bold', 
-                    color: 'rgb(0, 0, 0)'
-                  }}>
-                    {check.cooling_equipment ? 'O' : 'X'}
-                  </span>
-                </div>
-                <div style={{ 
-                  gridColumn: '7 / 8',
-                  border: '1px solid rgb(31, 41, 55)', 
-                  padding: '8px', 
-                  height: '60px',
-                  textAlign: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <span style={{ 
-                    fontWeight: 'bold', 
-                    color: 'rgb(0, 0, 0)'
-                  }}>
-                    {check.emergency_care ? 'O' : 'X'}
-                  </span>
-                </div>
-                <div style={{ 
-                  gridColumn: '8 / 9',
-                  border: '1px solid rgb(31, 41, 55)', 
-                  padding: '8px', 
-                  height: '60px',
-                  textAlign: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  <span style={{ 
-                    fontWeight: 'bold', 
-                    color: 'rgb(0, 0, 0)'
-                  }}>
-                    {check.work_time_adjustment ? 'O' : 'X'}
-                  </span>
-                </div>
-                <div style={{ 
-                  gridColumn: '9',
-                  border: '1px solid rgb(31, 41, 55)', 
-                  padding: '8px', 
-                  height: '60px',
-                  textAlign: 'center',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}></div>
-              </React.Fragment>
-            ))}
-            
-            {/* 빈 행들 (최소 7개 행 보장) */}
-            {Array.from({ length: Math.max(0, 7 - selectedDateChecks.length) }, (_, i) => (
-              <React.Fragment key={`empty-${i}`}>
-                <div style={{ gridColumn: '1 / 2', border: '1px solid rgb(31, 41, 55)', padding: '8px', height: '60px' }}></div>
-                <div style={{ gridColumn: '2 / 3', border: '1px solid rgb(31, 41, 55)', padding: '8px', height: '60px' }}></div>
-                <div style={{ gridColumn: '3 / 4', border: '1px solid rgb(31, 41, 55)', padding: '8px', height: '60px' }}></div>
-                <div style={{ gridColumn: '4 / 5', border: '1px solid rgb(31, 41, 55)', padding: '8px', height: '60px' }}></div>
-                <div style={{ gridColumn: '5 / 6', border: '1px solid rgb(31, 41, 55)', padding: '8px', height: '60px' }}></div>
-                <div style={{ gridColumn: '6 / 7', border: '1px solid rgb(31, 41, 55)', padding: '8px', height: '60px' }}></div>
-                <div style={{ gridColumn: '7 / 8', border: '1px solid rgb(31, 41, 55)', padding: '8px', height: '60px' }}></div>
-                <div style={{ gridColumn: '8 / 9', border: '1px solid rgb(31, 41, 55)', padding: '8px', height: '60px' }}></div>
-                <div style={{ gridColumn: '9', border: '1px solid rgb(31, 41, 55)', padding: '8px', height: '60px' }}></div>
-              </React.Fragment>
-            ))}
+              {/* 빈 행들 (최소 7개 행 보장) */}
+              {Array.from({ length: Math.max(0, 7 - selectedDateChecks.length) }, (_, i) => (
+                <tr key={`empty-${i}`}>
+                  {Array.from({ length: 9 }, (_, col) => (
+                    <td key={col} style={pdfBodyCell}></td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {/* 범례 */}
+          <div style={{ marginTop: '10px', fontSize: '11px', color: 'rgb(107, 114, 128)', lineHeight: 1.6 }}>
+            ※ 표기 : ○ 이행, × 미이행 · 체감온도 33℃ 이상은 적색 표시 (온열질환 발생 주의)
           </div>
 
           {/* 확인자 서명란 */}
-          <div style={{ marginTop: '40px', textAlign: 'right' }}>
-            <div style={{ fontSize: '14px', color: 'black', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '15px' }}>
-              <span>확인자 :</span>
-              <span>{(() => {
-                const sortedChecks = [...selectedDateChecks].sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime())
-                const lastInspector = sortedChecks.reverse().find(check => check.inspector_name)?.inspector_name
-                return lastInspector || (project as any)?.user_profiles?.full_name || userProfile?.full_name || ''
-              })()}</span>
+          <div style={{ marginTop: '32px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '14px', fontSize: '14px', color: 'rgb(17, 24, 39)' }}>
+            <span style={{ fontWeight: 'bold' }}>확인자 :</span>
+            <span>{(() => {
+              const sortedChecks = [...selectedDateChecks].sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime())
+              const lastInspector = sortedChecks.reverse().find(check => check.inspector_name)?.inspector_name
+              return lastInspector || (project as any)?.user_profiles?.full_name || userProfile?.full_name || ''
+            })()}</span>
+            <span style={{ position: 'relative', display: 'inline-block', width: '110px', textAlign: 'center', color: 'rgb(156, 163, 175)' }}>
+              (서명)
               {(() => {
                 const sortedChecks = [...selectedDateChecks].sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime())
                 const lastSignature = sortedChecks.reverse().find(check => check.signature)?.signature
-                
-                if (lastSignature) {
-                  return (
-                    <img 
-                      src={lastSignature} 
-                      alt="서명" 
-                      style={{ height: '40px', width: 'auto', maxWidth: '200px' }}
-                    />
-                  )
-                } else {
-                  return <span>(서명)</span>
-                }
+                if (!lastSignature) return null
+                return (
+                  <img
+                    src={lastSignature}
+                    alt="서명"
+                    style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', maxHeight: '44px', maxWidth: '110px' }}
+                  />
+                )
               })()}
-            </div>
+            </span>
           </div>
         </div>
       )}
