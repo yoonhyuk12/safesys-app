@@ -213,13 +213,10 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
       <div className="bg-white rounded-lg shadow-sm border border-gray-200">
         <div className="px-2 py-2 sm:px-6 sm:py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
-            <button
-              onClick={onBack}
-              className="flex items-center text-sm text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              안전현황으로 돌아가기
-            </button>
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+              <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
+              (지사) 관리자 점검 현황
+            </h3>
             <div className="flex items-center space-x-2">
               {!isHqDownloadMode ? (
                 <button
@@ -286,12 +283,6 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
           </div>
         </div>
         <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-              <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
-              (지사) 관리자 점검 현황
-            </h3>
-          </div>
           <div className="flex items-center justify-between mb-4">
             <button
               onClick={() => onBackToHqLevel()}
@@ -322,14 +313,6 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
               <PenTool className="h-4 w-4 mr-2" />
               일괄서명
             </button>
-          </div>
-          <div className="bg-blue-50 rounded-lg p-4 mb-6">
-            <h4 className="text-lg font-semibold text-blue-900 mb-2">
-              {selectedSafetyBranch} - 프로젝트별 관리자 점검 현황
-            </h4>
-            <p className="text-blue-700 text-sm">
-              총 {branchProjects.length}개 프로젝트, {managerInspections.filter((i) => i.managing_branch === selectedSafetyBranch).length}건 점검완료
-            </p>
           </div>
           {branchProjects.length === 0 ? (
             <div className="text-center py-12">
