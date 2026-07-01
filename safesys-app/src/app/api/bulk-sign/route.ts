@@ -1,4 +1,4 @@
-// 감독(공사감독원)·현장소장(시공사 현장대리인)이 프로젝트의 미서명 문서에 일괄 서명하는 서버 라우트 (service-role, 역할 검증)
+// 감독(공사감독원)·시공사(현장소장 및 기타 확인자)가 프로젝트의 미서명 문서에 일괄 서명하는 서버 라우트 (service-role, 역할 검증)
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
@@ -25,8 +25,8 @@ const SIGNERS: Record<string, { allowedRoles: string[]; targets: Record<string, 
       quality_summary_report: { table: 'quality_summary_reports', signColumn: 'confirmer_signature' },
     },
   },
-  // 현장소장(시공사) — 발주청은 관리 목적 허용
-  site_manager: {
+  // 시공사(현장소장·품질관리기술인 등 기타 확인자 포함) — 발주청은 관리 목적 허용
+  contractor: {
     allowedRoles: ['시공사', '발주청'],
     targets: {
       inspection_request_field_agent: { table: 'inspection_requests', signColumn: 'field_agent_signature' },
@@ -34,6 +34,7 @@ const SIGNERS: Record<string, { allowedRoles: string[]; targets: Record<string, 
       quality_test_record_engineer: { table: 'quality_test_records', signColumn: 'quality_engineer_signature' },
       quality_verification_request: { table: 'quality_verification_requests', signColumn: 'sender_signature' },
       quality_summary_report_writer: { table: 'quality_summary_reports', signColumn: 'writer_signature' },
+      quality_summary_report_reviewer: { table: 'quality_summary_reports', signColumn: 'reviewer_signature' },
     },
   },
 }

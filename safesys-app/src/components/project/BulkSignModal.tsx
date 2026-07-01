@@ -1,6 +1,6 @@
 'use client'
 
-// 감독(공사감독원)·현장소장(시공사)이 프로젝트의 미서명 문서를 전체/부분 선택해 일괄 서명하는 모달
+// 감독(공사감독원)·시공사(현장소장 및 기타 확인자)가 프로젝트의 미서명 문서를 전체/부분 선택해 일괄 서명하는 모달
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { X, PenTool, RefreshCw } from 'lucide-react'
@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignaturePad from '@/components/ui/SignaturePad'
 
-export type BulkSignSigner = 'supervisor' | 'site_manager'
+export type BulkSignSigner = 'supervisor' | 'contractor'
 
 interface BulkSignModalProps {
   isOpen: boolean
@@ -133,8 +133,8 @@ const SUPERVISOR_GROUPS: GroupDef[] = [
   },
 ]
 
-// 현장소장(시공사) 서명 대상 5종
-const SITE_MANAGER_GROUPS: GroupDef[] = [
+// 시공사(현장소장·기타 확인자) 서명 대상 6종
+const CONTRACTOR_GROUPS: GroupDef[] = [
   {
     type: 'inspection_request_field_agent',
     title: '검사/검측 요청서 (현장대리인 서명)',
@@ -200,6 +200,19 @@ const SITE_MANAGER_GROUPS: GroupDef[] = [
       }))
     },
   },
+  {
+    type: 'quality_summary_report_reviewer',
+    title: '품질검사 성과총괄표 (검토자 서명)',
+    load: async (projectId) => {
+      const rows = await loadUnsignedRows(projectId, 'quality_summary_reports', 'id, report_date', { signColumn: 'reviewer_signature' }, 'report_date')
+      return rows.map((r) => ({
+        type: 'quality_summary_report_reviewer',
+        id: str(r.id),
+        date: str(r.report_date),
+        label: '성과총괄표',
+      }))
+    },
+  },
 ]
 
 const SIGNER_CONFIG: Record<BulkSignSigner, { title: string; note: string; groups: GroupDef[]; headerClass: string; accentClass: string }> = {
@@ -210,10 +223,10 @@ const SIGNER_CONFIG: Record<BulkSignSigner, { title: string; note: string; group
     headerClass: 'bg-purple-700',
     accentClass: 'accent-purple-600',
   },
-  site_manager: {
-    title: '현장소장 일괄서명',
+  contractor: {
+    title: '시공사 일괄서명',
     note: '※ PTW 작업허가서·정기안전점검·작업자 서명은 서명자 지정이 필요해 각 문서에서 개별 서명해야 합니다.',
-    groups: SITE_MANAGER_GROUPS,
+    groups: CONTRACTOR_GROUPS,
     headerClass: 'bg-blue-700',
     accentClass: 'accent-blue-600',
   },

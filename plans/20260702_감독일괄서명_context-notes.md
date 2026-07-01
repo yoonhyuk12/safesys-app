@@ -19,3 +19,5 @@
 - **현장소장 대상 5종**: 검측요청서 field_agent_signature(현장대리인), 신규근로자 둘러보기 manager_signature(확인자), 품질검사 실시대장 quality_engineer_signature(품질관리기술인), 확인시험 의뢰서 sender_signature(보냄=시공자), 성과총괄표 writer_signature(작성자=건설업자). 품질관리기술인은 현장소장과 다른 사람일 수 있으나 부분선택이 가능하므로 라벨을 명확히 하고 포함.
 - **허용 역할**: supervisor=발주청, site_manager=시공사+발주청(발주청은 시스템 관리 주체라 허용). 감독 펜통 버튼은 발주청 사용자에게만 노출, 현장소장 펜통은 전체 노출(권한은 API에서 차단).
 - **펜통 버튼**: `PenHolderButton.tsx` — CSS로 그린 금촉 만년필 + 컵 + 명판, 호버 시 펜이 살짝 뽑히는 효과. 캐비넷 행(flex items-end) 맨 앞에 배치.
+- **배치 조정(사용자 지시)**: 감독 펜통은 발주청 캐비넷 서랍 안(공사감독 일지 옆, size="sm" self-end)으로 이동. 펜통 기본 크기도 한 단계 축소(w-14~lg:w-20). 기존 md 사이즈의 `sm:w-18`은 Tailwind에 없는 무효 클래스였음 — 수정하며 제거.
+- **현장소장 → 시공사 개명(사용자 지시)**: signer 키 site_manager → `contractor`, 라벨 "시공사 일괄서명". 시공사 측 기타 확인자 서명도 포함하도록 성과총괄표 검토자(reviewer_signature, 품질시험담당자)를 대상에 추가 — 시공사 대상 총 6종.

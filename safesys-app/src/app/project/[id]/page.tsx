@@ -895,11 +895,11 @@ export default function ProjectDetailPage() {
           {/* 서류 캐비넷 — 좁은 화면에서는 줄 나눔 */}
           <div className="mb-10 flex justify-center">
             <div className="flex flex-wrap items-end justify-center gap-x-4 sm:gap-x-6 lg:gap-x-8 gap-y-10">
-              {/* 현장소장 일괄서명 만년필 펜통 — 캐비넷 좌측 (감독용은 발주청 캐비넷 안) */}
+              {/* 시공사 일괄서명 만년필 펜통 — 캐비넷 좌측 (감독용은 발주청 캐비넷 안) */}
               <PenHolderButton
-                label="현장소장 일괄서명"
+                label="시공사 일괄서명"
                 theme="blue"
-                onClick={() => setBulkSignSigner('site_manager')}
+                onClick={() => setBulkSignSigner('contractor')}
               />
               {project.business_card_pdf_url && (
                 <BusinessCardEasel onClick={handleBusinessCardClick} />
