@@ -44,18 +44,18 @@ export function generateInspectionHTMLWithDisaster(inspection: ManagerInspection
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
       <!-- 기본정보 영역 -->
       <tr style="height: 30px;">
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; width: 12%; text-align: center; vertical-align: middle; font-weight: bold; line-height: 1.2; display: table-cell; height: 30px;">연 번</td>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; width: 8%; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell; height: 30px;">${sequenceNumber}</td>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; width: 12%; text-align: center; vertical-align: middle; font-weight: bold; line-height: 1.2; display: table-cell; height: 30px;">지 사</td>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; width: 18%; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell; height: 30px;">${project?.managing_branch || ''}</td>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; width: 15%; text-align: center; vertical-align: middle; font-weight: bold; line-height: 1.2; display: table-cell; height: 30px;">공 사 명</td>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; width: 35%; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell; height: 30px;">${project?.project_name || ''}</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; width: 12%; text-align: center; vertical-align: middle; font-weight: bold; line-height: 1.2; display: table-cell; height: 30px;">연 번</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; width: 8%; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell; height: 30px;">${sequenceNumber}</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; width: 12%; text-align: center; vertical-align: middle; font-weight: bold; line-height: 1.2; display: table-cell; height: 30px;">지 사</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; width: 18%; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell; height: 30px;">${project?.managing_branch || ''}</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; width: 15%; text-align: center; vertical-align: middle; font-weight: bold; line-height: 1.2; display: table-cell; height: 30px;">공 사 명</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; width: 35%; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell; height: 30px;">${project?.project_name || ''}</td>
       </tr>
       <tr style="height: 30px;">
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; font-weight: bold; line-height: 1.2; display: table-cell; height: 30px;" colspan="2">공사감독</td>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell; height: 30px;" colspan="2">${(inspection as any)?.construction_supervisor || (inspection as any)?.form_data?.supervisor || inspection.inspector_name || ''}</td>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; font-weight: bold; line-height: 1.2; display: table-cell; height: 30px;">시 공 사</td>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell; height: 30px;">${(project as any)?.user_profiles?.company_name || (inspection as any)?.form_data?.contractor || ''}</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; font-weight: bold; line-height: 1.2; display: table-cell; height: 30px;" colspan="2">공사감독</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell; height: 30px;" colspan="2">${(inspection as any)?.construction_supervisor || (inspection as any)?.form_data?.supervisor || inspection.inspector_name || ''}</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; font-weight: bold; line-height: 1.2; display: table-cell; height: 30px;">시 공 사</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell; height: 30px;">${(project as any)?.user_profiles?.company_name || (inspection as any)?.form_data?.contractor || ''}</td>
       </tr>
 
       <!-- 사진 영역 (재해예방 사진 유무에 따라 2개 또는 3개) -->
@@ -69,13 +69,13 @@ export function generateInspectionHTMLWithDisaster(inspection: ManagerInspection
               return `
                 <table style="width: 100%; border-collapse: collapse;">
                   <tr style="height: 30px;">
-                    <td style="border: none; padding: 0 8px 8px 8px; text-align: left; vertical-align: middle; font-weight: bold; width: 33.33%; line-height: 1.2; display: table-cell; height: 30px;">
+                    <td style="border: none; padding: 0 8px; text-align: left; vertical-align: middle; font-weight: bold; width: 33.33%; line-height: 1.2; display: table-cell; height: 30px;">
                       □ 점검사진
                     </td>
-                    <td style="border-left: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: left; vertical-align: middle; font-weight: bold; width: 33.33%; line-height: 1.2; display: table-cell; height: 30px;">
+                    <td style="border-left: 0.5px solid #000; padding: 0 8px; text-align: left; vertical-align: middle; font-weight: bold; width: 33.33%; line-height: 1.2; display: table-cell; height: 30px;">
                       □ 위험성평가서 사진
                     </td>
-                    <td style="border-left: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: left; vertical-align: middle; font-weight: bold; width: 33.33%; line-height: 1.2; display: table-cell; height: 30px;">
+                    <td style="border-left: 0.5px solid #000; padding: 0 8px; text-align: left; vertical-align: middle; font-weight: bold; width: 33.33%; line-height: 1.2; display: table-cell; height: 30px;">
                       □ 재해예방기술지도 보고서
                     </td>
                   </tr>
@@ -128,10 +128,10 @@ export function generateInspectionHTMLWithDisaster(inspection: ManagerInspection
               return `
                 <table style="width: 100%; border-collapse: collapse;">
                   <tr style="height: 30px;">
-                    <td style="border: none; padding: 0 8px 8px 8px; text-align: left; vertical-align: middle; font-weight: bold; width: 50%; line-height: 1.2; display: table-cell; height: 30px;">
+                    <td style="border: none; padding: 0 8px; text-align: left; vertical-align: middle; font-weight: bold; width: 50%; line-height: 1.2; display: table-cell; height: 30px;">
                       □ 점검사진
                     </td>
-                    <td style="border-left: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: left; vertical-align: middle; font-weight: bold; width: 50%; line-height: 1.2; display: table-cell; height: 30px;">
+                    <td style="border-left: 0.5px solid #000; padding: 0 8px; text-align: left; vertical-align: middle; font-weight: bold; width: 50%; line-height: 1.2; display: table-cell; height: 30px;">
                       □ 위험성평가서 사진
                     </td>
                   </tr>
@@ -166,11 +166,11 @@ export function generateInspectionHTMLWithDisaster(inspection: ManagerInspection
           <table style="width: 100%; border-collapse: collapse;">
             <thead>
               <tr style="background-color: #f0f0f0;">
-                <th style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; width: 15%; line-height: 1.2; display: table-cell;">세부작업</th>
-                <th style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; width: 20%; line-height: 1.2; display: table-cell;">유해위험요인</th>
-                <th style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; width: 35%; line-height: 1.2; display: table-cell;">위험성 감소대책<br/>세부내용</th>
-                <th style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; width: 15%; line-height: 1.2; display: table-cell;">이행여부</th>
-                <th style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; width: 15%; line-height: 1.2; display: table-cell;">비고</th>
+                <th style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; width: 15%; line-height: 1.2; display: table-cell;">세부작업</th>
+                <th style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; width: 20%; line-height: 1.2; display: table-cell;">유해위험요인</th>
+                <th style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; width: 35%; line-height: 1.2; display: table-cell;">위험성 감소대책<br/>세부내용</th>
+                <th style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; width: 15%; line-height: 1.2; display: table-cell;">이행여부</th>
+                <th style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; width: 15%; line-height: 1.2; display: table-cell;">비고</th>
               </tr>
             </thead>
             <tbody id="risk-rows">
@@ -200,11 +200,11 @@ export function generateInspectionHTMLWithDisaster(inspection: ManagerInspection
                 <table style="width: 100%; border-collapse: collapse;">
                   <thead>
                     <tr style="background-color: #e3f2fd;">
-                      <th style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; width: 15%; line-height: 1.2; display: table-cell;">세부작업</th>
-                      <th style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; width: 20%; line-height: 1.2; display: table-cell;">유해위험요인</th>
-                      <th style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; width: 35%; line-height: 1.2; display: table-cell;">예방대책<br/>세부내용</th>
-                      <th style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; width: 15%; line-height: 1.2; display: table-cell;">이행여부</th>
-                      <th style="border: 0.5px solid #000; padding: 0 8px 8px 8px; text-align: center; vertical-align: middle; width: 15%; line-height: 1.2; display: table-cell;">비고</th>
+                      <th style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; width: 15%; line-height: 1.2; display: table-cell;">세부작업</th>
+                      <th style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; width: 20%; line-height: 1.2; display: table-cell;">유해위험요인</th>
+                      <th style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; width: 35%; line-height: 1.2; display: table-cell;">예방대책<br/>세부내용</th>
+                      <th style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; width: 15%; line-height: 1.2; display: table-cell;">이행여부</th>
+                      <th style="border: 0.5px solid #000; padding: 0 8px; text-align: center; vertical-align: middle; width: 15%; line-height: 1.2; display: table-cell;">비고</th>
                     </tr>
                   </thead>
                   <tbody id="disaster-rows">
@@ -247,11 +247,11 @@ function generateRiskFactorRows(riskFactors: any[], rowCount: number = 10): stri
     const factor = riskFactors[i]
     rows += `
       <tr style="height: 40px;" ${!factor ? 'data-blank="true"' : ''}>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; height: 40px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell;">${factor ? (factor.detail_work || '') : ''}</td>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; height: 40px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell;">${factor ? (factor.risk_factor || '') : ''}</td>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; height: 40px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell;">${factor ? (factor.details ?? factor.reduction_measure ?? '') : ''}</td>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; height: 40px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell;">${factor ? ((factor.implementation === 'yes' || factor.implementation_yes === true) ? '☑' : '☐') : ''}</td>
-        <td style="border: 0.5px solid #000; padding: 0 8px 8px 8px; height: 40px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell;">${factor ? (factor.remarks || '') : ''}</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; height: 40px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell;">${factor ? (factor.detail_work || '') : ''}</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; height: 40px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell;">${factor ? (factor.risk_factor || '') : ''}</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; height: 40px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell;">${factor ? (factor.details ?? factor.reduction_measure ?? '') : ''}</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; height: 40px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell;">${factor ? ((factor.implementation === 'yes' || factor.implementation_yes === true) ? '☑' : '☐') : ''}</td>
+        <td style="border: 0.5px solid #000; padding: 0 8px; height: 40px; text-align: center; vertical-align: middle; line-height: 1.2; display: table-cell;">${factor ? (factor.remarks || '') : ''}</td>
       </tr>
     `
   }

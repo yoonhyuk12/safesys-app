@@ -1,3 +1,5 @@
+import { applyHtml2canvasTextFix } from './html2canvas-text-fix'
+
 export interface HeadquartersInspectionReportParams {
   projectName: string
   inspections: any[]
@@ -88,7 +90,7 @@ function buildFiveKeyPageHtml(
   const totalBodyRows = items.length + new Set(items.map(i => i.category)).size
 
   const check = (item: { grade: string }, target: string): string =>
-    item.grade === target ? '☑' : '☐'
+    item.grade === target ? '☑' : ''
 
   // 횟수 입력 항목 판별 (관리자 입회/동행 횟수)
   const isCountItem = (title: string): boolean => title.trim().endsWith('횟수')
@@ -111,12 +113,12 @@ function buildFiveKeyPageHtml(
   groups.forEach(group => {
     // 카테고리 헤더 행 (구분 셀은 첫 행에만 rowspan으로 출력)
     const sectionCellForCat = isFirstRowInTable
-      ? `<td rowspan="${totalBodyRows}" class="cell-section">5대<br/>핵심<br/>안전<br/>수칙</td>`
+      ? `<td rowspan="${totalBodyRows}" class="cell-section"><div class="fk-ci">5대<br/>핵심<br/>안전<br/>수칙</div></td>`
       : ''
     bodyRows += `
       <tr class="fk-cat-row">
         ${sectionCellForCat}
-        <td class="cell-cat-row">${group.category}</td>
+        <td class="cell-cat-row"><div class="fk-ci left">${group.category}</div></td>
         <td></td>
         <td></td>
         <td></td>
@@ -131,14 +133,14 @@ function buildFiveKeyPageHtml(
     // 세부 항목 행
     group.items.forEach(it => {
       const gradeCells = isCountItem(it.title)
-        ? `<td class="cell-grade cell-count" colspan="6">${typeof (it as any).count === 'number' ? (it as any).count : 0}건</td>`
+        ? `<td class="cell-grade cell-count" colspan="6"><div class="fk-ci">${typeof (it as any).count === 'number' ? (it as any).count : 0}건</div></td>`
         : `
-          <td class="cell-grade">${check(it, '1')}</td>
-          <td class="cell-grade">${check(it, '2')}</td>
-          <td class="cell-grade">${check(it, '3')}</td>
-          <td class="cell-grade">${check(it, '4')}</td>
-          <td class="cell-grade">${check(it, '5')}</td>
-          <td class="cell-grade">${check(it, 'N/A')}</td>`
+          <td class="cell-grade"><div class="fk-ci">${check(it, '1')}</div></td>
+          <td class="cell-grade"><div class="fk-ci">${check(it, '2')}</div></td>
+          <td class="cell-grade"><div class="fk-ci">${check(it, '3')}</div></td>
+          <td class="cell-grade"><div class="fk-ci">${check(it, '4')}</div></td>
+          <td class="cell-grade"><div class="fk-ci">${check(it, '5')}</div></td>
+          <td class="cell-grade"><div class="fk-ci">${check(it, 'N/A')}</div></td>`
 
       // 점검 결과: 사용자 입력값이 있으면 입력 텍스트, 없으면 "특이사항 없음"
       const trimmedRemarks = (it.remarks || '').trim()
@@ -147,9 +149,9 @@ function buildFiveKeyPageHtml(
 
       bodyRows += `
         <tr>
-          <td class="cell-title">${it.title}</td>
+          <td class="cell-title"><div class="fk-ci left">${it.title}</div></td>
           ${gradeCells}
-          <td class="cell-result">${resultText}</td>
+          <td class="cell-result"><div class="fk-ci left pre">${resultText}</div></td>
         </tr>
       `
     })
@@ -162,22 +164,27 @@ function buildFiveKeyPageHtml(
       .fk-title { text-align:center; font-size:18px; font-weight:bold; margin-bottom: 6mm; letter-spacing: 1px; }
       .fk-headline { font-size:12px; margin: 0 0 3mm 2mm; }
       .fk-table { border-collapse: collapse; width:100%; table-layout: fixed; }
-      /* 모든 셀: td 자체의 vertical-align: middle로 수직 중앙 (가장 안정적) */
-      .fk-table th, .fk-table td { border: 0.75px solid #000; vertical-align: middle; line-height: 1.2; padding: 1mm 1.5mm; }
-      .fk-table th { background:#f2f2f2; font-weight: bold; text-align: center; padding: 1mm 0.5mm; line-height: 1.1; }
-      .fk-table .hdr-main { font-size: 11px; height: 5mm; }
-      .fk-table .hdr-grade { font-size: 8.5px; height: 5mm; }
+      /* html2canvas는 td/th의 vertical-align을 신뢰성 있게 렌더링하지 못해 flex wrapper(.fk-ci)로 수직 중앙 정렬 (1·2페이지와 동일 방식) */
+      .fk-table th, .fk-table td { border: 0.75px solid #000; padding: 0; }
+      .fk-table th { background:#f2f2f2; font-weight: bold; }
+      .fk-ci { display:flex; align-items:center; justify-content:center; width:100%; height:100%; box-sizing:border-box; padding: 1mm 1.5mm; line-height: 1.2; text-align:center; }
+      .fk-ci.left { justify-content:flex-start; text-align:left; }
+      .fk-ci.pre { white-space:pre-wrap; }
+      .fk-table .hdr-main { height: 5mm; }
+      .fk-table .hdr-grade { height: 5mm; }
+      .fk-table .hdr-main .fk-ci { font-size: 11px; padding: 1mm 0.5mm; line-height: 1.1; }
+      .fk-table .hdr-grade .fk-ci { font-size: 8.5px; padding: 1mm 0.5mm; line-height: 1.1; }
       /* 본문 행 균일 높이 */
       .fk-table tbody tr td { height: 9.5mm; }
       .fk-table tbody tr.fk-cat-row td { height: 7mm; background:#fff8e1; }
       .fk-table tbody tr.fk-sum td { height: 8mm; }
 
-      .cell-section { font-size:11px; font-weight:bold; background:#fafafa; letter-spacing: 1px; line-height: 1.6; text-align: center; }
-      .cell-cat-row { font-size:10.5px; font-weight:bold; text-align: left; }
-      .cell-title { font-size:9px; text-align: left; }
-      .cell-grade { font-size:13px; text-align: center; padding: 0.5mm; }
-      .cell-count { font-size:11px; font-weight:bold; }
-      .cell-result { font-size:9px; color:#222; text-align: left; white-space: pre-wrap; }
+      .cell-section .fk-ci { font-size:11px; font-weight:bold; background:#fafafa; letter-spacing: 1px; line-height: 1.6; }
+      .cell-cat-row .fk-ci { font-size:10.5px; font-weight:bold; }
+      .cell-title .fk-ci { font-size:9px; }
+      .cell-grade .fk-ci { font-size:13px; padding: 0.5mm; }
+      .cell-count .fk-ci { font-size:11px; font-weight:bold; }
+      .cell-result .fk-ci { font-size:9px; color:#222; }
       .fk-foot-note { font-size:9px; color:#444; margin-top:6px; line-height:1.4; padding-left: 2mm; }
       .fk-sign { text-align: right; margin-top: 24px; font-size: 13px; }
       .fk-sign .sign-date { margin-bottom: 12px; letter-spacing: 1px; }
@@ -202,18 +209,18 @@ function buildFiveKeyPageHtml(
         </colgroup>
         <thead>
           <tr>
-            <th rowspan="2" class="hdr-main">구 분</th>
-            <th rowspan="2" class="hdr-main">주 요 항 목</th>
-            <th colspan="6" class="hdr-main">이행여부</th>
-            <th rowspan="2" class="hdr-main">점검 결과</th>
+            <th rowspan="2" class="hdr-main"><div class="fk-ci">구 분</div></th>
+            <th rowspan="2" class="hdr-main"><div class="fk-ci">주 요 항 목</div></th>
+            <th colspan="6" class="hdr-main"><div class="fk-ci">이행여부</div></th>
+            <th rowspan="2" class="hdr-main"><div class="fk-ci">점검 결과</div></th>
           </tr>
           <tr>
-            <th class="hdr-grade">1등급</th>
-            <th class="hdr-grade">2등급</th>
-            <th class="hdr-grade">3등급</th>
-            <th class="hdr-grade">4등급</th>
-            <th class="hdr-grade">5등급</th>
-            <th class="hdr-grade">해당없음</th>
+            <th class="hdr-grade"><div class="fk-ci">1등급</div></th>
+            <th class="hdr-grade"><div class="fk-ci">2등급</div></th>
+            <th class="hdr-grade"><div class="fk-ci">3등급</div></th>
+            <th class="hdr-grade"><div class="fk-ci">4등급</div></th>
+            <th class="hdr-grade"><div class="fk-ci">5등급</div></th>
+            <th class="hdr-grade"><div class="fk-ci">해당없음</div></th>
           </tr>
         </thead>
         <tbody>
@@ -279,6 +286,15 @@ async function appendFiveKeyPage(
 }
 
 export async function generateHeadquartersInspectionReport(params: HeadquartersInspectionReportParams): Promise<void> {
+  const restoreTextFix = applyHtml2canvasTextFix()
+  try {
+    await generateHeadquartersInspectionReportImpl(params)
+  } finally {
+    restoreTextFix()
+  }
+}
+
+async function generateHeadquartersInspectionReportImpl(params: HeadquartersInspectionReportParams): Promise<void> {
   const { projectName, inspections, branchName: branchNameParam, hqName: hqNameParam } = params
 
   const html2canvas = (await import('html2canvas')).default
@@ -532,6 +548,15 @@ function ensureNotCancelled(signal?: AbortSignal) {
 }
 
 export async function generateHeadquartersInspectionReportBulk(groups: HeadquartersInspectionReportGroup[], filename?: string, options?: HeadquartersReportOptions): Promise<void> {
+  const restoreTextFix = applyHtml2canvasTextFix()
+  try {
+    await generateHeadquartersInspectionReportBulkImpl(groups, filename, options)
+  } finally {
+    restoreTextFix()
+  }
+}
+
+async function generateHeadquartersInspectionReportBulkImpl(groups: HeadquartersInspectionReportGroup[], filename?: string, options?: HeadquartersReportOptions): Promise<void> {
   if (!groups || groups.length === 0) return
   const signal = options?.signal
   const onProgress = options?.onProgress
