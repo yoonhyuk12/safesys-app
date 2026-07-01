@@ -228,8 +228,49 @@ const Dashboard: React.FC = () => {
     return `${year}Q${quarter}`
   }
 
-  // 항상 오늘 날짜 기준 분기로 초기화 (localStorage 무시)
-  const [selectedQuarter, setSelectedQuarter] = useState<string>(() => getCurrentQuarter())
+  // 현재 경로가 속한 안전현황 카드명을 계산한다 (개요·지사 개요 등 카드 밖이면 null).
+  // 예: '/safe/manager' → 'manager', '/safe/branch/OO지사/manager' → 'manager', '/safe' → null
+  const computeQuarterCard = (path: string | null): string | null => {
+    if (!path) return null
+    const seg = path.split('/').filter(Boolean)
+    if (seg[0] !== 'safe') return null
+    const card = seg[1] === 'branch' ? seg[3] : seg[1]
+    return card || null
+  }
+
+  // 진입 시에는 오늘 날짜 기준 분기로 시작하되, 같은 카드 안에서 지사↔본부 테이블을 오갈 때(라우트 이동으로
+  // Dashboard가 재마운트됨)는 sessionStorage에 저장된 분기를 복원한다. 저장값은 그 분기를 고른 카드명과 함께 보관하고,
+  // 카드 밖(개요)으로 나가면 폐기하므로(아래 effect) 카드에 새로 들어오면 항상 오늘 분기가 기본값이 된다.
+  const [selectedQuarter, setSelectedQuarter] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const card = computeQuarterCard(pathname)
+      const savedCard = sessionStorage.getItem('safe:quarterCard')
+      const saved = sessionStorage.getItem('safe:selectedQuarter')
+      if (card && saved && savedCard === card) return saved
+    }
+    return getCurrentQuarter()
+  })
+
+  // 분기 변경을 현재 카드명과 함께 sessionStorage에 저장해, 같은 카드 안의 테이블 이동 간 선택을 유지한다
+  const handleQuarterChange = (val: string) => {
+    setSelectedQuarter(val)
+    if (typeof window !== 'undefined') {
+      const card = computeQuarterCard(pathname)
+      if (card) {
+        sessionStorage.setItem('safe:selectedQuarter', val)
+        sessionStorage.setItem('safe:quarterCard', card)
+      }
+    }
+  }
+
+  // 카드를 벗어날 때 저장된 분기를 지워 재진입 시 오늘 분기를 기본값으로 되돌린다
+  const resetQuarterToToday = () => {
+    setSelectedQuarter(getCurrentQuarter())
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('safe:selectedQuarter')
+      sessionStorage.removeItem('safe:quarterCard')
+    }
+  }
   const [managerInspections, setManagerInspections] = useState<ManagerInspection[]>([])
   const [headquartersInspections, setHeadquartersInspections] = useState<HeadquartersInspection[]>([])
   const [tbmSafetyInspections, setTbmSafetyInspections] = useState<TBMSafetyInspection[]>([])
@@ -306,6 +347,9 @@ const Dashboard: React.FC = () => {
   const pendingCountsLoaded = useRef(false)
   const isViewModeInitialized = useRef(false)
   const isSelectionInitialized = useRef(false)
+  // 날짜→분기 자동 동기화: 마지막으로 처리한 날짜를 기억해, 사용자가 실제로 날짜를 바꿨을 때만 분기를 동기화한다.
+  // (마운트/StrictMode 이중 실행에서 sessionStorage로 복원한 분기가 오늘 날짜 기준으로 덮어써지는 것을 방지)
+  const lastSyncedDateRef = useRef<string | null>(null)
   const lastHeatWaveParams = useRef<{ date: string; hq: string; branch: string; viewMode: string } | null>(null)
   const lastManagerParams = useRef<{ quarter: string; hq: string; branch: string } | null>(null)
   const lastHeadquartersParams = useRef<{ quarter: string; hq: string; branch: string } | null>(null)
@@ -807,9 +851,27 @@ const Dashboard: React.FC = () => {
     }
   }, [selectedQuarter])
 
+  // 안전현황 카드 밖(개요·지사 개요 등)으로 나가면 저장된 분기를 폐기한다.
+  // 상단 '안전' 내비게이션 등 onBack을 거치지 않는 경로로 나갔다가 카드에 다시 들어와도
+  // 과거에 고른 분기가 남지 않고, 항상 오늘 날짜 기준 분기가 기본값으로 표시되게 한다.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (computeQuarterCard(pathname) === null) {
+      sessionStorage.removeItem('safe:selectedQuarter')
+      sessionStorage.removeItem('safe:quarterCard')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
+
   // 날짜 선택기에서 날짜가 변경되면 해당 날짜의 분기로 selectedQuarter도 자동 업데이트
   useEffect(() => {
     if (!selectedDate) return
+    // 이미 처리한 날짜면(마운트/StrictMode 재실행 포함) 건너뛴다 — 사용자가 실제로 날짜를 바꿨을 때만 동기화
+    if (lastSyncedDateRef.current === selectedDate) return
+    const isFirstResolved = lastSyncedDateRef.current === null
+    lastSyncedDateRef.current = selectedDate
+    // 첫 확정(마운트) 시에는 복원된 분기를 그대로 두고 날짜 기준으로 덮어쓰지 않는다
+    if (isFirstResolved) return
     const date = new Date(selectedDate)
     if (Number.isNaN(date.getTime())) return
 
@@ -2923,7 +2985,7 @@ const Dashboard: React.FC = () => {
                     heatWaveChecks={heatWaveChecks}
                     onBack={() => {
                       setSelectedSafetyCard(null)
-                      setSelectedQuarter(getCurrentQuarter()) // 분기 초기화
+                      resetQuarterToToday() // 분기 초기화
                       if (selectedSafetyBranch) {
                         router.push(`/safe/branch/${encodeURIComponent(selectedSafetyBranch)}`)
                       } else {
@@ -2952,7 +3014,7 @@ const Dashboard: React.FC = () => {
                     reportProgress={reportProgress}
                     onBack={() => {
                       setSelectedSafetyCard(null)
-                      setSelectedQuarter(getCurrentQuarter()) // 분기 초기화
+                      resetQuarterToToday() // 분기 초기화
                       if (selectedSafetyBranch) router.push(`/safe/branch/${encodeURIComponent(selectedSafetyBranch)}`)
                       else router.push('/safe')
                     }}
@@ -2968,7 +3030,7 @@ const Dashboard: React.FC = () => {
                       setSelectedSafetyBranch(null)
                       router.push('/safe/manager')
                     }}
-                    onQuarterChange={(val) => setSelectedQuarter(val)}
+                    onQuarterChange={handleQuarterChange}
                     onToggleDownloadMode={(on) => {
                       setIsHqDownloadMode(on)
                       if (on) {
@@ -3086,7 +3148,7 @@ const Dashboard: React.FC = () => {
                       setSelectedSafetyCard(null)
                       setSelectedSafetyHq(null)
                       setSelectedSafetyBranch(null)
-                      setSelectedQuarter(getCurrentQuarter()) // 분기 초기화
+                      resetQuarterToToday() // 분기 초기화
                       if (selectedSafetyBranch) {
                         router.push(`/safe/branch/${encodeURIComponent(selectedSafetyBranch)}`)
                       } else {
@@ -3105,7 +3167,7 @@ const Dashboard: React.FC = () => {
                       setSelectedSafetyBranch(null)
                       router.push('/safe/headquarters')
                     }}
-                    onQuarterChange={(val) => setSelectedQuarter(val)}
+                    onQuarterChange={handleQuarterChange}
                     onToggleDownloadMode={(on) => {
                       setIsHqDownloadMode(on)
                       if (on) {
