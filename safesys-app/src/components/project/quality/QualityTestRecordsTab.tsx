@@ -3,7 +3,7 @@
 // 품질검사 실시대장 탭 (별지 제42호서식) — 대장 행 목록·작성·수정·삭제·엑셀 출력
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Printer, X, Trash2, FileText } from 'lucide-react'
+import { Plus, Printer, X, Trash2, FileText, FileDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignatureModal from '@/components/project/SignatureModal'
@@ -177,6 +177,16 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName }
         <div className="bg-amber-600 text-white px-4 py-3 flex items-center justify-between gap-2">
           <h2 className="font-semibold text-sm sm:text-base truncate">품질검사 실시대장 (별지 제42호서식)</h2>
           <div className="flex items-center gap-1.5 shrink-0">
+            <a
+              href="https://drive.google.com/uc?export=download&id=1iQ0aW-gz9tTVnCXZI-aG3iUvB6YWnK1z"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium"
+              title="품질검사 실시대장 HWP 양식 다운로드"
+            >
+              <FileDown className="h-4 w-4" />
+              HWP 양식
+            </a>
             <button
               onClick={handleLedgerDownload}
               disabled={ledgerDownloading || records.length === 0}

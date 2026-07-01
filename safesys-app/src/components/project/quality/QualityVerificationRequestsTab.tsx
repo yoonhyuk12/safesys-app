@@ -3,7 +3,7 @@
 // 확인시험 의뢰서 탭 (별지 제4호서식) — 의뢰서 목록·작성·수정·삭제·엑셀 출력
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Download, X, Trash2, FileText } from 'lucide-react'
+import { Plus, Download, X, Trash2, FileText, FileDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignatureModal from '@/components/project/SignatureModal'
@@ -191,13 +191,25 @@ export default function QualityVerificationRequestsTab({
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="bg-amber-600 text-white px-4 py-3 flex items-center justify-between gap-2">
           <h2 className="font-semibold text-sm sm:text-base truncate">확인시험 의뢰서 (별지 제4호서식)</h2>
-          <button
-            onClick={handleAddClick}
-            className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium shrink-0"
-          >
-            <Plus className="h-4 w-4" />
-            추가
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <a
+              href="https://drive.google.com/uc?export=download&id=1QUNV-8SxYgThRcf5afTo7LyJdaM3xtn_"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium"
+              title="확인시험 의뢰서 HWP 양식 다운로드"
+            >
+              <FileDown className="h-4 w-4" />
+              HWP 양식
+            </a>
+            <button
+              onClick={handleAddClick}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium"
+            >
+              <Plus className="h-4 w-4" />
+              추가
+            </button>
+          </div>
         </div>
 
         {records.length === 0 ? (
