@@ -1,11 +1,11 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Activity, Calendar, Users, FileText, ChevronRight, AlertTriangle, Building2, Eye, Video, RefreshCw, ArrowUp, Phone, Copy, X, CheckCircle, Trash2, Download, FileSpreadsheet, MessageSquare, Check, Sigma, Star } from 'lucide-react'
+import { Activity, Calendar, Users, FileText, ChevronRight, AlertTriangle, Building2, Eye, Video, RefreshCw, ArrowUp, Phone, Copy, X, CheckCircle, Trash2, Download, FileSpreadsheet, MessageSquare, Check, Sigma, Star, ArrowLeftRight, UserCheck } from 'lucide-react'
 import KakaoMap from '@/components/ui/KakaoMap'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import NavigationSelector from '@/components/ui/NavigationSelector'
-import { getTBMRecords, getTBMStats, getYearlyPersonnelByOrg, type TBMRecord } from '@/lib/tbm'
+import { getTBMRecords, getTBMStats, getYearlyPersonnelByOrg, getRegularWorkersByOrg, type TBMRecord, type RegularWorkerTotals } from '@/lib/tbm'
 import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
 import { BRANCH_OPTIONS } from '@/lib/constants'
 import { useAuth } from '@/contexts/AuthContext'
@@ -55,8 +55,28 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
   const [tbmRecords, setTbmRecords] = useState<TBMRecord[]>([])
   // 총원(신규) 컬럼용 당해년도 누적 집계 (본부/지사별)
   const [yearlyPersonnel, setYearlyPersonnel] = useState<{ byHq: Map<string, { total: number; newWorkers: number }>; byBranch: Map<string, { total: number; newWorkers: number }> }>({ byHq: new Map(), byBranch: new Map() })
+  // 누적 총원 ↔ 상시근로자 토글. false=누적(기본), true=상시. 상시값은 첫 전환 시 lazy 로드해 캐시.
+  const [showRegular, setShowRegular] = useState(false)
+  const [regularTotals, setRegularTotals] = useState<RegularWorkerTotals | null>(null)
+  const [regularLoading, setRegularLoading] = useState(false)
+  // 상시근로자 헤더 hover 시 산출방법 팝업의 위치 앵커(null이면 숨김)
+  const [regularInfoAnchor, setRegularInfoAnchor] = useState<DOMRect | null>(null)
   // 1000 이상은 1k·64.1k 형태로 축약 표기
   const formatK = (n: number): string => n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : String(n)
+  // 누적/상시 컬럼 셀 내용. showRegular면 상시근로자(정수 표시·툴팁 소수1), 아니면 누적 총원(축약·툴팁 명). dataRow=true면 데이터행 스타일.
+  const renderPersonnelValue = (personnelTotal: number, regular: number | undefined, dataRow: boolean) => {
+    const valueCls = dataRow ? 'font-semibold text-gray-900' : ''
+    const dashCls = dataRow ? 'text-gray-500' : ''
+    if (showRegular) {
+      if (regularLoading || !regularTotals || regular === undefined) {
+        return <span className="text-gray-400">…</span>
+      }
+      if (regular < 0.5) return <span className={dashCls}>-</span>
+      return <span className={valueCls} title={`${regular.toFixed(1)}명`}>{Math.round(regular).toLocaleString()}</span>
+    }
+    if (personnelTotal === 0) return <span className={dashCls}>-</span>
+    return <span className={valueCls} title={`${personnelTotal.toLocaleString()}명`}>{formatK(personnelTotal)}</span>
+  }
   const [allTbmRecords, setAllTbmRecords] = useState<TBMRecord[]>([]) // 전체 캐시된 데이터
   const [tbmSafetyInspections, setTbmSafetyInspections] = useState<TBMSafetyInspection[]>([]) // TBM 안전활동 점검 데이터
   const [error, setError] = useState<string>('')
@@ -273,6 +293,8 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
       const yp = yearlyPersonnel.byHq.get(stat.hqName)
       stat.personnelTotalCount = yp ? yp.total : 0
       stat.newWorkersCount = yp ? yp.newWorkers : 0
+      // 상시근로자(누적÷제출일수). 미로딩 시 undefined.
+      stat.regularWorkers = regularTotals ? (regularTotals.byHq.get(stat.hqName) || 0) : undefined
     })
 
     // HEADQUARTERS_OPTIONS 순서에 따라 정렬
@@ -293,7 +315,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
         return aIndex - bIndex
       }
     })
-  }, [tbmRecords, tbmSafetyInspections, selectedDate, selectedHq, selectedBranch, yearlyPersonnel])
+  }, [tbmRecords, tbmSafetyInspections, selectedDate, selectedHq, selectedBranch, yearlyPersonnel, regularTotals])
 
   // 지사별 통계 계산 - useMemo로 최적화
   const branchStats = React.useMemo(() => {
@@ -389,6 +411,8 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
       const yp = yearlyPersonnel.byBranch.get(`${selectedHq}||${stat.branchName}`)
       stat.personnelTotalCount = yp ? yp.total : 0
       stat.newWorkersCount = yp ? yp.newWorkers : 0
+      // 상시근로자(누적÷제출일수). 미로딩 시 undefined.
+      stat.regularWorkers = regularTotals ? (regularTotals.byBranch.get(`${selectedHq}||${stat.branchName}`) || 0) : undefined
     })
 
     // 드롭다운 목록 순서에 따라 정렬
@@ -409,7 +433,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
         return aIndex - bIndex
       }
     })
-  }, [tbmRecords, tbmSafetyInspections, selectedHq, selectedBranch, selectedDate, yearlyPersonnel])
+  }, [tbmRecords, tbmSafetyInspections, selectedHq, selectedBranch, selectedDate, yearlyPersonnel, regularTotals])
 
   // 현재 분기
   const currentQuarter = React.useMemo(() => {
@@ -1228,6 +1252,43 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
     }
   }
 
+  // 상시근로자 값을 현재 선택일 기준으로 로드해 캐시한다.
+  const loadRegularTotals = React.useCallback(async (date: string) => {
+    setRegularLoading(true)
+    try {
+      const totals = await getRegularWorkersByOrg(date)
+      setRegularTotals(totals)
+    } catch (e) {
+      console.error('상시근로자 로드 실패:', e)
+    } finally {
+      setRegularLoading(false)
+    }
+  }, [])
+
+  // 제목셀 클릭: 누적 ↔ 상시 토글. 상시로 켤 때 캐시가 없으면 그 시점에 계산(lazy).
+  const handleToggleRegular = React.useCallback(() => {
+    setShowRegular(prev => {
+      const next = !prev
+      if (next && !regularTotals && !regularLoading) {
+        loadRegularTotals(selectedDate)
+      }
+      return next
+    })
+  }, [regularTotals, regularLoading, selectedDate, loadRegularTotals])
+
+  // 선택일이 바뀌면 상시 캐시를 무효화하고, 상시 모드면 새 기준일로 재계산한다.
+  React.useEffect(() => {
+    setRegularTotals(null)
+    if (showRegular) {
+      loadRegularTotals(selectedDate)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate])
+
+  // 상시근로자 헤더 hover 시 산출방법 팝업의 앵커 위치를 잡는다.
+  const handleRegularInfoEnter = (e: React.MouseEvent) => setRegularInfoAnchor(e.currentTarget.getBoundingClientRect())
+  const handleRegularInfoLeave = () => setRegularInfoAnchor(null)
+
   const handleBranchRowMouseEnter = (branchName: string) => {
     setHoveredBranchName(branchName)
   }
@@ -2025,6 +2086,9 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 const newWorkersStr = typeof record.new_workers === 'string' ? record.new_workers : String(record.new_workers || '0');
                                 const newWorkersNum = parseInt(newWorkersStr) || 0;
                                 const hasNewWorkers = newWorkersNum > 0;
+                                const total = typeof record.personnel_total_count === 'number'
+                                  ? record.personnel_total_count
+                                  : parsePersonnelCount(attendeesStr);
 
                                 if (attendeesStr === '-') {
                                   return (
@@ -2052,7 +2116,8 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
 
                                 return (
                                   <div className="text-center">
-                                    <div className="truncate">{displayAttendees}</div>
+                                    <div className="text-xs font-semibold text-gray-900 leading-tight">총원 {total}명</div>
+                                    <div className="truncate text-gray-600">{displayAttendees}</div>
                                     {hasNewWorkers && (
                                       <div className="text-[10px] text-blue-600 font-semibold mt-0.5 bg-yellow-200 px-1.5 py-0.5 rounded inline-block">(신규:{newWorkersNum})</div>
                                     )}
@@ -2405,10 +2470,10 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                           TBM<br />실시<br /><span className="text-[10px]">(건)</span>
                         </th>
-                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-<div className="flex items-center justify-center gap-0.5" title="누적 총원(당해년도)">
-                            <Sigma className="h-3.5 w-3.5" />
-                            <Users className="h-3.5 w-3.5" />
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer select-none" onClick={handleToggleRegular}>
+                          <div className="flex items-center justify-center gap-0.5" title={showRegular ? '상시근로자(명) · 클릭하면 누적 총원으로' : '누적 총원(당해년도) · 클릭하면 상시근로자로'}>
+                            {showRegular ? <UserCheck className="h-3.5 w-3.5" /> : <><Sigma className="h-3.5 w-3.5" /><Users className="h-3.5 w-3.5" /></>}
+                            <ArrowLeftRight className="h-2.5 w-2.5 opacity-60" />
                           </div>
                         </th>
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -2441,7 +2506,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                           riskWorkCount: acc.riskWorkCount + stat.riskWorkCount,
                           cctvUsageCount: acc.cctvUsageCount + stat.cctvUsageCount,
                           newWorkersCount: acc.newWorkersCount + stat.newWorkersCount,
-                          personnelTotalCount: acc.personnelTotalCount + (stat.personnelTotalCount || 0),
+                          personnelTotalCount: acc.personnelTotalCount + (stat.personnelTotalCount || 0), regularWorkers: acc.regularWorkers + (stat.regularWorkers || 0),
                           dailyTotal: acc.dailyTotal + (stat.dailyTotal || 0),
                           dailyNew: acc.dailyNew + (stat.dailyNew || 0)
                         }), {
@@ -2451,7 +2516,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                           riskWorkCount: 0,
                           cctvUsageCount: 0,
                           newWorkersCount: 0,
-                          personnelTotalCount: 0,
+                          personnelTotalCount: 0, regularWorkers: 0,
                           dailyTotal: 0,
                           dailyNew: 0
                         })
@@ -2471,7 +2536,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                               {summary.tbmCount === 0 ? '-' : summary.tbmCount}
                             </td>
                             <td className="px-2 py-2 text-center text-xs font-extrabold text-blue-900">
-                              {summary.personnelTotalCount === 0 ? '-' : <span title={`${summary.personnelTotalCount.toLocaleString()}명`}>{formatK(summary.personnelTotalCount)}</span>}
+                              {renderPersonnelValue(summary.personnelTotalCount, summary.regularWorkers, false)}
                             </td>
                             <td className="px-2 py-2 text-center text-xs font-extrabold text-blue-900">
                               {summary.dailyTotal === 0 && summary.dailyNew === 0 ? '-' : (<span>{formatK(summary.dailyTotal)}{summary.dailyNew > 0 && <span className="text-blue-600">({formatK(summary.dailyNew)})</span>}</span>)}
@@ -2509,11 +2574,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                             {stats.tbmCount === 0 ? '-' : stats.tbmCount}
                           </td>
                           <td className="px-2 py-1 text-center text-xs text-gray-900 font-semibold">
-                            {stats.personnelTotalCount === 0 ? (
-                              <span className="text-gray-500">-</span>
-                            ) : (
-                              <span className="font-semibold text-gray-900" title={`${stats.personnelTotalCount.toLocaleString()}명`}>{formatK(stats.personnelTotalCount)}</span>
-                            )}
+                            {renderPersonnelValue(stats.personnelTotalCount, stats.regularWorkers, true)}
                           </td>
                           <td className="px-2 py-1 text-center text-xs text-gray-900">
                             {stats.dailyTotal === 0 && stats.dailyNew === 0 ? (
@@ -2577,10 +2638,10 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                           TBM<br />실시<br /><span className="text-[10px]">(건)</span>
                         </th>
-                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-<div className="flex items-center justify-center gap-0.5" title="누적 총원(당해년도)">
-                            <Sigma className="h-3.5 w-3.5" />
-                            <Users className="h-3.5 w-3.5" />
+                        <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer select-none" onClick={handleToggleRegular}>
+                          <div className="flex items-center justify-center gap-0.5" title={showRegular ? '상시근로자(명) · 클릭하면 누적 총원으로' : '누적 총원(당해년도) · 클릭하면 상시근로자로'}>
+                            {showRegular ? <UserCheck className="h-3.5 w-3.5" /> : <><Sigma className="h-3.5 w-3.5" /><Users className="h-3.5 w-3.5" /></>}
+                            <ArrowLeftRight className="h-2.5 w-2.5 opacity-60" />
                           </div>
                         </th>
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -2613,7 +2674,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                           riskWorkCount: acc.riskWorkCount + stat.riskWorkCount,
                           cctvUsageCount: acc.cctvUsageCount + stat.cctvUsageCount,
                           newWorkersCount: acc.newWorkersCount + stat.newWorkersCount,
-                          personnelTotalCount: acc.personnelTotalCount + (stat.personnelTotalCount || 0),
+                          personnelTotalCount: acc.personnelTotalCount + (stat.personnelTotalCount || 0), regularWorkers: acc.regularWorkers + (stat.regularWorkers || 0),
                           dailyTotal: acc.dailyTotal + (stat.dailyTotal || 0),
                           dailyNew: acc.dailyNew + (stat.dailyNew || 0)
                         }), {
@@ -2623,7 +2684,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                           riskWorkCount: 0,
                           cctvUsageCount: 0,
                           newWorkersCount: 0,
-                          personnelTotalCount: 0,
+                          personnelTotalCount: 0, regularWorkers: 0,
                           dailyTotal: 0,
                           dailyNew: 0
                         })
@@ -2643,7 +2704,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                               {summary.tbmCount === 0 ? '-' : summary.tbmCount}
                             </td>
                             <td className="px-2 py-2 text-center text-xs font-extrabold text-blue-900">
-                              {summary.personnelTotalCount === 0 ? '-' : <span title={`${summary.personnelTotalCount.toLocaleString()}명`}>{formatK(summary.personnelTotalCount)}</span>}
+                              {renderPersonnelValue(summary.personnelTotalCount, summary.regularWorkers, false)}
                             </td>
                             <td className="px-2 py-2 text-center text-xs font-extrabold text-blue-900">
                               {summary.dailyTotal === 0 && summary.dailyNew === 0 ? '-' : (<span>{formatK(summary.dailyTotal)}{summary.dailyNew > 0 && <span className="text-blue-600">({formatK(summary.dailyNew)})</span>}</span>)}
@@ -2680,11 +2741,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                               {stats.tbmCount === 0 ? '-' : stats.tbmCount}
                             </td>
                             <td className="px-2 py-1 text-center text-xs text-gray-900 font-semibold">
-                              {stats.personnelTotalCount === 0 ? (
-                                <span className="text-gray-500">-</span>
-                              ) : (
-                                <span className="font-semibold text-gray-900" title={`${stats.personnelTotalCount.toLocaleString()}명`}>{formatK(stats.personnelTotalCount)}</span>
-                              )}
+                              {renderPersonnelValue(stats.personnelTotalCount, stats.regularWorkers, true)}
                             </td>
                             <td className="px-2 py-1 text-center text-xs text-gray-900">
                               {stats.dailyTotal === 0 && stats.dailyNew === 0 ? (
@@ -3079,8 +3136,8 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
                                 TBM 실시<br /><span className="text-[10px]">(건)</span>
                               </th>
-                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                누적 총원<br /><span className="text-[10px]">(당해)</span>
+                              <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-200/60" onClick={handleToggleRegular} onMouseEnter={handleRegularInfoEnter} onMouseLeave={handleRegularInfoLeave} title={showRegular ? undefined : '클릭하면 상시근로자로 전환'}>
+                                <span className="inline-flex items-center justify-center gap-1">{showRegular ? '상시근로자' : '누적 총원'}<ArrowLeftRight className="h-3 w-3 opacity-60" /></span><br /><span className="text-[10px]">{showRegular ? '(명)' : '(당해)'}</span>
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
                                 당일 총원(신규)<br /><span className="text-[10px]">(명)</span>
@@ -3106,7 +3163,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 riskWorkCount: acc.riskWorkCount + stat.riskWorkCount,
                                 cctvUsageCount: acc.cctvUsageCount + stat.cctvUsageCount,
                                 newWorkersCount: acc.newWorkersCount + stat.newWorkersCount,
-                                personnelTotalCount: acc.personnelTotalCount + (stat.personnelTotalCount || 0),
+                                personnelTotalCount: acc.personnelTotalCount + (stat.personnelTotalCount || 0), regularWorkers: acc.regularWorkers + (stat.regularWorkers || 0),
                                 dailyTotal: acc.dailyTotal + (stat.dailyTotal || 0),
                                 dailyNew: acc.dailyNew + (stat.dailyNew || 0)
                               }), {
@@ -3116,7 +3173,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 riskWorkCount: 0,
                                 cctvUsageCount: 0,
                                 newWorkersCount: 0,
-                                personnelTotalCount: 0,
+                                personnelTotalCount: 0, regularWorkers: 0,
                                 dailyTotal: 0,
                                 dailyNew: 0
                               })
@@ -3141,7 +3198,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
                                     <div className="text-sm text-blue-900 font-extrabold">
-                                      {summary.personnelTotalCount === 0 ? '-' : <span title={`${summary.personnelTotalCount.toLocaleString()}명`}>{formatK(summary.personnelTotalCount)}</span>}
+                                      {renderPersonnelValue(summary.personnelTotalCount, summary.regularWorkers, false)}
                                     </div>
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
@@ -3203,11 +3260,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 </td>
                                 <td className="px-4 whitespace-nowrap align-middle text-center">
                                   <div className="text-sm text-gray-900">
-                                    {stats.personnelTotalCount === 0 ? (
-                                      <span className="text-gray-500">-</span>
-                                    ) : (
-                                      <span className="font-semibold text-gray-900" title={`${stats.personnelTotalCount.toLocaleString()}명`}>{formatK(stats.personnelTotalCount)}</span>
-                                    )}
+                                    {renderPersonnelValue(stats.personnelTotalCount, stats.regularWorkers, true)}
                                   </div>
                                 </td>
                                 <td className="px-4 whitespace-nowrap align-middle text-center">
@@ -3289,8 +3342,8 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
                                 TBM 실시<br /><span className="text-[10px]">(건)</span>
                               </th>
-                              <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
-                                누적 총원<br /><span className="text-[10px]">(당해)</span>
+                              <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200 cursor-pointer select-none hover:bg-gray-300" onClick={handleToggleRegular} onMouseEnter={handleRegularInfoEnter} onMouseLeave={handleRegularInfoLeave} title={showRegular ? undefined : '클릭하면 상시근로자로 전환'}>
+                                <span className="inline-flex items-center justify-center gap-1">{showRegular ? '상시근로자' : '누적 총원'}<ArrowLeftRight className="h-3 w-3 opacity-60" /></span><br /><span className="text-[10px]">{showRegular ? '(명)' : '(당해)'}</span>
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
                                 당일 총원(신규)<br /><span className="text-[10px]">(명)</span>
@@ -3316,7 +3369,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 riskWorkCount: acc.riskWorkCount + stat.riskWorkCount,
                                 cctvUsageCount: acc.cctvUsageCount + stat.cctvUsageCount,
                                 newWorkersCount: acc.newWorkersCount + stat.newWorkersCount,
-                                personnelTotalCount: acc.personnelTotalCount + (stat.personnelTotalCount || 0),
+                                personnelTotalCount: acc.personnelTotalCount + (stat.personnelTotalCount || 0), regularWorkers: acc.regularWorkers + (stat.regularWorkers || 0),
                                 dailyTotal: acc.dailyTotal + (stat.dailyTotal || 0),
                                 dailyNew: acc.dailyNew + (stat.dailyNew || 0)
                               }), {
@@ -3326,7 +3379,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 riskWorkCount: 0,
                                 cctvUsageCount: 0,
                                 newWorkersCount: 0,
-                                personnelTotalCount: 0,
+                                personnelTotalCount: 0, regularWorkers: 0,
                                 dailyTotal: 0,
                                 dailyNew: 0
                               })
@@ -3351,7 +3404,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
                                     <div className="text-sm text-blue-900 font-extrabold">
-                                      {summary.personnelTotalCount === 0 ? '-' : <span title={`${summary.personnelTotalCount.toLocaleString()}명`}>{formatK(summary.personnelTotalCount)}</span>}
+                                      {renderPersonnelValue(summary.personnelTotalCount, summary.regularWorkers, false)}
                                     </div>
                                   </td>
                                   <td className="px-4 whitespace-nowrap align-middle text-center bg-blue-200/30">
@@ -3413,11 +3466,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 </td>
                                 <td className="px-4 whitespace-nowrap align-middle text-center">
                                   <div className="text-sm text-gray-900">
-                                    {stats.personnelTotalCount === 0 ? (
-                                      <span className="text-gray-500">-</span>
-                                    ) : (
-                                      <span className="font-semibold text-gray-900" title={`${stats.personnelTotalCount.toLocaleString()}명`}>{formatK(stats.personnelTotalCount)}</span>
-                                    )}
+                                    {renderPersonnelValue(stats.personnelTotalCount, stats.regularWorkers, true)}
                                   </div>
                                 </td>
                                 <td className="px-4 whitespace-nowrap align-middle text-center">
@@ -4554,6 +4603,28 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 상시근로자 헤더 hover 시 산출방법 설명 팝업 */}
+      {showRegular && regularInfoAnchor && (
+        <div
+          className="fixed z-[60] w-72 max-w-[calc(100vw-24px)] rounded-lg border border-gray-200 bg-white p-3 text-left shadow-xl pointer-events-none"
+          style={{
+            top: regularInfoAnchor.bottom + 6,
+            left: Math.max(12, Math.min(regularInfoAnchor.left, (typeof window !== 'undefined' ? window.innerWidth : 320) - 300))
+          }}
+        >
+          <div className="flex items-center gap-1 text-xs font-bold text-gray-900 mb-1.5">
+            <UserCheck className="h-3.5 w-3.5 text-blue-600" />
+            상시근로자 산출 방법
+          </div>
+          <div className="text-[11px] leading-relaxed text-gray-600 space-y-1">
+            <p><span className="font-semibold text-gray-800">현장별</span> = 당해년도 누적 투입인원 ÷ TBM 제출일수(가동일수)</p>
+            <p><span className="font-semibold text-gray-800">지사·본부</span> = 소속 현장들의 상시근로자 합계</p>
+            <p className="text-gray-400">· 기간: 연초 ~ 선택일 기준</p>
+            <p className="text-gray-400">· 제외: 작업없음 · 미제출(임시저장) 건</p>
           </div>
         </div>
       )}
