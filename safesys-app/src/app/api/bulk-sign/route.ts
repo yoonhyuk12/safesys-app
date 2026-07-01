@@ -14,12 +14,11 @@ interface SignTarget {
 // 서명 주체별 화이트리스트 — 테이블·서명 컬럼·미서명 조건·허용 역할을 서버에서 고정한다.
 // 미서명 조건을 update WHERE에 포함해 이미 서명된 문서를 덮어쓰지 않는다.
 const SIGNERS: Record<string, { allowedRoles: string[]; targets: Record<string, SignTarget> }> = {
-  // 감독(공사감독원) — 발주청
+  // 감독(공사감독원) — 발주청. TBM 안전활동 점검표는 입회 점검 시 즉시 서명하는 문서라 제외(2026-07-02 사용자 지시)
   supervisor: {
     allowedRoles: ['발주청'],
     targets: {
       manager_inspection: { table: 'manager_inspections', signColumn: 'signature', unsignedBoolColumn: 'has_signature' },
-      tbm_safety_inspection: { table: 'tbm_safety_inspections', signColumn: 'signature' },
       inspection_request: { table: 'inspection_requests', signColumn: 'supervisor_signature' },
       quality_test_record: { table: 'quality_test_records', signColumn: 'supervision_engineer_signature' },
       quality_summary_report: { table: 'quality_summary_reports', signColumn: 'confirmer_signature' },

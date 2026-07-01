@@ -64,7 +64,7 @@ const loadUnsignedRows = async (
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '')
 
-// 감독(공사감독원) 서명 대상 5종
+// 감독(공사감독원) 서명 대상 4종 — TBM 안전활동 점검표는 입회 점검 시 즉시 서명하는 문서라 제외(2026-07-02 사용자 지시)
 const SUPERVISOR_GROUPS: GroupDef[] = [
   {
     type: 'manager_inspection',
@@ -76,19 +76,6 @@ const SUPERVISOR_GROUPS: GroupDef[] = [
         id: str(r.id),
         date: str(r.inspection_date),
         label: r.inspector_name ? `점검자 ${str(r.inspector_name)}` : '',
-      }))
-    },
-  },
-  {
-    type: 'tbm_safety_inspection',
-    title: 'TBM 안전활동 점검표',
-    load: async (projectId) => {
-      const rows = await loadUnsignedRows(projectId, 'tbm_safety_inspections', 'id, tbm_date, work_content', { signColumn: 'signature' }, 'tbm_date')
-      return rows.map((r) => ({
-        type: 'tbm_safety_inspection',
-        id: str(r.id),
-        date: str(r.tbm_date),
-        label: str(r.work_content),
       }))
     },
   },
@@ -218,7 +205,7 @@ const CONTRACTOR_GROUPS: GroupDef[] = [
 const SIGNER_CONFIG: Record<BulkSignSigner, { title: string; note: string; groups: GroupDef[]; headerClass: string; accentClass: string }> = {
   supervisor: {
     title: '감독 일괄서명',
-    note: '※ 정기안전점검·PTW 작업허가서·폭염점검 서명은 서명자 지정·허가 행위가 필요해 각 문서에서 개별 서명해야 합니다.',
+    note: '※ 정기안전점검·PTW 작업허가서·폭염점검·TBM 안전활동 점검표 서명은 각 문서에서 개별 서명해야 합니다.',
     groups: SUPERVISOR_GROUPS,
     headerClass: 'bg-purple-700',
     accentClass: 'accent-purple-600',
