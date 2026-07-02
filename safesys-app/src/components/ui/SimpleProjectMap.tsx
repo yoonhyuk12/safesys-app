@@ -1566,7 +1566,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
         </div>
       </div>
 
-      {/* 모바일 범례: 좌측 세로 배치 (670px 이하) */}
+      {/* 모바일 범례: 좌측 하단 세로 배치 (670px 이하) */}
       <style>{`
         @media (min-width: 671px) {
           .legend-mobile-vertical { display: none !important; }
@@ -1575,7 +1575,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           .legend-mobile-vertical { display: flex !important; }
         }
       `}</style>
-      <div className="legend-mobile-vertical hidden absolute left-2 top-1/2 transform -translate-y-1/2 flex-col gap-1 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-gray-200 py-2 px-1.5 z-40">
+      <div className="legend-mobile-vertical hidden absolute left-2 bottom-4 flex-col gap-1 bg-white/95 backdrop-blur rounded-lg shadow-lg border border-gray-200 py-2 px-1.5 z-40">
         {/* 공사중 */}
         <button
           onClick={() => setShowActiveMarkers(!showActiveMarkers)}
