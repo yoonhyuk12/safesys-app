@@ -16,6 +16,7 @@ export interface QualityTestRecordFormData {
   target_material: string // 품질검사 대상 재료
   supplier_factory: string // 건설자재·부재를 공급받은 공장
   test_place: string // 시험·검사 장소
+  photo_url: string // 시험·검사 사진 (Storage URL, 일련번호당 1건, 사진대지 출력용)
   test_item: string // 시험·검사 종목
   test_standard: string // 시험 기준
   test_result: string // 시험 결과
@@ -53,6 +54,7 @@ export const createEmptyQualityTestRecord = (
   quality_engineer_signature: '',
   supervision_engineer_name: '',
   supervision_engineer_signature: '',
+  photo_url: '',
   note: '',
   ...defaults,
 })
@@ -98,6 +100,7 @@ export const createEmptyQualityTestCommon = (
   target_material: '',
   supplier_factory: '',
   test_place: '',
+  photo_url: '',
   note: '',
   ...defaults,
 })

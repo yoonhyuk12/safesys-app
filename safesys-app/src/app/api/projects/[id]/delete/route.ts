@@ -98,6 +98,14 @@ export async function POST(
     push(r.id_card_url, r.certificate_card_url, r.signature_url)
   })
 
+  const { data: qtr } = await supabaseAdmin
+    .from('quality_test_records')
+    .select('photo_url')
+    .eq('project_id', id)
+  qtr?.forEach((r: { photo_url: unknown }) => {
+    push(r.photo_url)
+  })
+
   // URL을 버킷별 경로로 그룹핑 (base64 등은 parseStorageUrl이 걸러냄)
   const byBucket: Record<string, Set<string>> = {}
   for (const u of urls) {

@@ -4,11 +4,12 @@
 // 한 제출건(일련번호)에 시험·검사 종목~건설사업관리기술인 확인 항목을 여러 건 등록할 수 있다.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Printer, X, Trash2, FileText, FileDown } from 'lucide-react'
+import { Plus, Printer, X, Trash2, FileText, FileDown, Upload, Image as ImageIcon } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignatureModal from '@/components/project/SignatureModal'
 import { downloadQualityTestLedgerExcel } from '@/lib/excel/quality-test-ledger-export'
+import { downloadQualityTestPhotoReport } from '@/lib/reports/quality-test-photo-report'
 import {
   QualityTestRecord,
   QualityTestItemFields,
@@ -44,18 +45,21 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
   const [editingSerialNo, setEditingSerialNo] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
   const [ledgerDownloading, setLedgerDownloading] = useState(false)
+  const [photoReportDownloading, setPhotoReportDownloading] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [activeSign, setActiveSign] = useState<{ itemKey: string; field: SignatureField } | null>(null)
   const nextKeyRef = useRef(0)
   const newKey = () => String(nextKeyRef.current++)
 
-  // 대장 순서(일련번호)와 동일하게 시험일→작성일 오름차순으로 로드
+  // 같은 일련번호(제출건)의 항목들이 항상 붙어 보이도록 일련번호 오름차순으로 로드
+  // (test_date로 정렬하면 기존 제출건에 항목을 나중에 추가할 때 created_at이 최신이라 그룹이 흩어짐)
   const loadRecords = useCallback(async () => {
     setLoading(true)
     const { data, error } = await (supabase as any)
       .from('quality_test_records')
       .select('*')
       .eq('project_id', projectId)
-      .order('test_date', { ascending: true })
+      .order('serial_no', { ascending: true })
       .order('created_at', { ascending: true })
     if (!error && data) setRecords(data as QualityTestRecord[])
     setLoading(false)
@@ -131,6 +135,7 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
       target_material: first.target_material,
       supplier_factory: first.supplier_factory,
       test_place: first.test_place,
+      photo_url: first.photo_url || '',
       note: first.note,
     })
     setItems(
@@ -246,6 +251,47 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
     }
   }
 
+  const handlePhotoReportDownload = async () => {
+    setPhotoReportDownloading(true)
+    try {
+      await downloadQualityTestPhotoReport(records, projectName)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '알 수 없는 오류'
+      alert('사진대지 생성 실패: ' + message)
+    } finally {
+      setPhotoReportDownloading(false)
+    }
+  }
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingPhoto(true)
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const fileName = `${projectId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`
+      const { data, error } = await supabase.storage.from('quality-test-photos').upload(fileName, file)
+      if (error) throw error
+      const { data: urlData } = supabase.storage.from('quality-test-photos').getPublicUrl(data.path)
+      setCommon('photo_url', urlData.publicUrl)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '알 수 없는 오류'
+      alert('사진 업로드 실패: ' + message)
+    } finally {
+      setUploadingPhoto(false)
+      e.target.value = ''
+    }
+  }
+
+  const handleRemovePhoto = async () => {
+    const photoUrl = commonData?.photo_url
+    if (!photoUrl) return
+    const path = photoUrl.split('/quality-test-photos/')[1]
+    if (path) await supabase.storage.from('quality-test-photos').remove([decodeURIComponent(path)])
+    setCommon('photo_url', '')
+  }
+
   const setCommon = <K extends keyof QualityTestCommonFields>(key: K, value: QualityTestCommonFields[K]) => {
     setCommonData((prev) => (prev ? { ...prev, [key]: value } : prev))
   }
@@ -270,7 +316,7 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
           <h2 className="font-semibold text-sm sm:text-base truncate">품질검사 실시대장 (별지 제42호서식)</h2>
           <div className="flex items-center gap-1.5 shrink-0">
             <a
-              href="https://drive.google.com/uc?export=download&id=1iQ0aW-gz9tTVnCXZI-aG3iUvB6YWnK1z"
+              href="https://drive.google.com/uc?export=download&id=1QUNV-8SxYgThRcf5afTo7LyJdaM3xtn_"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium"
@@ -287,6 +333,15 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
             >
               <Printer className="h-4 w-4" />
               대장 출력
+            </button>
+            <button
+              onClick={handlePhotoReportDownload}
+              disabled={photoReportDownloading || !records.some((r) => r.photo_url)}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium disabled:opacity-50"
+              title="사진대지 PDF 출력"
+            >
+              <ImageIcon className="h-4 w-4" />
+              사진대지
             </button>
             <button
               onClick={handleAddClick}
@@ -388,6 +443,15 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
             {/* 공통 항목 — 한 제출건 내 모든 시험 항목이 공유 */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
+                <label className={labelCls}>일련번호</label>
+                <input
+                  type="text"
+                  value={editingSerialNo ?? computeNextSerialNo()}
+                  disabled
+                  className={`${inputCls} bg-gray-100 text-gray-500`}
+                />
+              </div>
+              <div>
                 <label className={labelCls}>연월일</label>
                 <input
                   type="date"
@@ -398,19 +462,22 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
               </div>
               <div>
                 <label className={labelCls}>시험·검사구분</label>
-                <input
-                  type="text"
-                  list="quality-test-category-options"
-                  value={commonData.test_category}
-                  onChange={(e) => setCommon('test_category', e.target.value)}
-                  placeholder="자체(관리)시험"
-                  className={inputCls}
-                />
-                <datalist id="quality-test-category-options">
+                <div className="flex gap-1.5">
                   {TEST_CATEGORY_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt} />
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setCommon('test_category', opt)}
+                      className={`flex-1 px-2 py-1.5 rounded text-xs sm:text-sm font-medium transition-colors ${
+                        commonData.test_category === opt
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-amber-100'
+                      }`}
+                    >
+                      {opt}
+                    </button>
                   ))}
-                </datalist>
+                </div>
               </div>
               <div>
                 <label className={labelCls}>공종 (총괄표 집계용)</label>
@@ -452,6 +519,45 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
                   className={inputCls}
                 />
               </div>
+              <div>
+                <label className={labelCls}>사진 (사진대지 출력용)</label>
+                {commonData.photo_url ? (
+                  <div className="relative inline-block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={commonData.photo_url}
+                      alt="시험·검사 사진"
+                      className="h-16 rounded border border-gray-200 object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      className="absolute -top-2 -right-2 p-1 bg-white border border-gray-300 rounded-full text-gray-400 hover:text-red-600 shadow-sm"
+                      title="사진 삭제"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex items-center justify-center gap-1 border-2 border-dashed border-gray-300 rounded-lg h-16 bg-white hover:bg-gray-50 cursor-pointer text-xs text-gray-500">
+                    {uploadingPhoto ? (
+                      '업로드중...'
+                    ) : (
+                      <>
+                        <Upload className="h-4 w-4 text-gray-400" />
+                        <span>사진 추가</span>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                      disabled={uploadingPhoto}
+                    />
+                  </label>
+                )}
+              </div>
             </div>
 
             {/* 항목별 반복 등록 — 시험·검사 종목 ~ 건설사업관리기술인 확인 */}
@@ -484,6 +590,26 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
                       />
                     </div>
                     <div>
+                      <label className={labelCls}>시험 기준</label>
+                      <input
+                        type="text"
+                        value={item.test_standard}
+                        onChange={(e) => setItemField(item._key, 'test_standard', e.target.value)}
+                        placeholder="예: KS F 2402"
+                        className={inputCls}
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className={labelCls}>시험 결과</label>
+                      <input
+                        type="text"
+                        value={item.test_result}
+                        onChange={(e) => setItemField(item._key, 'test_result', e.target.value)}
+                        placeholder="측정값 등"
+                        className={inputCls}
+                      />
+                    </div>
+                    <div className="col-span-2 sm:col-span-4">
                       <label className={labelCls}>시험 결과 판정</label>
                       <select
                         value={item.result_verdict}
@@ -496,26 +622,6 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
                           </option>
                         ))}
                       </select>
-                    </div>
-                    <div className="col-span-2">
-                      <label className={labelCls}>시험 기준</label>
-                      <input
-                        type="text"
-                        value={item.test_standard}
-                        onChange={(e) => setItemField(item._key, 'test_standard', e.target.value)}
-                        placeholder="예: KS F 2402"
-                        className={inputCls}
-                      />
-                    </div>
-                    <div className="col-span-2 sm:col-span-4">
-                      <label className={labelCls}>시험 결과</label>
-                      <input
-                        type="text"
-                        value={item.test_result}
-                        onChange={(e) => setItemField(item._key, 'test_result', e.target.value)}
-                        placeholder="측정값 등"
-                        className={inputCls}
-                      />
                     </div>
                     <div className="col-span-2">
                       <label className={labelCls}>품질관리기술인</label>
