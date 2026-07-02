@@ -856,10 +856,58 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
       return '#9CA3AF'
     }
 
-    // 공정률 색상: 0%에 가까울수록 파란색, 100%에 가까울수록 빨간색
-    const getProgressColor = (rate: number) => {
-      const hue = 240 - 240 * (Math.min(100, Math.max(0, rate)) / 100)
-      return `hsl(${hue}, 75%, 45%)`
+    // 이름표 오버레이 콘텐츠 (마커 상태 색과 겹치지 않는 청록 단일색으로 공정률 막대를 함께 표시)
+    const PROGRESS_ACCENT = '#0D9488'
+    const PROGRESS_ACCENT_TEXT = '#0F766E'
+    const buildNameLabelContent = (
+      displayName: string,
+      fullName: string,
+      borderColor: string,
+      textColor: string,
+      progressRate: number | undefined
+    ) => {
+      const clampedRate = progressRate !== undefined ? Math.min(100, Math.max(0, progressRate)) : undefined
+      return `
+        <div style="
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
+          border: 2px solid ${borderColor};
+          border-radius: 8px;
+          padding: 3px 8px ${clampedRate !== undefined ? 4 : 3}px;
+          font-size: 12px;
+          font-weight: 600;
+          color: ${textColor};
+          box-shadow: 0 2px 8px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.5) inset;
+          white-space: nowrap;
+          text-align: center;
+          position: relative;
+          left: -50%;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          backdrop-filter: blur(4px);
+        "
+        title="${fullName}"
+        >
+          ${displayName}
+          ${clampedRate !== undefined ? `
+          <div style="display:flex; align-items:center; justify-content:center; gap:4px; margin-top:3px;">
+            <div style="width:40px; height:4px; border-radius:2px; background:rgba(203,213,225,0.7); overflow:hidden;">
+              <div style="width:${clampedRate}%; height:100%; background:${PROGRESS_ACCENT}; border-radius:2px;"></div>
+            </div>
+            <span style="font-size:9px; font-weight:700; color:${PROGRESS_ACCENT_TEXT};">${Math.round(clampedRate)}%</span>
+          </div>` : ''}
+          <div style="
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+            border-top: 4px solid ${borderColor};
+          "></div>
+        </div>
+      `
     }
 
     filteredProjects.forEach((project) => {
@@ -879,6 +927,9 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
         const hasManagerInspection = hasManagerInspectionInQuarter(project.id, selectedQuarter)
         const isUninspectedHQ = isActiveInQuarter && !hasHQInspection
         const isUninspectedBranch = isActiveInQuarter && !hasManagerInspection
+
+        // 공정률 (착공일~준공일 등록된 프로젝트만 존재) — 이름표 안에 함께 표시
+        const progressRate = progressRates[project.id]
 
         // 공사중/미공사중 마커 생성
         const normalMarkerImage = createMarkerImage(statusColor, false)
@@ -914,40 +965,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           // 본부 미점검 라벨 - 테두리는 검은색, 텍스트는 마커와 같은 색(보라색)
           const hqLabelBorderColor = '#000000' // 검은색 테두리
           const hqLabelOverlay = new (window as any).kakao.maps.CustomOverlay({
-            content: `
-              <div style="
-                background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
-                border: 2px solid ${hqLabelBorderColor};
-                border-radius: 8px;
-                padding: 3px 8px;
-                font-size: 12px;
-                font-weight: 600;
-                color: ${uninspectedHQColor};
-                box-shadow: 0 2px 8px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.5) inset;
-                white-space: nowrap;
-                text-align: center;
-                position: relative;
-                left: -50%;
-                cursor: pointer;
-                transition: all 0.2s ease;
-                backdrop-filter: blur(4px);
-              "
-              title="${project.name}"
-              >
-                ${projectNameLabel}
-                <div style="
-                  position: absolute;
-                  bottom: -4px;
-                  left: 50%;
-                  transform: translateX(-50%);
-                  width: 0;
-                  height: 0;
-                  border-left: 4px solid transparent;
-                  border-right: 4px solid transparent;
-                  border-top: 4px solid ${hqLabelBorderColor};
-                "></div>
-              </div>
-            `,
+            content: buildNameLabelContent(projectNameLabel, project.name, hqLabelBorderColor, uninspectedHQColor, progressRate),
             position: markerPosition,
             yAnchor: -0.4,
             xAnchor: 0,
@@ -1000,40 +1018,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
 
           // 지사 미점검 라벨 (공사중/미공사중과 동일한 디자인)
           const branchLabelOverlay = new (window as any).kakao.maps.CustomOverlay({
-            content: `
-              <div style="
-                background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
-                border: 2px solid ${baseColor};
-                border-radius: 8px;
-                padding: 3px 8px;
-                font-size: 12px;
-                font-weight: 600;
-                color: ${baseColor};
-                box-shadow: 0 2px 8px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.5) inset;
-                white-space: nowrap;
-                text-align: center;
-                position: relative;
-                left: -50%;
-                cursor: pointer;
-                transition: all 0.2s ease;
-                backdrop-filter: blur(4px);
-              "
-              title="${project.name}"
-              >
-                ${projectNameLabel}
-                <div style="
-                  position: absolute;
-                  bottom: -4px;
-                  left: 50%;
-                  transform: translateX(-50%);
-                  width: 0;
-                  height: 0;
-                  border-left: 4px solid transparent;
-                  border-right: 4px solid transparent;
-                  border-top: 4px solid ${baseColor};
-                "></div>
-              </div>
-            `,
+            content: buildNameLabelContent(projectNameLabel, project.name, baseColor, baseColor, progressRate),
             position: markerPosition,
             yAnchor: -0.4,
             xAnchor: 0,
@@ -1069,42 +1054,9 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           })
         }
 
-        // 공사중/미공사중 프로젝트명 라벨
+        // 공사중/미공사중 프로젝트명 라벨 (착공일~준공일 등록된 프로젝트는 공정률 막대를 함께 표시)
         const labelOverlay = new (window as any).kakao.maps.CustomOverlay({
-          content: `
-            <div style="
-              background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
-              border: 2px solid ${baseColor};
-              border-radius: 8px;
-              padding: 3px 8px;
-              font-size: 12px;
-              font-weight: 600;
-              color: ${baseColor};
-              box-shadow: 0 2px 8px rgba(0,0,0,0.15), 0 0 0 1px rgba(255,255,255,0.5) inset;
-              white-space: nowrap;
-              text-align: center;
-              position: relative;
-              left: -50%;
-              cursor: pointer;
-              transition: all 0.2s ease;
-              backdrop-filter: blur(4px);
-            "
-            title="${project.name}"
-            >
-              ${projectNameLabel}
-              <div style="
-                position: absolute;
-                bottom: -4px;
-                left: 50%;
-                transform: translateX(-50%);
-                width: 0;
-                height: 0;
-                border-left: 4px solid transparent;
-                border-right: 4px solid transparent;
-                border-top: 4px solid ${baseColor};
-              "></div>
-            </div>
-          `,
+          content: buildNameLabelContent(projectNameLabel, project.name, baseColor, baseColor, progressRate),
           position: markerPosition,
           yAnchor: -0.4,
           xAnchor: 0,
@@ -1114,60 +1066,6 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
         // 공사중/미공사중 마커와 함께 라벨도 표시/숨김
         if (shouldShowMainMarker) {
           labelOverlay.setMap(map)
-        }
-
-        // 공정률 수직 바 (마커 우측) — 착공일~준공일 등록된 프로젝트만 표시. 같은 위치에 표시되는
-        // 공사중/미공사중·미점검(본부)·미점검(지사) 마커 중 하나라도 보이면 함께 표시 (위치가 동일해 중복 생성 방지)
-        const progressRate = progressRates[project.id]
-        const shouldShowProgress = shouldShowMainMarker ||
-          (isUninspectedHQ && showUninspectedHQ) ||
-          (isUninspectedBranch && showUninspectedBranch)
-        if (shouldShowProgress && progressRate !== undefined) {
-          const clampedRate = Math.min(100, Math.max(0, progressRate))
-          const progressColor = getProgressColor(clampedRate)
-          const progressOverlay = new (window as any).kakao.maps.CustomOverlay({
-            content: `
-              <div style="margin-left: 14px; display: flex; flex-direction: column; align-items: center; pointer-events: none;">
-                <div style="
-                  font-size: 10px;
-                  font-weight: 700;
-                  color: ${progressColor};
-                  background: rgba(255,255,255,0.9);
-                  border-radius: 3px;
-                  padding: 0 3px;
-                  margin-bottom: 2px;
-                  white-space: nowrap;
-                  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
-                ">${Math.round(clampedRate)}%</div>
-                <div style="
-                  width: 6px;
-                  height: 32px;
-                  background: rgba(203,213,225,0.85);
-                  border-radius: 3px;
-                  position: relative;
-                  overflow: hidden;
-                  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
-                ">
-                  <div style="
-                    position: absolute;
-                    bottom: 0;
-                    left: 0;
-                    width: 100%;
-                    height: ${clampedRate}%;
-                    background: ${progressColor};
-                    border-radius: 3px;
-                  "></div>
-                </div>
-              </div>
-            `,
-            position: markerPosition,
-            yAnchor: 1,
-            xAnchor: 0,
-            zIndex: 3,
-            clickable: false
-          })
-          progressOverlay.setMap(map)
-          newOverlays.push(progressOverlay)
         }
 
         // 감독 정보 툴팁 오버레이 (마우스 오버 시 표시)
