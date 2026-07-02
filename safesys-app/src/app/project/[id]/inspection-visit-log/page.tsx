@@ -92,7 +92,7 @@ export default function InspectionVisitLogPage() {
     setEditingRecordId(null)
   }
 
-  // 추가 시작 — ① 공사 정보는 프로젝트에서 프리필, ⑦ 확인자 성명은 공사감독원 기본값
+  // 추가 시작 — ① 공사 정보는 프로젝트에서 프리필, ⑦ 확인자는 공사감독 기본값
   const handleAddClick = () => {
     setEditingRecordId(null)
     const siteLocation = [project?.site_address, project?.site_address_detail]
@@ -102,6 +102,8 @@ export default function InspectionVisitLogPage() {
       createEmptyInspectionVisitLog({
         construction_name: project?.project_name || '',
         site_location: siteLocation,
+        confirmer_affiliation: '한국농어촌공사',
+        confirmer_position: '공사감독',
         confirmer_name: project?.supervisor_name || '',
       })
     )

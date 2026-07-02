@@ -59,16 +59,25 @@ export const normalizeVisitors = (visitors: unknown): VisitorEntry[] => {
   return normalized.length > 0 ? normalized : [createEmptyVisitor()]
 }
 
+// 로컬(한국) 시간 기준 날짜·시각 문자열 — toISOString()은 UTC라 새벽 시간대에 날짜가 하루 밀림
+const pad = (n: number): string => String(n).padStart(2, '0')
+const localDateStr = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+const localTimeStr = (d: Date): string => `${pad(d.getHours())}:${pad(d.getMinutes())}`
+
 export const createEmptyInspectionVisitLog = (
   defaults: Partial<InspectionVisitLogFormData> = {}
-): InspectionVisitLogFormData => ({
+): InspectionVisitLogFormData => {
+  // 방문 일시 기본값: 접속 시각(한국시간)부터 1시간 뒤까지
+  const now = new Date()
+  const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000)
+  return {
   construction_name: '',
   site_location: '',
-  ordering_agency: '',
+  ordering_agency: '한국농어촌공사', // 항상 기본값 (사용자 지정)
   construction_scale: '',
-  visit_date: new Date().toISOString().split('T')[0],
-  visit_time_from: '',
-  visit_time_to: '',
+  visit_date: localDateStr(now),
+  visit_time_from: localTimeStr(now),
+  visit_time_to: localTimeStr(oneHourLater),
   visit_basis_purpose: '',
   work_content: '',
   instructions: '',
@@ -78,4 +87,5 @@ export const createEmptyInspectionVisitLog = (
   confirmer_name: '',
   confirmer_signature: '',
   ...defaults,
-})
+  }
+}

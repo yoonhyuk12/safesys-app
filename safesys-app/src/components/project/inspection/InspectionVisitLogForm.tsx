@@ -19,6 +19,51 @@ interface InspectionVisitLogFormProps {
 // 서명 대상: 방문자(인덱스) 또는 확인자
 type SignTarget = { kind: 'visitor'; index: number } | { kind: 'confirmer' } | null
 
+// ③④⑤ 빠른 입력 프리셋 — 방문 유형별 형식적인 기본 문구 (클릭 시 세 칸을 채움)
+const QUICK_FILL_PRESETS: Array<{
+  label: string
+  basis: string // ③ 방문 근거 및 목적
+  work: string // ④ 업무 수행내용
+  instructions: string // ⑤ 지시사항 또는 특기사항
+}> = [
+  {
+    label: '안전',
+    basis: '건설기술 진흥법 제62조에 따른 현장 안전관리 실태 확인',
+    work: '현장 안전관리 실태 및 근로자 안전수칙 준수 여부 점검',
+    instructions: '안전관리 철저',
+  },
+  {
+    label: '시공',
+    basis: '공사 시공 상태 확인 및 공정 관리',
+    work: '주요 공종 시공 상태 및 공정 추진 현황 확인',
+    instructions: '설계도서에 따른 시공 철저',
+  },
+  {
+    label: '품질',
+    basis: '건설기술 진흥법 제55조에 따른 품질관리 실태 확인',
+    work: '품질관리 이행 여부 및 주요 자재 품질 확인',
+    instructions: '품질관리 기준 준수 철저',
+  },
+  {
+    label: '환경',
+    basis: '현장 환경관리 실태 확인',
+    work: '비산먼지·소음 등 환경관리 상태 점검',
+    instructions: '환경관리 철저',
+  },
+  {
+    label: '공종협의',
+    basis: '주요 공종 시공 방안 협의',
+    work: '공종별 시공 순서·방법 및 간섭사항 협의',
+    instructions: '협의 결과에 따라 시행',
+  },
+  {
+    label: '민원협의',
+    basis: '공사 관련 민원 사항 협의',
+    work: '민원 내용 확인 및 처리 방안 협의',
+    instructions: '민원 처리 결과 확인',
+  },
+]
+
 const inputCls =
   'w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
@@ -159,6 +204,27 @@ export default function InspectionVisitLogForm({ formData, onChange }: Inspectio
           </div>
           <div className="col-span-2 sm:col-span-4">
             <label className={labelCls}>③ 방문 근거 및 목적 *</label>
+            {/* 빠른 입력 — 방문 유형 버튼 클릭 시 ③④⑤ 기본 문구 채움 */}
+            <div className="flex flex-wrap gap-1 mb-1.5">
+              {QUICK_FILL_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() =>
+                    onChange({
+                      ...formData,
+                      visit_basis_purpose: preset.basis,
+                      work_content: preset.work,
+                      instructions: preset.instructions,
+                    })
+                  }
+                  className="px-2 py-1 text-xs rounded border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  title={`③④⑤에 ${preset.label} 기본 문구 입력`}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
             <textarea
               value={formData.visit_basis_purpose}
               onChange={(e) => set('visit_basis_purpose', e.target.value)}
