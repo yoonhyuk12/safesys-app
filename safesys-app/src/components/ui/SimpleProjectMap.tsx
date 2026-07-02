@@ -5,6 +5,8 @@ import { Building2, Maximize2, Minimize2, Hammer, Building, AlertTriangle, Clipb
 import { getCurrentYearQuarterOptions } from '@/lib/constants'
 import type { TBMRecord } from '@/lib/tbm'
 import NavigationSelector from './NavigationSelector'
+import { computeProgressRate } from '@/lib/work-daily-report/work-daily-report-types'
+import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
 
 export interface SimpleProjectMarker {
   id: string
@@ -17,6 +19,9 @@ export interface SimpleProjectMarker {
   isActive: boolean | { q1?: boolean; q2?: boolean; q3?: boolean; q4?: boolean; completed?: boolean } // 공사중 여부 또는 분기별 활성화 상태
   supervisorPosition?: string
   supervisorName?: string
+  projectCategory?: string
+  constructionStartDate?: string | null
+  constructionEndDate?: string | null
 }
 
 interface InspectionData {
@@ -152,6 +157,52 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
     console.log(`📋 사용 가능한 분기 옵션:`, getCurrentYearQuarterOptions())
     return quarter
   })
+
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+
+  const availableCategories = React.useMemo(() => {
+    const cats = new Set<string>()
+    projects.forEach(p => {
+      if (p.projectCategory) {
+        cats.add(p.projectCategory)
+      }
+    })
+    return Array.from(cats).sort()
+  }, [projects])
+
+  const filteredProjects = React.useMemo(() => {
+    if (selectedCategory === 'all') return projects
+    return projects.filter(p => p.projectCategory === selectedCategory)
+  }, [projects, selectedCategory])
+
+  // 공정률 (착공일~준공일 기준, 수동 기준점 보간 — 작업일보/사업카드와 동일 계산)
+  const [progressRates, setProgressRates] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    const targets = filteredProjects.filter(p => p.constructionStartDate && p.constructionEndDate)
+    if (!targets.length) return
+
+    let cancelled = false
+    const now = new Date()
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+    Promise.all(
+      targets.map(async (p) => {
+        const anchors = await getProgressAnchors(p.id)
+        const rate = computeProgressRate(p.constructionStartDate, p.constructionEndDate, todayStr, anchors)
+        return [p.id, rate] as const
+      })
+    ).then(results => {
+      if (cancelled) return
+      const next: Record<string, number> = {}
+      for (const [id, rate] of results) {
+        if (rate !== '') next[id] = parseFloat(rate)
+      }
+      setProgressRates(next)
+    })
+
+    return () => { cancelled = true }
+  }, [filteredProjects])
 
   // 마커 표시/숨김 상태 (localStorage로 영속화)
   const MAP_VISIBILITY_KEY = 'map_layer_visibility'
@@ -447,38 +498,38 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
 
   // 분기별 활성화 프로젝트 카운트 (범례용)
   const activeProjectsCount = React.useMemo(() => {
-    const count = projects.filter(project => isProjectActiveInQuarter(project, selectedQuarter)).length
+    const count = filteredProjects.filter(project => isProjectActiveInQuarter(project, selectedQuarter)).length
     console.log(`📊 [useMemo] 선택된 분기: ${selectedQuarter}, 활성 프로젝트: ${count}개`)
     return count
-  }, [projects, selectedQuarter, isProjectActiveInQuarter])
+  }, [filteredProjects, selectedQuarter, isProjectActiveInQuarter])
 
   const inactiveProjectsCount = React.useMemo(() => {
-    const count = projects.length - activeProjectsCount
-    console.log(`📊 [useMemo] 비활성 프로젝트: ${count}개 (전체 ${projects.length}개 - 활성 ${activeProjectsCount}개)`)
+    const count = filteredProjects.length - activeProjectsCount
+    console.log(`📊 [useMemo] 비활성 프로젝트: ${count}개 (전체 ${filteredProjects.length}개 - 활성 ${activeProjectsCount}개)`)
     return count
-  }, [projects.length, activeProjectsCount])
+  }, [filteredProjects.length, activeProjectsCount])
 
   // 미점검 프로젝트 카운트 (본부)
   const uninspectedHQCount = React.useMemo(() => {
-    const count = projects.filter(project => {
+    const count = filteredProjects.filter(project => {
       const isActive = isProjectActiveInQuarter(project, selectedQuarter)
       const hasHQInspection = hasHeadquartersInspectionInQuarter(project.id, selectedQuarter)
       return isActive && !hasHQInspection
     }).length
     console.log(`📊 [useMemo] 본부 미점검 프로젝트: ${count}개`)
     return count
-  }, [projects, selectedQuarter, isProjectActiveInQuarter, hasHeadquartersInspectionInQuarter])
+  }, [filteredProjects, selectedQuarter, isProjectActiveInQuarter, hasHeadquartersInspectionInQuarter])
 
   // 미점검 프로젝트 카운트 (지사)
   const uninspectedBranchCount = React.useMemo(() => {
-    const count = projects.filter(project => {
+    const count = filteredProjects.filter(project => {
       const isActive = isProjectActiveInQuarter(project, selectedQuarter)
       const hasManagerInspection = hasManagerInspectionInQuarter(project.id, selectedQuarter)
       return isActive && !hasManagerInspection
     }).length
     console.log(`📊 [useMemo] 지사 미점검 프로젝트: ${count}개`)
     return count
-  }, [projects, selectedQuarter, isProjectActiveInQuarter, hasManagerInspectionInQuarter])
+  }, [filteredProjects, selectedQuarter, isProjectActiveInQuarter, hasManagerInspectionInQuarter])
 
   // 본부별 색상 정의
   const hqColors: { [key: string]: string } = {
@@ -685,6 +736,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
       setMap(null)
       setIsMapLoaded(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // 사무실 마커 표시
@@ -764,7 +816,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
 
   // 마커 표시
   useEffect(() => {
-    if (!map || !projects.length || typeof (window as any).kakao === 'undefined') return
+    if (!map || !filteredProjects.length || typeof (window as any).kakao === 'undefined') return
 
     console.log('🔄 마커 업데이트 시작 - 선택된 분기:', selectedQuarter)
 
@@ -804,7 +856,13 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
       return '#9CA3AF'
     }
 
-    projects.forEach((project) => {
+    // 공정률 색상: 0%에 가까울수록 파란색, 100%에 가까울수록 빨간색
+    const getProgressColor = (rate: number) => {
+      const hue = 240 - 240 * (Math.min(100, Math.max(0, rate)) / 100)
+      return `hsl(${hue}, 75%, 45%)`
+    }
+
+    filteredProjects.forEach((project) => {
       try {
         const markerPosition = new (window as any).kakao.maps.LatLng(project.lat, project.lng)
         const baseColor = getMarkerColor(project.managingHq)
@@ -1056,6 +1114,60 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
         // 공사중/미공사중 마커와 함께 라벨도 표시/숨김
         if (shouldShowMainMarker) {
           labelOverlay.setMap(map)
+        }
+
+        // 공정률 수직 바 (마커 우측) — 착공일~준공일 등록된 프로젝트만 표시. 같은 위치에 표시되는
+        // 공사중/미공사중·미점검(본부)·미점검(지사) 마커 중 하나라도 보이면 함께 표시 (위치가 동일해 중복 생성 방지)
+        const progressRate = progressRates[project.id]
+        const shouldShowProgress = shouldShowMainMarker ||
+          (isUninspectedHQ && showUninspectedHQ) ||
+          (isUninspectedBranch && showUninspectedBranch)
+        if (shouldShowProgress && progressRate !== undefined) {
+          const clampedRate = Math.min(100, Math.max(0, progressRate))
+          const progressColor = getProgressColor(clampedRate)
+          const progressOverlay = new (window as any).kakao.maps.CustomOverlay({
+            content: `
+              <div style="margin-left: 14px; display: flex; flex-direction: column; align-items: center; pointer-events: none;">
+                <div style="
+                  font-size: 10px;
+                  font-weight: 700;
+                  color: ${progressColor};
+                  background: rgba(255,255,255,0.9);
+                  border-radius: 3px;
+                  padding: 0 3px;
+                  margin-bottom: 2px;
+                  white-space: nowrap;
+                  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+                ">${Math.round(clampedRate)}%</div>
+                <div style="
+                  width: 6px;
+                  height: 32px;
+                  background: rgba(203,213,225,0.85);
+                  border-radius: 3px;
+                  position: relative;
+                  overflow: hidden;
+                  box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+                ">
+                  <div style="
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    width: 100%;
+                    height: ${clampedRate}%;
+                    background: ${progressColor};
+                    border-radius: 3px;
+                  "></div>
+                </div>
+              </div>
+            `,
+            position: markerPosition,
+            yAnchor: 1,
+            xAnchor: 0,
+            zIndex: 3,
+            clickable: false
+          })
+          progressOverlay.setMap(map)
+          newOverlays.push(progressOverlay)
         }
 
         // 감독 정보 툴팁 오버레이 (마우스 오버 시 표시)
@@ -1315,13 +1427,13 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
     markersRef.current = newMarkers
     overlaysRef.current = newOverlays
 
-    console.log(`✅ 마커 ${newMarkers.length}개 생성 완료 (프로젝트: ${projects.length}개, TBM: ${tbmRecords?.length || 0}개)`)
+    console.log(`✅ 마커 ${newMarkers.length}개 생성 완료 (프로젝트: ${filteredProjects.length}개, TBM: ${tbmRecords?.length || 0}개)`)
 
     // 활성/비활성 카운트 계산 및 로그
-    const activeCount = projects.filter(p => isProjectActiveInQuarter(p, selectedQuarter)).length
-    const inactiveCount = projects.length - activeCount
+    const activeCount = filteredProjects.filter(p => isProjectActiveInQuarter(p, selectedQuarter)).length
+    const inactiveCount = filteredProjects.length - activeCount
     console.log(`📊 활성 프로젝트: ${activeCount}개, 비활성: ${inactiveCount}개`)
-  }, [map, projects, selectedQuarter, isProjectActiveInQuarter, showActiveMarkers, showInactiveMarkers, showUninspectedHQ, showUninspectedBranch, hasHeadquartersInspectionInQuarter, hasManagerInspectionInQuarter, tbmRecords, showTBMMarkers])
+  }, [map, filteredProjects, selectedQuarter, isProjectActiveInQuarter, showActiveMarkers, showInactiveMarkers, showUninspectedHQ, showUninspectedBranch, hasHeadquartersInspectionInQuarter, hasManagerInspectionInQuarter, tbmRecords, showTBMMarkers, progressRates])
 
   // 지도 초기 범위 조정 (프로젝트 및 TBM 마커 포함)
   useEffect(() => {
@@ -1329,8 +1441,8 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
 
     const allPoints: Array<{ lat: number; lng: number }> = []
 
-    // 프로젝트 마커 위치 추가
-    projects.forEach(project => {
+    // 프로젝트 순회하며 마커 생성
+    filteredProjects.forEach((project) => {
       allPoints.push({ lat: project.lat, lng: project.lng })
     })
 
@@ -1365,7 +1477,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
       map.setCenter(center)
       map.setLevel(3)
     }
-  }, [map, projects, tbmRecords])
+  }, [map, filteredProjects, tbmRecords])
 
   return (
     <div
@@ -1406,7 +1518,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
       </div>
 
       {/* 분기 선택 드롭다운 및 전체화면 버튼 */}
-      {projects.length > 0 && (
+      {filteredProjects.length > 0 && (
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
           <select
             id="quarter-select"
@@ -1424,6 +1536,20 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
               </option>
             ))}
           </select>
+          
+          {availableCategories.length > 0 && (
+            <select
+              id="category-select"
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="bg-white rounded-lg shadow-lg border border-gray-300 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 max-w-[150px] truncate"
+            >
+              <option value="all">전체 사업분류</option>
+              {availableCategories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          )}
 
           {/* 전체화면 토글 버튼 */}
           <button

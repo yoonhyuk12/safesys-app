@@ -2715,7 +2715,10 @@ const Dashboard: React.FC = () => {
           managingBranch: project.managing_branch,
           is_active: project.is_active, // JSONB 객체 또는 boolean 그대로 전달
           supervisor_position: project.supervisor_position,
-          supervisor_name: project.supervisor_name
+          supervisor_name: project.supervisor_name,
+          projectCategory: project.project_category,
+          constructionStartDate: project.construction_start_date,
+          constructionEndDate: project.construction_end_date
         })
       })
   }, [filteredProjectsWithCoords])
