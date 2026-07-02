@@ -9,6 +9,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft } from 'lucide-react'
 import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
+import { computeProgressRate, ProgressAnchor } from '@/lib/work-daily-report/work-daily-report-types'
+import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import QualityTestRecordsTab from '@/components/project/quality/QualityTestRecordsTab'
 import QualitySummaryTab from '@/components/project/quality/QualitySummaryTab'
@@ -34,6 +36,7 @@ export default function QualityTestLedgerPage() {
     company_name?: string
     full_name?: string
   } | null>(null)
+  const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
   const [activeTab, setActiveTab] = useState<TabKey>('records')
 
   const handleBack = () => {
@@ -75,6 +78,18 @@ export default function QualityTestLedgerPage() {
     loadProject()
   }, [user, projectId])
 
+  // 작업일보의 수동 입력 공정률 기준점 로드 — 성과총괄표 "공정(%)" 기본값 계산용
+  useEffect(() => {
+    if (!project?.construction_start_date || !project?.construction_end_date) return
+    let cancelled = false
+    getProgressAnchors(project.id).then((anchors) => {
+      if (!cancelled && anchors.length > 0) setProgressAnchors(anchors)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [project?.id, project?.construction_start_date, project?.construction_end_date])
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -92,6 +107,16 @@ export default function QualityTestLedgerPage() {
     project?.construction_start_date && project?.construction_end_date
       ? `${project.construction_start_date} ~ ${project.construction_end_date}`
       : ''
+
+  // 현재 공정률 — 성과총괄표 "공정(%)" 기본값 (작업일보 공정률과 동일한 보간 계산)
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const currentProgressRate = computeProgressRate(
+    project?.construction_start_date,
+    project?.construction_end_date,
+    todayStr,
+    progressAnchors
+  )
 
   return (
     <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
@@ -143,6 +168,11 @@ export default function QualityTestLedgerPage() {
             userId={user.id}
             projectName={project?.project_name || ''}
             constructionPeriod={constructionPeriod}
+            currentProgressRate={currentProgressRate}
+            supervisorBranch={project?.managing_branch || ''}
+            supervisorPosition={project?.supervisor_position || ''}
+            supervisorName={project?.supervisor_name || ''}
+            ownerCompanyName={projectOwner?.company_name || ''}
           />
         )}
         {activeTab === 'verification' && (

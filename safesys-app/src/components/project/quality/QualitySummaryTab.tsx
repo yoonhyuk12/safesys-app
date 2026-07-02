@@ -28,6 +28,11 @@ interface QualitySummaryTabProps {
   userId: string
   projectName: string
   constructionPeriod: string // "YYYY-MM-DD ~ YYYY-MM-DD" (없으면 '')
+  currentProgressRate?: string // 현재 공정률(%) — 새 총괄표 기본값
+  supervisorBranch?: string // 감독(관할 지사)명 — 확인자 소속 기본값
+  supervisorPosition?: string // 감독직급 — 확인자 직위 기본값
+  supervisorName?: string // 감독 이름 — 확인자 성명 기본값
+  ownerCompanyName?: string // 프로젝트 소유자 회사명 — 작성자 소속 기본값
 }
 
 const inputCls =
@@ -60,6 +65,11 @@ export default function QualitySummaryTab({
   userId,
   projectName,
   constructionPeriod,
+  currentProgressRate = '',
+  supervisorBranch = '',
+  supervisorPosition = '',
+  supervisorName = '',
+  ownerCompanyName = '',
 }: QualitySummaryTabProps) {
   const [reports, setReports] = useState<QualitySummaryReport[]>([])
   const [loading, setLoading] = useState(true)
@@ -94,7 +104,17 @@ export default function QualitySummaryTab({
 
   const handleAddClick = () => {
     setEditingReportId(null)
-    setFormData(createEmptyQualitySummary({ construction_period: constructionPeriod }))
+    setFormData(
+      createEmptyQualitySummary({
+        construction_period: constructionPeriod,
+        progress_rate: currentProgressRate,
+        writer_affiliation: ownerCompanyName,
+        writer_position: '품질관리자',
+        confirmer_affiliation: supervisorBranch,
+        confirmer_position: supervisorPosition,
+        confirmer_name: supervisorName,
+      })
+    )
     setShowForm(true)
   }
 
