@@ -17,8 +17,8 @@ import QualityVerificationRequestsTab from '@/components/project/quality/Quality
 type TabKey = 'records' | 'summary' | 'verification'
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'records', label: '실시대장' },
   { key: 'summary', label: '성과총괄표' },
+  { key: 'records', label: '실시대장' },
   { key: 'verification', label: '확인시험 의뢰서' },
 ]
 

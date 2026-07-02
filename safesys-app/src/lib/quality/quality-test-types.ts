@@ -4,7 +4,7 @@
 export type TestVerdict = '' | '합격' | '불합격' | '재시험'
 
 // 시험·검사구분 입력 제안값 — '확인시험'이면 총괄표 ⑤ 확인시험 실적으로 집계
-export const TEST_CATEGORY_OPTIONS = ['자체시험', '의뢰시험', '검사', '확인시험']
+export const TEST_CATEGORY_OPTIONS = ['자체시험', '의뢰(수탁)시험', '확인시험']
 export const VERIFICATION_CATEGORY = '확인시험'
 
 // ── 1) 품질검사 실시대장 (별지 제42호서식) — 대장 1행
