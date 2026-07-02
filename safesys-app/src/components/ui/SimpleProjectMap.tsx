@@ -1417,7 +1417,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
 
       {/* 분기 선택 드롭다운 및 전체화면 버튼 */}
       {filteredProjects.length > 0 && (
-        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2">
+        <div className="absolute top-4 left-4 z-10 flex flex-col items-start gap-2">
           <select
             id="quarter-select"
             value={selectedQuarter}
