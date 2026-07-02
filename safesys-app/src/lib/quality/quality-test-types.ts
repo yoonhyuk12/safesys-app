@@ -4,11 +4,12 @@
 export type TestVerdict = '' | '합격' | '불합격' | '재시험'
 
 // 시험·검사구분 입력 제안값 — '확인시험'이면 총괄표 ⑤ 확인시험 실적으로 집계
-export const TEST_CATEGORY_OPTIONS = ['자체시험', '의뢰(수탁)시험', '확인시험']
+export const TEST_CATEGORY_OPTIONS = ['자체(관리)시험', '의뢰(수탁)시험', '확인시험']
 export const VERIFICATION_CATEGORY = '확인시험'
 
 // ── 1) 품질검사 실시대장 (별지 제42호서식) — 대장 1행
 export interface QualityTestRecordFormData {
+  serial_no: number | null // 일련번호 — 한 제출건(여러 시험 항목)이 같은 번호를 공유
   test_date: string | null // 연월일 (YYYY-MM-DD)
   test_category: string // 시험·검사구분
   work_type: string // 공종 (총괄표 집계용 보조 필드)
@@ -37,8 +38,9 @@ export interface QualityTestRecord extends QualityTestRecordFormData {
 export const createEmptyQualityTestRecord = (
   defaults: Partial<QualityTestRecordFormData> = {}
 ): QualityTestRecordFormData => ({
+  serial_no: null,
   test_date: new Date().toISOString().split('T')[0],
-  test_category: '자체시험',
+  test_category: '자체(관리)시험',
   work_type: '',
   target_material: '',
   supplier_factory: '',
@@ -51,6 +53,51 @@ export const createEmptyQualityTestRecord = (
   quality_engineer_signature: '',
   supervision_engineer_name: '',
   supervision_engineer_signature: '',
+  note: '',
+  ...defaults,
+})
+
+// 한 제출건 안에서 여러 건 등록되는 항목별 필드 (시험·검사 종목 ~ 건설사업관리기술인 확인)
+export interface QualityTestItemFields {
+  test_item: string
+  test_standard: string
+  test_result: string
+  result_verdict: TestVerdict
+  quality_engineer_name: string
+  quality_engineer_signature: string
+  supervision_engineer_name: string
+  supervision_engineer_signature: string
+}
+
+export const createEmptyQualityTestItem = (
+  defaults: Partial<QualityTestItemFields> = {}
+): QualityTestItemFields => ({
+  test_item: '',
+  test_standard: '',
+  test_result: '',
+  result_verdict: '합격',
+  quality_engineer_name: '',
+  quality_engineer_signature: '',
+  supervision_engineer_name: '',
+  supervision_engineer_signature: '',
+  ...defaults,
+})
+
+// 한 제출건에서 항목들이 공유하는 필드 (연월일 ~ 시험·검사 장소, 비고)
+export type QualityTestCommonFields = Omit<
+  QualityTestRecordFormData,
+  keyof QualityTestItemFields | 'serial_no'
+>
+
+export const createEmptyQualityTestCommon = (
+  defaults: Partial<QualityTestCommonFields> = {}
+): QualityTestCommonFields => ({
+  test_date: new Date().toISOString().split('T')[0],
+  test_category: '자체(관리)시험',
+  work_type: '',
+  target_material: '',
+  supplier_factory: '',
+  test_place: '',
   note: '',
   ...defaults,
 })

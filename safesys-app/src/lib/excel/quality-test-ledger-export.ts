@@ -108,7 +108,7 @@ export async function downloadQualityTestLedgerExcel(
   const signatureCells: { signature: string | undefined; col: number; row: number }[] = []
   for (let i = 0; i < rowCount; i++) {
     const record = records[i]
-    setCell(ws, `A${r}`, record ? i + 1 : '', { size: 9, align: { horizontal: 'center' } })
+    setCell(ws, `A${r}`, record ? (record.serial_no ?? i + 1) : '', { size: 9, align: { horizontal: 'center' } })
     setCell(ws, `B${r}`, record?.test_date || '', { size: 9, align: { horizontal: 'center' } })
     setCell(ws, `C${r}`, record?.test_category || '', { size: 9, align: { horizontal: 'center' } })
     setCell(ws, `D${r}`, record?.target_material || '', { size: 9, align: { horizontal: 'center' } })

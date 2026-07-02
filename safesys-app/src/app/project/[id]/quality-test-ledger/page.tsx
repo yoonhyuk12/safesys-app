@@ -134,6 +134,7 @@ export default function QualityTestLedgerPage() {
             projectId={projectId}
             userId={user.id}
             projectName={project?.project_name || ''}
+            supervisorName={project?.supervisor_name || ''}
           />
         )}
         {activeTab === 'summary' && (
