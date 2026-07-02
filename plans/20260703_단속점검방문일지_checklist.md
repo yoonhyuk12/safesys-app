@@ -3,8 +3,8 @@
 계획서: `plans/20260703_단속점검방문일지.md`
 
 - [x] 계획 산출물(plan·checklist·context-notes) 생성
-- [x] `database/add_inspection_visit_logs.sql` 작성 (project_id CASCADE, RLS, 서명 base64 TEXT)
-- [ ] 마이그레이션 적용 — **사용자 작업 필요**: Supabase MCP가 읽기 전용이라 SQL Editor에서 `database/add_inspection_visit_logs.sql` 실행 필요
+- [x] `database/20260703-0618_add_inspection_visit_logs.sql` 작성 (project_id CASCADE, RLS, 서명 base64 TEXT)
+- [ ] 마이그레이션 적용 — **사용자 작업 필요**: Supabase MCP가 읽기 전용이라 SQL Editor에서 `database/20260703-0618_add_inspection_visit_logs.sql` 실행 필요
 - [x] 타입 정의 `src/lib/inspection/inspection-visit-log-types.ts` (방문자 JSONB 배열, 확인자 서명)
 - [x] 폼 `InspectionVisitLogForm.tsx` (①~⑦ 섹션, 방문자 추가/삭제, SignatureModal 서명)
 - [x] 목록 `InspectionVisitLogList.tsx`

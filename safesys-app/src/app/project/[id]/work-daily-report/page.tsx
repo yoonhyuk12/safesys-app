@@ -197,7 +197,7 @@ export default function WorkDailyReportPage() {
       console.error('공사기간 저장 오류:', err)
       const message = err instanceof Error ? err.message : '알 수 없는 오류'
       if (message.includes('construction_start_date') || message.includes('column')) {
-        alert('공사기간 컬럼이 아직 DB에 없습니다.\nSupabase에서 database/add_project_construction_period.sql을 먼저 실행해주세요.')
+        alert('공사기간 컬럼이 아직 DB에 없습니다.\nSupabase에서 database/20260612-1717_add_project_construction_period.sql을 먼저 실행해주세요.')
       } else {
         alert(`공사기간 저장 중 오류가 발생했습니다: ${message}`)
       }

@@ -245,7 +245,7 @@ export default function WorkScheduleEditor({
     } catch (err: unknown) {
       const msg = getErrorMessage(err)
       if (msg.includes('construction_schedule') || msg.includes('column')) {
-        alert('공정표 컬럼이 아직 DB에 없습니다.\nSupabase에서 database/add_project_construction_schedule.sql을 먼저 실행해주세요.')
+        alert('공정표 컬럼이 아직 DB에 없습니다.\nSupabase에서 database/20260618-0507_add_project_construction_schedule.sql을 먼저 실행해주세요.')
       } else {
         alert(`저장 중 오류가 발생했습니다: ${msg}`)
       }

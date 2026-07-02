@@ -392,7 +392,9 @@ const canSeeAllHq = userProfile?.role === '발주청' &&
 
 ### 마이그레이션
 
-`database/` 디렉토리에 14개 SQL 마이그레이션 파일
+`database/` 디렉토리에 SQL 마이그레이션 파일을 둔다.
+
+- **파일명 규칙 (필수)**: `YYYYMMDD-HHMM_설명.sql` — 맨 앞의 일자-시간 접두어로 적용 순서대로 정렬된다. 새 마이그레이션 파일은 작성 시각을 접두어로 붙인다 (예: `20260703-0618_add_inspection_visit_logs.sql`).
 
 ### Supabase MCP 주의사항
 
