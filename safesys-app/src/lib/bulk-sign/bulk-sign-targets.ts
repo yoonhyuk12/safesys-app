@@ -138,6 +138,15 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         toItem: (r) => ({ date: str(r.request_date), label: `${[str(r.request_no), str(r.location_and_type)].filter(Boolean).join(' · ')}${r.supervisor_name ? ` (감독원: ${str(r.supervisor_name)})` : ''}` }),
       },
       {
+        type: 'inspection_visit_log',
+        title: '단속·점검방문 일지 (확인 서명)',
+        table: 'inspection_visit_logs',
+        signColumn: 'confirmer_signature',
+        selectColumns: 'id, visit_date, visit_basis_purpose, confirmer_name',
+        orderColumn: 'visit_date',
+        toItem: (r) => ({ date: str(r.visit_date), label: `${str(r.visit_basis_purpose)}${r.confirmer_name ? ` (확인자: ${str(r.confirmer_name)})` : ''}` }),
+      },
+      {
         type: 'quality_test_record',
         title: '품질검사 실시대장 (건설사업관리기술인 서명)',
         table: 'quality_test_records',

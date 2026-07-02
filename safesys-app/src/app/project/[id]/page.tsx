@@ -94,6 +94,7 @@ export default function ProjectDetailPage() {
   const [managerPendingCount, setManagerPendingCount] = useState(0)
   const [ptwCount, setPtwCount] = useState<number | null>(null)
   const [inspectionRequestCount, setInspectionRequestCount] = useState<number | null>(null)
+  const [visitLogCount, setVisitLogCount] = useState<number | null>(null)
   const [qualityMonthlyReportCount, setQualityMonthlyReportCount] = useState<number | null>(null)
   const [qualityTestRecordCount, setQualityTestRecordCount] = useState<number | null>(null)
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
@@ -206,6 +207,19 @@ export default function ProjectDetailPage() {
       if (!countError) setInspectionRequestCount(count ?? 0)
     }
     loadInspectionRequestCount()
+  }, [user, projectId])
+
+  // 단속·점검방문 일지 건수 조회 (서류철 카드 표시용)
+  useEffect(() => {
+    if (!user || !projectId) return
+    const loadVisitLogCount = async () => {
+      const { count, error: countError } = await (supabase as any)
+        .from('inspection_visit_logs')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+      if (!countError) setVisitLogCount(count ?? 0)
+    }
+    loadVisitLogCount()
   }, [user, projectId])
 
   // 품질시험 월례보고서 건수 조회 (서류철 카드 표시용)
@@ -1017,6 +1031,17 @@ export default function ProjectDetailPage() {
                   projectId={projectId}
                   docCount={inspectionRequestCount ?? undefined}
                   onClick={() => router.push(`/project/${projectId}/inspection-request`)}
+                  pdcaCategory="C"
+                  bottomLabel="시공"
+                />
+                <DocumentFolder
+                  title="단속·점검
+방문일지"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  docCount={visitLogCount ?? undefined}
+                  onClick={() => router.push(`/project/${projectId}/inspection-visit-log`)}
                   pdcaCategory="C"
                   bottomLabel="시공"
                 />
