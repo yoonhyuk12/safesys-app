@@ -96,7 +96,11 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         jsonb: { kind: 'roleArray', role: '공사감독원' },
         selectColumns: 'id, inspection_type, inspection_date, signatures',
         orderColumn: 'inspection_date',
-        toItem: (r) => ({ date: str(r.inspection_date), label: str(r.inspection_type) ? `${str(r.inspection_type)} 점검` : '' }),
+        toItem: (r) => {
+          const sigs = Array.isArray(r.signatures) ? r.signatures : []
+          const sig = sigs.find((s: any) => s?.role === '공사감독원')
+          return { date: str(r.inspection_date), label: `${str(r.inspection_type) ? `${str(r.inspection_type)} 점검` : ''}${sig?.name ? ` (감독원: ${sig.name})` : ''}` }
+        },
       },
       {
         type: 'ptw_permitter',
@@ -104,9 +108,12 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         table: 'ptw_permits',
         signColumn: 'signatures',
         jsonb: { kind: 'keyedObject', key: 'permitter', field: 'signature' },
-        selectColumns: 'id, permit_date, work_content',
+        selectColumns: 'id, permit_date, work_content, signatures',
         orderColumn: 'permit_date',
-        toItem: (r) => ({ date: str(r.permit_date), label: str(r.work_content) }),
+        toItem: (r) => {
+          const sig = (r.signatures as any)?.permitter
+          return { date: str(r.permit_date), label: `${str(r.work_content)}${sig?.name ? ` (허가자: ${sig.name})` : ''}` }
+        },
       },
       {
         type: 'ptw_confirmer',
@@ -114,36 +121,39 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         table: 'ptw_permits',
         signColumn: 'signatures',
         jsonb: { kind: 'keyedObject', key: 'confirmer', field: 'signature' },
-        selectColumns: 'id, permit_date, work_content',
+        selectColumns: 'id, permit_date, work_content, signatures',
         orderColumn: 'permit_date',
-        toItem: (r) => ({ date: str(r.permit_date), label: str(r.work_content) }),
+        toItem: (r) => {
+          const sig = (r.signatures as any)?.confirmer
+          return { date: str(r.permit_date), label: `${str(r.work_content)}${sig?.name ? ` (이행확인자: ${sig.name})` : ''}` }
+        },
       },
       {
         type: 'inspection_request',
         title: '검사/검측 요청서 (공사감독원 서명)',
         table: 'inspection_requests',
         signColumn: 'supervisor_signature',
-        selectColumns: 'id, request_no, request_date, location_and_type',
+        selectColumns: 'id, request_no, request_date, location_and_type, supervisor_name',
         orderColumn: 'request_date',
-        toItem: (r) => ({ date: str(r.request_date), label: [str(r.request_no), str(r.location_and_type)].filter(Boolean).join(' · ') }),
+        toItem: (r) => ({ date: str(r.request_date), label: `${[str(r.request_no), str(r.location_and_type)].filter(Boolean).join(' · ')}${r.supervisor_name ? ` (감독원: ${str(r.supervisor_name)})` : ''}` }),
       },
       {
         type: 'quality_test_record',
         title: '품질검사 실시대장 (건설사업관리기술인 서명)',
         table: 'quality_test_records',
         signColumn: 'supervision_engineer_signature',
-        selectColumns: 'id, test_date, test_item, target_material',
+        selectColumns: 'id, test_date, test_item, target_material, supervision_engineer_name',
         orderColumn: 'test_date',
-        toItem: (r) => ({ date: str(r.test_date), label: [str(r.target_material), str(r.test_item)].filter(Boolean).join(' · ') }),
+        toItem: (r) => ({ date: str(r.test_date), label: `${[str(r.target_material), str(r.test_item)].filter(Boolean).join(' · ')}${r.supervision_engineer_name ? ` (감독: ${str(r.supervision_engineer_name)})` : ''}` }),
       },
       {
         type: 'quality_summary_report',
         title: '품질검사 성과총괄표 (확인자 서명)',
         table: 'quality_summary_reports',
         signColumn: 'confirmer_signature',
-        selectColumns: 'id, report_date',
+        selectColumns: 'id, report_date, confirmer_name',
         orderColumn: 'report_date',
-        toItem: (r) => ({ date: str(r.report_date), label: '성과총괄표' }),
+        toItem: (r) => ({ date: str(r.report_date), label: `성과총괄표${r.confirmer_name ? ` (확인자: ${str(r.confirmer_name)})` : ''}` }),
       },
       {
         type: 'material_ledger_entry',
@@ -176,9 +186,9 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         title: '검사/검측 요청서 (현장대리인 서명)',
         table: 'inspection_requests',
         signColumn: 'field_agent_signature',
-        selectColumns: 'id, request_no, request_date, location_and_type',
+        selectColumns: 'id, request_no, request_date, location_and_type, field_agent_name',
         orderColumn: 'request_date',
-        toItem: (r) => ({ date: str(r.request_date), label: [str(r.request_no), str(r.location_and_type)].filter(Boolean).join(' · ') }),
+        toItem: (r) => ({ date: str(r.request_date), label: `${[str(r.request_no), str(r.location_and_type)].filter(Boolean).join(' · ')}${r.field_agent_name ? ` (현장대리인: ${str(r.field_agent_name)})` : ''}` }),
       },
       {
         type: 'heat_wave_check',
@@ -201,7 +211,11 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         jsonb: { kind: 'roleArray', role: '현장대리인' },
         selectColumns: 'id, inspection_type, inspection_date, signatures',
         orderColumn: 'inspection_date',
-        toItem: (r) => ({ date: str(r.inspection_date), label: str(r.inspection_type) ? `${str(r.inspection_type)} 점검` : '' }),
+        toItem: (r) => {
+          const sigs = Array.isArray(r.signatures) ? r.signatures : []
+          const sig = sigs.find((s: any) => s?.role === '현장대리인')
+          return { date: str(r.inspection_date), label: `${str(r.inspection_type) ? `${str(r.inspection_type)} 점검` : ''}${sig?.name ? ` (현장대리인: ${sig.name})` : ''}` }
+        },
       },
       {
         type: 'ptw_writer',
@@ -209,9 +223,12 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         table: 'ptw_permits',
         signColumn: 'signatures',
         jsonb: { kind: 'keyedObject', key: 'writer', field: 'signature' },
-        selectColumns: 'id, permit_date, work_content',
+        selectColumns: 'id, permit_date, work_content, signatures',
         orderColumn: 'permit_date',
-        toItem: (r) => ({ date: str(r.permit_date), label: str(r.work_content) }),
+        toItem: (r) => {
+          const sig = (r.signatures as any)?.writer
+          return { date: str(r.permit_date), label: `${str(r.work_content)}${sig?.name ? ` (작성자: ${sig.name})` : ''}` }
+        },
       },
       {
         type: 'ptw_applicant',
@@ -219,9 +236,12 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         table: 'ptw_permits',
         signColumn: 'signatures',
         jsonb: { kind: 'keyedObject', key: 'applicant', field: 'signature' },
-        selectColumns: 'id, permit_date, work_content',
+        selectColumns: 'id, permit_date, work_content, signatures',
         orderColumn: 'permit_date',
-        toItem: (r) => ({ date: str(r.permit_date), label: str(r.work_content) }),
+        toItem: (r) => {
+          const sig = (r.signatures as any)?.applicant
+          return { date: str(r.permit_date), label: `${str(r.work_content)}${sig?.name ? ` (신청인: ${sig.name})` : ''}` }
+        },
       },
       {
         type: 'new_worker_orientation',
@@ -240,36 +260,36 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         title: '품질검사 실시대장 (품질관리기술인 서명)',
         table: 'quality_test_records',
         signColumn: 'quality_engineer_signature',
-        selectColumns: 'id, test_date, test_item, target_material',
+        selectColumns: 'id, test_date, test_item, target_material, quality_engineer_name',
         orderColumn: 'test_date',
-        toItem: (r) => ({ date: str(r.test_date), label: [str(r.target_material), str(r.test_item)].filter(Boolean).join(' · ') }),
+        toItem: (r) => ({ date: str(r.test_date), label: `${[str(r.target_material), str(r.test_item)].filter(Boolean).join(' · ')}${r.quality_engineer_name ? ` (품질관리: ${str(r.quality_engineer_name)})` : ''}` }),
       },
       {
         type: 'quality_verification_request',
         title: '확인시험 의뢰서 (보냄 서명)',
         table: 'quality_verification_requests',
         signColumn: 'sender_signature',
-        selectColumns: 'id, request_no, request_date, test_items',
+        selectColumns: 'id, request_no, request_date, test_items, sender',
         orderColumn: 'request_date',
-        toItem: (r) => ({ date: str(r.request_date), label: [str(r.request_no), str(r.test_items)].filter(Boolean).join(' · ') }),
+        toItem: (r) => ({ date: str(r.request_date), label: `${[str(r.request_no), str(r.test_items)].filter(Boolean).join(' · ')}${r.sender ? ` (보낸이: ${str(r.sender)})` : ''}` }),
       },
       {
         type: 'quality_summary_report_writer',
         title: '품질검사 성과총괄표 (작성자 서명)',
         table: 'quality_summary_reports',
         signColumn: 'writer_signature',
-        selectColumns: 'id, report_date',
+        selectColumns: 'id, report_date, writer_name',
         orderColumn: 'report_date',
-        toItem: (r) => ({ date: str(r.report_date), label: '성과총괄표' }),
+        toItem: (r) => ({ date: str(r.report_date), label: `성과총괄표${r.writer_name ? ` (작성자: ${str(r.writer_name)})` : ''}` }),
       },
       {
         type: 'quality_summary_report_reviewer',
         title: '품질검사 성과총괄표 (검토자 서명)',
         table: 'quality_summary_reports',
         signColumn: 'reviewer_signature',
-        selectColumns: 'id, report_date',
+        selectColumns: 'id, report_date, reviewer_name',
         orderColumn: 'report_date',
-        toItem: (r) => ({ date: str(r.report_date), label: '성과총괄표' }),
+        toItem: (r) => ({ date: str(r.report_date), label: `성과총괄표${r.reviewer_name ? ` (검토자: ${str(r.reviewer_name)})` : ''}` }),
       },
     ],
   },
