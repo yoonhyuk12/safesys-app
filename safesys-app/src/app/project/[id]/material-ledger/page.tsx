@@ -523,6 +523,22 @@ export default function MaterialLedgerPage() {
 
   // ── 내역 행 CRUD ──
 
+  // 유효 발주량 = 첫 행 발주량 + 증감 행의 발주량 합산.
+  // 증감 행: 발주량만 입력되고 반입·합격·불출이 전부 빈 행 (계약수량 변경 시 ± 행으로 추가하는 용도)
+  const calcEffectiveOrderQty = (matchingRows: MaterialRow[]) => {
+    if (matchingRows.length === 0) return 0
+    const base = parseFloat(matchingRows[0].orderQty) || 0
+    const adjustments = matchingRows.slice(1)
+      .filter(r =>
+        (parseFloat(r.orderQty) || 0) !== 0 &&
+        !(parseFloat(r.receiveQty) || 0) &&
+        !(parseFloat(r.passQtyCurrent) || 0) &&
+        !(parseFloat(r.releaseQty) || 0)
+      )
+      .reduce((sum, r) => sum + (parseFloat(r.orderQty) || 0), 0)
+    return base + adjustments
+  }
+
   const openRowModal = () => {
     const today = new Date().toISOString().split('T')[0]
     const rows = selectedMaterial?.rows || []
@@ -539,8 +555,7 @@ export default function MaterialLedgerPage() {
       if (defaultNameOrSpec) {
         const matchingRows = rows.filter(row => row.nameOrSpec === defaultNameOrSpec)
         if (matchingRows.length > 0) {
-          const firstRow = matchingRows[0]
-          const originalOrderQty = parseFloat(firstRow.orderQty) || 0
+          const originalOrderQty = calcEffectiveOrderQty(matchingRows)
           // 합격량 누계
           const totalPassed = matchingRows.reduce((sum, row) => {
             return sum + (parseFloat(row.passQtyCurrent) || 0)
@@ -619,9 +634,8 @@ export default function MaterialLedgerPage() {
     let prevRemainQty = 0
 
     if (matchingRows.length > 0) {
-      // 같은 품명이 있는 경우: 첫 번째 행의 발주량에서 합격량 누계를 빼서 잔량 계산
-      const firstRow = matchingRows[0]
-      const originalOrderQty = parseFloat(firstRow.orderQty) || 0
+      // 같은 품명이 있는 경우: 유효 발주량(첫 행 + 증감 행 합산)에서 합격량 누계를 빼서 잔량 계산
+      const originalOrderQty = calcEffectiveOrderQty(matchingRows)
 
       // 같은 품명의 모든 행의 합격량 누계
       const totalPassed = matchingRows.reduce((sum, row) => {
