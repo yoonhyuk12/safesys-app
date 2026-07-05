@@ -313,6 +313,9 @@ const LoginForm: React.FC = () => {
           </form>
 
           <CopyrightNotice />
+          <p className="mt-2 text-center text-xs text-gray-500">
+            개인정보책임자 : 윤혁(010-2676-5472)
+          </p>
         </div>
 
         {/* 아이디 찾기 모달 */}
