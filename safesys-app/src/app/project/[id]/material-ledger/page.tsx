@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil } from 'lucide-react'
+import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil, Link2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignaturePad from '@/components/ui/SignaturePad'
@@ -33,6 +33,7 @@ interface Material {
   sortOrder?: number
   colorIndex?: number
   realOrder?: number
+  dlvrReqNo?: string | null
 }
 
 interface MaterialRow {
@@ -49,7 +50,11 @@ interface MaterialRow {
   releaseQty: string
   remainQty: string
   supervisorConfirm: string
+  dlvrReqPrdctSno?: number | null
 }
+
+// 연계 모달 매핑에서 "새 규격 행으로 추가"를 뜻하는 값
+const NEW_SPEC = '__new_spec__'
 
 interface RowFormData {
   nameOrSpec: string
@@ -165,6 +170,16 @@ export default function MaterialLedgerPage() {
   const [g2bResult, setG2bResult] = useState<G2bDlvrReq | null>(null)
   const [g2bChecked, setG2bChecked] = useState<Set<number>>(new Set())
 
+  // 조달청 연계/동기화 모달 (기존 자재 ↔ 납품요구번호 연결, 발주량 비교·보정)
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false)
+  const [linkNo, setLinkNo] = useState('')
+  const [linkLoading, setLinkLoading] = useState(false)
+  const [linkError, setLinkError] = useState('')
+  const [linkResult, setLinkResult] = useState<G2bDlvrReq | null>(null)
+  const [linkMapping, setLinkMapping] = useState<Record<number, string>>({}) // 품목순번 → 원장 규격 ('' = 연결 안 함, NEW_SPEC = 새 규격 행)
+  const [linkAdjust, setLinkAdjust] = useState<Record<number, boolean>>({}) // 품목순번 → 발주량 차이 보정 여부
+  const [linkApplying, setLinkApplying] = useState(false)
+
   // 내역 등록/수정 모달
   const [isRowModalOpen, setIsRowModalOpen] = useState(false)
   const [editingRowId, setEditingRowId] = useState<string | null>(null) // null=신규, string=수정
@@ -241,7 +256,8 @@ export default function MaterialLedgerPage() {
           rows: [],
           sortOrder: val,
           colorIndex,
-          realOrder
+          realOrder,
+          dlvrReqNo: m.dlvr_req_no || null
         }
       })
       matList.sort((a: any, b: any) => (a.realOrder || 0) - (b.realOrder || 0))
@@ -273,6 +289,7 @@ export default function MaterialLedgerPage() {
             releaseQty: e.release_qty != null ? String(e.release_qty) : '',
             remainQty: e.remain_qty != null ? String(e.remain_qty) : '',
             supervisorConfirm: e.supervisor_confirm || '',
+            dlvrReqPrdctSno: e.dlvr_req_prdct_sno ?? null,
           })
         }
         for (const mat of matList) {
@@ -428,13 +445,14 @@ export default function MaterialLedgerPage() {
         .select()
       if (rowsError) throw rowsError
 
-      const newRows: MaterialRow[] = (rowsData || []).map((e: { id: string; name_or_spec: string | null; order_qty: number | null }) => ({
+      const newRows: MaterialRow[] = (rowsData || []).map((e: { id: string; name_or_spec: string | null; order_qty: number | null; dlvr_req_prdct_sno: number | null }) => ({
         id: e.id,
         nameOrSpec: e.name_or_spec || '',
         orderQty: e.order_qty != null ? String(e.order_qty) : '',
         receiveDate: '', receiveQty: '', passQtyCurrent: '', passQtyTotal: '',
         failQty: '', action: '', releaseDate: '', releaseQty: '', remainQty: '',
         supervisorConfirm: '',
+        dlvrReqPrdctSno: e.dlvr_req_prdct_sno ?? null,
       }))
 
       setMaterials(prev => [...prev, {
@@ -444,12 +462,152 @@ export default function MaterialLedgerPage() {
         rows: newRows,
         sortOrder: data.sort_order,
         colorIndex: materialForm.colorIndex,
-        realOrder
+        realOrder,
+        dlvrReqNo: data.dlvr_req_no || null
       }])
       setIsMaterialModalOpen(false)
     } catch (err: unknown) {
       console.error('납품요구 자재 등록 실패:', err)
       alert('자재 등록에 실패했습니다.')
+    }
+  }
+
+  // ── 조달청 연계/동기화 (기존 자재 ↔ 납품요구번호) ──
+
+  // 자재의 규격 목록 (첫 등장 순서 유지)
+  const getSpecList = (mat: Material) => {
+    const list: string[] = []
+    for (const r of mat.rows) {
+      if (r.nameOrSpec && !list.includes(r.nameOrSpec)) list.push(r.nameOrSpec)
+    }
+    return list
+  }
+
+  const openLinkModal = () => {
+    if (!selectedMaterial) return
+    setLinkNo(selectedMaterial.dlvrReqNo || '')
+    setLinkError('')
+    setLinkResult(null)
+    setLinkMapping({})
+    setLinkAdjust({})
+    setIsLinkModalOpen(true)
+    // 이미 연계된 자재는 저장된 번호로 바로 조회 (동기화)
+    if (selectedMaterial.dlvrReqNo) void handleLinkLookup(selectedMaterial.dlvrReqNo)
+  }
+
+  const handleLinkLookup = async (noParam?: string) => {
+    const no = (noParam ?? linkNo).trim()
+    if (!no || linkLoading || !selectedMaterial) return
+    setLinkLoading(true)
+    setLinkError('')
+    setLinkResult(null)
+    try {
+      const res = await fetch(`/api/g2b/dlvr-req?no=${encodeURIComponent(no)}`)
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error || '조회에 실패했습니다.')
+      const result: G2bDlvrReq = json.data
+      // 기본 매칭 — ① 행에 저장된 품목순번 ② 규격 문자열 일치 ③ 품목·규격이 각 1개면 자동 연결
+      const specs = getSpecList(selectedMaterial)
+      const mapping: Record<number, string> = {}
+      const adjust: Record<number, boolean> = {}
+      for (const item of result.items) {
+        let spec = ''
+        const bySno = selectedMaterial.rows.find(r => r.dlvrReqPrdctSno === item.sno)
+        if (bySno?.nameOrSpec) spec = bySno.nameOrSpec
+        else if (specs.includes(item.spec)) spec = item.spec
+        else if (result.items.length === 1 && specs.length === 1) spec = specs[0]
+        mapping[item.sno] = spec
+        adjust[item.sno] = true
+      }
+      setLinkResult(result)
+      setLinkMapping(mapping)
+      setLinkAdjust(adjust)
+    } catch (err: unknown) {
+      setLinkError(err instanceof Error ? err.message : '조회에 실패했습니다.')
+    } finally {
+      setLinkLoading(false)
+    }
+  }
+
+  // 매핑된 품목의 원장 발주량·차이·초과반입 여부 계산
+  const getLinkDiff = (item: G2bItem) => {
+    const spec = linkMapping[item.sno]
+    if (!selectedMaterial || !spec || spec === NEW_SPEC) return null
+    const matching = selectedMaterial.rows.filter(r => r.nameOrSpec === spec)
+    if (matching.length === 0) return null
+    const ledgerQty = calcEffectiveOrderQty(matching)
+    const passTotal = matching.reduce((sum, r) => sum + (parseFloat(r.passQtyCurrent) || 0), 0)
+    return {
+      ledgerQty,
+      diff: Math.round((item.qty - ledgerQty) * 1000) / 1000,
+      overDelivered: passTotal > item.qty,
+    }
+  }
+
+  const handleApplyLink = async () => {
+    if (!selectedMaterial || !linkResult || linkApplying) return
+    // 같은 규격에 품목 두 개 이상 매핑 방지
+    const chosen = Object.values(linkMapping).filter(v => v && v !== NEW_SPEC)
+    if (new Set(chosen).size !== chosen.length) {
+      alert('같은 규격에 두 개 이상의 품목을 연결할 수 없습니다.')
+      return
+    }
+    setLinkApplying(true)
+    try {
+      for (const item of linkResult.items) {
+        const spec = linkMapping[item.sno]
+        if (!spec) continue
+
+        // 새 규격 행으로 추가
+        if (spec === NEW_SPEC) {
+          const { error: insErr } = await supabase.from('material_ledger_entries').insert({
+            material_id: selectedMaterial.id,
+            name_or_spec: item.spec || item.name,
+            order_qty: item.qty || null,
+            created_by: user?.id,
+            dlvr_req_no: linkResult.dlvrReqNo,
+            dlvr_req_prdct_sno: item.sno,
+          })
+          if (insErr) throw insErr
+          continue
+        }
+
+        const matching = selectedMaterial.rows.filter(r => r.nameOrSpec === spec)
+        if (matching.length === 0) continue
+
+        // 규격의 첫 행에 연계 정보 저장
+        const { error: updErr } = await supabase.from('material_ledger_entries')
+          .update({ dlvr_req_no: linkResult.dlvrReqNo, dlvr_req_prdct_sno: item.sno })
+          .eq('id', matching[0].id)
+        if (updErr) throw updErr
+
+        // 발주량 차이 보정 — 증감 행 추가 (초과 반입 상태면 자동 보정하지 않음)
+        const info = getLinkDiff(item)
+        if (info && info.diff !== 0 && linkAdjust[item.sno] && !info.overDelivered) {
+          const { error: adjErr } = await supabase.from('material_ledger_entries').insert({
+            material_id: selectedMaterial.id,
+            name_or_spec: spec,
+            order_qty: info.diff,
+            created_by: user?.id,
+            dlvr_req_no: linkResult.dlvrReqNo,
+            dlvr_req_prdct_sno: item.sno,
+          })
+          if (adjErr) throw adjErr
+        }
+      }
+
+      const { error: matErr } = await supabase.from('materials')
+        .update({ dlvr_req_no: linkResult.dlvrReqNo, dlvr_req_synced_at: new Date().toISOString() })
+        .eq('id', selectedMaterial.id)
+      if (matErr) throw matErr
+
+      setIsLinkModalOpen(false)
+      await loadData()
+    } catch (err: unknown) {
+      console.error('조달청 연계 실패:', err)
+      alert('연계 적용에 실패했습니다.')
+    } finally {
+      setLinkApplying(false)
     }
   }
 
@@ -1227,6 +1385,20 @@ export default function MaterialLedgerPage() {
                   </>
                 ) : (
                   <>
+                    <button
+                      onClick={openLinkModal}
+                      className="p-2 rounded transition-all hover:scale-105"
+                      style={{
+                        background: selectedMaterial.dlvrReqNo
+                          ? 'linear-gradient(180deg, #1a3a5a 0%, #0a2038 100%)'
+                          : 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
+                        border: selectedMaterial.dlvrReqNo ? '2px solid #2a5a8a' : '2px solid #4a4a55',
+                        color: selectedMaterial.dlvrReqNo ? '#7ec8ff' : '#a8a8b0'
+                      }}
+                      title={selectedMaterial.dlvrReqNo ? `조달청 동기화 (${selectedMaterial.dlvrReqNo})` : '조달청 납품요구 연계'}
+                    >
+                      <Link2 className="h-5 w-5" />
+                    </button>
                     <button
                       onClick={openMaterialEditModal}
                       className="p-2 rounded transition-all hover:scale-105"
@@ -2497,6 +2669,198 @@ export default function MaterialLedgerPage() {
 
             {/* 하단 금속 테두리 */}
             <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
+              boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
+            }} />
+          </div>
+        </div>
+      )}
+
+      {/* 조달청 연계/동기화 모달 */}
+      {isLinkModalOpen && selectedMaterial && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => { if (!linkApplying) setIsLinkModalOpen(false) }}>
+          <div
+            className="max-w-md w-full rounded-lg overflow-hidden max-h-[90vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 50%, #12121a 100%)',
+              border: '3px solid #4a3a28',
+              boxShadow: 'inset 0 0 40px rgba(0,0,0,0.8), 0 10px 40px rgba(0,0,0,0.9), 0 0 60px rgba(0,0,0,0.5)'
+            }}
+          >
+            <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900 flex-shrink-0" style={{
+              boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
+            }} />
+
+            {/* 헤더 */}
+            <div className="flex items-center justify-between px-5 py-3 flex-shrink-0" style={{
+              background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)',
+              borderBottom: '2px solid #5a4a35'
+            }}>
+              <h3 className="text-base font-bold text-amber-100" style={{ fontFamily: 'serif', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                ⚔ 조달청 납품요구 연계
+              </h3>
+              <button
+                onClick={() => { if (!linkApplying) setIsLinkModalOpen(false) }}
+                className="p-1 text-amber-200/50 hover:text-amber-200 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* 본문 */}
+            <div className="px-5 py-4 space-y-4 overflow-y-auto">
+              <div>
+                <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                  납품요구번호
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={linkNo}
+                    onChange={e => setLinkNo(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleLinkLookup() }}
+                    placeholder="예: R25TB00824197"
+                    className="flex-1 min-w-0 px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                    style={{
+                      background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                      border: '2px solid #4a4a55',
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleLinkLookup()}
+                    disabled={linkLoading || !linkNo.trim()}
+                    className="px-4 py-2 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 shrink-0"
+                    style={{
+                      background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
+                      border: '2px solid #6a5a40',
+                      borderRadius: '6px',
+                      color: '#f5d78e',
+                      fontFamily: 'serif'
+                    }}
+                  >
+                    {linkLoading ? '조회중…' : '조회'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-amber-200/40 mt-2">
+                  조달청 품목과 이 자재의 규격을 연결하고, 발주량이 다르면 증감 행으로 보정합니다. 기존 수불 기록은 변경되지 않습니다.
+                </p>
+                {linkError && (
+                  <p className="text-xs text-red-400 mt-2">{linkError}</p>
+                )}
+              </div>
+
+              {linkResult && (
+                <div className="rounded p-3" style={{
+                  background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                  border: '2px solid #4a4a55',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                }}>
+                  <p className="text-sm text-amber-100 font-medium break-all">{linkResult.title}</p>
+                  <p className="text-[11px] text-amber-200/50 mt-0.5">
+                    {linkResult.demandOrg} → {linkResult.supplier}
+                  </p>
+
+                  <div className="mt-3 space-y-3">
+                    {linkResult.items.map(item => (
+                      <div key={item.sno} className="rounded p-2.5" style={{ border: '1px solid #3a3a45', background: 'rgba(0,0,0,0.25)' }}>
+                        <p className="text-xs text-amber-100 break-all">{item.spec || item.name}</p>
+                        <p className="text-[11px] text-amber-200/50 mt-0.5">
+                          조달청 발주량 {formatNumber(String(item.qty))} {item.unit}
+                          {item.deadline ? ` · 납품기한 ${item.deadline}` : ''}
+                        </p>
+                        <select
+                          value={linkMapping[item.sno] ?? ''}
+                          onChange={e => setLinkMapping(prev => ({ ...prev, [item.sno]: e.target.value }))}
+                          className="w-full mt-2 px-2 py-1.5 rounded text-xs text-amber-100"
+                          style={{
+                            background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                            border: '1px solid #4a4a55'
+                          }}
+                        >
+                          <option value="">연결 안 함</option>
+                          {getSpecList(selectedMaterial).map(spec => (
+                            <option key={spec} value={spec}>{spec}</option>
+                          ))}
+                          <option value={NEW_SPEC}>+ 새 규격 행으로 추가</option>
+                        </select>
+                        {(() => {
+                          const spec = linkMapping[item.sno]
+                          if (!spec) return <p className="text-[11px] text-amber-200/40 mt-1.5">이 품목은 원장에 반영하지 않습니다.</p>
+                          if (spec === NEW_SPEC) return <p className="text-[11px] text-sky-300/80 mt-1.5">발주량 {formatNumber(String(item.qty))} {item.unit}의 새 규격 행이 추가됩니다.</p>
+                          const info = getLinkDiff(item)
+                          if (!info) return null
+                          if (info.diff === 0) return <p className="text-[11px] text-green-400/90 mt-1.5">✓ 발주량 일치 ({formatNumber(String(info.ledgerQty))})</p>
+                          return (
+                            <div className="mt-1.5">
+                              <p className="text-[11px] text-amber-300">
+                                발주량 차이 — 원장 {formatNumber(String(info.ledgerQty))} → 조달청 {formatNumber(String(item.qty))} ({info.diff > 0 ? '+' : ''}{formatNumber(String(info.diff))})
+                              </p>
+                              {info.overDelivered ? (
+                                <p className="text-[11px] text-red-400 mt-1">합격 누계가 조달청 수량을 초과한 상태라 자동 보정하지 않습니다. 현장 확인이 필요합니다.</p>
+                              ) : (
+                                <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={linkAdjust[item.sno] ?? true}
+                                    onChange={e => setLinkAdjust(prev => ({ ...prev, [item.sno]: e.target.checked }))}
+                                    className="accent-amber-600"
+                                  />
+                                  <span className="text-[11px] text-amber-100">
+                                    증감 행({info.diff > 0 ? '+' : ''}{formatNumber(String(info.diff))})을 추가해 조달청 기준으로 보정
+                                  </span>
+                                </label>
+                              )}
+                            </div>
+                          )
+                        })()}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 하단 버튼 */}
+            <div className="flex gap-3 px-5 py-4 flex-shrink-0" style={{
+              background: 'linear-gradient(180deg, #2a2520 0%, #1a1510 100%)',
+              borderTop: '2px solid #5a4a35'
+            }}>
+              <button
+                onClick={() => setIsLinkModalOpen(false)}
+                disabled={linkApplying}
+                className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50"
+                style={{
+                  background: 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
+                  border: '2px solid #4a4a55',
+                  borderRadius: '6px',
+                  color: '#a8a8b0',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)'
+                }}
+              >
+                취소
+              </button>
+              <button
+                onClick={handleApplyLink}
+                disabled={!linkResult || linkApplying}
+                className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                style={{
+                  background: linkResult
+                    ? 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)'
+                    : 'linear-gradient(180deg, #3a3a40 0%, #25252a 100%)',
+                  border: '2px solid #6a5a40',
+                  borderRadius: '6px',
+                  color: '#f5d78e',
+                  boxShadow: linkResult ? '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)' : 'none',
+                  fontFamily: 'serif'
+                }}
+              >
+                ⚔ {linkApplying ? '적용중…' : '연계 적용'}
+              </button>
+            </div>
+
+            <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900 flex-shrink-0" style={{
               boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
             }} />
           </div>
