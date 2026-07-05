@@ -63,6 +63,25 @@ interface RowFormData {
   releaseQty: string
 }
 
+// 조달청 납품요구 조회 결과 (자재 등록 모달 — 납품요구번호 입력 방식)
+interface G2bItem {
+  sno: number
+  name: string
+  spec: string
+  unit: string
+  unitPrice: number
+  qty: number
+  deadline: string
+}
+
+interface G2bDlvrReq {
+  dlvrReqNo: string
+  title: string
+  demandOrg: string
+  supplier: string
+  items: G2bItem[]
+}
+
 // ── 유틸 ──
 
 // 숫자에 1000단위 콤마 포맷
@@ -137,6 +156,14 @@ export default function MaterialLedgerPage() {
   // 자재 등록 모달
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false)
   const [materialForm, setMaterialForm] = useState<{ name: string; unit: string; colorIndex: number }>({ name: '', unit: '', colorIndex: 0 })
+
+  // 자재 등록 모달 — 입력 방식 (직접 입력 / 납품요구번호)
+  const [materialInputMode, setMaterialInputMode] = useState<'manual' | 'g2b'>('manual')
+  const [g2bNo, setG2bNo] = useState('')
+  const [g2bLoading, setG2bLoading] = useState(false)
+  const [g2bError, setG2bError] = useState('')
+  const [g2bResult, setG2bResult] = useState<G2bDlvrReq | null>(null)
+  const [g2bChecked, setG2bChecked] = useState<Set<number>>(new Set())
 
   // 내역 등록/수정 모달
   const [isRowModalOpen, setIsRowModalOpen] = useState(false)
@@ -298,6 +325,16 @@ export default function MaterialLedgerPage() {
 
   // ── 자재 CRUD ──
 
+  const openMaterialModal = () => {
+    setMaterialForm({ name: '', unit: '', colorIndex: Math.floor(Math.random() * gemPalette.length) })
+    setMaterialInputMode('manual')
+    setG2bNo('')
+    setG2bError('')
+    setG2bResult(null)
+    setG2bChecked(new Set())
+    setIsMaterialModalOpen(true)
+  }
+
   const handleAddMaterial = async () => {
     if (!materialForm.name.trim()) return
     try {
@@ -328,6 +365,86 @@ export default function MaterialLedgerPage() {
       setIsMaterialModalOpen(false)
     } catch (err: any) {
       console.error('자재 등록 실패:', err)
+      alert('자재 등록에 실패했습니다.')
+    }
+  }
+
+  // ── 납품요구번호 조회 → 자재 + 발주 행 생성 ──
+
+  const handleG2bLookup = async () => {
+    const no = g2bNo.trim()
+    if (!no || g2bLoading) return
+    setG2bLoading(true)
+    setG2bError('')
+    setG2bResult(null)
+    try {
+      const res = await fetch(`/api/g2b/dlvr-req?no=${encodeURIComponent(no)}`)
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error || '조회에 실패했습니다.')
+      const result: G2bDlvrReq = json.data
+      setG2bResult(result)
+      // 유효 수량이 남아있는 품목만 기본 선택 (전량 취소 품목 제외)
+      setG2bChecked(new Set(result.items.filter(i => i.qty > 0).map(i => i.sno)))
+    } catch (err: unknown) {
+      setG2bError(err instanceof Error ? err.message : '조회에 실패했습니다.')
+    } finally {
+      setG2bLoading(false)
+    }
+  }
+
+  const handleAddMaterialFromG2b = async () => {
+    if (!g2bResult) return
+    const selected = g2bResult.items.filter(i => g2bChecked.has(i.sno))
+    if (selected.length === 0) return
+    try {
+      const realOrder = materials.length + 1
+      const encodedSortOrder = (materialForm.colorIndex + 1) * 1000 + realOrder
+      const { data, error: insertError } = await supabase
+        .from('materials')
+        .insert({
+          project_id: projectId,
+          name: selected[0].name || g2bResult.title,
+          unit: selected[0].unit || null,
+          created_by: user?.id,
+          sort_order: encodedSortOrder,
+        })
+        .select()
+        .single()
+      if (insertError) throw insertError
+
+      // 품목별 발주 행 생성 — 규격·발주량만 채우고 반입/검수/불출은 현장 입력
+      const { data: rowsData, error: rowsError } = await supabase
+        .from('material_ledger_entries')
+        .insert(selected.map(i => ({
+          material_id: data.id,
+          name_or_spec: i.spec || i.name,
+          order_qty: i.qty || null,
+          created_by: user?.id,
+        })))
+        .select()
+      if (rowsError) throw rowsError
+
+      const newRows: MaterialRow[] = (rowsData || []).map((e: { id: string; name_or_spec: string | null; order_qty: number | null }) => ({
+        id: e.id,
+        nameOrSpec: e.name_or_spec || '',
+        orderQty: e.order_qty != null ? String(e.order_qty) : '',
+        receiveDate: '', receiveQty: '', passQtyCurrent: '', passQtyTotal: '',
+        failQty: '', action: '', releaseDate: '', releaseQty: '', remainQty: '',
+        supervisorConfirm: '',
+      }))
+
+      setMaterials(prev => [...prev, {
+        id: data.id,
+        name: data.name,
+        unit: data.unit || '',
+        rows: newRows,
+        sortOrder: data.sort_order,
+        colorIndex: materialForm.colorIndex,
+        realOrder
+      }])
+      setIsMaterialModalOpen(false)
+    } catch (err: unknown) {
+      console.error('납품요구 자재 등록 실패:', err)
       alert('자재 등록에 실패했습니다.')
     }
   }
@@ -1905,7 +2022,7 @@ export default function MaterialLedgerPage() {
                   </div>
                   <p className="text-amber-200/50 mb-6" style={{ fontFamily: 'serif' }}>보관창이 비어있습니다</p>
                   <button
-                    onClick={() => { setMaterialForm({ name: '', unit: '', colorIndex: Math.floor(Math.random() * gemPalette.length) }); setIsMaterialModalOpen(true) }}
+                    onClick={openMaterialModal}
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-amber-100 font-medium transition-all hover:scale-105"
                     style={{
                       background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
@@ -1995,7 +2112,7 @@ export default function MaterialLedgerPage() {
 
                   {/* 자재 추가 슬롯 */}
                   <button
-                    onClick={() => { setMaterialForm({ name: '', unit: '', colorIndex: Math.floor(Math.random() * gemPalette.length) }); setIsMaterialModalOpen(true) }}
+                    onClick={openMaterialModal}
                     className="w-full aspect-square rounded transition-all duration-200 hover:scale-105 group"
                     style={{
                       background: 'linear-gradient(180deg, #2a2a32 0%, #1a1a22 100%)',
@@ -2082,7 +2199,117 @@ export default function MaterialLedgerPage() {
 
             {/* 본문 */}
             <div className="px-5 py-4 space-y-4">
+              {/* 입력 방식 선택 */}
+              <div className="grid grid-cols-2 gap-2">
+                {([['manual', '직접 입력'], ['g2b', '납품요구번호']] as const).map(([mode, label]) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setMaterialInputMode(mode)}
+                    className="px-3 py-2 text-sm font-medium transition-all duration-200"
+                    style={{
+                      background: materialInputMode === mode
+                        ? 'linear-gradient(180deg, #8b0000 0%, #5a0000 100%)'
+                        : 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
+                      border: materialInputMode === mode ? '1px solid #aa2020' : '1px solid #4a4a55',
+                      borderRadius: '6px',
+                      color: materialInputMode === mode ? '#fca5a5' : '#a8a8b0',
+                      boxShadow: materialInputMode === mode ? '0 0 10px rgba(139,0,0,0.5)' : 'none',
+                      fontFamily: 'serif'
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
+
+              {/* 납품요구번호 조회 */}
+              {materialInputMode === 'g2b' && (
+                <div>
+                  <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                    납품요구번호 <span className="text-amber-200/60 text-xs ml-1">(나라장터 종합쇼핑몰)</span>
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={g2bNo}
+                      onChange={e => setG2bNo(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleG2bLookup() }}
+                      placeholder="예: R25TB00824197"
+                      className="flex-1 min-w-0 px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                      style={{
+                        background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                        border: '2px solid #4a4a55',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                      }}
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleG2bLookup}
+                      disabled={g2bLoading || !g2bNo.trim()}
+                      className="px-4 py-2 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 shrink-0"
+                      style={{
+                        background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
+                        border: '2px solid #6a5a40',
+                        borderRadius: '6px',
+                        color: '#f5d78e',
+                        fontFamily: 'serif'
+                      }}
+                    >
+                      {g2bLoading ? '조회중…' : '조회'}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-amber-200/40 mt-2">
+                    조달청 납품요구 내역을 불러와 품명·규격·발주량을 자동 입력합니다. 전일까지 결재된 건만 조회됩니다.
+                  </p>
+                  {g2bError && (
+                    <p className="text-xs text-red-400 mt-2">{g2bError}</p>
+                  )}
+                  {g2bResult && (
+                    <div className="mt-3 rounded p-3" style={{
+                      background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                      border: '2px solid #4a4a55',
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                    }}>
+                      <p className="text-sm text-amber-100 font-medium break-all">{g2bResult.title}</p>
+                      <p className="text-[11px] text-amber-200/50 mt-0.5">
+                        {g2bResult.demandOrg} → {g2bResult.supplier}
+                      </p>
+                      <div className="mt-2 space-y-2 max-h-44 overflow-y-auto">
+                        {g2bResult.items.map(item => (
+                          <label key={item.sno} className="flex items-start gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={g2bChecked.has(item.sno)}
+                              onChange={() => setG2bChecked(prev => {
+                                const next = new Set(prev)
+                                if (next.has(item.sno)) next.delete(item.sno)
+                                else next.add(item.sno)
+                                return next
+                              })}
+                              className="mt-0.5 accent-amber-600 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-xs text-amber-100 break-all">{item.spec || item.name}</p>
+                              <p className="text-[11px] text-amber-200/50">
+                                발주량 {formatNumber(String(item.qty))} {item.unit}
+                                {item.deadline ? ` · 납품기한 ${item.deadline}` : ''}
+                                {item.qty <= 0 ? ' · 전량 취소됨' : ''}
+                              </p>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 자재명 입력 */}
+              {materialInputMode === 'manual' && (
               <div>
                 <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
                   자재명 <span className="text-amber-200/60 text-xs ml-1">(의무사항)</span>
@@ -2123,10 +2350,10 @@ export default function MaterialLedgerPage() {
                 </div>
               </div>
 
-              {/* 구분선 */}
-              <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
+              )}
 
               {/* 단위 입력 */}
+              {materialInputMode === 'manual' && (
               <div>
                 <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
                   단위 <span className="text-amber-200/60 text-xs ml-1">(의무사항)</span>
@@ -2165,6 +2392,7 @@ export default function MaterialLedgerPage() {
                   ))}
                 </div>
               </div>
+              )}
 
               <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
 
@@ -2231,21 +2459,21 @@ export default function MaterialLedgerPage() {
                 취소
               </button>
               <button
-                onClick={handleAddMaterial}
-                disabled={!materialForm.name.trim()}
+                onClick={materialInputMode === 'manual' ? handleAddMaterial : handleAddMaterialFromG2b}
+                disabled={materialInputMode === 'manual' ? !materialForm.name.trim() : (!g2bResult || g2bChecked.size === 0)}
                 className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
                 style={{
-                  background: materialForm.name.trim()
+                  background: (materialInputMode === 'manual' ? !!materialForm.name.trim() : !!(g2bResult && g2bChecked.size > 0))
                     ? 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)'
                     : 'linear-gradient(180deg, #3a3a40 0%, #25252a 100%)',
                   border: '2px solid #6a5a40',
                   borderRadius: '6px',
                   color: '#f5d78e',
-                  boxShadow: materialForm.name.trim() ? '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)' : 'none',
+                  boxShadow: (materialInputMode === 'manual' ? !!materialForm.name.trim() : !!(g2bResult && g2bChecked.size > 0)) ? '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)' : 'none',
                   fontFamily: 'serif'
                 }}
               >
-                ⚔ 등록
+                ⚔ {materialInputMode === 'manual' ? '등록' : '선택 품목 등록'}
               </button>
             </div>
 
