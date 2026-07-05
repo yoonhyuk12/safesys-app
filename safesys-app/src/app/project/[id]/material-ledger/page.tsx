@@ -407,6 +407,8 @@ export default function MaterialLedgerPage() {
           unit: selected[0].unit || null,
           created_by: user?.id,
           sort_order: encodedSortOrder,
+          dlvr_req_no: g2bResult.dlvrReqNo,
+          dlvr_req_synced_at: new Date().toISOString(),
         })
         .select()
         .single()
@@ -420,6 +422,8 @@ export default function MaterialLedgerPage() {
           name_or_spec: i.spec || i.name,
           order_qty: i.qty || null,
           created_by: user?.id,
+          dlvr_req_no: g2bResult.dlvrReqNo,
+          dlvr_req_prdct_sno: i.sno,
         })))
         .select()
       if (rowsError) throw rowsError
