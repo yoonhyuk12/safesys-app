@@ -1898,6 +1898,23 @@ export default function MaterialLedgerPage() {
                 {/* 품명 또는 규격 */}
                 <div>
                   <label className="block text-sm font-medium text-amber-100 mb-1" style={{ fontFamily: 'serif' }}>품명 또는 규격</label>
+                  {getSpecList(selectedMaterial!).length > 0 && (
+                    <select
+                      value={getSpecList(selectedMaterial!).includes(rowForm.nameOrSpec) ? rowForm.nameOrSpec : ''}
+                      onChange={e => { if (e.target.value) handleNameOrSpecChange(e.target.value) }}
+                      className="w-full mb-2 px-2 py-2 rounded text-xs text-amber-100"
+                      style={{
+                        backgroundColor: '#1f1f28',
+                        border: '1px solid #6a5a40',
+                        colorScheme: 'dark'
+                      }}
+                    >
+                      <option value="" style={{ backgroundColor: '#1a1a22', color: '#a8a8b0' }}>등록된 품명/규격에서 선택…</option>
+                      {getSpecList(selectedMaterial!).map(spec => (
+                        <option key={spec} value={spec} style={{ backgroundColor: '#1a1a22', color: '#e8dcc0' }}>{spec.replace(/\n/g, ' ')}</option>
+                      ))}
+                    </select>
+                  )}
                   <textarea
                     rows={2}
                     value={rowForm.nameOrSpec}
