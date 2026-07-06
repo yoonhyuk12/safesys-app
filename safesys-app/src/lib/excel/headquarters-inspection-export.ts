@@ -88,6 +88,12 @@ interface ChecklistItem {
   remarks?: string
 }
 
+// '해당없음' 판정: status는 good이지만 점검결과 텍스트가 '해당(사항|작업) 없음' 계열이면 해당없음으로 분류
+function isNaRemarks(remarks?: string): boolean {
+  const normalized = (remarks || '').replace(/\s+/g, '')
+  return /해당(사항|작업)?없음/.test(normalized)
+}
+
 // 지구명: 사업명의 공백 기준 첫 단어, 공백이 없으면 앞 3글자
 function districtNameFrom(projectName: string): string {
   const name = (projectName || '').trim()
@@ -206,7 +212,7 @@ export function downloadHeadquartersInspectionExcel(
   worksheet.getColumn(COL_YEO_SUM).width = 6
   worksheet.getColumn(COL_BU_SUM).width = 6
   worksheet.getColumn(COL_NA_SUM).width = 8
-  worksheet.getColumn(COL_REMARK).width = 18
+  worksheet.getColumn(COL_REMARK).width = 30 // '부' 항목 점검결과 텍스트 수용
 
   // ===== 제목 (R2) =====
   worksheet.mergeCells(2, COL_HQ, 2, COL_DATE)
@@ -297,13 +303,22 @@ export function downloadHeadquartersInspectionExcel(
     if (underConstruction && !insp) flaggedRows.add(r)
 
     // 점검 이력이 있을 때만 마크
+    const badTexts: string[] = [] // '부' 항목의 점검결과 텍스트 → 비고에 수집
     if (insp) {
       for (let k = 0; k < ITEM_COUNT; k++) {
         const item = items[k]
         if (!item) continue // 항목 누락 시 공백 유지
-        if (item.status === 'good') row.getCell(yeoCol(k)).value = 'O'
-        else if (item.status === 'bad') row.getCell(buCol(k)).value = 'O'
-        else row.getCell(naCol(k)).value = 'O' // 미선택 → 해당없음
+        if (item.status === 'good') {
+          // '여'라도 점검결과가 '해당없음' 계열이면 해당없음으로 분류
+          if (isNaRemarks(item.remarks)) row.getCell(naCol(k)).value = 'O'
+          else row.getCell(yeoCol(k)).value = 'O'
+        } else if (item.status === 'bad') {
+          row.getCell(buCol(k)).value = 'O'
+          const text = (item.remarks || '').trim()
+          if (text) badTexts.push(text)
+        } else {
+          row.getCell(naCol(k)).value = 'O' // 미선택 → 해당없음
+        }
       }
     }
 
@@ -318,7 +333,7 @@ export function downloadHeadquartersInspectionExcel(
     const bb = colLetter(COL_YEO_SUM)
     const bd = colLetter(COL_NA_SUM)
     row.getCell(COL_SUBTOTAL).value = { formula: `SUM(${bb}${r}:${bd}${r})` }
-    row.getCell(COL_REMARK).value = ''
+    row.getCell(COL_REMARK).value = badTexts.join('\n')
   })
 
   // ===== 계 행 (R7) =====
@@ -406,8 +421,8 @@ export function downloadHeadquartersInspectionExcel(
       else if (c >= COL_SUBTOTAL && c <= COL_NA_SUM) cell.fill = GRAY_FILL // 조치결과
       else if (c === COL_DATE) cell.fill = WHITE_FILL                     // 점검일
       cell.border = allBorder
-      // 좌측 텍스트열은 좌측정렬, 나머지(마크/집계)는 가운데
-      const isTextCol = c === COL_PROJECT || c === COL_UNIT
+      // 좌측 텍스트열·비고는 좌측정렬, 나머지(마크/집계)는 가운데
+      const isTextCol = c === COL_PROJECT || c === COL_UNIT || c === COL_REMARK
       cell.alignment = {
         horizontal: isTextCol ? 'left' : 'center',
         vertical: 'middle',
