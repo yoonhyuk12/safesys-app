@@ -105,17 +105,29 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 조회 시도 순서: 확정계약번호 → 공고번호(입력 그대로) → 구형 공고번호 정규화
+    // 조회 시도 순서: 확정계약번호 → 공고번호(입력 그대로) → '번호-차수' 결합 정규화
     const attempts: { param: 'dcsnCntrctNo' | 'ntceNo'; value: string; matchedBy: 'cntrct' | 'ntce' }[] = [
       { param: 'dcsnCntrctNo', value: no, matchedBy: 'cntrct' },
       { param: 'ntceNo', value: no, matchedBy: 'ntce' },
     ]
-    // 구 나라장터 공고번호(숫자 11자리 [-차수])는 '번호+차수2자리'로 저장됨 (2026-07-06 실호출 확인)
-    // 예: 입력 "20221008901-000" → 저장값 "2022100890100"
-    const legacy = no.match(/^(\d{11})(?:-(\d{1,3}))?$/)
+    // 나라장터 화면의 '번호-차수' 표기는 API에 '번호+차수2자리' 결합값으로 저장됨 (2026-07-06 실호출 확인)
+    // 예: 공고번호 "20221008901-000" → "2022100890100", 계약번호 "R26TA01377926-01" → "R26TA0137792601"
+    // 결합값이 다른 계약의 번호와 우연히 겹칠 수 있어 표기 관례대로 시도 순서를 정한다
+    // — 숫자만(구형 표기)은 공고번호 관례라 ntceNo 먼저, 문자 포함(차세대)은 dcsnCntrctNo 먼저
+    const dashed = no.match(/^([A-Z0-9]+)-(\d{1,3})$/)
+    if (dashed) {
+      const joined = `${dashed[1]}${String(Number(dashed[2])).padStart(2, '0')}`
+      const joinedAttempts: typeof attempts = [
+        { param: 'dcsnCntrctNo', value: joined, matchedBy: 'cntrct' },
+        { param: 'ntceNo', value: joined, matchedBy: 'ntce' },
+      ]
+      if (/^\d+$/.test(dashed[1])) joinedAttempts.reverse()
+      attempts.push(...joinedAttempts)
+    }
+    // 구형 공고번호(숫자 11자리)는 차수 없이 입력해도 '+00'을 붙여 재시도
+    const legacy = no.match(/^(\d{11})$/)
     if (legacy) {
-      const ord = String(Number(legacy[2] || '0')).padStart(2, '0')
-      attempts.push({ param: 'ntceNo', value: `${legacy[1]}${ord}`, matchedBy: 'ntce' })
+      attempts.push({ param: 'ntceNo', value: `${legacy[1]}00`, matchedBy: 'ntce' })
     }
 
     let matchedBy: 'cntrct' | 'ntce' = 'cntrct'
