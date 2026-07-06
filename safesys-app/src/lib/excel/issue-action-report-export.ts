@@ -65,15 +65,19 @@ async function addPhotoInArea(
   const imageId = wb.addImage({ base64: imgData.base64, extension: imgData.extension })
   const areaCols = 6 // C~H
   const colPx = 11 * 7.5 // 열 폭 11 ≈ 82.5px
-  const maxW = areaCols * colPx - 12
-  const maxH = photoRows * rowHeightPt * (4 / 3) - 8 // pt → px
+  const rowPx = rowHeightPt * (4 / 3) // pt → px
+  const areaW = areaCols * colPx
+  const areaH = photoRows * rowPx
+  const maxW = areaW - 12
+  const maxH = areaH - 8
   const scale = Math.min(maxW / imgData.width, maxH / imgData.height)
   const w = imgData.width * scale
   const h = imgData.height * scale
+  // 영역 정중앙 배치: 남는 픽셀의 절반을 열/행 단위로 환산해 오프셋
   ws.addImage(imageId, {
     tl: {
-      col: 2 + (areaCols * (1 - w / maxW)) / 2,
-      row: startRow - 1 + (photoRows * (1 - h / maxH)) / 2,
+      col: 2 + (areaW - w) / 2 / colPx,
+      row: startRow - 1 + (areaH - h) / 2 / rowPx,
     },
     ext: { width: w, height: h },
     editAs: 'absolute',
@@ -89,6 +93,7 @@ export async function downloadIssueActionReportExcel(data: IssueActionReportData
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 1,
+      horizontalCentered: true,
       margins: { left: 0.7, right: 0.7, top: 0.75, bottom: 0.75, header: 0.3, footer: 0.3 },
     },
   })

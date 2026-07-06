@@ -66,6 +66,18 @@ const isRealFinding = (r: { photo_url?: string | null; findings?: string | null 
 const isNaValue = (v: string | null): boolean => v === 'N/A' || v === '해당 사항 없음'
 const isResolved = (issue: LedgerIssue): boolean => !!issue.afterPhotoUrl
 
+// 조치사진 파일명의 Date.now() 타임스탬프에서 업로드(조치완료) 날짜 추출
+const extractUploadDate = (url: string | null): string | null => {
+  if (!url || !url.startsWith('http')) return null
+  const name = url.split('/').pop() || ''
+  const m = name.match(/(\d{13})/)
+  if (!m) return null
+  const d = new Date(parseInt(m[1], 10))
+  if (isNaN(d.getTime())) return null
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 const SPECIAL_TYPE = '특별점검(안전혁신건설-287)'
 const sourceShort = (t: string): string => (t === SPECIAL_TYPE ? '특별점검' : t)
 
@@ -522,7 +534,9 @@ export default function IssueManagementPage() {
         contractor: issue.contractor || projectContractor,
         inspectorName: issue.inspectorName,
         inspectionDate: issue.inspectionDate,
-        actionDate: issue.actionDate,
+        actionDate:
+          issue.actionDate ||
+          (isNaValue(issue.afterPhotoUrl) ? null : extractUploadDate(issue.afterPhotoUrl)),
         location: issue.location,
         findingText: issue.findingText,
         actionText: issue.actionText,
