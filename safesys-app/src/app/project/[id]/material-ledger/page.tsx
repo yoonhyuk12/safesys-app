@@ -34,6 +34,9 @@ interface Material {
   colorIndex?: number
   realOrder?: number
   dlvrReqNo?: string | null
+  dlvrSupplier?: string | null
+  dlvrSupplierTel?: string | null
+  dlvrDeadline?: string | null
 }
 
 interface MaterialRow {
@@ -203,7 +206,7 @@ export default function MaterialLedgerPage() {
 
   // 자재명/규격 수정 모달
   const [isMaterialEditModalOpen, setIsMaterialEditModalOpen] = useState(false)
-  const [materialEditForm, setMaterialEditForm] = useState<{ name: string; unit: string; colorIndex: number }>({ name: '', unit: '', colorIndex: 0 })
+  const [materialEditForm, setMaterialEditForm] = useState<{ name: string; unit: string; colorIndex: number; supplier: string; supplierTel: string; deadline: string }>({ name: '', unit: '', colorIndex: 0, supplier: '', supplierTel: '', deadline: '' })
 
   // 감독 서명 모드
   const [signatureMode, setSignatureMode] = useState(false)
@@ -229,6 +232,52 @@ export default function MaterialLedgerPage() {
       loadData()
     }
   }, [user, projectId])
+
+  // 납품요구번호가 연계된 자재 상세 진입 시 조달청을 자동 조회해 계약(발주량·납품기한) 변경 확인.
+  // 같으면 조용히 넘어가고, 다르면 팝업으로 알린 뒤 연계 화면으로 유도. 세션당 자재별 1회만 확인.
+  const g2bAutoChecked = useRef<Set<string>>(new Set())
+  useEffect(() => {
+    const mat = materials.find(m => m.id === selectedMaterialId)
+    if (!mat?.dlvrReqNo || g2bAutoChecked.current.has(mat.id)) return
+    g2bAutoChecked.current.add(mat.id)
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/g2b/dlvr-req?no=${encodeURIComponent(mat.dlvrReqNo!)}`)
+        const json = await res.json()
+        if (!res.ok || !json.success) return
+        const result: G2bDlvrReq = json.data
+        const diffs: string[] = []
+        for (const item of result.items) {
+          // 연계된 행(번호+품목순번) 우선, 없으면 규격 문자열로 매칭
+          const linkedRow = mat.rows.find(r => r.dlvrReqNo === result.dlvrReqNo && r.dlvrReqPrdctSno === item.sno)
+          const spec = linkedRow?.nameOrSpec
+            || getSpecList(mat).find(s => s === formatG2bSpec(item) || s === item.spec)
+            || ''
+          if (!spec) continue
+          const matching = mat.rows.filter(r => r.nameOrSpec === spec)
+          if (matching.length === 0) continue
+          const ledgerQty = calcEffectiveOrderQty(matching)
+          const diff = Math.round((item.qty - ledgerQty) * 1000) / 1000
+          if (diff !== 0) {
+            diffs.push(`· ${item.name} 발주량: 원장 ${ledgerQty} → 조달청 ${item.qty} (${diff > 0 ? '+' : ''}${diff})`)
+          }
+        }
+        const apiDeadline = result.items.reduce((mx, i) => (i.deadline > mx ? i.deadline : mx), '')
+        if (mat.dlvrDeadline && apiDeadline && mat.dlvrDeadline !== apiDeadline) {
+          diffs.push(`· 납품기한: ${mat.dlvrDeadline} → ${apiDeadline}`)
+        }
+        if (diffs.length > 0) {
+          const go = confirm(
+            `조달청 납품요구(${result.dlvrReqNo}) 변경이 감지되었습니다.\n\n${diffs.join('\n')}\n\n연계 화면에서 확인하고 보정하시겠습니까?`
+          )
+          if (go) openLinkModal()
+        }
+      } catch {
+        // 자동 확인 실패는 업무를 막지 않도록 조용히 무시
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMaterialId, materials])
 
   const loadData = async () => {
     try {
@@ -273,7 +322,10 @@ export default function MaterialLedgerPage() {
           sortOrder: val,
           colorIndex,
           realOrder,
-          dlvrReqNo: m.dlvr_req_no || null
+          dlvrReqNo: m.dlvr_req_no || null,
+          dlvrSupplier: m.dlvr_supplier || null,
+          dlvrSupplierTel: m.dlvr_supplier_tel || null,
+          dlvrDeadline: m.dlvr_deadline || null
         }
       })
       matList.sort((a: any, b: any) => (a.realOrder || 0) - (b.realOrder || 0))
@@ -433,6 +485,7 @@ export default function MaterialLedgerPage() {
     try {
       const realOrder = materials.length + 1
       const encodedSortOrder = (materialForm.colorIndex + 1) * 1000 + realOrder
+      const maxDeadline = selected.reduce((mx, i) => (i.deadline > mx ? i.deadline : mx), '')
       const { data, error: insertError } = await supabase
         .from('materials')
         .insert({
@@ -443,6 +496,8 @@ export default function MaterialLedgerPage() {
           sort_order: encodedSortOrder,
           dlvr_req_no: g2bResult.dlvrReqNo,
           dlvr_req_synced_at: new Date().toISOString(),
+          dlvr_supplier: g2bResult.supplier || null,
+          dlvr_deadline: maxDeadline || null,
         })
         .select()
         .single()
@@ -481,7 +536,10 @@ export default function MaterialLedgerPage() {
         sortOrder: data.sort_order,
         colorIndex: materialForm.colorIndex,
         realOrder,
-        dlvrReqNo: data.dlvr_req_no || null
+        dlvrReqNo: data.dlvr_req_no || null,
+        dlvrSupplier: data.dlvr_supplier || null,
+        dlvrSupplierTel: data.dlvr_supplier_tel || null,
+        dlvrDeadline: data.dlvr_deadline || null
       }])
       setIsMaterialModalOpen(false)
     } catch (err: unknown) {
@@ -644,8 +702,14 @@ export default function MaterialLedgerPage() {
         }
       }
 
+      const maxDeadline = linkResult.items.reduce((mx, i) => (i.deadline > mx ? i.deadline : mx), '')
       const { error: matErr } = await supabase.from('materials')
-        .update({ dlvr_req_no: linkResult.dlvrReqNo, dlvr_req_synced_at: new Date().toISOString() })
+        .update({
+          dlvr_req_no: linkResult.dlvrReqNo,
+          dlvr_req_synced_at: new Date().toISOString(),
+          dlvr_supplier: linkResult.supplier || null,
+          dlvr_deadline: maxDeadline || null,
+        })
         .in('id', Array.from(linkedMatIds))
       if (matErr) throw matErr
 
@@ -692,7 +756,10 @@ export default function MaterialLedgerPage() {
     setMaterialEditForm({
       name: selMat.name,
       unit: selMat.unit,
-      colorIndex: selMat.colorIndex !== undefined ? selMat.colorIndex : 0
+      colorIndex: selMat.colorIndex !== undefined ? selMat.colorIndex : 0,
+      supplier: selMat.dlvrSupplier || '',
+      supplierTel: selMat.dlvrSupplierTel || '',
+      deadline: selMat.dlvrDeadline || ''
     })
     setIsMaterialEditModalOpen(true)
   }
@@ -709,6 +776,9 @@ export default function MaterialLedgerPage() {
           name: materialEditForm.name.trim(),
           unit: materialEditForm.unit.trim() || null,
           sort_order: newEncoded,
+          dlvr_supplier: materialEditForm.supplier.trim() || null,
+          dlvr_supplier_tel: materialEditForm.supplierTel.trim() || null,
+          dlvr_deadline: materialEditForm.deadline || null,
         })
         .eq('id', selectedMaterial.id)
       if (updateError) throw updateError
@@ -720,7 +790,10 @@ export default function MaterialLedgerPage() {
               unit: materialEditForm.unit.trim(),
               sortOrder: newEncoded,
               colorIndex: materialEditForm.colorIndex,
-              realOrder
+              realOrder,
+              dlvrSupplier: materialEditForm.supplier.trim() || null,
+              dlvrSupplierTel: materialEditForm.supplierTel.trim() || null,
+              dlvrDeadline: materialEditForm.deadline || null
             } as any
           : m
       ))
@@ -1596,10 +1669,21 @@ export default function MaterialLedgerPage() {
               background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)',
               borderBottom: '2px solid #5a4a35'
             }}>
-              <span className="text-sm font-medium text-amber-100" style={{ fontFamily: 'serif' }}>
-                ⚔ {selectedMaterial.name}{selectedMaterial.unit && <span className="text-amber-200/60 font-normal ml-1">({selectedMaterial.unit})</span>}
-                <span className="text-amber-200/40 font-normal ml-2">{selectedMaterial.rows.length}건</span>
-              </span>
+              <div className="min-w-0">
+                <span className="text-sm font-medium text-amber-100" style={{ fontFamily: 'serif' }}>
+                  ⚔ {selectedMaterial.name}{selectedMaterial.unit && <span className="text-amber-200/60 font-normal ml-1">({selectedMaterial.unit})</span>}
+                  <span className="text-amber-200/40 font-normal ml-2">{selectedMaterial.rows.length}건</span>
+                </span>
+                {(selectedMaterial.dlvrSupplier || selectedMaterial.dlvrSupplierTel || selectedMaterial.dlvrDeadline) && (
+                  <p className="text-[11px] text-amber-200/50 mt-0.5 truncate">
+                    {[
+                      selectedMaterial.dlvrSupplier,
+                      selectedMaterial.dlvrSupplierTel && `☎ ${selectedMaterial.dlvrSupplierTel}`,
+                      selectedMaterial.dlvrDeadline && `납품기한 ${selectedMaterial.dlvrDeadline}`,
+                    ].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 {signatureMode ? (
                   <>
@@ -2225,6 +2309,65 @@ export default function MaterialLedgerPage() {
                         {u}
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
+
+                {/* 조달청 계약 부가정보 (선택항목, 엑셀 미출력) */}
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                      계약업체명 <span className="text-amber-200/50 text-xs ml-1">(선택사항)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={materialEditForm.supplier}
+                      onChange={e => setMaterialEditForm(p => ({ ...p, supplier: e.target.value }))}
+                      placeholder="예: 주식회사 토암콘크리트"
+                      className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                      style={{
+                        background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                        border: '2px solid #4a4a55',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                      }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                        업체 연락처 <span className="text-amber-200/50 text-xs ml-1">(선택)</span>
+                      </label>
+                      <input
+                        type="tel"
+                        value={materialEditForm.supplierTel}
+                        onChange={e => setMaterialEditForm(p => ({ ...p, supplierTel: e.target.value }))}
+                        placeholder="예: 031-000-0000"
+                        className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                        style={{
+                          background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                          border: '2px solid #4a4a55',
+                          boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                        납품기한 <span className="text-amber-200/50 text-xs ml-1">(선택)</span>
+                      </label>
+                      <input
+                        type="date"
+                        value={materialEditForm.deadline}
+                        onChange={e => setMaterialEditForm(p => ({ ...p, deadline: e.target.value }))}
+                        className="w-full px-3 py-2 rounded text-amber-100 text-sm"
+                        style={{
+                          background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                          border: '2px solid #4a4a55',
+                          boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
+                          colorScheme: 'dark'
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
 
