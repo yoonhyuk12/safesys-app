@@ -22,7 +22,9 @@ interface G2bRawItem {
 
 export async function GET(request: NextRequest) {
   try {
-    const no = request.nextUrl.searchParams.get('no')?.trim().toUpperCase()
+    // 서류에는 "번호-차수"(예: R26TB01458287-00)로 표기되므로 끝의 차수 접미어는 떼고 조회
+    const no = request.nextUrl.searchParams
+      .get('no')?.trim().toUpperCase().replace(/-\d{1,2}$/, '')
     if (!no || !/^[A-Z0-9-]{5,30}$/.test(no)) {
       return NextResponse.json(
         { success: false, error: '올바른 납품요구번호를 입력해주세요. (예: R25TB00824197)' },
