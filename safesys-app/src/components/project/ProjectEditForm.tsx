@@ -8,6 +8,7 @@ import { updateProject } from '@/lib/projects'
 import { Project } from '@/lib/projects'
 import { Building, Save, MapPin, ChevronDown, ChevronUp, Send } from 'lucide-react'
 import VworldAddressSearch from '@/components/ui/VworldAddressSearch'
+import G2bContractLookup, { G2bContractApplyData } from '@/components/project/G2bContractLookup'
 
 interface FormData {
   project_name: string
@@ -39,6 +40,9 @@ interface FormData {
   privacy_manager_position?: string
   privacy_manager_email?: string
   privacy_manager_phone?: string
+  // 나라장터 계약 연계
+  g2b_cntrct_no?: string
+  g2b_ntce_no?: string
 }
 
 interface ProjectEditFormProps {
@@ -80,7 +84,9 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
     privacy_manager_name: project.privacy_manager_name || '',
     privacy_manager_position: project.privacy_manager_position || '',
     privacy_manager_email: project.privacy_manager_email || '',
-    privacy_manager_phone: project.privacy_manager_phone || ''
+    privacy_manager_phone: project.privacy_manager_phone || '',
+    g2b_cntrct_no: project.g2b_cntrct_no || '',
+    g2b_ntce_no: project.g2b_ntce_no || ''
   })
 
   // 천단위 쉼표 포맷팅 함수
@@ -109,6 +115,21 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
   // 쉼표 제거하여 순수 숫자 반환
   const removeCommas = (value: string): string => {
     return value.replace(/,/g, '')
+  }
+
+  // 나라장터 계약 조회 결과를 폼에 적용 (총계약금액 원 → 총사업비 백만원)
+  const handleG2bApply = (data: G2bContractApplyData) => {
+    setFormData(prev => ({
+      ...prev,
+      project_name: data.projectName || prev.project_name,
+      total_budget: data.totalBudget > 0
+        ? formatNumberWithCommas(String(Math.round(data.totalBudget / 1_000_000)))
+        : prev.total_budget,
+      construction_start_date: data.startDate || prev.construction_start_date,
+      construction_end_date: data.endDate || prev.construction_end_date,
+      g2b_cntrct_no: data.cntrctNo,
+      g2b_ntce_no: data.ntceNo
+    }))
   }
 
   // 전화번호 포맷팅 (010-1234-5678 형식)
@@ -301,7 +322,10 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
         privacy_manager_name: formData.privacy_manager_name?.trim() || undefined,
         privacy_manager_position: formData.privacy_manager_position?.trim() || undefined,
         privacy_manager_email: formData.privacy_manager_email?.trim() || undefined,
-        privacy_manager_phone: formData.privacy_manager_phone?.trim() || undefined
+        privacy_manager_phone: formData.privacy_manager_phone?.trim() || undefined,
+        // 빈 값이면 필드 자체를 생략 — DB 컬럼(마이그레이션) 적용 전에도 기존 수정이 깨지지 않도록
+        g2b_cntrct_no: formData.g2b_cntrct_no?.trim() || undefined,
+        g2b_ntce_no: formData.g2b_ntce_no?.trim() || undefined
       })
 
       alert('프로젝트가 성공적으로 수정되었습니다!')
@@ -340,6 +364,13 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
           </div>
         </div>
       )}
+
+      {/* 나라장터 계약 연계 */}
+      <G2bContractLookup
+        initialNo={project.g2b_cntrct_no || project.g2b_ntce_no || ''}
+        disabled={loading}
+        onApply={handleG2bApply}
+      />
 
       {/* 사업명 */}
       <div>

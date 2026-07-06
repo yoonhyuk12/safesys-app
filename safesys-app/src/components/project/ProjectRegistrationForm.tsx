@@ -7,6 +7,7 @@ import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS, PROJECT_CATEGORY_OPTIONS } from '
 import { createProject } from '@/lib/projects'
 import { Building, Save, MapPin, ChevronDown, ChevronUp, Send } from 'lucide-react'
 import VworldAddressSearch from '@/components/ui/VworldAddressSearch'
+import G2bContractLookup, { G2bContractApplyData } from '@/components/project/G2bContractLookup'
 
 interface FormData {
   project_name: string
@@ -33,6 +34,9 @@ interface FormData {
   // 공사기간 (작업일보 공정률 계산: 착공일 0% → 준공일 100%)
   construction_start_date?: string
   construction_end_date?: string
+  // 나라장터 계약 연계
+  g2b_cntrct_no?: string
+  g2b_ntce_no?: string
 }
 
 const ProjectRegistrationForm: React.FC = () => {
@@ -65,8 +69,25 @@ const ProjectRegistrationForm: React.FC = () => {
     client_telegram_id: '',
     contractor_telegram_id: '',
     construction_start_date: '',
-    construction_end_date: ''
+    construction_end_date: '',
+    g2b_cntrct_no: '',
+    g2b_ntce_no: ''
   })
+
+  // 나라장터 계약 조회 결과를 폼에 적용 (총계약금액 원 → 총사업비 백만원)
+  const handleG2bApply = (data: G2bContractApplyData) => {
+    setFormData(prev => ({
+      ...prev,
+      project_name: data.projectName || prev.project_name,
+      total_budget: data.totalBudget > 0
+        ? String(Math.round(data.totalBudget / 1_000_000))
+        : prev.total_budget,
+      construction_start_date: data.startDate || prev.construction_start_date,
+      construction_end_date: data.endDate || prev.construction_end_date,
+      g2b_cntrct_no: data.cntrctNo,
+      g2b_ntce_no: data.ntceNo
+    }))
+  }
 
   // 선택된 본부에 따른 지사 옵션 필터링
   const filteredBranches = formData.managing_hq 
@@ -233,7 +254,9 @@ const ProjectRegistrationForm: React.FC = () => {
         client_telegram_id: formData.client_telegram_id?.trim() || undefined,
         contractor_telegram_id: formData.contractor_telegram_id?.trim() || undefined,
         construction_start_date: formData.construction_start_date || undefined,
-        construction_end_date: formData.construction_end_date || undefined
+        construction_end_date: formData.construction_end_date || undefined,
+        g2b_cntrct_no: formData.g2b_cntrct_no?.trim() || undefined,
+        g2b_ntce_no: formData.g2b_ntce_no?.trim() || undefined
       })
 
       alert('현장이 성공적으로 등록되었습니다!')
@@ -263,6 +286,9 @@ const ProjectRegistrationForm: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* 나라장터 계약 연계 */}
+      <G2bContractLookup disabled={loading} onApply={handleG2bApply} />
 
       {/* 사업명 */}
       <div>
