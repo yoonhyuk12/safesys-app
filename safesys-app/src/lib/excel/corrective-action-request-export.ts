@@ -103,20 +103,21 @@ export async function downloadCorrectiveActionRequestExcel(data: CorrectiveActio
 
   // 지적사진 — 본문 텍스트 줄 수를 추정해 글 바로 아래 가로 중앙 배치 (칸 분할 없이 이미지 플로팅)
   if (data.beforePhotoUrl) {
-    const areaWidthPx = (11 + 11 + 8 + 8 + 11 + 11) * 7.5 // C~H 열 폭 합
-    const areaHeightPx = CONTENT_ROWS * ROW_H * (4 / 3)
+    const colWidthsPx = [11, 11, 8, 8, 11, 11].map((u) => u * 7.5) // C~H 열 폭
+    const rowHeightPx = ROW_H * (4 / 3)
     const CHARS_PER_LINE = 32 // 10pt 한글 기준 줄바꿈 추정치
     const LINE_PX = 18
     const lines = (data.content || '')
       .split('\n')
       .reduce((acc, seg) => acc + Math.max(1, Math.ceil(seg.length / CHARS_PER_LINE)), 0)
     // 사진 최소 높이(6행 분량)는 확보하도록 텍스트 추정 높이를 제한
-    const textPx = Math.min(lines * LINE_PX + 8, areaHeightPx - 6 * ROW_H * (4 / 3))
+    const textPx = Math.min(lines * LINE_PX + 8, (CONTENT_ROWS - 6) * rowHeightPx)
     await addPhotoImageInArea(workbook, ws, data.beforePhotoUrl, {
       col: 2,
       row: contentStart,
-      areaWidthPx,
-      areaHeightPx,
+      colWidthsPx,
+      rowHeightPx,
+      rowCount: CONTENT_ROWS,
       offsetYPx: textPx,
       verticalAlign: 'top',
     })

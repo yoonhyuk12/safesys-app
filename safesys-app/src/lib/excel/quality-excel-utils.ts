@@ -117,17 +117,19 @@ export async function fetchImageAsBase64(
 
 // 지정 영역(px)에 URL 사진을 비율 유지 배치 — 가로는 항상 중앙, 세로는 center(기본)/top.
 // offsetYPx: 영역 상단에서 사진 배치 구간이 시작되는 지점(px) — 텍스트 아래 배치용.
-// 소수부 앵커(col: 2.5)는 ExcelJS가 열 폭을 width×10000 EMU로 잘못 근사해 오프셋이
-// 크게 축소되므로, EMU(px×9525) 오프셋을 직접 지정한다.
+// 소수부 앵커(col: 2.5)는 ExcelJS가 열 폭을 width×10000 EMU로 잘못 근사해 오프셋이 크게
+// 축소되고, colOff가 해당 열 폭을 넘으면 렌더러가 기대대로 그리지 않으므로, 오프셋을
+// 실제 열 폭·행 높이대로 여러 셀에 분배해 잔여분만 EMU(px×9525)로 지정한다.
 export async function addPhotoImageInArea(
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
   url: string,
   opts: {
-    col: number
-    row: number
-    areaWidthPx: number
-    areaHeightPx: number
+    col: number // 0-based 시작 열
+    row: number // 1-based 시작 행
+    colWidthsPx: number[] // 영역 각 열의 픽셀 폭 (합 = 영역 폭)
+    rowHeightPx: number // 행 높이 픽셀 (영역 내 균일 가정)
+    rowCount: number // 영역 행 수
     padding?: number
     offsetYPx?: number
     verticalAlign?: 'center' | 'top'
@@ -136,23 +138,40 @@ export async function addPhotoImageInArea(
   const imgData = await fetchImageAsBase64(url)
   if (!imgData) return
   const imageId = wb.addImage({ base64: imgData.base64, extension: imgData.extension })
+  const areaWidthPx = opts.colWidthsPx.reduce((a, b) => a + b, 0)
+  const areaHeightPx = opts.rowHeightPx * opts.rowCount
   const pad = opts.padding ?? 6
   const offsetY = opts.offsetYPx ?? 0
-  const availableH = opts.areaHeightPx - offsetY
-  const maxW = opts.areaWidthPx - pad * 2
+  const availableH = areaHeightPx - offsetY
+  const maxW = areaWidthPx - pad * 2
   const maxH = availableH - pad * 2
   const scale = Math.min(maxW / imgData.width, maxH / imgData.height)
   const w = imgData.width * scale
   const h = imgData.height * scale
-  const rowOffPx =
-    opts.verticalAlign === 'top' ? offsetY + pad : offsetY + (availableH - h) / 2
+
+  // 가로: 남는 폭의 절반을 열 폭대로 소진해 시작 열과 잔여 오프셋 결정
+  let colIdx = opts.col
+  let remX = (areaWidthPx - w) / 2
+  for (const colW of opts.colWidthsPx) {
+    if (remX < colW) break
+    remX -= colW
+    colIdx++
+  }
+  // 세로: 동일하게 행 높이대로 소진
+  let rowIdx = opts.row - 1
+  let remY = opts.verticalAlign === 'top' ? offsetY + pad : offsetY + (availableH - h) / 2
+  while (remY >= opts.rowHeightPx) {
+    remY -= opts.rowHeightPx
+    rowIdx++
+  }
+
   const EMU_PER_PX = 9525
   ws.addImage(imageId, {
     tl: {
-      nativeCol: opts.col, // 0-based
-      nativeColOff: Math.round(((opts.areaWidthPx - w) / 2) * EMU_PER_PX),
-      nativeRow: opts.row - 1, // row는 1-based
-      nativeRowOff: Math.round(rowOffPx * EMU_PER_PX),
+      nativeCol: colIdx,
+      nativeColOff: Math.round(remX * EMU_PER_PX),
+      nativeRow: rowIdx,
+      nativeRowOff: Math.round(remY * EMU_PER_PX),
     },
     ext: { width: w, height: h },
     editAs: 'absolute',

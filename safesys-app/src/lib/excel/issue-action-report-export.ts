@@ -175,7 +175,12 @@ export async function downloadIssueActionReportExcel(data: IssueActionReportData
   addSignatureImage(workbook, ws, data.supervisorSignature || undefined, 5.6, confirmerRow, 70, 26)
 
   // 사진 삽입 (병합·테두리 이후) — C~H 영역 정중앙 배치
-  const photoArea = { col: 2, areaWidthPx: 6 * 11 * 7.5, areaHeightPx: PHOTO_ROWS * ROW_H * (4 / 3) }
+  const photoArea = {
+    col: 2,
+    colWidthsPx: Array(6).fill(11 * 7.5) as number[], // C~H 열 폭
+    rowHeightPx: ROW_H * (4 / 3),
+    rowCount: PHOTO_ROWS,
+  }
   if (data.beforePhotoUrl) {
     await addPhotoImageInArea(workbook, ws, data.beforePhotoUrl, { ...photoArea, row: beforePhotoStart })
   }
