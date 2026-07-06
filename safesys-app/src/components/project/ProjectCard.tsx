@@ -667,15 +667,25 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
       {/* 프로젝트 정보 */}
       <div className="space-y-2">
-        {/* 프로젝트명 */}
-        <h3 className="text-sm font-semibold text-gray-900 leading-tight pr-12" style={{
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-          overflow: 'hidden'
-        }}>
-          {project.project_name}
-        </h3>
+        {/* 프로젝트명 (나라장터 연계 시 우측 끝에 마크 표시) */}
+        <div className="flex items-start pr-12">
+          <h3 className="flex-1 text-sm font-semibold text-gray-900 leading-tight" style={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden'
+          }}>
+            {project.project_name}
+          </h3>
+          {(project.g2b_cntrct_no || project.g2b_ntce_no) && (
+            <img
+              src="/g2b.png"
+              alt="나라장터 연계"
+              title="나라장터 연계"
+              className="h-4 w-4 ml-1 mt-0.5 flex-shrink-0 object-contain"
+            />
+          )}
+        </div>
 
         {/* 관할 본부 및 지사 */}
         <div className="flex items-center justify-between text-xs text-gray-600">
