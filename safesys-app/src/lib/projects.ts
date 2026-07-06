@@ -50,6 +50,7 @@ export interface Project {
   // 나라장터 계약 연계 (조달청 계약정보서비스)
   g2b_cntrct_no?: string | null
   g2b_ntce_no?: string | null
+  g2b_corp_nm?: string | null
   user_profiles?: {
     role?: '발주청' | '감리단' | '시공사'
     company_name?: string
@@ -92,6 +93,7 @@ export interface CreateProjectData {
   // 나라장터 계약 연계 (조달청 계약정보서비스)
   g2b_cntrct_no?: string | null
   g2b_ntce_no?: string | null
+  g2b_corp_nm?: string | null
 }
 
 export interface ProjectWithCoords extends Project {

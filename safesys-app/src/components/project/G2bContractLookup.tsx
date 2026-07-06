@@ -12,6 +12,8 @@ export interface G2bContractApplyData {
   endDate: string
   cntrctNo: string
   ntceNo: string
+  // 계약업체명 (공동도급이면 쉼표로 연결)
+  corpNm: string
   // 수요기관명에서 매칭된 관할 본부·지사 (매칭 실패 시 빈 문자열)
   managingHq: string
   managingBranch: string
@@ -125,6 +127,7 @@ export default function G2bContractLookup({
       endDate: c.endDate,
       cntrctNo: c.cntrctNo,
       ntceNo: c.ntceNo,
+      corpNm: c.corpNms.join(', '),
       managingHq: org.hq,
       managingBranch: org.branch,
     })
