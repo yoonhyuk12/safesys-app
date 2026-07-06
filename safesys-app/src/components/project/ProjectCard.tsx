@@ -667,9 +667,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
       {/* 프로젝트 정보 */}
       <div className="space-y-2">
-        {/* 프로젝트명 (나라장터 연계 시 우측 끝에 마크 표시) */}
-        <div className="flex items-start pr-12">
-          <h3 className="flex-1 text-sm font-semibold text-gray-900 leading-tight" style={{
+        {/* 프로젝트명 (나라장터 연계 시 마크를 카드 우측 끝에 정렬) */}
+        <div className="flex items-start">
+          <h3 className="flex-1 text-sm font-semibold text-gray-900 leading-tight pr-12" style={{
             display: '-webkit-box',
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
@@ -682,7 +682,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
               src="/g2b.png"
               alt="나라장터 연계"
               title="나라장터 연계"
-              className="h-4 w-4 ml-1 mt-0.5 flex-shrink-0 object-contain"
+              className="h-4 w-4 ml-auto mt-0.5 flex-shrink-0 object-contain"
             />
           )}
         </div>
