@@ -117,7 +117,7 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
     return value.replace(/,/g, '')
   }
 
-  // 나라장터 계약 조회 결과를 폼에 적용 (총계약금액 원 → 총사업비 백만원)
+  // 나라장터 계약 조회 결과를 폼에 적용 (총계약금액 원 → 총사업비 백만원, 수요기관 → 본부·지사)
   const handleG2bApply = (data: G2bContractApplyData) => {
     setFormData(prev => ({
       ...prev,
@@ -127,6 +127,8 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
         : prev.total_budget,
       construction_start_date: data.startDate || prev.construction_start_date,
       construction_end_date: data.endDate || prev.construction_end_date,
+      managing_hq: data.managingHq || prev.managing_hq,
+      managing_branch: data.managingBranch || (data.managingHq ? '' : prev.managing_branch),
       g2b_cntrct_no: data.cntrctNo,
       g2b_ntce_no: data.ntceNo
     }))

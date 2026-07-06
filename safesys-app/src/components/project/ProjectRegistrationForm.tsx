@@ -45,6 +45,8 @@ const ProjectRegistrationForm: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [isOptionalExpanded, setIsOptionalExpanded] = useState(false)
+  // 등록 방식 (직접 입력 / 나라장터 연계)
+  const [registerMode, setRegisterMode] = useState<'manual' | 'g2b'>('manual')
   const [telegramTestLoading, setTelegramTestLoading] = useState<'client' | 'contractor' | null>(null)
   const [telegramTestResult, setTelegramTestResult] = useState<{type: 'client' | 'contractor', success: boolean, message: string} | null>(null)
   const [formData, setFormData] = useState<FormData>({
@@ -74,7 +76,7 @@ const ProjectRegistrationForm: React.FC = () => {
     g2b_ntce_no: ''
   })
 
-  // 나라장터 계약 조회 결과를 폼에 적용 (총계약금액 원 → 총사업비 백만원)
+  // 나라장터 계약 조회 결과를 폼에 적용 (총계약금액 원 → 총사업비 백만원, 수요기관 → 본부·지사)
   const handleG2bApply = (data: G2bContractApplyData) => {
     setFormData(prev => ({
       ...prev,
@@ -84,6 +86,8 @@ const ProjectRegistrationForm: React.FC = () => {
         : prev.total_budget,
       construction_start_date: data.startDate || prev.construction_start_date,
       construction_end_date: data.endDate || prev.construction_end_date,
+      managing_hq: data.managingHq || prev.managing_hq,
+      managing_branch: data.managingBranch || (data.managingHq ? '' : prev.managing_branch),
       g2b_cntrct_no: data.cntrctNo,
       g2b_ntce_no: data.ntceNo
     }))
@@ -287,8 +291,28 @@ const ProjectRegistrationForm: React.FC = () => {
         </div>
       )}
 
+      {/* 등록 방식 선택 (직접 입력 / 나라장터 연계) */}
+      <div className="grid grid-cols-2 gap-2">
+        {([['manual', '직접 입력'], ['g2b', '나라장터 연계']] as const).map(([mode, label]) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => setRegisterMode(mode)}
+            className={`px-3 py-2 text-sm font-medium rounded-md border transition-colors ${
+              registerMode === mode
+                ? 'bg-emerald-600 border-emerald-600 text-white'
+                : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* 나라장터 계약 연계 */}
-      <G2bContractLookup disabled={loading} onApply={handleG2bApply} />
+      {registerMode === 'g2b' && (
+        <G2bContractLookup disabled={loading} onApply={handleG2bApply} />
+      )}
 
       {/* 사업명 */}
       <div>

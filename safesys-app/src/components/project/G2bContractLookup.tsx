@@ -3,6 +3,7 @@
 // 나라장터 계약번호·공고번호로 공사 계약을 조회해 프로젝트 폼에 자동입력하는 공용 컴포넌트
 import { useState } from 'react'
 import { Search, FileText, Loader2 } from 'lucide-react'
+import { BRANCH_OPTIONS } from '@/lib/constants'
 
 export interface G2bContractApplyData {
   projectName: string
@@ -11,6 +12,45 @@ export interface G2bContractApplyData {
   endDate: string
   cntrctNo: string
   ntceNo: string
+  // 수요기관명에서 매칭된 관할 본부·지사 (매칭 실패 시 빈 문자열)
+  managingHq: string
+  managingBranch: string
+}
+
+// 수요기관명(예: "한국농어촌공사 경기지역본부 여주.이천지사")에서 본부·지사 옵션 매칭
+// 구분자 차이(·/.)와 공백을 제거하고 포함 여부로 비교, 지사명이 긴 매치를 우선
+function matchOrgFromDminsttNms(names: string[]): { hq: string; branch: string } {
+  const norm = (s: string) => s.replace(/[·.\s]/g, '')
+  for (const name of names) {
+    if (!name.includes('농어촌공사')) continue
+    const n = norm(name)
+    let matchedHq = ''
+    // 긴 이름 우선 매칭 (예: '새만금산업단지'가 '새만금'보다 먼저)
+    const hqKeys = Object.keys(BRANCH_OPTIONS).sort((a, b) => b.length - a.length)
+    for (const hq of hqKeys) {
+      const h = norm(hq)
+      if (n.includes(`${h}지역본부`) || n.includes(`${h}사업단`) || n.includes(`${h}본부`)) {
+        matchedHq = hq
+        break
+      }
+    }
+    const searchHqs = matchedHq ? [matchedHq] : Object.keys(BRANCH_OPTIONS)
+    let best: { hq: string; branch: string } | null = null
+    for (const hq of searchHqs) {
+      for (const branch of BRANCH_OPTIONS[hq] || []) {
+        if (n.includes(norm(branch)) && (!best || norm(branch).length > norm(best.branch).length)) {
+          best = { hq, branch }
+        }
+      }
+    }
+    if (best) return best
+    if (matchedHq) {
+      // 지사 없이 지역본부 자체가 수요기관인 경우
+      const hqBranch = (BRANCH_OPTIONS[matchedHq] || []).find((b) => b === `${matchedHq}본부`)
+      return { hq: matchedHq, branch: hqBranch || '' }
+    }
+  }
+  return { hq: '', branch: '' }
 }
 
 interface G2bContract {
@@ -68,6 +108,7 @@ export default function G2bContractLookup({ initialNo, disabled, onApply }: G2bC
   }
 
   const handleApply = (c: G2bContract) => {
+    const org = matchOrgFromDminsttNms(c.dminsttNms)
     onApply({
       projectName: c.cnstwkNm,
       totalBudget: c.totCntrctAmt,
@@ -75,6 +116,8 @@ export default function G2bContractLookup({ initialNo, disabled, onApply }: G2bC
       endDate: c.endDate,
       cntrctNo: c.cntrctNo,
       ntceNo: c.ntceNo,
+      managingHq: org.hq,
+      managingBranch: org.branch,
     })
     setAppliedNo(c.cntrctNo || c.ntceNo)
   }
