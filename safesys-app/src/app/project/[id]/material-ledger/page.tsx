@@ -2720,6 +2720,16 @@ export default function MaterialLedgerPage() {
                               {mat.name}
                             </span>
                           </div>
+
+                          {/* 나라장터(납품요구) 연계 마크 — 우측 상단 */}
+                          {mat.dlvrReqNo && (
+                            <img
+                              src="/g2b.png"
+                              alt="나라장터 연계"
+                              title={`나라장터 연계 (${mat.dlvrReqNo})`}
+                              className="absolute top-1 right-1 h-4 w-4 z-10 rounded-full bg-white/90 p-[1px] object-contain shadow"
+                            />
+                          )}
                         </button>
                       </div>
                     )
