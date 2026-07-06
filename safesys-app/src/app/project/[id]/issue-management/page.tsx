@@ -4,7 +4,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Trash2, Edit2, FileSpreadsheet, FileText, Ban, X, Upload } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Edit2, FileSpreadsheet, FileText, Ban, X, Upload, Crop } from 'lucide-react'
+import ImageEditor from '@/components/ui/ImageEditor'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
@@ -121,6 +122,7 @@ export default function IssueManagementPage() {
   const [form, setForm] = useState({ ...emptyForm })
   const [formPhoto, setFormPhoto] = useState<File | null>(null)
   const [formPhotoPreview, setFormPhotoPreview] = useState<string | null>(null)
+  const [editingFormPhoto, setEditingFormPhoto] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
@@ -443,6 +445,17 @@ export default function IssueManagementPage() {
       if (prev) URL.revokeObjectURL(prev)
       return URL.createObjectURL(file)
     })
+  }
+
+  // 크롭·회전 편집 결과를 새 선택 사진으로 반영 (기존 URL 사진 편집 포함)
+  const handleSaveEditedFormPhoto = (blob: Blob) => {
+    const file = new File([blob], `edited_${Date.now()}.jpg`, { type: 'image/jpeg' })
+    setFormPhoto(file)
+    setFormPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return URL.createObjectURL(file)
+    })
+    setEditingFormPhoto(false)
   }
 
   const openCreateForm = () => {
@@ -966,14 +979,27 @@ export default function IssueManagementPage() {
                     <img
                       src={formPhotoPreview || editingEntry!.before_photo_url!}
                       alt="지적사진"
-                      className="w-28 h-20 object-cover rounded border border-gray-200"
+                      title="클릭하여 크롭·회전"
+                      className="w-28 h-20 object-cover rounded border border-gray-200 cursor-pointer"
+                      onClick={() => setEditingFormPhoto(true)}
                     />
                   )}
-                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700">
-                    <Upload className="h-4 w-4" />
-                    {formPhotoPreview || editingEntry?.before_photo_url ? '사진 변경' : '사진 업로드'}
-                    <input type="file" accept="image/*" className="hidden" onChange={handleFormPhotoSelect} />
-                  </label>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700">
+                      <Upload className="h-4 w-4" />
+                      {formPhotoPreview || editingEntry?.before_photo_url ? '사진 변경' : '사진 업로드'}
+                      <input type="file" accept="image/*" className="hidden" onChange={handleFormPhotoSelect} />
+                    </label>
+                    {(formPhotoPreview || editingEntry?.before_photo_url) && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingFormPhoto(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-gray-300 text-gray-600 text-sm hover:bg-gray-50"
+                      >
+                        <Crop className="h-4 w-4" /> 크롭·회전
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -991,6 +1017,15 @@ export default function IssueManagementPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* 지적사진 크롭·회전 편집기 */}
+      {editingFormPhoto && (formPhotoPreview || editingEntry?.before_photo_url) && (
+        <ImageEditor
+          imageUrl={formPhotoPreview || editingEntry!.before_photo_url!}
+          onSave={handleSaveEditedFormPhoto}
+          onClose={() => setEditingFormPhoto(false)}
+        />
       )}
 
       {/* 직접 등록건 삭제 확인 */}
