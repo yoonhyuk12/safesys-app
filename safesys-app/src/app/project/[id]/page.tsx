@@ -413,7 +413,7 @@ export default function ProjectDetailPage() {
     router.push(`/project/${projectId}/edit`)
   }
 
-  // 나라장터 계약 재조회로 계약기간(착공·준공일) 갱신 — 연계 번호가 있을 때만 버튼 노출
+  // 나라장터 계약 재조회로 계약기간(착공·준공일)·계약업체·총계약금액 갱신 — 연계 번호가 있을 때만 버튼 노출
   const handleG2bSync = async () => {
     if (!project || g2bSyncing) return
     const no = project.g2b_cntrct_no || project.g2b_ntce_no
@@ -427,31 +427,39 @@ export default function ProjectDetailPage() {
         return
       }
       const c = json.data.contracts[0]
-      if (!c.startDate && !c.endDate) {
-        alert('조회된 계약에 착공·준공일 정보가 없습니다.')
+      // 값이 있는 항목만 갱신 후보로 삼는다 (조회값이 비었다고 기존 값을 지우지 않음)
+      const next = {
+        construction_start_date: c.startDate || project.construction_start_date || null,
+        construction_end_date: c.endDate || project.construction_end_date || null,
+        g2b_corp_nm: (c.corpNms || []).join(', ') || project.g2b_corp_nm || null,
+        g2b_tot_amt: c.totCntrctAmt > 0 ? c.totCntrctAmt : (project.g2b_tot_amt || null)
+      }
+      if (!next.construction_start_date && !next.construction_end_date &&
+          !next.g2b_corp_nm && !next.g2b_tot_amt) {
+        alert('조회된 계약에 갱신할 정보가 없습니다.')
         return
       }
-      // 이미 같은 기간이면 DB를 건드리지 않고 안내만
-      if ((project.construction_start_date || '') === (c.startDate || '') &&
-          (project.construction_end_date || '') === (c.endDate || '')) {
+      // 변경분이 없으면 DB를 건드리지 않고 안내만
+      if ((project.construction_start_date || null) === next.construction_start_date &&
+          (project.construction_end_date || null) === next.construction_end_date &&
+          (project.g2b_corp_nm || null) === next.g2b_corp_nm &&
+          (project.g2b_tot_amt || null) === next.g2b_tot_amt) {
         alert('업데이트 사항이 없습니다.')
         return
       }
       const { error: updateError } = await supabase
         .from('projects')
-        .update({
-          construction_start_date: c.startDate || null,
-          construction_end_date: c.endDate || null,
-          updated_at: new Date().toISOString()
-        })
+        .update({ ...next, updated_at: new Date().toISOString() })
         .eq('id', project.id)
       if (updateError) throw updateError
-      setProject(prev => prev ? {
-        ...prev,
-        construction_start_date: c.startDate || null,
-        construction_end_date: c.endDate || null
-      } : prev)
-      alert(`나라장터 계약기간으로 갱신했습니다.\n${c.startDate || '?'} ~ ${c.endDate || '?'}`)
+      setProject(prev => prev ? { ...prev, ...next } : prev)
+      alert([
+        '나라장터 계약 정보로 갱신했습니다.',
+        (next.construction_start_date || next.construction_end_date) &&
+          `기간: ${next.construction_start_date || '?'} ~ ${next.construction_end_date || '?'}`,
+        next.g2b_tot_amt && `총계약금액: ${Math.round(next.g2b_tot_amt / 1000).toLocaleString()}천원`,
+        next.g2b_corp_nm && `계약업체: ${next.g2b_corp_nm}`,
+      ].filter(Boolean).join('\n'))
     } catch (err) {
       console.error('나라장터 계약기간 갱신 실패:', err)
       alert('나라장터 연동 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
@@ -877,6 +885,16 @@ export default function ProjectDetailPage() {
                   {[
                     project.construction_start_date && `착공일: ${project.construction_start_date}`,
                     project.construction_end_date && `준공일: ${project.construction_end_date}`,
+                  ].filter(Boolean).join(' / ')}
+                </div>
+              )}
+
+              {/* 나라장터 계약 정보 (계약업체·총계약금액 천원 단위) — 연계된 프로젝트만 */}
+              {(project.g2b_corp_nm || project.g2b_tot_amt) && (
+                <div className="text-sm text-gray-600">
+                  {[
+                    project.g2b_corp_nm && `계약업체: ${project.g2b_corp_nm}`,
+                    project.g2b_tot_amt && `총계약금액: ${Math.round(project.g2b_tot_amt / 1000).toLocaleString()}천원`,
                   ].filter(Boolean).join(' / ')}
                 </div>
               )}

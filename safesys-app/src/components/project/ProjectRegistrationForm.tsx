@@ -38,6 +38,7 @@ interface FormData {
   g2b_cntrct_no?: string
   g2b_ntce_no?: string
   g2b_corp_nm?: string
+  g2b_tot_amt?: number
 }
 
 const ProjectRegistrationForm: React.FC = () => {
@@ -92,7 +93,8 @@ const ProjectRegistrationForm: React.FC = () => {
       managing_branch: data.managingBranch || (data.managingHq ? '' : prev.managing_branch),
       g2b_cntrct_no: data.cntrctNo,
       g2b_ntce_no: data.ntceNo,
-      g2b_corp_nm: data.corpNm
+      g2b_corp_nm: data.corpNm,
+      g2b_tot_amt: data.totalBudget > 0 ? data.totalBudget : undefined
     }))
   }
 
@@ -264,7 +266,8 @@ const ProjectRegistrationForm: React.FC = () => {
         construction_end_date: formData.construction_end_date || undefined,
         g2b_cntrct_no: formData.g2b_cntrct_no?.trim() || undefined,
         g2b_ntce_no: formData.g2b_ntce_no?.trim() || undefined,
-        g2b_corp_nm: formData.g2b_corp_nm?.trim() || undefined
+        g2b_corp_nm: formData.g2b_corp_nm?.trim() || undefined,
+        g2b_tot_amt: formData.g2b_tot_amt || undefined
       })
 
       alert('현장이 성공적으로 등록되었습니다!')
