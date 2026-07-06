@@ -93,12 +93,28 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 확정계약번호로 먼저 조회하고, 없으면 공고번호로 재조회
+    // 조회 시도 순서: 확정계약번호 → 공고번호(입력 그대로) → 구형 공고번호 정규화
+    const attempts: { param: 'dcsnCntrctNo' | 'ntceNo'; value: string; matchedBy: 'cntrct' | 'ntce' }[] = [
+      { param: 'dcsnCntrctNo', value: no, matchedBy: 'cntrct' },
+      { param: 'ntceNo', value: no, matchedBy: 'ntce' },
+    ]
+    // 구 나라장터 공고번호(숫자 11자리 [-차수])는 '번호+차수2자리'로 저장됨 (2026-07-06 실호출 확인)
+    // 예: 입력 "20221008901-000" → 저장값 "2022100890100"
+    const legacy = no.match(/^(\d{11})(?:-(\d{1,3}))?$/)
+    if (legacy) {
+      const ord = String(Number(legacy[2] || '0')).padStart(2, '0')
+      attempts.push({ param: 'ntceNo', value: `${legacy[1]}${ord}`, matchedBy: 'ntce' })
+    }
+
     let matchedBy: 'cntrct' | 'ntce' = 'cntrct'
-    let result = await fetchContracts(apiKey, 'dcsnCntrctNo', no)
-    if (!result.errorMsg && result.items.length === 0) {
-      matchedBy = 'ntce'
-      result = await fetchContracts(apiKey, 'ntceNo', no)
+    let result: { items: G2bRawContract[]; errorMsg?: string } = { items: [] }
+    for (const attempt of attempts) {
+      result = await fetchContracts(apiKey, attempt.param, attempt.value)
+      if (result.errorMsg) break
+      if (result.items.length > 0) {
+        matchedBy = attempt.matchedBy
+        break
+      }
     }
 
     if (result.errorMsg) {
