@@ -72,10 +72,17 @@ interface G2bContract {
 interface G2bContractLookupProps {
   initialNo?: string
   disabled?: boolean
+  // 적용 시 채워지는 항목 안내 문구 (폼별로 적용 범위가 다름)
+  subtitle?: string
   onApply: (data: G2bContractApplyData) => void
 }
 
-export default function G2bContractLookup({ initialNo, disabled, onApply }: G2bContractLookupProps) {
+export default function G2bContractLookup({
+  initialNo,
+  disabled,
+  subtitle = '계약번호 또는 공고번호로 공사명·금액·기간을 자동으로 채웁니다.',
+  onApply,
+}: G2bContractLookupProps) {
   const [no, setNo] = useState(initialNo || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -127,9 +134,7 @@ export default function G2bContractLookup({ initialNo, disabled, onApply }: G2bC
       <div className="flex items-center">
         <FileText className="h-5 w-5 text-emerald-600 mr-2" />
         <span className="text-sm font-medium text-emerald-900">나라장터 계약 연계</span>
-        <span className="ml-2 text-xs text-emerald-700">
-          계약번호 또는 공고번호로 공사명·금액·기간을 자동으로 채웁니다.
-        </span>
+        <span className="ml-2 text-xs text-emerald-700">{subtitle}</span>
       </div>
       <div className="flex gap-2">
         <input

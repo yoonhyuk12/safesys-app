@@ -117,18 +117,13 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
     return value.replace(/,/g, '')
   }
 
-  // 나라장터 계약 조회 결과를 폼에 적용 (총계약금액 원 → 총사업비 백만원, 수요기관 → 본부·지사)
+  // 나라장터 계약 조회 결과를 폼에 적용 — 기존 프로젝트는 계약기간(착공·준공일)과 연계 번호만 반영,
+  // 나머지 정보(사업명·총사업비·본부·지사)는 기존 입력을 유지한다
   const handleG2bApply = (data: G2bContractApplyData) => {
     setFormData(prev => ({
       ...prev,
-      project_name: data.projectName || prev.project_name,
-      total_budget: data.totalBudget > 0
-        ? formatNumberWithCommas(String(Math.round(data.totalBudget / 1_000_000)))
-        : prev.total_budget,
       construction_start_date: data.startDate || prev.construction_start_date,
       construction_end_date: data.endDate || prev.construction_end_date,
-      managing_hq: data.managingHq || prev.managing_hq,
-      managing_branch: data.managingBranch || (data.managingHq ? '' : prev.managing_branch),
       g2b_cntrct_no: data.cntrctNo,
       g2b_ntce_no: data.ntceNo
     }))
@@ -367,10 +362,11 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
         </div>
       )}
 
-      {/* 나라장터 계약 연계 */}
+      {/* 나라장터 계약 연계 — 기존 프로젝트는 계약기간만 연동 */}
       <G2bContractLookup
         initialNo={project.g2b_cntrct_no || project.g2b_ntce_no || ''}
         disabled={loading}
+        subtitle="계약번호 또는 공고번호로 계약기간(착공일·준공일)만 자동으로 채웁니다."
         onApply={handleG2bApply}
       />
 
