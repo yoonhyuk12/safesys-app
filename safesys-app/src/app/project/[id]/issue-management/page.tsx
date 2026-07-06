@@ -87,8 +87,8 @@ const resizeImageToJpeg = (file: File, maxW = 1920, maxH = 1440, quality = 0.95)
     img.src = url
   })
 
-// 직접 등록 시 점검의 종류 선택지 (별지 6호 ＊점검의 종류 — 지침 제19조)
-const DIRECT_INSPECTION_TYPES = ['수시점검', '정기점검', '특별점검', '기타'] as const
+// 직접 등록 시 점검의 종류 선택지 (별지 6호 ＊점검의 종류 — 정기·특별은 자동 집계로 들어오므로 제외)
+const DIRECT_INSPECTION_TYPES = ['수시점검', '기타'] as const
 
 const emptyForm = {
   inspection_department_head: '',
