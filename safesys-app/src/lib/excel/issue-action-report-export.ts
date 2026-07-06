@@ -73,11 +73,15 @@ async function addPhotoInArea(
   const scale = Math.min(maxW / imgData.width, maxH / imgData.height)
   const w = imgData.width * scale
   const h = imgData.height * scale
-  // 영역 정중앙 배치: 남는 픽셀의 절반을 열/행 단위로 환산해 오프셋
+  // 영역 정중앙 배치. 소수부 앵커(col: 2.5)는 ExcelJS가 열 폭을 width×10000 EMU로
+  // 잘못 근사해 오프셋이 크게 축소되므로, EMU(px×9525) 오프셋을 직접 지정한다.
+  const EMU_PER_PX = 9525
   ws.addImage(imageId, {
     tl: {
-      col: 2 + (areaW - w) / 2 / colPx,
-      row: startRow - 1 + (areaH - h) / 2 / rowPx,
+      nativeCol: 2, // C열 (0-based)
+      nativeColOff: Math.round(((areaW - w) / 2) * EMU_PER_PX),
+      nativeRow: startRow - 1,
+      nativeRowOff: Math.round(((areaH - h) / 2) * EMU_PER_PX),
     },
     ext: { width: w, height: h },
     editAs: 'absolute',
