@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Trash2, Edit2, FileSpreadsheet, FileText, Ban, X } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Edit2, FileSpreadsheet, FileText, Ban, X, Upload } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
@@ -107,10 +107,13 @@ const resizeImageToJpeg = (file: File, maxW = 1920, maxH = 1440, quality = 0.95)
     img.src = url
   })
 
+// 직접 등록 시 점검의 종류 선택지 (별지 6호 ＊점검의 종류 — 지침 제19조)
+const DIRECT_INSPECTION_TYPES = ['수시점검', '정기점검', '특별점검', '기타'] as const
+
 const emptyForm = {
   inspection_department_head: '',
   inspector_name: '',
-  inspection_type: '',
+  inspection_type: '수시점검',
   inspection_date: new Date().toISOString().split('T')[0],
   location: '',
   content: '',
@@ -137,6 +140,7 @@ export default function IssueManagementPage() {
   const [editingEntry, setEditingEntry] = useState<DirectIssue | null>(null)
   const [form, setForm] = useState({ ...emptyForm })
   const [formPhoto, setFormPhoto] = useState<File | null>(null)
+  const [formPhotoPreview, setFormPhotoPreview] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
@@ -438,10 +442,34 @@ export default function IssueManagementPage() {
 
   // ─── 직접 등록 (별지 6호 시정조치요구서 양식) ───────────
 
+  const resetFormPhoto = () => {
+    setFormPhoto(null)
+    setFormPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+  }
+
+  const handleFormPhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (file.size > 20 * 1024 * 1024) {
+      alert('파일 크기는 20MB 이하만 가능합니다.')
+      return
+    }
+    setFormPhoto(file)
+    setFormPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return URL.createObjectURL(file)
+    })
+  }
+
   const openCreateForm = () => {
     setEditingEntry(null)
-    setForm({ ...emptyForm })
-    setFormPhoto(null)
+    // 점검자 기본값 = 로그인 사용자
+    setForm({ ...emptyForm, inspector_name: userProfile?.full_name || '' })
+    resetFormPhoto()
     setShowForm(true)
   }
 
@@ -450,12 +478,12 @@ export default function IssueManagementPage() {
     setForm({
       inspection_department_head: entry.inspection_department_head || '',
       inspector_name: entry.inspector_name || '',
-      inspection_type: entry.inspection_type || '',
+      inspection_type: entry.inspection_type || '수시점검',
       inspection_date: entry.inspection_date || new Date().toISOString().split('T')[0],
       location: entry.location || '',
       content: entry.content || '',
     })
-    setFormPhoto(null)
+    resetFormPhoto()
     setShowForm(true)
   }
 
@@ -891,13 +919,20 @@ export default function IssueManagementPage() {
                 </div>
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">점검의 종류</label>
-                  <input
-                    type="text"
+                  <select
                     value={form.inspection_type}
                     onChange={(e) => setForm({ ...form, inspection_type: e.target.value })}
-                    placeholder="예: 수시점검"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
-                  />
+                    className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+                  >
+                    {form.inspection_type && !(DIRECT_INSPECTION_TYPES as readonly string[]).includes(form.inspection_type) && (
+                      <option value={form.inspection_type}>{form.inspection_type}</option>
+                    )}
+                    {DIRECT_INSPECTION_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">점검자</label>
@@ -945,11 +980,21 @@ export default function IssueManagementPage() {
               </div>
               <div>
                 <label className="block text-sm text-gray-600 mb-1">지적사진 (시정 전)</label>
-                {editingEntry?.before_photo_url && !formPhoto && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={editingEntry.before_photo_url} alt="지적사진" className="w-28 h-20 object-cover rounded mb-2" />
-                )}
-                <input type="file" accept="image/*" onChange={(e) => setFormPhoto(e.target.files?.[0] || null)} className="text-sm" />
+                <div className="flex items-center gap-3">
+                  {(formPhotoPreview || editingEntry?.before_photo_url) && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={formPhotoPreview || editingEntry!.before_photo_url!}
+                      alt="지적사진"
+                      className="w-28 h-20 object-cover rounded border border-gray-200"
+                    />
+                  )}
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 rounded-md bg-green-600 text-white text-sm hover:bg-green-700">
+                    <Upload className="h-4 w-4" />
+                    {formPhotoPreview || editingEntry?.before_photo_url ? '사진 변경' : '사진 업로드'}
+                    <input type="file" accept="image/*" className="hidden" onChange={handleFormPhotoSelect} />
+                  </label>
+                </div>
               </div>
             </div>
             <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-200">
