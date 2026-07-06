@@ -51,7 +51,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: '프로젝트를 찾을 수 없습니다.' }, { status: 404 })
   }
 
-  // 4. 병합 RPC (단일 트랜잭션: 15개 자식 이전 + 충돌 폐기 + source 삭제)
+  // 4. 병합 RPC (단일 트랜잭션: 자식 테이블 20종 이전 + 충돌 폐기 + source 삭제.
+  //    함수가 아는 테이블 수와 실제 FK 수가 다르면 유실 방지를 위해 예외로 중단됨)
   const { data: dropped, error: rpcError } = await supabaseAdmin
     .rpc('merge_projects', { p_source: sourceId, p_target: targetId })
   if (rpcError) {
