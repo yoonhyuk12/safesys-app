@@ -1,12 +1,23 @@
-// 조달청 나라장터 공사·용역 계약현황을 계약번호·공고번호로 조회해 프로젝트 자동입력용으로 정규화하는 API 라우트
+// 조달청 나라장터 공사·용역·물품·외자 계약현황을 각종 번호로 조회해 프로젝트 자동입력용으로 정규화하는 API 라우트
 import { NextRequest, NextResponse } from 'next/server'
 
 const G2B_BASE = 'https://apis.data.go.kr/1230000/ao/CntrctInfoService'
 
-// 업무구분별 오퍼레이션 — 공사를 먼저, 없으면 용역 조회
-const G2B_OPS = [
+// 업무구분별 오퍼레이션 — 건설 도메인 가능성 순 (공사 → 용역 → 물품 → 외자)
+// PPSSrch(나라장터 검색조건): 확정계약번호(inqryDiv=2)·공고번호(inqryDiv=4) 조회
+const PPSSRCH_OPS = [
   { op: 'getCntrctInfoListCnstwkPPSSrch', div: '공사' },
   { op: 'getCntrctInfoListServcPPSSrch', div: '용역' },
+  { op: 'getCntrctInfoListThngPPSSrch', div: '물품' },
+  { op: 'getCntrctInfoListFrgcptPPSSrch', div: '외자' },
+] as const
+
+// 기본 오퍼레이션: 통합계약번호(untyCntrctNo, inqryDiv=2) 조회 (2026-07-06 실호출 확인)
+const UNTY_OPS = [
+  { op: 'getCntrctInfoListCnstwk', div: '공사' },
+  { op: 'getCntrctInfoListServc', div: '용역' },
+  { op: 'getCntrctInfoListThng', div: '물품' },
+  { op: 'getCntrctInfoListFrgcpt', div: '외자' },
 ] as const
 
 // 공사는 cnstwkNm/cbgnDate/ttalCcmpltDate, 용역은 cntrctNm/wbgnDate/ttalScmpltDate 필드 사용
@@ -55,11 +66,11 @@ function toIsoDate(value?: string): string {
   return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`
 }
 
-// inqryDiv: 2=확정계약번호 조회, 4=공고번호 조회 (2026-07-06 실호출 확인)
+// inqryDiv: PPSSrch는 2=확정계약번호·4=공고번호, 기본 오퍼레이션은 2=통합계약번호 (2026-07-06 실호출 확인)
 async function fetchContracts(
   apiKey: string,
   op: string,
-  numberParam: 'dcsnCntrctNo' | 'ntceNo',
+  numberParam: 'dcsnCntrctNo' | 'ntceNo' | 'untyCntrctNo',
   no: string
 ): Promise<{ items: G2bRawContract[]; errorMsg?: string }> {
   const qs = new URLSearchParams({
@@ -67,7 +78,7 @@ async function fetchContracts(
     pageNo: '1',
     numOfRows: '50',
     type: 'json',
-    inqryDiv: numberParam === 'dcsnCntrctNo' ? '2' : '4',
+    inqryDiv: numberParam === 'ntceNo' ? '4' : '2',
     [numberParam]: no,
   })
   const res = await fetch(`${G2B_BASE}/${op}?${qs.toString()}`, {
@@ -109,14 +120,30 @@ export async function GET(request: NextRequest) {
     // — 구형 공고번호(숫자): '번호+차수2자리' 결합 저장 ("20221008901-000" → "2022100890100")
     // — 차세대 계약번호(R##TA 등): 결합 저장 ("R26TA01377926-01" → "R26TA0137792601")
     // — 차세대 공고번호(R##BK): 차수 없이 저장 ("R25BK00999619-000" → "R25BK00999619")
+    // — 통합계약번호(R##TE): 기본 오퍼레이션의 untyCntrctNo로 조회
+    // — 납품요구번호(R##TB): 이 라우트 대상이 아니므로 자재 수불부 연계로 안내
     // 결합값이 다른 계약의 번호와 우연히 겹칠 수 있어 유형별 가능성 순으로 시도한다
     // (대시 포함 값 자체는 어떤 저장값과도 일치하지 않으므로 시도하지 않음)
-    type Attempt = { param: 'dcsnCntrctNo' | 'ntceNo'; value: string; matchedBy: 'cntrct' | 'ntce' }
+    type Attempt = { param: 'dcsnCntrctNo' | 'ntceNo' | 'untyCntrctNo'; value: string; matchedBy: 'cntrct' | 'ntce' }
     const attempts: Attempt[] = []
     const dashed = no.match(/^([A-Z0-9]+)-(\d{1,3})$/)
-    if (dashed) {
-      const base = dashed[1]
-      const joined = `${base}${String(Number(dashed[2])).padStart(2, '0')}`
+    const base = dashed ? dashed[1] : no
+    const joined = dashed ? `${dashed[1]}${String(Number(dashed[2])).padStart(2, '0')}` : ''
+
+    if (/^R\d{2}TB/.test(base)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: '납품요구번호로 보입니다. 관급자재는 자재 수불부의 조달청 연계(납품요구번호 입력)에서 사용해주세요.',
+        },
+        { status: 400 }
+      )
+    }
+
+    if (/^R\d{2}TE/.test(base)) {
+      attempts.push({ param: 'untyCntrctNo', value: base, matchedBy: 'cntrct' })
+      if (joined) attempts.push({ param: 'untyCntrctNo', value: joined, matchedBy: 'cntrct' })
+    } else if (dashed) {
       if (/^\d+$/.test(base)) {
         attempts.push(
           { param: 'ntceNo', value: joined, matchedBy: 'ntce' },
@@ -146,6 +173,10 @@ export async function GET(request: NextRequest) {
       if (/^\d{11}$/.test(no)) {
         attempts.push({ param: 'ntceNo', value: `${no}00`, matchedBy: 'ntce' })
       }
+      // 알 수 없는 차세대 접두어는 통합계약번호 가능성도 시도
+      if (/^R\d{2}[A-Z]{2}/.test(no) && !/^R\d{2}(TA|BK)/.test(no)) {
+        attempts.push({ param: 'untyCntrctNo', value: no, matchedBy: 'cntrct' })
+      }
     }
 
     // 개별 호출의 일시적 오류는 치명으로 보지 않고 다음 후보를 계속 시도한다
@@ -155,7 +186,8 @@ export async function GET(request: NextRequest) {
     let lastErrorMsg = ''
     let result: { items: G2bRawContract[]; errorMsg?: string } = { items: [] }
     outer: for (const attempt of attempts) {
-      for (const g2bOp of G2B_OPS) {
+      const ops = attempt.param === 'untyCntrctNo' ? UNTY_OPS : PPSSRCH_OPS
+      for (const g2bOp of ops) {
         result = await fetchContracts(apiKey, g2bOp.op, attempt.param, attempt.value)
         if (result.errorMsg) {
           console.error(`조달청 계약정보 API 오류 (${g2bOp.op} ${attempt.param}=${attempt.value}):`, result.errorMsg)
@@ -189,7 +221,8 @@ export async function GET(request: NextRequest) {
       cntrctNo: it.dcsnCntrctNo || '',
       ntceNo: it.ntceNo || '',
       untyCntrctNo: it.untyCntrctNo || '',
-      totCntrctAmt: parseFloat(it.totCntrctAmt || '') || 0,
+      // 물품(수의계약 등)은 totCntrctAmt가 0이고 금차계약금액(thtmCntrctAmt)에 값이 있는 경우가 있음
+      totCntrctAmt: parseFloat(it.totCntrctAmt || '') || parseFloat(it.thtmCntrctAmt || '') || 0,
       cntrctPrd: it.cntrctPrd || '',
       cntrctCnclsDate: toIsoDate(it.cntrctCnclsDate),
       startDate: toIsoDate(it.cbgnDate || it.wbgnDate),
