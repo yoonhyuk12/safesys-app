@@ -431,6 +431,12 @@ export default function ProjectDetailPage() {
         alert('조회된 계약에 착공·준공일 정보가 없습니다.')
         return
       }
+      // 이미 같은 기간이면 DB를 건드리지 않고 안내만
+      if ((project.construction_start_date || '') === (c.startDate || '') &&
+          (project.construction_end_date || '') === (c.endDate || '')) {
+        alert('업데이트 사항이 없습니다.')
+        return
+      }
       const { error: updateError } = await supabase
         .from('projects')
         .update({
