@@ -10,7 +10,7 @@
 - **실지적 판별**: projects.ts의 기존 로직 재사용 — photo_url 있거나 findings가 NO_FINDING_KEYWORDS(양호/적정/이상없음 등)가 아니면 지적. additional_items는 action ≠ '해당없음'.
 - **정기점검 4종 모두 포함**: 사용자는 "해빙기 우기 대비 점검"만 언급했으나 같은 테이블의 종합·특별도 동일 코드 경로라 포함. 문제 시 필터로 제외 가능.
 - **별지 7호 출력 = ExcelJS**: 20260703 단속·점검방문일지에서 "별지 서식 재현은 ExcelJS A4 1건 1시트, html2canvas PDF 미사용" 방침 확립. 사진 임베드는 addImage 선례 10건.
-- **조치완료일**: 원본 테이블(본부·정기)에 조치일 컬럼이 없음 (본부 `action_date`는 코드에서 세팅 안 함 — 조사 확인). 소스 유래 건은 별지 7호에서 공란, 직접 등록건만 `action_date` 저장.
+- **조치완료일**: 원본 테이블(본부·정기)에 조치일 컬럼이 없음 (본부 `action_date`는 코드에서 세팅 안 함 — 조사 확인). 직접 등록건은 `action_date` 저장. 소스 유래 건은 처음엔 공란으로 했으나 2026-07-06 사용자 피드백으로 **조치사진 파일명의 Date.now() 타임스탬프에서 업로드 날짜를 파싱**해 사용 (모든 업로드 경로가 타임스탬프 접두 관례라 가능. 사진 편집 재업로드 시 편집일로 바뀌는 한계 인지).
 - **점검자 소속/직급**: 별지 7호 양식엔 있으나 원본 데이터에 없음 → 성명만 출력, 소속·직급 공란.
 - **수급인**: projects 테이블에 시공사명 컬럼 없음. 정기점검 유래 = `safety_inspections.contractor` 스냅샷, 그 외 = 프로젝트 `created_by`의 `user_profiles.company_name` (SafetyInspectionForm.tsx:275-296 패턴).
 - **서명**: 직접 등록건에 `contractor_signature`(현장대리인)/`supervisor_signature`(감독원) base64 컬럼 → bulk-sign 레지스트리 등록 (CLAUDE.md 필수). 정기점검 유래는 `signatures` JSONB(roleArray)의 현장대리인/공사감독원 재사용. 본부 유래는 대응 서명이 없어 공란.
