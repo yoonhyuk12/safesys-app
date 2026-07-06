@@ -106,6 +106,14 @@ export async function POST(
     push(r.photo_url)
   })
 
+  const { data: cai } = await supabaseAdmin
+    .from('corrective_action_issues')
+    .select('before_photo_url, after_photo_url')
+    .eq('project_id', id)
+  cai?.forEach((r: { before_photo_url: unknown; after_photo_url: unknown }) => {
+    push(r.before_photo_url, r.after_photo_url)
+  })
+
   // URL을 버킷별 경로로 그룹핑 (base64 등은 parseStorageUrl이 걸러냄)
   const byBucket: Record<string, Set<string>> = {}
   for (const u of urls) {

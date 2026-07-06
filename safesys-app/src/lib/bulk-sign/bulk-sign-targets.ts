@@ -165,6 +165,18 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         toItem: (r) => ({ date: str(r.report_date), label: `성과총괄표${r.confirmer_name ? ` (확인자: ${str(r.confirmer_name)})` : ''}` }),
       },
       {
+        type: 'corrective_action_issue_supervisor',
+        title: '지적사항 조치결과 보고 (확인자 서명)',
+        table: 'corrective_action_issues',
+        signColumn: 'supervisor_signature',
+        selectColumns: 'id, inspection_date, inspection_type, location, content',
+        orderColumn: 'inspection_date',
+        toItem: (r) => ({
+          date: str(r.inspection_date),
+          label: [str(r.inspection_type), str(r.location) || str(r.content).slice(0, 30)].filter(Boolean).join(' · '),
+        }),
+      },
+      {
         type: 'material_ledger_entry',
         title: '지급자재 수불부 (감독 확인 서명)',
         table: 'material_ledger_entries',
@@ -281,6 +293,18 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         selectColumns: 'id, request_no, request_date, test_items, sender',
         orderColumn: 'request_date',
         toItem: (r) => ({ date: str(r.request_date), label: `${[str(r.request_no), str(r.test_items)].filter(Boolean).join(' · ')}${r.sender ? ` (보낸이: ${str(r.sender)})` : ''}` }),
+      },
+      {
+        type: 'corrective_action_issue_contractor',
+        title: '지적사항 조치결과 보고 (현장대리인 서명)',
+        table: 'corrective_action_issues',
+        signColumn: 'contractor_signature',
+        selectColumns: 'id, inspection_date, inspection_type, location, content',
+        orderColumn: 'inspection_date',
+        toItem: (r) => ({
+          date: str(r.inspection_date),
+          label: [str(r.inspection_type), str(r.location) || str(r.content).slice(0, 30)].filter(Boolean).join(' · '),
+        }),
       },
       {
         type: 'quality_summary_report_writer',

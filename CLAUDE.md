@@ -377,9 +377,9 @@ const canSeeAllHq = userProfile?.role === '발주청' &&
 프로젝트에 속한 데이터를 저장하는 **새 테이블은 반드시** FK를 `project_id UUID REFERENCES projects(id) ON DELETE CASCADE`로 선언한다. 프로젝트 삭제 시 종속 등록건이 함께 삭제되도록 보장하기 위함이다.
 
 - 프로젝트 삭제는 `/api/projects/[id]/delete` 라우트가 service-role로 `projects` 행만 직접 지우고, 자식 행 삭제는 전적으로 `ON DELETE CASCADE`에 의존한다. cascade가 없는 자식 테이블은 삭제 시 FK 위반으로 실패하거나 고아 데이터로 남는다.
-- 2026-07-06 기준 `projects`를 참조하는 자식 테이블 20개 전부 CASCADE다. 새 기능의 테이블도 빠짐없이 이 패턴을 따라야 한다. 감사는 `pg_constraint`에서 `confrelid = 'projects'`인 FK의 `confdeltype = 'c'`(=CASCADE) 여부로 확인한다.
+- 2026-07-06 기준 `projects`를 참조하는 자식 테이블 21개 전부 CASCADE다. 새 기능의 테이블도 빠짐없이 이 패턴을 따라야 한다. 감사는 `pg_constraint`에서 `confrelid = 'projects'`인 FK의 `confdeltype = 'c'`(=CASCADE) 여부로 확인한다.
 - 새 테이블이 사진·파일을 **Storage**에 저장하고 URL 컬럼을 두면, DB 행은 cascade로 지워져도 Storage 파일은 남는다. 이때는 위 삭제 라우트의 URL 수집 로직에 그 테이블을 추가한다. (서명 등을 base64 TEXT로 DB에 저장하면 행과 함께 삭제되어 별도 작업이 불필요하다.)
-- **프로젝트 병합(`merge_projects` DB 함수)도 함께 갱신한다.** 병합은 자식 테이블의 `project_id`를 target으로 UPDATE한 뒤 source를 삭제하므로, 함수의 UPDATE 목록에 없는 자식 테이블은 CASCADE로 유실된다. 함수는 실제 FK 테이블 수와 자신이 아는 개수(현재 20)가 다르면 예외로 중단하도록 되어 있으니, **새 자식 테이블 추가 시 UPDATE 목록과 개수 가드를 함께 갱신**해야 병합이 다시 동작한다. 프로젝트 단위 유니크 제약이 있는 테이블(예: quality_monthly_reports의 연·월)은 target 우선 충돌 폐기 DELETE도 추가한다.
+- **프로젝트 병합(`merge_projects` DB 함수)도 함께 갱신한다.** 병합은 자식 테이블의 `project_id`를 target으로 UPDATE한 뒤 source를 삭제하므로, 함수의 UPDATE 목록에 없는 자식 테이블은 CASCADE로 유실된다. 함수는 실제 FK 테이블 수와 자신이 아는 개수(현재 21)가 다르면 예외로 중단하도록 되어 있으니, **새 자식 테이블 추가 시 UPDATE 목록과 개수 가드를 함께 갱신**해야 병합이 다시 동작한다. 프로젝트 단위 유니크 제약이 있는 테이블(예: quality_monthly_reports의 연·월)은 target 우선 충돌 폐기 DELETE도 추가한다.
 
 ### 일괄서명 대상 등록 규칙 (필수)
 
