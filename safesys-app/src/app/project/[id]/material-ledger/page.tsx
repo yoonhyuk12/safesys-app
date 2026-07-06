@@ -1448,23 +1448,24 @@ export default function MaterialLedgerPage() {
                     <select
                       value={linkMapping[item.sno] ?? ''}
                       onChange={e => setLinkMapping(prev => ({ ...prev, [item.sno]: e.target.value }))}
-                      className="w-full mt-2 px-2 py-1.5 rounded text-xs text-amber-100"
+                      className="w-full mt-2 px-2 py-2 rounded text-xs text-amber-100"
                       style={{
-                        background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
-                        border: '1px solid #4a4a55'
+                        backgroundColor: '#1f1f28',
+                        border: '1px solid #6a5a40',
+                        colorScheme: 'dark'
                       }}
                     >
-                      <option value="">연결 안 함</option>
+                      <option value="" style={{ backgroundColor: '#1a1a22', color: '#e8dcc0' }}>연결 안 함</option>
                       {[selectedMaterial, ...materials.filter(m => m.id !== selectedMaterial.id)]
                         .filter(m => getSpecList(m).length > 0)
                         .map(m => (
-                          <optgroup key={m.id} label={m.id === selectedMaterial.id ? `${m.name} (현재 자재)` : m.name}>
+                          <optgroup key={m.id} label={m.id === selectedMaterial.id ? `${m.name} (현재 자재)` : m.name} style={{ backgroundColor: '#1a1a22', color: '#a8a8b0' }}>
                             {getSpecList(m).map(spec => (
-                              <option key={spec} value={m.id + MAP_SEP + spec}>{spec.replace(/\n/g, ' ')}</option>
+                              <option key={spec} value={m.id + MAP_SEP + spec} style={{ backgroundColor: '#1a1a22', color: '#e8dcc0' }}>{spec.replace(/\n/g, ' ')}</option>
                             ))}
                           </optgroup>
                         ))}
-                      <option value={selectedMaterial.id + MAP_SEP + NEW_SPEC}>+ 새 규격 행으로 추가 (현재 자재)</option>
+                      <option value={selectedMaterial.id + MAP_SEP + NEW_SPEC} style={{ backgroundColor: '#1a1a22', color: '#7ec8ff' }}>+ 새 규격 행으로 추가 (현재 자재)</option>
                     </select>
                     {(() => {
                       const target = parseLinkTarget(linkMapping[item.sno] || '')
