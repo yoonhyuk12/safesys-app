@@ -1302,6 +1302,198 @@ export default function MaterialLedgerPage() {
     )
   }
 
+  // 조달청 연계/동기화 모달 — 자재 상세 뷰가 별도 return 분기라 공용 JSX로 정의해 상세 뷰에서 렌더링
+  const linkModalJsx = isLinkModalOpen && selectedMaterial ? (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => { if (!linkApplying) setIsLinkModalOpen(false) }}>
+      <div
+        className="max-w-md w-full rounded-lg overflow-hidden max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 50%, #12121a 100%)',
+          border: '3px solid #4a3a28',
+          boxShadow: 'inset 0 0 40px rgba(0,0,0,0.8), 0 10px 40px rgba(0,0,0,0.9), 0 0 60px rgba(0,0,0,0.5)'
+        }}
+      >
+        <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900 flex-shrink-0" style={{
+          boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
+        }} />
+
+        {/* 헤더 */}
+        <div className="flex items-center justify-between px-5 py-3 flex-shrink-0" style={{
+          background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)',
+          borderBottom: '2px solid #5a4a35'
+        }}>
+          <h3 className="text-base font-bold text-amber-100" style={{ fontFamily: 'serif', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+            ⚔ 조달청 납품요구 연계
+          </h3>
+          <button
+            onClick={() => { if (!linkApplying) setIsLinkModalOpen(false) }}
+            className="p-1 text-amber-200/50 hover:text-amber-200 transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* 본문 */}
+        <div className="px-5 py-4 space-y-4 overflow-y-auto">
+          <div>
+            <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+              납품요구번호
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={linkNo}
+                onChange={e => setLinkNo(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleLinkLookup() }}
+                placeholder="예: R25TB00824197"
+                className="flex-1 min-w-0 px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                style={{
+                  background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                  border: '2px solid #4a4a55',
+                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => handleLinkLookup()}
+                disabled={linkLoading || !linkNo.trim()}
+                className="px-4 py-2 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 shrink-0"
+                style={{
+                  background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
+                  border: '2px solid #6a5a40',
+                  borderRadius: '6px',
+                  color: '#f5d78e',
+                  fontFamily: 'serif'
+                }}
+              >
+                {linkLoading ? '조회중…' : '조회'}
+              </button>
+            </div>
+            <p className="text-[11px] text-amber-200/40 mt-2">
+              조달청 품목과 이 자재의 규격을 연결하고, 발주량이 다르면 증감 행으로 보정합니다. 기존 수불 기록은 변경되지 않습니다.
+            </p>
+            {linkError && (
+              <p className="text-xs text-red-400 mt-2">{linkError}</p>
+            )}
+          </div>
+
+          {linkResult && (
+            <div className="rounded p-3" style={{
+              background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+              border: '2px solid #4a4a55',
+              boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+            }}>
+              <p className="text-sm text-amber-100 font-medium break-all">{linkResult.title}</p>
+              <p className="text-[11px] text-amber-200/50 mt-0.5">
+                {linkResult.demandOrg} → {linkResult.supplier}
+              </p>
+
+              <div className="mt-3 space-y-3">
+                {linkResult.items.map(item => (
+                  <div key={item.sno} className="rounded p-2.5" style={{ border: '1px solid #3a3a45', background: 'rgba(0,0,0,0.25)' }}>
+                    <p className="text-xs text-amber-100 break-all">{item.spec || item.name}</p>
+                    <p className="text-[11px] text-amber-200/50 mt-0.5">
+                      조달청 발주량 {formatNumber(String(item.qty))} {item.unit}
+                      {item.deadline ? ` · 납품기한 ${item.deadline}` : ''}
+                    </p>
+                    <select
+                      value={linkMapping[item.sno] ?? ''}
+                      onChange={e => setLinkMapping(prev => ({ ...prev, [item.sno]: e.target.value }))}
+                      className="w-full mt-2 px-2 py-1.5 rounded text-xs text-amber-100"
+                      style={{
+                        background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                        border: '1px solid #4a4a55'
+                      }}
+                    >
+                      <option value="">연결 안 함</option>
+                      {getSpecList(selectedMaterial).map(spec => (
+                        <option key={spec} value={spec}>{spec}</option>
+                      ))}
+                      <option value={NEW_SPEC}>+ 새 규격 행으로 추가</option>
+                    </select>
+                    {(() => {
+                      const spec = linkMapping[item.sno]
+                      if (!spec) return <p className="text-[11px] text-amber-200/40 mt-1.5">이 품목은 원장에 반영하지 않습니다.</p>
+                      if (spec === NEW_SPEC) return <p className="text-[11px] text-sky-300/80 mt-1.5">발주량 {formatNumber(String(item.qty))} {item.unit}의 새 규격 행이 추가됩니다.</p>
+                      const info = getLinkDiff(item)
+                      if (!info) return null
+                      if (info.diff === 0) return <p className="text-[11px] text-green-400/90 mt-1.5">✓ 발주량 일치 ({formatNumber(String(info.ledgerQty))})</p>
+                      return (
+                        <div className="mt-1.5">
+                          <p className="text-[11px] text-amber-300">
+                            발주량 차이 — 원장 {formatNumber(String(info.ledgerQty))} → 조달청 {formatNumber(String(item.qty))} ({info.diff > 0 ? '+' : ''}{formatNumber(String(info.diff))})
+                          </p>
+                          {info.overDelivered ? (
+                            <p className="text-[11px] text-red-400 mt-1">합격 누계가 조달청 수량을 초과한 상태라 자동 보정하지 않습니다. 현장 확인이 필요합니다.</p>
+                          ) : (
+                            <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={linkAdjust[item.sno] ?? true}
+                                onChange={e => setLinkAdjust(prev => ({ ...prev, [item.sno]: e.target.checked }))}
+                                className="accent-amber-600"
+                              />
+                              <span className="text-[11px] text-amber-100">
+                                증감 행({info.diff > 0 ? '+' : ''}{formatNumber(String(info.diff))})을 추가해 조달청 기준으로 보정
+                              </span>
+                            </label>
+                          )}
+                        </div>
+                      )
+                    })()}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 하단 버튼 */}
+        <div className="flex gap-3 px-5 py-4 flex-shrink-0" style={{
+          background: 'linear-gradient(180deg, #2a2520 0%, #1a1510 100%)',
+          borderTop: '2px solid #5a4a35'
+        }}>
+          <button
+            onClick={() => setIsLinkModalOpen(false)}
+            disabled={linkApplying}
+            className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50"
+            style={{
+              background: 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
+              border: '2px solid #4a4a55',
+              borderRadius: '6px',
+              color: '#a8a8b0',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)'
+            }}
+          >
+            취소
+          </button>
+          <button
+            onClick={handleApplyLink}
+            disabled={!linkResult || linkApplying}
+            className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+            style={{
+              background: linkResult
+                ? 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)'
+                : 'linear-gradient(180deg, #3a3a40 0%, #25252a 100%)',
+              border: '2px solid #6a5a40',
+              borderRadius: '6px',
+              color: '#f5d78e',
+              boxShadow: linkResult ? '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)' : 'none',
+              fontFamily: 'serif'
+            }}
+          >
+            ⚔ {linkApplying ? '적용중…' : '연계 적용'}
+          </button>
+        </div>
+
+        <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900 flex-shrink-0" style={{
+          boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
+        }} />
+      </div>
+    </div>
+  ) : null
+
   // ── 자재별 테이블 뷰 ──
 
   if (selectedMaterial) {
@@ -2042,6 +2234,8 @@ export default function MaterialLedgerPage() {
             </div>
           </div>
         )}
+
+        {linkModalJsx}
       </div>
     )
   }
@@ -2669,198 +2863,6 @@ export default function MaterialLedgerPage() {
 
             {/* 하단 금속 테두리 */}
             <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
-              boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
-            }} />
-          </div>
-        </div>
-      )}
-
-      {/* 조달청 연계/동기화 모달 */}
-      {isLinkModalOpen && selectedMaterial && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => { if (!linkApplying) setIsLinkModalOpen(false) }}>
-          <div
-            className="max-w-md w-full rounded-lg overflow-hidden max-h-[90vh] flex flex-col"
-            onClick={e => e.stopPropagation()}
-            style={{
-              background: 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 50%, #12121a 100%)',
-              border: '3px solid #4a3a28',
-              boxShadow: 'inset 0 0 40px rgba(0,0,0,0.8), 0 10px 40px rgba(0,0,0,0.9), 0 0 60px rgba(0,0,0,0.5)'
-            }}
-          >
-            <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900 flex-shrink-0" style={{
-              boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
-            }} />
-
-            {/* 헤더 */}
-            <div className="flex items-center justify-between px-5 py-3 flex-shrink-0" style={{
-              background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)',
-              borderBottom: '2px solid #5a4a35'
-            }}>
-              <h3 className="text-base font-bold text-amber-100" style={{ fontFamily: 'serif', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-                ⚔ 조달청 납품요구 연계
-              </h3>
-              <button
-                onClick={() => { if (!linkApplying) setIsLinkModalOpen(false) }}
-                className="p-1 text-amber-200/50 hover:text-amber-200 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* 본문 */}
-            <div className="px-5 py-4 space-y-4 overflow-y-auto">
-              <div>
-                <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
-                  납품요구번호
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={linkNo}
-                    onChange={e => setLinkNo(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') handleLinkLookup() }}
-                    placeholder="예: R25TB00824197"
-                    className="flex-1 min-w-0 px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
-                    style={{
-                      background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
-                      border: '2px solid #4a4a55',
-                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleLinkLookup()}
-                    disabled={linkLoading || !linkNo.trim()}
-                    className="px-4 py-2 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 shrink-0"
-                    style={{
-                      background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
-                      border: '2px solid #6a5a40',
-                      borderRadius: '6px',
-                      color: '#f5d78e',
-                      fontFamily: 'serif'
-                    }}
-                  >
-                    {linkLoading ? '조회중…' : '조회'}
-                  </button>
-                </div>
-                <p className="text-[11px] text-amber-200/40 mt-2">
-                  조달청 품목과 이 자재의 규격을 연결하고, 발주량이 다르면 증감 행으로 보정합니다. 기존 수불 기록은 변경되지 않습니다.
-                </p>
-                {linkError && (
-                  <p className="text-xs text-red-400 mt-2">{linkError}</p>
-                )}
-              </div>
-
-              {linkResult && (
-                <div className="rounded p-3" style={{
-                  background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
-                  border: '2px solid #4a4a55',
-                  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
-                }}>
-                  <p className="text-sm text-amber-100 font-medium break-all">{linkResult.title}</p>
-                  <p className="text-[11px] text-amber-200/50 mt-0.5">
-                    {linkResult.demandOrg} → {linkResult.supplier}
-                  </p>
-
-                  <div className="mt-3 space-y-3">
-                    {linkResult.items.map(item => (
-                      <div key={item.sno} className="rounded p-2.5" style={{ border: '1px solid #3a3a45', background: 'rgba(0,0,0,0.25)' }}>
-                        <p className="text-xs text-amber-100 break-all">{item.spec || item.name}</p>
-                        <p className="text-[11px] text-amber-200/50 mt-0.5">
-                          조달청 발주량 {formatNumber(String(item.qty))} {item.unit}
-                          {item.deadline ? ` · 납품기한 ${item.deadline}` : ''}
-                        </p>
-                        <select
-                          value={linkMapping[item.sno] ?? ''}
-                          onChange={e => setLinkMapping(prev => ({ ...prev, [item.sno]: e.target.value }))}
-                          className="w-full mt-2 px-2 py-1.5 rounded text-xs text-amber-100"
-                          style={{
-                            background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
-                            border: '1px solid #4a4a55'
-                          }}
-                        >
-                          <option value="">연결 안 함</option>
-                          {getSpecList(selectedMaterial).map(spec => (
-                            <option key={spec} value={spec}>{spec}</option>
-                          ))}
-                          <option value={NEW_SPEC}>+ 새 규격 행으로 추가</option>
-                        </select>
-                        {(() => {
-                          const spec = linkMapping[item.sno]
-                          if (!spec) return <p className="text-[11px] text-amber-200/40 mt-1.5">이 품목은 원장에 반영하지 않습니다.</p>
-                          if (spec === NEW_SPEC) return <p className="text-[11px] text-sky-300/80 mt-1.5">발주량 {formatNumber(String(item.qty))} {item.unit}의 새 규격 행이 추가됩니다.</p>
-                          const info = getLinkDiff(item)
-                          if (!info) return null
-                          if (info.diff === 0) return <p className="text-[11px] text-green-400/90 mt-1.5">✓ 발주량 일치 ({formatNumber(String(info.ledgerQty))})</p>
-                          return (
-                            <div className="mt-1.5">
-                              <p className="text-[11px] text-amber-300">
-                                발주량 차이 — 원장 {formatNumber(String(info.ledgerQty))} → 조달청 {formatNumber(String(item.qty))} ({info.diff > 0 ? '+' : ''}{formatNumber(String(info.diff))})
-                              </p>
-                              {info.overDelivered ? (
-                                <p className="text-[11px] text-red-400 mt-1">합격 누계가 조달청 수량을 초과한 상태라 자동 보정하지 않습니다. 현장 확인이 필요합니다.</p>
-                              ) : (
-                                <label className="flex items-center gap-1.5 mt-1 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={linkAdjust[item.sno] ?? true}
-                                    onChange={e => setLinkAdjust(prev => ({ ...prev, [item.sno]: e.target.checked }))}
-                                    className="accent-amber-600"
-                                  />
-                                  <span className="text-[11px] text-amber-100">
-                                    증감 행({info.diff > 0 ? '+' : ''}{formatNumber(String(info.diff))})을 추가해 조달청 기준으로 보정
-                                  </span>
-                                </label>
-                              )}
-                            </div>
-                          )
-                        })()}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* 하단 버튼 */}
-            <div className="flex gap-3 px-5 py-4 flex-shrink-0" style={{
-              background: 'linear-gradient(180deg, #2a2520 0%, #1a1510 100%)',
-              borderTop: '2px solid #5a4a35'
-            }}>
-              <button
-                onClick={() => setIsLinkModalOpen(false)}
-                disabled={linkApplying}
-                className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50"
-                style={{
-                  background: 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
-                  border: '2px solid #4a4a55',
-                  borderRadius: '6px',
-                  color: '#a8a8b0',
-                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)'
-                }}
-              >
-                취소
-              </button>
-              <button
-                onClick={handleApplyLink}
-                disabled={!linkResult || linkApplying}
-                className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
-                style={{
-                  background: linkResult
-                    ? 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)'
-                    : 'linear-gradient(180deg, #3a3a40 0%, #25252a 100%)',
-                  border: '2px solid #6a5a40',
-                  borderRadius: '6px',
-                  color: '#f5d78e',
-                  boxShadow: linkResult ? '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)' : 'none',
-                  fontFamily: 'serif'
-                }}
-              >
-                ⚔ {linkApplying ? '적용중…' : '연계 적용'}
-              </button>
-            </div>
-
-            <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900 flex-shrink-0" style={{
               boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
             }} />
           </div>
