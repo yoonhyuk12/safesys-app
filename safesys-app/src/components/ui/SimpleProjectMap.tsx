@@ -872,7 +872,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
           border: 2px solid ${borderColor};
           border-radius: 8px;
-          padding: 3px 8px ${clampedRate !== undefined ? 4 : 3}px;
+          padding: 2px 5px ${clampedRate !== undefined ? 3 : 2}px;
           font-size: 12px;
           font-weight: 600;
           color: ${textColor};
@@ -889,7 +889,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
         >
           ${displayName}
           ${clampedRate !== undefined ? `
-          <div style="display:flex; align-items:center; justify-content:center; gap:4px; margin-top:3px;">
+          <div style="display:flex; align-items:center; justify-content:center; gap:4px; margin-top:1px;">
             <div style="width:40px; height:4px; border-radius:2px; background:rgba(203,213,225,0.7); overflow:hidden;">
               <div style="width:${clampedRate}%; height:100%; background:${PROGRESS_ACCENT}; border-radius:2px;"></div>
             </div>
@@ -967,7 +967,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           const hqLabelOverlay = new (window as any).kakao.maps.CustomOverlay({
             content: buildNameLabelContent(projectNameLabel, project.name, hqLabelBorderColor, uninspectedHQColor, progressRate),
             position: markerPosition,
-            yAnchor: -0.4,
+            yAnchor: -0.2,
             xAnchor: 0,
             clickable: true
           })
@@ -1020,7 +1020,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           const branchLabelOverlay = new (window as any).kakao.maps.CustomOverlay({
             content: buildNameLabelContent(projectNameLabel, project.name, baseColor, baseColor, progressRate),
             position: markerPosition,
-            yAnchor: -0.4,
+            yAnchor: -0.2,
             xAnchor: 0,
             clickable: true
           })
@@ -1058,7 +1058,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
         const labelOverlay = new (window as any).kakao.maps.CustomOverlay({
           content: buildNameLabelContent(projectNameLabel, project.name, baseColor, baseColor, progressRate),
           position: markerPosition,
-          yAnchor: -0.4,
+          yAnchor: -0.2,
           xAnchor: 0,
           clickable: true
         })
@@ -1212,7 +1212,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
                 background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.95));
                 border: 2px solid ${tbmLabelBorderColor};
                 border-radius: 8px;
-                padding: 3px 8px;
+                padding: 2px 5px;
                 font-size: 12px;
                 font-weight: 600;
                 color: ${tbmLabelColor};
@@ -1242,7 +1242,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
               </div>
             `,
             position: tbmMarkerPosition,
-            yAnchor: -0.4,
+            yAnchor: -0.2,
             xAnchor: 0,
             clickable: true
           })
