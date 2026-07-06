@@ -10,6 +10,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
 import { downloadIssueActionReportExcel } from '@/lib/excel/issue-action-report-export'
 import { downloadCorrectiveActionRequestExcel } from '@/lib/excel/corrective-action-request-export'
+import { isRealFinding, isAdditionalFinding, isNaValue, extractUploadDate } from '@/lib/issue-ledger'
 
 // ─── 타입 ───────────────────────────────────────────────
 
@@ -56,28 +57,7 @@ interface LedgerIssue {
   actionDate: string | null
 }
 
-// 정기점검 실지적 판별 (projects.ts 집계 로직과 동일 기준)
-const NO_FINDING_KEYWORDS = ['양호', '적정', '이상없음', '이상 없음', '지적없음', '지적 없음', '해당없음', '해당 없음', '없음', '특이사항 없음', '특이사항없음']
-const isRealFinding = (r: { photo_url?: string | null; findings?: string | null }): boolean => {
-  if (r.photo_url && r.photo_url.trim() !== '') return true
-  const f = (r.findings || '').trim()
-  return !!f && !NO_FINDING_KEYWORDS.includes(f)
-}
-
-const isNaValue = (v: string | null): boolean => v === 'N/A' || v === '해당 사항 없음'
 const isResolved = (issue: LedgerIssue): boolean => !!issue.afterPhotoUrl
-
-// 조치사진 파일명의 Date.now() 타임스탬프에서 업로드(조치완료) 날짜 추출
-const extractUploadDate = (url: string | null): string | null => {
-  if (!url || !url.startsWith('http')) return null
-  const name = url.split('/').pop() || ''
-  const m = name.match(/(\d{13})/)
-  if (!m) return null
-  const d = new Date(parseInt(m[1], 10))
-  if (isNaN(d.getTime())) return null
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
 
 const SPECIAL_TYPE = '특별점검(안전혁신건설-287)'
 const sourceShort = (t: string): string => (t === SPECIAL_TYPE ? '특별점검' : t)
@@ -241,7 +221,7 @@ export default function IssueManagementPage() {
           })
         const additional = Array.isArray(ins.additional_items) ? ins.additional_items : []
         additional.forEach((item: any, idx: number) => {
-          if (!item?.action || item.action === '해당없음') return
+          if (!isAdditionalFinding(item)) return
           list.push({
             ...common,
             key: `sa-${ins.id}-${idx}`,

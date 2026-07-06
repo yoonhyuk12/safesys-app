@@ -17,6 +17,7 @@ import HeatWaveCheckModal from '@/components/project/HeatWaveCheckModal'
 import BulkSignModal, { BulkSignSigner } from '@/components/project/BulkSignModal'
 import PenHolderButton from '@/components/project/PenHolderButton'
 import { countUnsignedBySigner } from '@/lib/bulk-sign/bulk-sign-counts'
+import { isRealFinding, isAdditionalFinding, countHqIssues } from '@/lib/issue-ledger'
 import ProjectHandoverModal from '@/components/project/ProjectHandoverModal'
 import ProjectShareModal from '@/components/project/ProjectShareModal'
 import PWAInstallButtonHeader from '@/components/common/PWAInstallButtonHeader'
@@ -93,6 +94,10 @@ export default function ProjectDetailPage() {
   const [hqPendingCount, setHqPendingCount] = useState(0)
   const [safetyLedgerPendingCount, setSafetyLedgerPendingCount] = useState(0)
   const [managerPendingCount, setManagerPendingCount] = useState(0)
+  const [hqCount, setHqCount] = useState<number | null>(null)
+  const [safetyLedgerCount, setSafetyLedgerCount] = useState<number | null>(null)
+  const [managerCount, setManagerCount] = useState<number | null>(null)
+  const [issueLedgerCount, setIssueLedgerCount] = useState<number | null>(null)
   const [ptwCount, setPtwCount] = useState<number | null>(null)
   const [inspectionRequestCount, setInspectionRequestCount] = useState<number | null>(null)
   const [visitLogCount, setVisitLogCount] = useState<number | null>(null)
@@ -284,10 +289,11 @@ export default function ProjectDetailPage() {
 
       setProject(data as any)
 
-      // 본부 불시점검 미조치 건수 조회
+      // 본부 불시점검 미조치 건수 조회 (+ 카드 표시용 등록·지적 건수)
+      let hqIssueTotal = 0
       const { data: hqInspections } = await supabase
         .from('headquarters_inspections')
-        .select('action_photo_issue1, action_photo_issue2, issue_content2, site_photo_issue2, issue1_status, issue2_status')
+        .select('action_photo_issue1, action_photo_issue2, issue_content1, issue_content2, site_photo_issue2, issue1_status, issue2_status')
         .eq('project_id', projectId)
 
       if (hqInspections) {
@@ -298,12 +304,15 @@ export default function ProjectDetailPage() {
           return !(issue1Done && issue2Done)
         }).length
         setHqPendingCount(pendingCount)
+        setHqCount(hqInspections.length)
+        hqIssueTotal = (hqInspections as any[]).reduce((sum: number, ins: any) => sum + countHqIssues(ins), 0)
       }
 
-      // 안전점검 관리대장 조치 후 사진 미등록 건수 조회
+      // 안전점검 관리대장 조치 후 사진 미등록 건수 조회 (+ 카드 표시용 등록·지적 건수)
+      let safetyFindingTotal = 0
       const { data: safetyInspections } = await supabase
         .from('safety_inspections')
-        .select('id, inspection_type, additional_items, safety_inspection_results(id, findings, after_photo_url)')
+        .select('id, inspection_type, additional_items, safety_inspection_results(id, findings, photo_url, after_photo_url)')
         .eq('project_id', projectId)
 
       if (safetyInspections) {
@@ -327,7 +336,20 @@ export default function ProjectDetailPage() {
           return count + pending
         }, 0)
         setSafetyLedgerPendingCount(pendingPhotoCount)
+        setSafetyLedgerCount(safetyInspections.length)
+        safetyFindingTotal = (safetyInspections as any[]).reduce((sum: number, ins: any) => {
+          const results = Array.isArray(ins.safety_inspection_results) ? ins.safety_inspection_results : []
+          const additional = Array.isArray(ins.additional_items) ? ins.additional_items : []
+          return sum + results.filter(isRealFinding).length + additional.filter(isAdditionalFinding).length
+        }, 0)
       }
+
+      // 지적사항 관리대장 건수 = 본부 지적 + 정기점검 지적 + 직접 등록건
+      const { count: directIssueCount } = await (supabase as any)
+        .from('corrective_action_issues')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+      setIssueLedgerCount(hqIssueTotal + safetyFindingTotal + (directIssueCount ?? 0))
 
       // 관리자점검(지사 안전점검) 미완료 건수 조회 — 미완성 열과 동일 기준
       // 1) 서명 없음, 2) 위험성평가 사진 없음, 3) 재해예방 대상에서 내용·보고서 사진 중 하나만 있음(불일치)
@@ -347,6 +369,7 @@ export default function ProjectDetailPage() {
           return noSignature || noRiskAssessmentPhoto || disasterIncomplete
         }).length
         setManagerPendingCount(pendingCount)
+        setManagerCount(managerInspections.length)
       }
 
       // 프로젝트 생성인의 프로필 정보 조회
@@ -1295,6 +1318,7 @@ export default function ProjectDetailPage() {
                   managingBranch={project?.managing_branch}
                   onClick={() => router.push(`/project/${projectId}/headquarters-inspection`)}
                   badgeCount={hqPendingCount}
+                  docCount={hqCount ?? undefined}
                   pdcaCategory="C"
                 />
                 {project?.managing_branch?.endsWith('지사') && (
@@ -1307,6 +1331,7 @@ export default function ProjectDetailPage() {
                     managingBranch={project?.managing_branch}
                     onClick={() => router.push(`/project/${projectId}/manager-inspection`)}
                     badgeCount={managerPendingCount}
+                    docCount={managerCount ?? undefined}
                     pdcaCategory="C"
                   />
                 )}
@@ -1319,6 +1344,7 @@ export default function ProjectDetailPage() {
                   projectId={projectId}
                   onClick={() => router.push(`/project/${projectId}/safety-inspection-ledger`)}
                   badgeCount={safetyLedgerPendingCount}
+                  docCount={safetyLedgerCount ?? undefined}
                   pdcaCategory="C"
                 />
                 <DocumentFolder
@@ -1328,6 +1354,7 @@ export default function ProjectDetailPage() {
                   isActive={false}
                   projectId={projectId}
                   onClick={() => router.push(`/project/${projectId}/issue-management`)}
+                  docCount={issueLedgerCount ?? undefined}
                   pdcaCategory="C"
                 />
                 <DocumentFolder
