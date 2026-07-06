@@ -164,14 +164,17 @@ export async function GET(request: NextRequest) {
       cntrctInfoUrl: it.cntrctInfoUrl || '',
     }))
 
+    // 최신 계약(계약체결일자 최근순)이 앞에 오도록 정렬 — 차수 계약 여러 건이면 최신만 적용 대상
     // 표시 필드가 전부 같은 행은 중복 등록 건이므로 제거 (untyCntrctNo만 다른 경우)
     const seen = new Set<string>()
-    const contracts = mapped.filter((c) => {
-      const key = [c.cntrctNo, c.ntceNo, c.cnstwkNm, c.totCntrctAmt, c.startDate, c.endDate].join('|')
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
+    const contracts = mapped
+      .sort((a, b) => (b.cntrctCnclsDate || '').localeCompare(a.cntrctCnclsDate || ''))
+      .filter((c) => {
+        const key = [c.cntrctNo, c.ntceNo, c.cnstwkNm, c.totCntrctAmt, c.startDate, c.endDate].join('|')
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
 
     return NextResponse.json({ success: true, data: { matchedBy, contracts } })
   } catch (err: unknown) {

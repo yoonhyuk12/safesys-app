@@ -173,7 +173,13 @@ export default function G2bContractLookup({
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      {contracts.map((c) => {
+      {contracts.length > 1 && (
+        <p className="text-xs text-emerald-700">
+          동일 번호로 {contracts.length}건이 조회되어 가장 최신 계약만 표시합니다.
+        </p>
+      )}
+
+      {contracts.slice(0, 1).map((c) => {
         const key = c.cntrctNo || c.ntceNo || c.untyCntrctNo
         const isApplied = appliedNo === (c.cntrctNo || c.ntceNo)
         return (
