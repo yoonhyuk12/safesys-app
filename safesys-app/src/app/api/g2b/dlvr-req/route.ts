@@ -23,11 +23,22 @@ interface G2bRawItem {
 export async function GET(request: NextRequest) {
   try {
     // 서류에는 "번호-차수"(예: R26TB01458287-00)로 표기되므로 끝의 차수 접미어는 떼고 조회
+    // 붙여넣기에 섞이는 공백("R25TB00824197 - 00")도 전부 제거
     const no = request.nextUrl.searchParams
-      .get('no')?.trim().toUpperCase().replace(/-\d{1,2}$/, '')
-    if (!no || !/^[A-Z0-9-]{5,30}$/.test(no)) {
+      .get('no')?.replace(/\s+/g, '').toUpperCase().replace(/-\d{1,3}$/, '')
+    if (!no || !/^[A-Z0-9]{5,30}$/.test(no)) {
       return NextResponse.json(
         { success: false, error: '올바른 납품요구번호를 입력해주세요. (예: R25TB00824197)' },
+        { status: 400 }
+      )
+    }
+    // 계약·공고·통합계약 번호는 이 라우트 대상이 아님 — 프로젝트 연계로 안내
+    if (/^R\d{2}(TA|BK|TE)/.test(no)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: '계약·공고 번호로 보입니다. 프로젝트 등록·수정 화면의 나라장터 계약 연계에서 사용해주세요.',
+        },
         { status: 400 }
       )
     }
