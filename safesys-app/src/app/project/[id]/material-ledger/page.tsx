@@ -139,6 +139,19 @@ function formatDate(value: string): string {
   return `${m[1].slice(2)}-${m[2]}-${m[3]}`
 }
 
+// 조달청 품목 → 원장 품명/규격 문자열. 규격 전문이 "품명, 제조사, 모델…"로 길어서
+// 품명 뒤 나머지를 줄바꿈 + 괄호로 묶는다. 예: "배수로관\n(토암콘크리트, TAS-06, …)"
+function formatG2bSpec(item: G2bItem): string {
+  const name = (item.name || '').trim()
+  let rest = (item.spec || '').trim()
+  if (name && rest.startsWith(name)) {
+    rest = rest.slice(name.length).replace(/^[,\s]+/, '')
+  }
+  if (!name) return rest
+  if (!rest) return name
+  return `${name}\n(${rest})`
+}
+
 // ── 컴포넌트 ──
 
 export default function MaterialLedgerPage() {
@@ -436,7 +449,7 @@ export default function MaterialLedgerPage() {
         .from('material_ledger_entries')
         .insert(selected.map(i => ({
           material_id: data.id,
-          name_or_spec: i.spec || i.name,
+          name_or_spec: formatG2bSpec(i),
           order_qty: i.qty || null,
           created_by: user?.id,
           dlvr_req_no: g2bResult.dlvrReqNo,
@@ -514,6 +527,7 @@ export default function MaterialLedgerPage() {
         let spec = ''
         const bySno = selectedMaterial.rows.find(r => r.dlvrReqPrdctSno === item.sno)
         if (bySno?.nameOrSpec) spec = bySno.nameOrSpec
+        else if (specs.includes(formatG2bSpec(item))) spec = formatG2bSpec(item)
         else if (specs.includes(item.spec)) spec = item.spec
         else if (result.items.length === 1 && specs.length === 1) spec = specs[0]
         mapping[item.sno] = spec
@@ -562,7 +576,7 @@ export default function MaterialLedgerPage() {
         if (spec === NEW_SPEC) {
           const { error: insErr } = await supabase.from('material_ledger_entries').insert({
             material_id: selectedMaterial.id,
-            name_or_spec: item.spec || item.name,
+            name_or_spec: formatG2bSpec(item),
             order_qty: item.qty || null,
             created_by: user?.id,
             dlvr_req_no: linkResult.dlvrReqNo,
@@ -1746,7 +1760,7 @@ export default function MaterialLedgerPage() {
                             idx + 1
                           )}
                         </td>
-                        <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{row.nameOrSpec || '-'}</td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-pre-line" style={{ border: '1px solid #3a3a45' }}>{row.nameOrSpec || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.orderQty) || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatDate(row.receiveDate) || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.receiveQty) || '-'}</td>
@@ -1843,8 +1857,8 @@ export default function MaterialLedgerPage() {
                 {/* 품명 또는 규격 */}
                 <div>
                   <label className="block text-sm font-medium text-amber-100 mb-1" style={{ fontFamily: 'serif' }}>품명 또는 규격</label>
-                  <input
-                    type="text"
+                  <textarea
+                    rows={2}
                     value={rowForm.nameOrSpec}
                     onChange={e => handleNameOrSpecChange(e.target.value)}
                     placeholder="품명 또는 규격 입력"

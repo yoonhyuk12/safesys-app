@@ -265,8 +265,8 @@ export async function downloadMaterialLedgerExcel(
       kCell.alignment = { horizontal: 'center', vertical: 'middle' }
       kCell.font = { size: 9 }
 
-      // 품명/규격(A) 가운데 정렬
-      excelRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle' }
+      // 품명/규격(A) 가운데 정렬 + 줄바꿈 표시 (품명\n(규격) 형식)
+      excelRow.getCell(1).alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
       // 조치사항(H) 가운데 정렬
       excelRow.getCell(8).alignment = { horizontal: 'center', vertical: 'middle' }
 
@@ -374,8 +374,8 @@ export async function downloadMaterialLedgerExcel(
     dataExcelRow.eachCell({ includeEmpty: true }, (cell, colNum) => {
       if (colNum <= 5) {
         cell.border = thinBorder
-        // 사용처(E열)는 자동 줄바꿈 적용
-        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: colNum === 5 }
+        // 사용처(E열)·규격(B열)은 자동 줄바꿈 적용
+        cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: colNum === 5 || colNum === 2 }
         cell.font = { size: 10 }
       }
     })
