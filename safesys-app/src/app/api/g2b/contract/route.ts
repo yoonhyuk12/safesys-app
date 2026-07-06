@@ -105,38 +105,63 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 조회 시도 순서: 확정계약번호 → 공고번호(입력 그대로) → '번호-차수' 결합 정규화
-    const attempts: { param: 'dcsnCntrctNo' | 'ntceNo'; value: string; matchedBy: 'cntrct' | 'ntce' }[] = [
-      { param: 'dcsnCntrctNo', value: no, matchedBy: 'cntrct' },
-      { param: 'ntceNo', value: no, matchedBy: 'ntce' },
-    ]
-    // 나라장터 화면의 '번호-차수' 표기는 API에 '번호+차수2자리' 결합값으로 저장됨 (2026-07-06 실호출 확인)
-    // 예: 공고번호 "20221008901-000" → "2022100890100", 계약번호 "R26TA01377926-01" → "R26TA0137792601"
-    // 결합값이 다른 계약의 번호와 우연히 겹칠 수 있어 표기 관례대로 시도 순서를 정한다
-    // — 숫자만(구형 표기)은 공고번호 관례라 ntceNo 먼저, 문자 포함(차세대)은 dcsnCntrctNo 먼저
+    // '번호-차수' 표기별 저장 규칙 (2026-07-06 실호출 확인)
+    // — 구형 공고번호(숫자): '번호+차수2자리' 결합 저장 ("20221008901-000" → "2022100890100")
+    // — 차세대 계약번호(R##TA 등): 결합 저장 ("R26TA01377926-01" → "R26TA0137792601")
+    // — 차세대 공고번호(R##BK): 차수 없이 저장 ("R25BK00999619-000" → "R25BK00999619")
+    // 결합값이 다른 계약의 번호와 우연히 겹칠 수 있어 유형별 가능성 순으로 시도한다
+    // (대시 포함 값 자체는 어떤 저장값과도 일치하지 않으므로 시도하지 않음)
+    type Attempt = { param: 'dcsnCntrctNo' | 'ntceNo'; value: string; matchedBy: 'cntrct' | 'ntce' }
+    const attempts: Attempt[] = []
     const dashed = no.match(/^([A-Z0-9]+)-(\d{1,3})$/)
     if (dashed) {
-      const joined = `${dashed[1]}${String(Number(dashed[2])).padStart(2, '0')}`
-      const joinedAttempts: typeof attempts = [
-        { param: 'dcsnCntrctNo', value: joined, matchedBy: 'cntrct' },
-        { param: 'ntceNo', value: joined, matchedBy: 'ntce' },
-      ]
-      if (/^\d+$/.test(dashed[1])) joinedAttempts.reverse()
-      attempts.push(...joinedAttempts)
-    }
-    // 구형 공고번호(숫자 11자리)는 차수 없이 입력해도 '+00'을 붙여 재시도
-    const legacy = no.match(/^(\d{11})$/)
-    if (legacy) {
-      attempts.push({ param: 'ntceNo', value: `${legacy[1]}00`, matchedBy: 'ntce' })
+      const base = dashed[1]
+      const joined = `${base}${String(Number(dashed[2])).padStart(2, '0')}`
+      if (/^\d+$/.test(base)) {
+        attempts.push(
+          { param: 'ntceNo', value: joined, matchedBy: 'ntce' },
+          { param: 'dcsnCntrctNo', value: joined, matchedBy: 'cntrct' },
+          { param: 'ntceNo', value: base, matchedBy: 'ntce' },
+        )
+      } else if (/^R\d{2}BK/.test(base)) {
+        attempts.push(
+          { param: 'ntceNo', value: base, matchedBy: 'ntce' },
+          { param: 'dcsnCntrctNo', value: joined, matchedBy: 'cntrct' },
+          { param: 'ntceNo', value: joined, matchedBy: 'ntce' },
+        )
+      } else {
+        attempts.push(
+          { param: 'dcsnCntrctNo', value: joined, matchedBy: 'cntrct' },
+          { param: 'ntceNo', value: base, matchedBy: 'ntce' },
+          { param: 'ntceNo', value: joined, matchedBy: 'ntce' },
+          { param: 'dcsnCntrctNo', value: base, matchedBy: 'cntrct' },
+        )
+      }
+    } else {
+      attempts.push(
+        { param: 'dcsnCntrctNo', value: no, matchedBy: 'cntrct' },
+        { param: 'ntceNo', value: no, matchedBy: 'ntce' },
+      )
+      // 구형 공고번호(숫자 11자리)는 차수 없이 입력해도 '+00'을 붙여 재시도
+      if (/^\d{11}$/.test(no)) {
+        attempts.push({ param: 'ntceNo', value: `${no}00`, matchedBy: 'ntce' })
+      }
     }
 
+    // 개별 호출의 일시적 오류는 치명으로 보지 않고 다음 후보를 계속 시도한다
+    // (조달청 API가 간헐적으로 오류를 반환하는 사례가 있어, 한 번의 실패로 전체 조회를 끊지 않음)
     let matchedBy: 'cntrct' | 'ntce' = 'cntrct'
     let matchedDiv = ''
+    let lastErrorMsg = ''
     let result: { items: G2bRawContract[]; errorMsg?: string } = { items: [] }
     outer: for (const attempt of attempts) {
       for (const g2bOp of G2B_OPS) {
         result = await fetchContracts(apiKey, g2bOp.op, attempt.param, attempt.value)
-        if (result.errorMsg) break outer
+        if (result.errorMsg) {
+          console.error(`조달청 계약정보 API 오류 (${g2bOp.op} ${attempt.param}=${attempt.value}):`, result.errorMsg)
+          lastErrorMsg = result.errorMsg
+          continue
+        }
         if (result.items.length > 0) {
           matchedBy = attempt.matchedBy
           matchedDiv = g2bOp.div
@@ -145,10 +170,9 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (result.errorMsg) {
-      console.error('조달청 계약정보 API 오류:', result.errorMsg)
+    if (result.items.length === 0 && lastErrorMsg) {
       return NextResponse.json(
-        { success: false, error: `조달청 API 오류: ${result.errorMsg}` },
+        { success: false, error: `조달청 API 오류: ${lastErrorMsg}. 잠시 후 다시 시도해주세요.` },
         { status: 502 }
       )
     }
