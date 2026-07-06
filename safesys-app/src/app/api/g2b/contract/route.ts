@@ -76,7 +76,8 @@ async function fetchContracts(
 
 export async function GET(request: NextRequest) {
   try {
-    const no = request.nextUrl.searchParams.get('no')?.trim().toUpperCase()
+    // 공백은 전부 제거 — "20231019521 - 000"처럼 붙여넣기에 공백이 섞이는 경우 허용
+    const no = request.nextUrl.searchParams.get('no')?.replace(/\s+/g, '').toUpperCase()
     if (!no || !/^[A-Z0-9-]{5,30}$/.test(no)) {
       return NextResponse.json(
         { success: false, error: '올바른 계약번호 또는 공고번호를 입력해주세요.' },

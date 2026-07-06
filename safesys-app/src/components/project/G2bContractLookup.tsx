@@ -90,7 +90,8 @@ export default function G2bContractLookup({
   const [appliedNo, setAppliedNo] = useState<string | null>(null)
 
   const handleSearch = async () => {
-    const trimmed = no.trim()
+    // 붙여넣기 시 섞이는 공백 제거 (예: "20231019521 - 000")
+    const trimmed = no.replace(/\s+/g, '')
     if (!trimmed) {
       setError('계약번호 또는 공고번호를 입력해주세요.')
       return

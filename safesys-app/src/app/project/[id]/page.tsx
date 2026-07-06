@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Building, Phone, MoreVertical, Copy, Check, FileText } from 'lucide-react'
+import { ArrowLeft, Building, Phone, MoreVertical, Copy, Check, FileText, RefreshCw } from 'lucide-react'
 import { Project, deleteProject } from '@/lib/projects'
 import { computeProgressRate, ProgressAnchor } from '@/lib/work-daily-report/work-daily-report-types'
 import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
@@ -81,6 +81,7 @@ export default function ProjectDetailPage() {
   const [supervisorUnsignedCount, setSupervisorUnsignedCount] = useState<number | null>(null)
   const [contractorUnsignedCount, setContractorUnsignedCount] = useState<number | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const [g2bSyncing, setG2bSyncing] = useState(false)
   const [handoverModal, setHandoverModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [navigationModal, setNavigationModal] = useState<{ isOpen: boolean; address: string }>({ isOpen: false, address: '' })
@@ -412,6 +413,47 @@ export default function ProjectDetailPage() {
     router.push(`/project/${projectId}/edit`)
   }
 
+  // 나라장터 계약 재조회로 계약기간(착공·준공일) 갱신 — 연계 번호가 있을 때만 버튼 노출
+  const handleG2bSync = async () => {
+    if (!project || g2bSyncing) return
+    const no = project.g2b_cntrct_no || project.g2b_ntce_no
+    if (!no) return
+    setG2bSyncing(true)
+    try {
+      const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}`)
+      const json = await res.json()
+      if (!json.success || !json.data?.contracts?.length) {
+        alert(json.error || '나라장터에서 계약 정보를 찾지 못했습니다.')
+        return
+      }
+      const c = json.data.contracts[0]
+      if (!c.startDate && !c.endDate) {
+        alert('조회된 계약에 착공·준공일 정보가 없습니다.')
+        return
+      }
+      const { error: updateError } = await supabase
+        .from('projects')
+        .update({
+          construction_start_date: c.startDate || null,
+          construction_end_date: c.endDate || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', project.id)
+      if (updateError) throw updateError
+      setProject(prev => prev ? {
+        ...prev,
+        construction_start_date: c.startDate || null,
+        construction_end_date: c.endDate || null
+      } : prev)
+      alert(`나라장터 계약기간으로 갱신했습니다.\n${c.startDate || '?'} ~ ${c.endDate || '?'}`)
+    } catch (err) {
+      console.error('나라장터 계약기간 갱신 실패:', err)
+      alert('나라장터 연동 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setG2bSyncing(false)
+    }
+  }
+
   const handleHandover = () => {
     setIsMenuOpen(false)
     if (project) {
@@ -716,7 +758,18 @@ export default function ProjectDetailPage() {
           {/* 프로젝트 정보 */}
           <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative">
             {/* 점점점 메뉴 버튼 */}
-            <div className="absolute top-4 right-4" ref={menuRef}>
+            <div className="absolute top-4 right-4 flex items-center gap-1" ref={menuRef}>
+              {/* 나라장터 계약기간 갱신 (연계 번호가 있을 때만) */}
+              {(project.g2b_cntrct_no || project.g2b_ntce_no) && (
+                <button
+                  onClick={handleG2bSync}
+                  disabled={g2bSyncing}
+                  title="나라장터 계약기간 갱신"
+                  className="p-1 rounded hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-5 w-5 text-emerald-600 ${g2bSyncing ? 'animate-spin' : ''}`} />
+                </button>
+              )}
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="p-1 rounded hover:bg-gray-100 transition-colors"
@@ -725,7 +778,7 @@ export default function ProjectDetailPage() {
               </button>
 
               {isMenuOpen && (
-                <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-[100px]">
+                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 min-w-[100px]">
                   <button
                     onClick={handleEdit}
                     className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 first:rounded-t-md"
