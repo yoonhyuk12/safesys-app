@@ -212,7 +212,7 @@ export function downloadHeadquartersInspectionExcel(
   worksheet.getColumn(COL_YEO_SUM).width = 6
   worksheet.getColumn(COL_BU_SUM).width = 6
   worksheet.getColumn(COL_NA_SUM).width = 8
-  worksheet.getColumn(COL_REMARK).width = 30 // '부' 항목 점검결과 텍스트 수용
+  worksheet.getColumn(COL_REMARK).width = 18
 
   // ===== 제목 (R2) =====
   worksheet.mergeCells(2, COL_HQ, 2, COL_DATE)
@@ -283,6 +283,7 @@ export function downloadHeadquartersInspectionExcel(
   const lastDataRow = FIRST_DATA_ROW + dataRowCount - 1
 
   const flaggedRows = new Set<number>() // 공사중인데 해당 분기 점검 이력이 없는 행(강조 대상)
+  const buTextCols = new Set<number>()  // 점검결과 텍스트가 들어간 부 항목(0-based) — 컬럼 폭 확대 대상
   sortedProjects.forEach((project, idx) => {
     const r = FIRST_DATA_ROW + idx
     const row = worksheet.getRow(r)
@@ -303,7 +304,6 @@ export function downloadHeadquartersInspectionExcel(
     if (underConstruction && !insp) flaggedRows.add(r)
 
     // 점검 이력이 있을 때만 마크
-    const badTexts: string[] = [] // '부' 항목의 점검결과 텍스트 → 비고에 수집
     if (insp) {
       for (let k = 0; k < ITEM_COUNT; k++) {
         const item = items[k]
@@ -313,9 +313,10 @@ export function downloadHeadquartersInspectionExcel(
           if (isNaRemarks(item.remarks)) row.getCell(naCol(k)).value = 'O'
           else row.getCell(yeoCol(k)).value = 'O'
         } else if (item.status === 'bad') {
-          row.getCell(buCol(k)).value = 'O'
+          // 부 셀에 점검결과 텍스트를 직접 표기 (없으면 O — COUNTA 집계 유지)
           const text = (item.remarks || '').trim()
-          if (text) badTexts.push(text)
+          row.getCell(buCol(k)).value = text || 'O'
+          if (text) buTextCols.add(k)
         } else {
           row.getCell(naCol(k)).value = 'O' // 미선택 → 해당없음
         }
@@ -333,7 +334,12 @@ export function downloadHeadquartersInspectionExcel(
     const bb = colLetter(COL_YEO_SUM)
     const bd = colLetter(COL_NA_SUM)
     row.getCell(COL_SUBTOTAL).value = { formula: `SUM(${bb}${r}:${bd}${r})` }
-    row.getCell(COL_REMARK).value = badTexts.join('\n')
+    row.getCell(COL_REMARK).value = ''
+  })
+
+  // 점검결과 텍스트가 들어간 부 컬럼은 읽을 수 있게 폭 확대
+  buTextCols.forEach(k => {
+    worksheet.getColumn(buCol(k)).width = 14
   })
 
   // ===== 계 행 (R7) =====
@@ -411,6 +417,7 @@ export function downloadHeadquartersInspectionExcel(
   }
 
   // 데이터 행 스타일
+  const buTextColNums = new Set([...buTextCols].map(k => buCol(k)))
   for (let idx = 0; idx < dataRowCount; idx++) {
     const r = FIRST_DATA_ROW + idx
     const isFlagged = flaggedRows.has(r)
@@ -421,12 +428,14 @@ export function downloadHeadquartersInspectionExcel(
       else if (c >= COL_SUBTOTAL && c <= COL_NA_SUM) cell.fill = GRAY_FILL // 조치결과
       else if (c === COL_DATE) cell.fill = WHITE_FILL                     // 점검일
       cell.border = allBorder
-      // 좌측 텍스트열·비고는 좌측정렬, 나머지(마크/집계)는 가운데
-      const isTextCol = c === COL_PROJECT || c === COL_UNIT || c === COL_REMARK
+      // 좌측 텍스트열은 좌측정렬, 나머지(마크/집계)는 가운데
+      const isTextCol = c === COL_PROJECT || c === COL_UNIT
+      // 텍스트가 들어간 부 컬럼은 줄바꿈 허용
+      const isBuTextCol = buTextColNums.has(c)
       cell.alignment = {
         horizontal: isTextCol ? 'left' : 'center',
         vertical: 'middle',
-        wrapText: isTextCol,
+        wrapText: isTextCol || isBuTextCol,
       }
       cell.font = isFlagged
         ? { size: 9, bold: true, color: { argb: 'FF9C0006' } }
