@@ -115,31 +115,44 @@ export async function fetchImageAsBase64(
   }
 }
 
-// 지정 영역(px)에 URL 사진을 비율 유지 정중앙 배치.
+// 지정 영역(px)에 URL 사진을 비율 유지 배치 — 가로는 항상 중앙, 세로는 center(기본)/top.
+// offsetYPx: 영역 상단에서 사진 배치 구간이 시작되는 지점(px) — 텍스트 아래 배치용.
 // 소수부 앵커(col: 2.5)는 ExcelJS가 열 폭을 width×10000 EMU로 잘못 근사해 오프셋이
 // 크게 축소되므로, EMU(px×9525) 오프셋을 직접 지정한다.
 export async function addPhotoImageInArea(
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
   url: string,
-  opts: { col: number; row: number; areaWidthPx: number; areaHeightPx: number; padding?: number }
+  opts: {
+    col: number
+    row: number
+    areaWidthPx: number
+    areaHeightPx: number
+    padding?: number
+    offsetYPx?: number
+    verticalAlign?: 'center' | 'top'
+  }
 ): Promise<void> {
   const imgData = await fetchImageAsBase64(url)
   if (!imgData) return
   const imageId = wb.addImage({ base64: imgData.base64, extension: imgData.extension })
   const pad = opts.padding ?? 6
+  const offsetY = opts.offsetYPx ?? 0
+  const availableH = opts.areaHeightPx - offsetY
   const maxW = opts.areaWidthPx - pad * 2
-  const maxH = opts.areaHeightPx - pad * 2
+  const maxH = availableH - pad * 2
   const scale = Math.min(maxW / imgData.width, maxH / imgData.height)
   const w = imgData.width * scale
   const h = imgData.height * scale
+  const rowOffPx =
+    opts.verticalAlign === 'top' ? offsetY + pad : offsetY + (availableH - h) / 2
   const EMU_PER_PX = 9525
   ws.addImage(imageId, {
     tl: {
       nativeCol: opts.col, // 0-based
       nativeColOff: Math.round(((opts.areaWidthPx - w) / 2) * EMU_PER_PX),
       nativeRow: opts.row - 1, // row는 1-based
-      nativeRowOff: Math.round(((opts.areaHeightPx - h) / 2) * EMU_PER_PX),
+      nativeRowOff: Math.round(rowOffPx * EMU_PER_PX),
     },
     ext: { width: w, height: h },
     editAs: 'absolute',

@@ -88,9 +88,8 @@ export async function downloadCorrectiveActionRequestExcel(data: CorrectiveActio
   ws.getRow(r).height = 30
   r++
 
-  // 점검내용 및 시정조치 요구사항 — 큰 영역 (상단 텍스트 + 하단 지적사진)
+  // 점검내용 및 시정조치 요구사항 — 큰 영역 (텍스트 + 바로 아래 지적사진)
   const CONTENT_ROWS = 22
-  const TEXT_ROWS = 8 // 사진은 이 아래 영역에 배치
   const ROW_H = 22
   const contentStart = r
   mergeSet(ws, `A${r}:B${r + CONTENT_ROWS - 1}`, '점검내용\n및\n시정조치\n요구사항', {
@@ -102,15 +101,24 @@ export async function downloadCorrectiveActionRequestExcel(data: CorrectiveActio
   for (let i = 0; i < CONTENT_ROWS; i++) ws.getRow(contentStart + i).height = ROW_H
   r += CONTENT_ROWS
 
-  // 지적사진 — 내용 칸 하단 영역 정중앙 (칸 분할 없이 이미지 플로팅)
+  // 지적사진 — 본문 텍스트 줄 수를 추정해 글 바로 아래 가로 중앙 배치 (칸 분할 없이 이미지 플로팅)
   if (data.beforePhotoUrl) {
     const areaWidthPx = (11 + 11 + 8 + 8 + 11 + 11) * 7.5 // C~H 열 폭 합
-    const photoRows = CONTENT_ROWS - TEXT_ROWS
+    const areaHeightPx = CONTENT_ROWS * ROW_H * (4 / 3)
+    const CHARS_PER_LINE = 32 // 10pt 한글 기준 줄바꿈 추정치
+    const LINE_PX = 18
+    const lines = (data.content || '')
+      .split('\n')
+      .reduce((acc, seg) => acc + Math.max(1, Math.ceil(seg.length / CHARS_PER_LINE)), 0)
+    // 사진 최소 높이(6행 분량)는 확보하도록 텍스트 추정 높이를 제한
+    const textPx = Math.min(lines * LINE_PX + 8, areaHeightPx - 6 * ROW_H * (4 / 3))
     await addPhotoImageInArea(workbook, ws, data.beforePhotoUrl, {
       col: 2,
-      row: contentStart + TEXT_ROWS,
+      row: contentStart,
       areaWidthPx,
-      areaHeightPx: photoRows * ROW_H * (4 / 3),
+      areaHeightPx,
+      offsetYPx: textPx,
+      verticalAlign: 'top',
     })
   }
 
