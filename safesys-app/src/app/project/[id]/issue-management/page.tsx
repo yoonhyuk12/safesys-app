@@ -549,6 +549,7 @@ export default function IssueManagementPage() {
         inspectorName: issue.inspectorName,
         inspectionDate: issue.inspectionDate,
         content,
+        beforePhotoUrl: issue.beforePhotoUrl,
       })
     } catch (err) {
       console.error(err)

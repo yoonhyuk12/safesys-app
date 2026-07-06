@@ -1,7 +1,7 @@
 // 시정조치요구서 엑셀 내보내기 — 별지 6호 서식 (지침 제22조, A4 세로 1건 1시트)
 
 import ExcelJS from 'exceljs'
-import { mergeSet, headerFill, downloadWorkbook, formatDateKorean } from '@/lib/excel/quality-excel-utils'
+import { mergeSet, headerFill, downloadWorkbook, formatDateKorean, addPhotoImageInArea } from '@/lib/excel/quality-excel-utils'
 
 export interface CorrectiveActionRequestData {
   projectName: string
@@ -10,6 +10,7 @@ export interface CorrectiveActionRequestData {
   inspectorName: string | null // 점검자
   inspectionDate: string | null // 점검일시 YYYY-MM-DD
   content: string // 점검내용 및 시정조치 요구사항
+  beforePhotoUrl: string | null // 지적(시정 전) 사진 — 내용 칸 하단에 배치
 }
 
 export async function downloadCorrectiveActionRequestExcel(data: CorrectiveActionRequestData): Promise<void> {
@@ -87,8 +88,10 @@ export async function downloadCorrectiveActionRequestExcel(data: CorrectiveActio
   ws.getRow(r).height = 30
   r++
 
-  // 점검내용 및 시정조치 요구사항 — 큰 영역
+  // 점검내용 및 시정조치 요구사항 — 큰 영역 (상단 텍스트 + 하단 지적사진)
   const CONTENT_ROWS = 22
+  const TEXT_ROWS = 8 // 사진은 이 아래 영역에 배치
+  const ROW_H = 22
   const contentStart = r
   mergeSet(ws, `A${r}:B${r + CONTENT_ROWS - 1}`, '점검내용\n및\n시정조치\n요구사항', {
     bold: true, size: 10, fill: headerFill, align: { horizontal: 'center' },
@@ -96,8 +99,20 @@ export async function downloadCorrectiveActionRequestExcel(data: CorrectiveActio
   mergeSet(ws, `C${r}:H${r + CONTENT_ROWS - 1}`, data.content || '', {
     size: 10, align: { horizontal: 'left', vertical: 'top' },
   })
-  for (let i = 0; i < CONTENT_ROWS; i++) ws.getRow(contentStart + i).height = 22
+  for (let i = 0; i < CONTENT_ROWS; i++) ws.getRow(contentStart + i).height = ROW_H
   r += CONTENT_ROWS
+
+  // 지적사진 — 내용 칸 하단 영역 정중앙 (칸 분할 없이 이미지 플로팅)
+  if (data.beforePhotoUrl) {
+    const areaWidthPx = (11 + 11 + 8 + 8 + 11 + 11) * 7.5 // C~H 열 폭 합
+    const photoRows = CONTENT_ROWS - TEXT_ROWS
+    await addPhotoImageInArea(workbook, ws, data.beforePhotoUrl, {
+      col: 2,
+      row: contentStart + TEXT_ROWS,
+      areaWidthPx,
+      areaHeightPx: photoRows * ROW_H * (4 / 3),
+    })
+  }
 
   // 하단 주석
   mergeSet(ws, `A${r}:H${r}`, '＊ 점검의 종류: 지침 제19조에서 정한 종류', {

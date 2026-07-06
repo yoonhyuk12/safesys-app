@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs'
 import {
   mergeSet,
   addSignatureImage,
+  addPhotoImageInArea,
   headerFill,
   downloadWorkbook,
   formatDateKorean,
@@ -24,68 +25,6 @@ export interface IssueActionReportData {
   confirmerName: string | null // 확인자(감독원/건설사업관리기술자) 성명
   contractorSignature: string | null // 작성자 서명 base64
   supervisorSignature: string | null // 확인자 서명 base64
-}
-
-// URL 이미지를 base64 + 크기 정보로 변환 (safety-inspection-export 패턴)
-async function fetchImageAsBase64(
-  url: string
-): Promise<{ base64: string; extension: 'png' | 'jpeg'; width: number; height: number } | null> {
-  try {
-    const response = await fetch(url)
-    const blob = await response.blob()
-    return new Promise((resolve) => {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        const base64 = (reader.result as string).split(',')[1]
-        const ext = blob.type.includes('png') ? 'png' : 'jpeg'
-        const img = document.createElement('img')
-        img.onload = () => resolve({ base64, extension: ext, width: img.naturalWidth, height: img.naturalHeight })
-        img.onerror = () => resolve({ base64, extension: ext, width: 800, height: 600 })
-        img.src = reader.result as string
-      }
-      reader.onerror = () => resolve(null)
-      reader.readAsDataURL(blob)
-    })
-  } catch {
-    return null
-  }
-}
-
-// 사진 영역(C~H, photoRows행)에 비율 유지로 가운데 배치
-async function addPhotoInArea(
-  wb: ExcelJS.Workbook,
-  ws: ExcelJS.Worksheet,
-  url: string,
-  startRow: number,
-  photoRows: number,
-  rowHeightPt: number
-) {
-  const imgData = await fetchImageAsBase64(url)
-  if (!imgData) return
-  const imageId = wb.addImage({ base64: imgData.base64, extension: imgData.extension })
-  const areaCols = 6 // C~H
-  const colPx = 11 * 7.5 // 열 폭 11 ≈ 82.5px
-  const rowPx = rowHeightPt * (4 / 3) // pt → px
-  const areaW = areaCols * colPx
-  const areaH = photoRows * rowPx
-  const maxW = areaW - 12
-  const maxH = areaH - 8
-  const scale = Math.min(maxW / imgData.width, maxH / imgData.height)
-  const w = imgData.width * scale
-  const h = imgData.height * scale
-  // 영역 정중앙 배치. 소수부 앵커(col: 2.5)는 ExcelJS가 열 폭을 width×10000 EMU로
-  // 잘못 근사해 오프셋이 크게 축소되므로, EMU(px×9525) 오프셋을 직접 지정한다.
-  const EMU_PER_PX = 9525
-  ws.addImage(imageId, {
-    tl: {
-      nativeCol: 2, // C열 (0-based)
-      nativeColOff: Math.round(((areaW - w) / 2) * EMU_PER_PX),
-      nativeRow: startRow - 1,
-      nativeRowOff: Math.round(((areaH - h) / 2) * EMU_PER_PX),
-    },
-    ext: { width: w, height: h },
-    editAs: 'absolute',
-  } as any)
 }
 
 export async function downloadIssueActionReportExcel(data: IssueActionReportData): Promise<void> {
@@ -235,12 +174,13 @@ export async function downloadIssueActionReportExcel(data: IssueActionReportData
   addSignatureImage(workbook, ws, data.contractorSignature || undefined, 5.6, writerRow, 70, 26)
   addSignatureImage(workbook, ws, data.supervisorSignature || undefined, 5.6, confirmerRow, 70, 26)
 
-  // 사진 삽입 (병합·테두리 이후)
+  // 사진 삽입 (병합·테두리 이후) — C~H 영역 정중앙 배치
+  const photoArea = { col: 2, areaWidthPx: 6 * 11 * 7.5, areaHeightPx: PHOTO_ROWS * ROW_H * (4 / 3) }
   if (data.beforePhotoUrl) {
-    await addPhotoInArea(workbook, ws, data.beforePhotoUrl, beforePhotoStart, PHOTO_ROWS, ROW_H)
+    await addPhotoImageInArea(workbook, ws, data.beforePhotoUrl, { ...photoArea, row: beforePhotoStart })
   }
   if (hasAfterPhoto && data.afterPhotoUrl) {
-    await addPhotoInArea(workbook, ws, data.afterPhotoUrl, afterPhotoStart, PHOTO_ROWS, ROW_H)
+    await addPhotoImageInArea(workbook, ws, data.afterPhotoUrl, { ...photoArea, row: afterPhotoStart })
   }
 
   const dateStr = data.inspectionDate || new Date().toISOString().split('T')[0]

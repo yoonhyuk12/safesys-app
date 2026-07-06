@@ -90,6 +90,62 @@ export const addSignatureImage = (
   }
 }
 
+// URL 이미지를 base64 + 크기 정보로 변환
+export async function fetchImageAsBase64(
+  url: string
+): Promise<{ base64: string; extension: 'png' | 'jpeg'; width: number; height: number } | null> {
+  try {
+    const response = await fetch(url)
+    const blob = await response.blob()
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64 = (reader.result as string).split(',')[1]
+        const ext = blob.type.includes('png') ? 'png' : 'jpeg'
+        const img = document.createElement('img')
+        img.onload = () => resolve({ base64, extension: ext, width: img.naturalWidth, height: img.naturalHeight })
+        img.onerror = () => resolve({ base64, extension: ext, width: 800, height: 600 })
+        img.src = reader.result as string
+      }
+      reader.onerror = () => resolve(null)
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
+// 지정 영역(px)에 URL 사진을 비율 유지 정중앙 배치.
+// 소수부 앵커(col: 2.5)는 ExcelJS가 열 폭을 width×10000 EMU로 잘못 근사해 오프셋이
+// 크게 축소되므로, EMU(px×9525) 오프셋을 직접 지정한다.
+export async function addPhotoImageInArea(
+  wb: ExcelJS.Workbook,
+  ws: ExcelJS.Worksheet,
+  url: string,
+  opts: { col: number; row: number; areaWidthPx: number; areaHeightPx: number; padding?: number }
+): Promise<void> {
+  const imgData = await fetchImageAsBase64(url)
+  if (!imgData) return
+  const imageId = wb.addImage({ base64: imgData.base64, extension: imgData.extension })
+  const pad = opts.padding ?? 6
+  const maxW = opts.areaWidthPx - pad * 2
+  const maxH = opts.areaHeightPx - pad * 2
+  const scale = Math.min(maxW / imgData.width, maxH / imgData.height)
+  const w = imgData.width * scale
+  const h = imgData.height * scale
+  const EMU_PER_PX = 9525
+  ws.addImage(imageId, {
+    tl: {
+      nativeCol: opts.col, // 0-based
+      nativeColOff: Math.round(((opts.areaWidthPx - w) / 2) * EMU_PER_PX),
+      nativeRow: opts.row - 1, // row는 1-based
+      nativeRowOff: Math.round(((opts.areaHeightPx - h) / 2) * EMU_PER_PX),
+    },
+    ext: { width: w, height: h },
+    editAs: 'absolute',
+  } as any)
+}
+
 export const formatDateKorean = (dateStr?: string | null): string => {
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return '20      .        .        .'
