@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil, Link2 } from 'lucide-react'
+import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil, Link2, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignaturePad from '@/components/ui/SignaturePad'
@@ -50,11 +50,14 @@ interface MaterialRow {
   releaseQty: string
   remainQty: string
   supervisorConfirm: string
+  dlvrReqNo?: string | null
   dlvrReqPrdctSno?: number | null
 }
 
 // 연계 모달 매핑에서 "새 규격 행으로 추가"를 뜻하는 값
 const NEW_SPEC = '__new_spec__'
+// 연계 매핑 값 구분자 — "자재ID(구분자)규격" 형태로 다른 자재의 규격도 선택 가능 (U+001F)
+const MAP_SEP = String.fromCharCode(31)
 
 interface RowFormData {
   nameOrSpec: string
@@ -302,6 +305,7 @@ export default function MaterialLedgerPage() {
             releaseQty: e.release_qty != null ? String(e.release_qty) : '',
             remainQty: e.remain_qty != null ? String(e.remain_qty) : '',
             supervisorConfirm: e.supervisor_confirm || '',
+            dlvrReqNo: e.dlvr_req_no || null,
             dlvrReqPrdctSno: e.dlvr_req_prdct_sno ?? null,
           })
         }
@@ -458,13 +462,14 @@ export default function MaterialLedgerPage() {
         .select()
       if (rowsError) throw rowsError
 
-      const newRows: MaterialRow[] = (rowsData || []).map((e: { id: string; name_or_spec: string | null; order_qty: number | null; dlvr_req_prdct_sno: number | null }) => ({
+      const newRows: MaterialRow[] = (rowsData || []).map((e: { id: string; name_or_spec: string | null; order_qty: number | null; dlvr_req_no: string | null; dlvr_req_prdct_sno: number | null }) => ({
         id: e.id,
         nameOrSpec: e.name_or_spec || '',
         orderQty: e.order_qty != null ? String(e.order_qty) : '',
         receiveDate: '', receiveQty: '', passQtyCurrent: '', passQtyTotal: '',
         failQty: '', action: '', releaseDate: '', releaseQty: '', remainQty: '',
         supervisorConfirm: '',
+        dlvrReqNo: e.dlvr_req_no || null,
         dlvrReqPrdctSno: e.dlvr_req_prdct_sno ?? null,
       }))
 
@@ -519,18 +524,28 @@ export default function MaterialLedgerPage() {
       const json = await res.json()
       if (!res.ok || !json.success) throw new Error(json.error || '조회에 실패했습니다.')
       const result: G2bDlvrReq = json.data
-      // 기본 매칭 — ① 행에 저장된 품목순번 ② 규격 문자열 일치 ③ 품목·규격이 각 1개면 자동 연결
-      const specs = getSpecList(selectedMaterial)
+      // 기본 매칭 — ① 행에 저장된 번호+품목순번 ② 규격 문자열 일치 ③ 품목·규격이 각 1개면 자동 연결
+      // 현재 자재를 우선하되 다른 자재의 규격도 후보로 탐색
+      const matsInOrder = [selectedMaterial, ...materials.filter(m => m.id !== selectedMaterial.id)]
       const mapping: Record<number, string> = {}
       const adjust: Record<number, boolean> = {}
       for (const item of result.items) {
-        let spec = ''
-        const bySno = selectedMaterial.rows.find(r => r.dlvrReqPrdctSno === item.sno)
-        if (bySno?.nameOrSpec) spec = bySno.nameOrSpec
-        else if (specs.includes(formatG2bSpec(item))) spec = formatG2bSpec(item)
-        else if (specs.includes(item.spec)) spec = item.spec
-        else if (result.items.length === 1 && specs.length === 1) spec = specs[0]
-        mapping[item.sno] = spec
+        let value = ''
+        for (const m of matsInOrder) {
+          const bySno = m.rows.find(r => r.dlvrReqNo === result.dlvrReqNo && r.dlvrReqPrdctSno === item.sno)
+          if (bySno?.nameOrSpec) { value = m.id + MAP_SEP + bySno.nameOrSpec; break }
+        }
+        if (!value) {
+          const fmt = formatG2bSpec(item)
+          for (const m of matsInOrder) {
+            const hit = getSpecList(m).find(s => s === fmt || s === item.spec)
+            if (hit) { value = m.id + MAP_SEP + hit; break }
+          }
+        }
+        if (!value && result.items.length === 1 && getSpecList(selectedMaterial).length === 1) {
+          value = selectedMaterial.id + MAP_SEP + getSpecList(selectedMaterial)[0]
+        }
+        mapping[item.sno] = value
         adjust[item.sno] = true
       }
       setLinkResult(result)
@@ -543,15 +558,27 @@ export default function MaterialLedgerPage() {
     }
   }
 
-  // 매핑된 품목의 원장 발주량·차이·초과반입 여부 계산
+  // 매핑 값("자재ID(구분자)규격") 해석
+  const parseLinkTarget = (value: string): { matId: string; spec: string } | null => {
+    if (!value) return null
+    const idx = value.indexOf(MAP_SEP)
+    if (idx < 0) return null
+    return { matId: value.slice(0, idx), spec: value.slice(idx + MAP_SEP.length) }
+  }
+
+  // 매핑된 품목의 대상 자재·원장 발주량·차이·초과반입 여부 계산
   const getLinkDiff = (item: G2bItem) => {
-    const spec = linkMapping[item.sno]
-    if (!selectedMaterial || !spec || spec === NEW_SPEC) return null
-    const matching = selectedMaterial.rows.filter(r => r.nameOrSpec === spec)
+    const target = parseLinkTarget(linkMapping[item.sno] || '')
+    if (!target || target.spec === NEW_SPEC) return null
+    const targetMat = materials.find(m => m.id === target.matId)
+    if (!targetMat) return null
+    const matching = targetMat.rows.filter(r => r.nameOrSpec === target.spec)
     if (matching.length === 0) return null
     const ledgerQty = calcEffectiveOrderQty(matching)
     const passTotal = matching.reduce((sum, r) => sum + (parseFloat(r.passQtyCurrent) || 0), 0)
     return {
+      matName: targetMat.name,
+      isOtherMat: targetMat.id !== selectedMaterial?.id,
       ledgerQty,
       diff: Math.round((item.qty - ledgerQty) * 1000) / 1000,
       overDelivered: passTotal > item.qty,
@@ -560,22 +587,27 @@ export default function MaterialLedgerPage() {
 
   const handleApplyLink = async () => {
     if (!selectedMaterial || !linkResult || linkApplying) return
-    // 같은 규격에 품목 두 개 이상 매핑 방지
-    const chosen = Object.values(linkMapping).filter(v => v && v !== NEW_SPEC)
+    // 같은 자재·규격에 품목 두 개 이상 매핑 방지
+    const chosen = Object.values(linkMapping).filter(v => v && parseLinkTarget(v)?.spec !== NEW_SPEC)
     if (new Set(chosen).size !== chosen.length) {
       alert('같은 규격에 두 개 이상의 품목을 연결할 수 없습니다.')
       return
     }
     setLinkApplying(true)
     try {
+      // 연계 정보가 기록될 자재 목록 (현재 자재 + 매핑으로 선택된 다른 자재)
+      const linkedMatIds = new Set<string>([selectedMaterial.id])
+
       for (const item of linkResult.items) {
-        const spec = linkMapping[item.sno]
-        if (!spec) continue
+        const target = parseLinkTarget(linkMapping[item.sno] || '')
+        if (!target) continue
+        const targetMat = materials.find(m => m.id === target.matId)
+        if (!targetMat) continue
 
         // 새 규격 행으로 추가
-        if (spec === NEW_SPEC) {
+        if (target.spec === NEW_SPEC) {
           const { error: insErr } = await supabase.from('material_ledger_entries').insert({
-            material_id: selectedMaterial.id,
+            material_id: targetMat.id,
             name_or_spec: formatG2bSpec(item),
             order_qty: item.qty || null,
             created_by: user?.id,
@@ -583,10 +615,11 @@ export default function MaterialLedgerPage() {
             dlvr_req_prdct_sno: item.sno,
           })
           if (insErr) throw insErr
+          linkedMatIds.add(targetMat.id)
           continue
         }
 
-        const matching = selectedMaterial.rows.filter(r => r.nameOrSpec === spec)
+        const matching = targetMat.rows.filter(r => r.nameOrSpec === target.spec)
         if (matching.length === 0) continue
 
         // 규격의 첫 행에 연계 정보 저장
@@ -594,13 +627,14 @@ export default function MaterialLedgerPage() {
           .update({ dlvr_req_no: linkResult.dlvrReqNo, dlvr_req_prdct_sno: item.sno })
           .eq('id', matching[0].id)
         if (updErr) throw updErr
+        linkedMatIds.add(targetMat.id)
 
         // 발주량 차이 보정 — 증감 행 추가 (초과 반입 상태면 자동 보정하지 않음)
         const info = getLinkDiff(item)
         if (info && info.diff !== 0 && linkAdjust[item.sno] && !info.overDelivered) {
           const { error: adjErr } = await supabase.from('material_ledger_entries').insert({
-            material_id: selectedMaterial.id,
-            name_or_spec: spec,
+            material_id: targetMat.id,
+            name_or_spec: target.spec,
             order_qty: info.diff,
             created_by: user?.id,
             dlvr_req_no: linkResult.dlvrReqNo,
@@ -612,7 +646,7 @@ export default function MaterialLedgerPage() {
 
       const { error: matErr } = await supabase.from('materials')
         .update({ dlvr_req_no: linkResult.dlvrReqNo, dlvr_req_synced_at: new Date().toISOString() })
-        .eq('id', selectedMaterial.id)
+        .in('id', Array.from(linkedMatIds))
       if (matErr) throw matErr
 
       setIsLinkModalOpen(false)
@@ -1381,7 +1415,7 @@ export default function MaterialLedgerPage() {
                   fontFamily: 'serif'
                 }}
               >
-                {linkLoading ? '조회중…' : '조회'}
+                {linkLoading ? <span className="inline-flex items-center gap-1.5"><Loader2 className="h-4 w-4 animate-spin" />조회중</span> : '조회'}
               </button>
             </div>
             <p className="text-[11px] text-amber-200/40 mt-2">
@@ -1421,22 +1455,28 @@ export default function MaterialLedgerPage() {
                       }}
                     >
                       <option value="">연결 안 함</option>
-                      {getSpecList(selectedMaterial).map(spec => (
-                        <option key={spec} value={spec}>{spec}</option>
-                      ))}
-                      <option value={NEW_SPEC}>+ 새 규격 행으로 추가</option>
+                      {[selectedMaterial, ...materials.filter(m => m.id !== selectedMaterial.id)]
+                        .filter(m => getSpecList(m).length > 0)
+                        .map(m => (
+                          <optgroup key={m.id} label={m.id === selectedMaterial.id ? `${m.name} (현재 자재)` : m.name}>
+                            {getSpecList(m).map(spec => (
+                              <option key={spec} value={m.id + MAP_SEP + spec}>{spec.replace(/\n/g, ' ')}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      <option value={selectedMaterial.id + MAP_SEP + NEW_SPEC}>+ 새 규격 행으로 추가 (현재 자재)</option>
                     </select>
                     {(() => {
-                      const spec = linkMapping[item.sno]
-                      if (!spec) return <p className="text-[11px] text-amber-200/40 mt-1.5">이 품목은 원장에 반영하지 않습니다.</p>
-                      if (spec === NEW_SPEC) return <p className="text-[11px] text-sky-300/80 mt-1.5">발주량 {formatNumber(String(item.qty))} {item.unit}의 새 규격 행이 추가됩니다.</p>
+                      const target = parseLinkTarget(linkMapping[item.sno] || '')
+                      if (!target) return <p className="text-[11px] text-amber-200/40 mt-1.5">이 품목은 원장에 반영하지 않습니다.</p>
+                      if (target.spec === NEW_SPEC) return <p className="text-[11px] text-sky-300/80 mt-1.5">발주량 {formatNumber(String(item.qty))} {item.unit}의 새 규격 행이 추가됩니다.</p>
                       const info = getLinkDiff(item)
                       if (!info) return null
-                      if (info.diff === 0) return <p className="text-[11px] text-green-400/90 mt-1.5">✓ 발주량 일치 ({formatNumber(String(info.ledgerQty))})</p>
+                      if (info.diff === 0) return <p className="text-[11px] text-green-400/90 mt-1.5">✓ 발주량 일치 ({formatNumber(String(info.ledgerQty))}){info.isOtherMat ? ` — "${info.matName}" 자재` : ''}</p>
                       return (
                         <div className="mt-1.5">
                           <p className="text-[11px] text-amber-300">
-                            발주량 차이 — 원장 {formatNumber(String(info.ledgerQty))} → 조달청 {formatNumber(String(item.qty))} ({info.diff > 0 ? '+' : ''}{formatNumber(String(info.diff))})
+                            발주량 차이 — {info.isOtherMat ? `"${info.matName}" ` : ''}원장 {formatNumber(String(info.ledgerQty))} → 조달청 {formatNumber(String(item.qty))} ({info.diff > 0 ? '+' : ''}{formatNumber(String(info.diff))})
                           </p>
                           {info.overDelivered ? (
                             <p className="text-[11px] text-red-400 mt-1">합격 누계가 조달청 수량을 초과한 상태라 자동 보정하지 않습니다. 현장 확인이 필요합니다.</p>
@@ -1497,7 +1537,7 @@ export default function MaterialLedgerPage() {
               fontFamily: 'serif'
             }}
           >
-            ⚔ {linkApplying ? '적용중…' : '연계 적용'}
+            {linkApplying ? <span className="inline-flex items-center justify-center gap-1.5"><Loader2 className="h-4 w-4 animate-spin" />적용중</span> : '⚔ 연계 적용'}
           </button>
         </div>
 
@@ -2657,7 +2697,7 @@ export default function MaterialLedgerPage() {
                         fontFamily: 'serif'
                       }}
                     >
-                      {g2bLoading ? '조회중…' : '조회'}
+                      {g2bLoading ? <span className="inline-flex items-center gap-1.5"><Loader2 className="h-4 w-4 animate-spin" />조회중</span> : '조회'}
                     </button>
                   </div>
                   <p className="text-[11px] text-amber-200/40 mt-2">
