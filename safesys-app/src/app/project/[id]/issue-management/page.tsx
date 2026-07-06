@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
 import { downloadIssueActionReportExcel } from '@/lib/excel/issue-action-report-export'
+import { downloadCorrectiveActionRequestExcel } from '@/lib/excel/corrective-action-request-export'
 
 // ─── 타입 ───────────────────────────────────────────────
 
@@ -523,6 +524,40 @@ export default function IssueManagementPage() {
     }
   }
 
+  // ─── 별지 6호 시정조치요구서 다운로드 (지적 1건 = 1문서) ─
+
+  const handleDownloadRequest = async (issue: LedgerIssue) => {
+    if (exportingKey) return
+    setExportingKey(`req-${issue.key}`)
+    try {
+      const kind = issue.source.kind
+      // 점검내용 및 시정조치 요구사항: 지적부위 + 지적사항 (+ 정기점검의 조치 요구 텍스트)
+      let content = issue.findingText || ''
+      if (issue.location) content = `(지적부위: ${issue.location})\n${content}`
+      if ((kind === 'safety_result' || kind === 'safety_additional') && issue.actionText) {
+        content += `\n\n[시정조치 요구사항]\n${issue.actionText}`
+      }
+      await downloadCorrectiveActionRequestExcel({
+        projectName: project?.project_name || '',
+        departmentHead: kind === 'direct' ? (issue.source as { kind: 'direct'; entry: DirectIssue }).entry.inspection_department_head : null,
+        inspectionType:
+          kind === 'hq'
+            ? '본부 안전점검'
+            : kind === 'direct'
+              ? (issue.source as { kind: 'direct'; entry: DirectIssue }).entry.inspection_type
+              : issue.sourceLabel,
+        inspectorName: issue.inspectorName,
+        inspectionDate: issue.inspectionDate,
+        content,
+      })
+    } catch (err) {
+      console.error(err)
+      alert('시정조치요구서 다운로드에 실패했습니다.')
+    } finally {
+      setExportingKey(null)
+    }
+  }
+
   // ─── 별지 7호 조치결과 보고 다운로드 ────────────────────
 
   const handleDownloadReport = async (issue: LedgerIssue) => {
@@ -792,6 +827,14 @@ export default function IssueManagementPage() {
                           </td>
                           <td className="border border-gray-200 px-2 py-2 text-center whitespace-nowrap">
                             <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => handleDownloadRequest(issue)}
+                                disabled={exportingKey === `req-${issue.key}`}
+                                title="시정조치요구서 다운로드 (별지 6호)"
+                                className="p-1.5 rounded text-indigo-600 hover:bg-indigo-50 disabled:opacity-40"
+                              >
+                                <FileText className="h-4 w-4" />
+                              </button>
                               <button
                                 onClick={() => handleDownloadReport(issue)}
                                 disabled={exportingKey === issue.key}
