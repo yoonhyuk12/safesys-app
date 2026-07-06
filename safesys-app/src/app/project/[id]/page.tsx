@@ -1322,6 +1322,15 @@ export default function ProjectDetailPage() {
                   pdcaCategory="C"
                 />
                 <DocumentFolder
+                  title="지적사항
+관리대장"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/issue-management`)}
+                  pdcaCategory="C"
+                />
+                <DocumentFolder
                   title="안전점검 GPT"
                   year={new Date().getFullYear().toString()}
                   isActive={false}
@@ -1362,17 +1371,6 @@ export default function ProjectDetailPage() {
                   projectId={projectId}
                   isPending={true}
                   onClick={() => router.push(`/project/${projectId}/holiday-work`)}
-                  pdcaCategory="A"
-                />
-                <DocumentFolder
-                  title="︵자동︶
-지적사항
-관리대장"
-                  year={new Date().getFullYear().toString()}
-                  isActive={false}
-                  projectId={projectId}
-                  isPending={true}
-                  onClick={() => router.push(`/project/${projectId}/issue-management`)}
                   pdcaCategory="A"
                 />
               </div>
