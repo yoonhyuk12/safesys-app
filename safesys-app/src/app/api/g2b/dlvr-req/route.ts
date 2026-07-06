@@ -41,39 +41,46 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const qs = new URLSearchParams({
-      serviceKey: apiKey,
-      pageNo: '1',
-      numOfRows: '300',
-      type: 'json',
-      inqryDiv: '2',
-      dlvrReqNo: no,
-    })
+    // 품목×변경차수 행이 300을 넘는 대형 건도 전체 이력을 받도록 페이지 순회 (최대 10페이지=3,000행)
+    const rawItems: G2bRawItem[] = []
+    for (let pageNo = 1; pageNo <= 10; pageNo++) {
+      const qs = new URLSearchParams({
+        serviceKey: apiKey,
+        pageNo: String(pageNo),
+        numOfRows: '300',
+        type: 'json',
+        inqryDiv: '2',
+        dlvrReqNo: no,
+      })
 
-    const res = await fetch(`${G2B_ENDPOINT}?${qs.toString()}`, {
-      signal: AbortSignal.timeout(15000),
-      cache: 'no-store',
-    })
-    if (!res.ok) {
-      console.error(`조달청 API HTTP 오류: ${res.status}`)
-      return NextResponse.json(
-        { success: false, error: `조달청 API 호출에 실패했습니다. (HTTP ${res.status})` },
-        { status: 502 }
-      )
+      const res = await fetch(`${G2B_ENDPOINT}?${qs.toString()}`, {
+        signal: AbortSignal.timeout(15000),
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        console.error(`조달청 API HTTP 오류: ${res.status}`)
+        return NextResponse.json(
+          { success: false, error: `조달청 API 호출에 실패했습니다. (HTTP ${res.status})` },
+          { status: 502 }
+        )
+      }
+
+      const json = await res.json()
+      const header = json?.response?.header
+      if (header?.resultCode !== '00') {
+        console.error('조달청 API 오류 응답:', header)
+        return NextResponse.json(
+          { success: false, error: `조달청 API 오류: ${header?.resultMsg || '알 수 없는 응답'}` },
+          { status: 502 }
+        )
+      }
+
+      const body = json?.response?.body
+      const pageItems: G2bRawItem[] = Array.isArray(body?.items) ? body.items : []
+      rawItems.push(...pageItems)
+      const totalCount = parseInt(body?.totalCount) || 0
+      if (rawItems.length >= totalCount || pageItems.length === 0) break
     }
-
-    const json = await res.json()
-    const header = json?.response?.header
-    if (header?.resultCode !== '00') {
-      console.error('조달청 API 오류 응답:', header)
-      return NextResponse.json(
-        { success: false, error: `조달청 API 오류: ${header?.resultMsg || '알 수 없는 응답'}` },
-        { status: 502 }
-      )
-    }
-
-    const body = json?.response?.body
-    const rawItems: G2bRawItem[] = Array.isArray(body?.items) ? body.items : []
     if (rawItems.length === 0) {
       return NextResponse.json(
         {
