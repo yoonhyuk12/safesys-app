@@ -177,7 +177,7 @@ export async function downloadIssueActionReportExcel(data: IssueActionReportData
   // 사진 삽입 (병합·테두리 이후) — C~H 영역 정중앙 배치
   const photoArea = {
     col: 2,
-    colWidthsPx: Array(6).fill(11 * 7.5) as number[], // C~H 열 폭
+    colWidthsPx: Array(6).fill(11 * 8) as number[], // C~H 열 폭 (폭 단위당 8px — 한국어 Excel 실측)
     rowHeightPx: ROW_H * (4 / 3),
     rowCount: PHOTO_ROWS,
   }

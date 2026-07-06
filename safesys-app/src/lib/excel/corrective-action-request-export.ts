@@ -103,7 +103,8 @@ export async function downloadCorrectiveActionRequestExcel(data: CorrectiveActio
 
   // 지적사진 — 본문 텍스트 줄 수를 추정해 글 바로 아래 가로 중앙 배치 (칸 분할 없이 이미지 플로팅)
   if (data.beforePhotoUrl) {
-    const colWidthsPx = [11, 11, 8, 8, 11, 11].map((u) => u * 7.5) // C~H 열 폭
+    // 폭 단위당 8px — 한국어 Excel(맑은 고딕 테마) COM 실측값 (7.5로 잡으면 좌측으로 치우침)
+    const colWidthsPx = [11, 11, 8, 8, 11, 11].map((u) => u * 8) // C~H 열 폭
     const rowHeightPx = ROW_H * (4 / 3)
     const CHARS_PER_LINE = 32 // 10pt 한글 기준 줄바꿈 추정치
     const LINE_PX = 18
