@@ -55,6 +55,7 @@ function matchOrgFromDminsttNms(names: string[]): { hq: string; branch: string }
 
 interface G2bContract {
   cnstwkNm: string
+  bsnsDivNm: string
   cntrctNo: string
   ntceNo: string
   untyCntrctNo: string
@@ -174,11 +175,21 @@ export default function G2bContractLookup({
         const isApplied = appliedNo === (c.cntrctNo || c.ntceNo)
         return (
           <div key={key} className="p-3 bg-white border border-emerald-200 rounded-md">
-            <p className="text-sm font-medium text-gray-900">{c.cnstwkNm || '(공사명 없음)'}</p>
+            <p className="text-sm font-medium text-gray-900">
+              {c.bsnsDivNm && (
+                <span className="inline-block mr-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded bg-emerald-100 text-emerald-700 align-middle">
+                  {c.bsnsDivNm}
+                </span>
+              )}
+              {c.cnstwkNm || '(계약명 없음)'}
+            </p>
             <div className="mt-1 text-xs text-gray-600 space-y-0.5">
               {c.totCntrctAmt > 0 && <p>총계약금액: {c.totCntrctAmt.toLocaleString('ko-KR')}원</p>}
               {(c.startDate || c.endDate) && (
                 <p>공사기간: {c.startDate || '?'} ~ {c.endDate || '?'}</p>
+              )}
+              {!c.startDate && !c.endDate && c.cntrctPrd && (
+                <p>계약기간(원문): {c.cntrctPrd} — 날짜 형식이 아니라 자동 입력되지 않습니다</p>
               )}
               {c.cntrctInsttNm && <p>계약기관: {c.cntrctInsttNm}</p>}
               {c.dminsttNms.length > 0 && <p>수요기관: {c.dminsttNms.join(', ')}</p>}

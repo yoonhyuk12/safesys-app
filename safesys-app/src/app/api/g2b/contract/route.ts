@@ -1,11 +1,19 @@
-// 조달청 나라장터 공사 계약현황을 계약번호·공고번호로 조회해 프로젝트 자동입력용으로 정규화하는 API 라우트
+// 조달청 나라장터 공사·용역 계약현황을 계약번호·공고번호로 조회해 프로젝트 자동입력용으로 정규화하는 API 라우트
 import { NextRequest, NextResponse } from 'next/server'
 
-const G2B_ENDPOINT =
-  'https://apis.data.go.kr/1230000/ao/CntrctInfoService/getCntrctInfoListCnstwkPPSSrch'
+const G2B_BASE = 'https://apis.data.go.kr/1230000/ao/CntrctInfoService'
 
+// 업무구분별 오퍼레이션 — 공사를 먼저, 없으면 용역 조회
+const G2B_OPS = [
+  { op: 'getCntrctInfoListCnstwkPPSSrch', div: '공사' },
+  { op: 'getCntrctInfoListServcPPSSrch', div: '용역' },
+] as const
+
+// 공사는 cnstwkNm/cbgnDate/ttalCcmpltDate, 용역은 cntrctNm/wbgnDate/ttalScmpltDate 필드 사용
 interface G2bRawContract {
   cnstwkNm?: string
+  cntrctNm?: string
+  bsnsDivNm?: string
   dcsnCntrctNo?: string
   ntceNo?: string
   untyCntrctNo?: string
@@ -14,7 +22,9 @@ interface G2bRawContract {
   cntrctPrd?: string
   cntrctCnclsDate?: string
   cbgnDate?: string
+  wbgnDate?: string
   ttalCcmpltDate?: string
+  ttalScmpltDate?: string
   cntrctInsttNm?: string
   dminsttList?: string
   corpList?: string
@@ -48,6 +58,7 @@ function toIsoDate(value?: string): string {
 // inqryDiv: 2=확정계약번호 조회, 4=공고번호 조회 (2026-07-06 실호출 확인)
 async function fetchContracts(
   apiKey: string,
+  op: string,
   numberParam: 'dcsnCntrctNo' | 'ntceNo',
   no: string
 ): Promise<{ items: G2bRawContract[]; errorMsg?: string }> {
@@ -59,7 +70,7 @@ async function fetchContracts(
     inqryDiv: numberParam === 'dcsnCntrctNo' ? '2' : '4',
     [numberParam]: no,
   })
-  const res = await fetch(`${G2B_ENDPOINT}?${qs.toString()}`, {
+  const res = await fetch(`${G2B_BASE}/${op}?${qs.toString()}`, {
     signal: AbortSignal.timeout(15000),
     cache: 'no-store',
   })
@@ -108,13 +119,17 @@ export async function GET(request: NextRequest) {
     }
 
     let matchedBy: 'cntrct' | 'ntce' = 'cntrct'
+    let matchedDiv = ''
     let result: { items: G2bRawContract[]; errorMsg?: string } = { items: [] }
-    for (const attempt of attempts) {
-      result = await fetchContracts(apiKey, attempt.param, attempt.value)
-      if (result.errorMsg) break
-      if (result.items.length > 0) {
-        matchedBy = attempt.matchedBy
-        break
+    outer: for (const attempt of attempts) {
+      for (const g2bOp of G2B_OPS) {
+        result = await fetchContracts(apiKey, g2bOp.op, attempt.param, attempt.value)
+        if (result.errorMsg) break outer
+        if (result.items.length > 0) {
+          matchedBy = attempt.matchedBy
+          matchedDiv = g2bOp.div
+          break outer
+        }
       }
     }
 
@@ -127,21 +142,22 @@ export async function GET(request: NextRequest) {
     }
     if (result.items.length === 0) {
       return NextResponse.json(
-        { success: false, error: '해당 번호로 조회된 공사 계약이 없습니다. 번호를 확인해주세요.' },
+        { success: false, error: '해당 번호로 조회된 공사·용역 계약이 없습니다. 번호를 확인해주세요.' },
         { status: 404 }
       )
     }
 
     const mapped = result.items.map((it) => ({
-      cnstwkNm: it.cnstwkNm || '',
+      cnstwkNm: it.cnstwkNm || it.cntrctNm || '',
+      bsnsDivNm: it.bsnsDivNm || matchedDiv,
       cntrctNo: it.dcsnCntrctNo || '',
       ntceNo: it.ntceNo || '',
       untyCntrctNo: it.untyCntrctNo || '',
       totCntrctAmt: parseFloat(it.totCntrctAmt || '') || 0,
       cntrctPrd: it.cntrctPrd || '',
       cntrctCnclsDate: toIsoDate(it.cntrctCnclsDate),
-      startDate: toIsoDate(it.cbgnDate),
-      endDate: toIsoDate(it.ttalCcmpltDate),
+      startDate: toIsoDate(it.cbgnDate || it.wbgnDate),
+      endDate: toIsoDate(it.ttalCcmpltDate || it.ttalScmpltDate),
       cntrctInsttNm: it.cntrctInsttNm || '',
       dminsttNms: parseDminsttNames(it.dminsttList),
       corpNms: parseCorpNames(it.corpList),
