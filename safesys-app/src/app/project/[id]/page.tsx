@@ -103,6 +103,7 @@ export default function ProjectDetailPage() {
   const [visitLogCount, setVisitLogCount] = useState<number | null>(null)
   const [qualityMonthlyReportCount, setQualityMonthlyReportCount] = useState<number | null>(null)
   const [qualityTestRecordCount, setQualityTestRecordCount] = useState<number | null>(null)
+  const [cardCounts, setCardCounts] = useState<Record<string, number>>({})
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
   const [openCabinet, setOpenCabinet] = useState<'시공' | '안전' | '품질' | '발주청' | null>(null)
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
@@ -201,6 +202,57 @@ export default function ProjectDetailPage() {
     }
     loadPtwCount()
   }, [user, projectId])
+
+  // 서류철 카드 표시용 등록 건수 일괄 조회 (제목 하단 (N) 표시)
+  useEffect(() => {
+    if (!user || !projectId || !project) return
+    const countOf = async (table: string): Promise<number | null> => {
+      const { count, error: countError } = await (supabase as any)
+        .from(table)
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+      return countError ? null : (count ?? 0)
+    }
+    const loadCardCounts = async () => {
+      const [workDaily, materials, safeDocs, tbmDirect, newWorker, workers, heatWave, tbmSafety] = await Promise.all([
+        countOf('work_daily_reports'),
+        countOf('materials'),
+        countOf('safe_document_inspections'),
+        countOf('tbm_submissions'),
+        countOf('new_worker_orientations'),
+        countOf('workers'),
+        countOf('heat_wave_checks'),
+        countOf('tbm_safety_inspections'),
+      ])
+      // 레거시 TBM 제출분(project_id NULL)은 이름·본부·지사 매칭으로 합산
+      let tbmLegacy = 0
+      if (project.project_name) {
+        const { count, error: legacyError } = await (supabase as any)
+          .from('tbm_submissions')
+          .select('id', { count: 'exact', head: true })
+          .is('project_id', null)
+          .eq('project_name', project.project_name)
+          .eq('headquarters', (project as any).managing_hq)
+          .eq('branch', (project as any).managing_branch)
+        if (!legacyError) tbmLegacy = count ?? 0
+      }
+      const counts: Record<string, number> = {}
+      const put = (key: string, value: number | null) => {
+        if (value !== null) counts[key] = value
+      }
+      put('workDailyReport', workDaily)
+      put('materials', materials)
+      put('safeDocuments', safeDocs)
+      put('tbm', tbmDirect !== null ? tbmDirect + tbmLegacy : null)
+      put('newWorkerOrientation', newWorker)
+      put('workers', workers)
+      put('heatWave', heatWave)
+      put('tbmSafetyInspection', tbmSafety)
+      setCardCounts(counts)
+    }
+    loadCardCounts()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, projectId, project?.id])
 
   // 검측요청서 건수 조회 (서류철 카드 표시용)
   useEffect(() => {
@@ -1124,6 +1176,7 @@ export default function ProjectDetailPage() {
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
+                  docCount={cardCounts.workDailyReport}
                   onClick={() => router.push(`/project/${projectId}/work-daily-report`)}
                   bottomLabel="사업"
                 />
@@ -1186,6 +1239,7 @@ export default function ProjectDetailPage() {
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
+                  docCount={cardCounts.materials}
                   onClick={() => router.push(`/project/${projectId}/material-ledger`)}
                   bottomLabel="사업"
                 />
@@ -1233,6 +1287,7 @@ export default function ProjectDetailPage() {
 관리"
                   year={new Date().getFullYear().toString()}
                   isActive={false}
+                  docCount={cardCounts.safeDocuments}
                   onClick={() => router.push(`/project/${projectId}/safe-documents`)}
                   pdcaCategory="P"
                 />
@@ -1266,6 +1321,7 @@ export default function ProjectDetailPage() {
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
+                  docCount={cardCounts.tbm}
                   onClick={() => router.push(`/project/${projectId}/tbm-submission`)}
                   isProjectActive={project.is_active !== false}
                 />
@@ -1275,6 +1331,7 @@ export default function ProjectDetailPage() {
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
+                  docCount={cardCounts.newWorkerOrientation}
                   onClick={() => router.push(`/project/${projectId}/new-worker-orientation`)}
                 />
                 <DocumentFolder
@@ -1283,6 +1340,7 @@ export default function ProjectDetailPage() {
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
+                  docCount={cardCounts.workers}
                   onClick={() => router.push(`/project/${projectId}/worker-management`)}
                 />
                 <DocumentFolder
@@ -1290,6 +1348,7 @@ export default function ProjectDetailPage() {
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
+                  docCount={cardCounts.heatWave}
                   isProjectActive={project.is_active !== false}
                 />
                 <DocumentFolder
@@ -1387,6 +1446,7 @@ export default function ProjectDetailPage() {
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
+                  docCount={cardCounts.tbmSafetyInspection}
                   onClick={() => router.push(`/project/${projectId}/tbm-safety-inspection`)}
                   pdcaCategory="A"
                 />
