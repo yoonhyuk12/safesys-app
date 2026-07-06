@@ -179,7 +179,7 @@ export default function MaterialLedgerPage() {
 
   // 자재 등록 모달
   const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false)
-  const [materialForm, setMaterialForm] = useState<{ name: string; unit: string; colorIndex: number }>({ name: '', unit: '', colorIndex: 0 })
+  const [materialForm, setMaterialForm] = useState<{ name: string; unit: string; colorIndex: number; supplier: string; supplierTel: string; deadline: string }>({ name: '', unit: '', colorIndex: 0, supplier: '', supplierTel: '', deadline: '' })
 
   // 자재 등록 모달 — 입력 방식 (직접 입력 / 납품요구번호)
   const [materialInputMode, setMaterialInputMode] = useState<'manual' | 'g2b'>('manual')
@@ -412,7 +412,7 @@ export default function MaterialLedgerPage() {
   // ── 자재 CRUD ──
 
   const openMaterialModal = () => {
-    setMaterialForm({ name: '', unit: '', colorIndex: Math.floor(Math.random() * gemPalette.length) })
+    setMaterialForm({ name: '', unit: '', colorIndex: Math.floor(Math.random() * gemPalette.length), supplier: '', supplierTel: '', deadline: '' })
     setMaterialInputMode('manual')
     setG2bNo('')
     setG2bError('')
@@ -434,6 +434,9 @@ export default function MaterialLedgerPage() {
           unit: materialForm.unit.trim() || null,
           created_by: user?.id,
           sort_order: encodedSortOrder,
+          dlvr_supplier: materialForm.supplier.trim() || null,
+          dlvr_supplier_tel: materialForm.supplierTel.trim() || null,
+          dlvr_deadline: materialForm.deadline || null,
         })
         .select()
         .single()
@@ -445,9 +448,12 @@ export default function MaterialLedgerPage() {
         rows: [],
         sortOrder: data.sort_order,
         colorIndex: materialForm.colorIndex,
-        realOrder
+        realOrder,
+        dlvrSupplier: data.dlvr_supplier || null,
+        dlvrSupplierTel: data.dlvr_supplier_tel || null,
+        dlvrDeadline: data.dlvr_deadline || null
       }])
-      setMaterialForm({ name: '', unit: '', colorIndex: Math.floor(Math.random() * gemPalette.length) })
+      setMaterialForm({ name: '', unit: '', colorIndex: Math.floor(Math.random() * gemPalette.length), supplier: '', supplierTel: '', deadline: '' })
       setIsMaterialModalOpen(false)
     } catch (err: any) {
       console.error('자재 등록 실패:', err)
@@ -3001,6 +3007,66 @@ export default function MaterialLedgerPage() {
                   ))}
                 </div>
               </div>
+              )}
+
+              {/* 계약 부가정보 — 직접 입력 시 선택사항 */}
+              {materialInputMode === 'manual' && (
+              <>
+              <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
+              <div>
+                <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                  계약업체명 <span className="text-amber-200/50 text-xs ml-1">(선택사항)</span>
+                </label>
+                <input
+                  type="text"
+                  value={materialForm.supplier}
+                  onChange={e => setMaterialForm(p => ({ ...p, supplier: e.target.value }))}
+                  placeholder="예: 주식회사 토암콘크리트"
+                  className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                  style={{
+                    background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                    border: '2px solid #4a4a55',
+                    boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                  }}
+                />
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  <div>
+                    <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                      업체 연락처 <span className="text-amber-200/50 text-xs ml-1">(선택)</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={materialForm.supplierTel}
+                      onChange={e => setMaterialForm(p => ({ ...p, supplierTel: e.target.value }))}
+                      placeholder="예: 031-000-0000"
+                      className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                      style={{
+                        background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                        border: '2px solid #4a4a55',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
+                      납품기한 <span className="text-amber-200/50 text-xs ml-1">(선택)</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={materialForm.deadline}
+                      onChange={e => setMaterialForm(p => ({ ...p, deadline: e.target.value }))}
+                      className="w-full px-3 py-2 rounded text-amber-100 text-sm"
+                      style={{
+                        background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                        border: '2px solid #4a4a55',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
+                        colorScheme: 'dark'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+              </>
               )}
 
               <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
