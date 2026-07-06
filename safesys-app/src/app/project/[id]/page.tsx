@@ -743,6 +743,15 @@ export default function ProjectDetailPage() {
               </button>
               <Building className="h-6 w-6 text-blue-600 mr-2 lg:mr-3 flex-shrink-0" />
               <h1 className="text-sm lg:text-xl font-bold text-gray-900 truncate">{project.project_name}</h1>
+              {/* 나라장터 연계 마크 — 프로젝트명 바로 옆 */}
+              {(project.g2b_cntrct_no || project.g2b_ntce_no) && (
+                <img
+                  src="/g2b.png"
+                  alt="나라장터 연계"
+                  title="나라장터 연계"
+                  className="ml-1.5 lg:ml-2 h-4 w-4 lg:h-5 lg:w-5 flex-shrink-0 object-contain"
+                />
+              )}
               {project.business_card_pdf_url && (
                 <button
                   onClick={handleBusinessCardClick}
