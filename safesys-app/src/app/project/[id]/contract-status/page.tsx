@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { Project } from '@/lib/projects'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
-import { ArrowLeft, X, FileText, ExternalLink, Trash2, Loader2, Search } from 'lucide-react'
+import { ArrowLeft, Plus, X, FileText, ExternalLink, Trash2, Loader2, Search } from 'lucide-react'
 
 interface ContractRecord {
   id: string
@@ -49,11 +49,12 @@ interface G2bCntrctItem {
   url: string
 }
 
-type LookupDiv = 'cnstwk' | 'servc'
+type LookupDiv = 'cnstwk' | 'servc' | 'byno'
 
 const LOOKUP_TABS: Array<{ div: LookupDiv; label: string }> = [
   { div: 'cnstwk', label: '공사' },
   { div: 'servc', label: '용역' },
+  { div: 'byno', label: '계약번호' },
 ]
 
 const PERIOD_PRESETS = [6, 12, 18, 24, 30, 36]
@@ -106,6 +107,18 @@ export default function ContractStatusPage() {
   const [lookupItems, setLookupItems] = useState<G2bCntrctItem[] | null>(null)
   const [lookupChecked, setLookupChecked] = useState<Set<string>>(new Set())
   const [importing, setImporting] = useState(false)
+  // 등록 방식 탭 (직접 등록 / 조달청 조회)
+  const [modalTab, setModalTab] = useState<'manual' | 'g2b'>('manual')
+  // 계약번호·공고번호 조회
+  const [noInput, setNoInput] = useState('')
+  const [noLoading, setNoLoading] = useState(false)
+  // 직접 등록 폼
+  const [mForm, setMForm] = useState({
+    type: '공사' as '공사' | '용역',
+    name: '', corp: '', totAmt: '', thtmAmt: '',
+    cntrctDate: '', startDate: '', endDate: '', dminstt: '',
+  })
+  const [mSaving, setMSaving] = useState(false)
 
   const handleBack = () => {
     const returnUrl = searchParams.get('returnUrl')
@@ -268,9 +281,92 @@ export default function ContractStatusPage() {
     }
   }
 
-  // 계약명 클라이언트 필터 — 공백 제거 후 단어 OR 부분일치, 일치 단어 많은 순
+  // 계약번호·공고번호 단건 조회 — 기존 /api/g2b/contract 재사용 (번호 유형 자동 판별)
+  const handleNoLookup = async () => {
+    const no = noInput.replace(/\s+/g, '')
+    if (no.length < 5) { setLookupError('계약번호 또는 공고번호를 입력해주세요.'); return }
+    setNoLoading(true)
+    setLookupError('')
+    setLookupItems(null)
+    setLookupChecked(new Set())
+    try {
+      const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}`)
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error || '조회에 실패했습니다.')
+      const contracts: Array<{
+        cnstwkNm: string; bsnsDivNm: string; cntrctNo: string; untyCntrctNo: string
+        totCntrctAmt: number; thtmCntrctAmt: number; cntrctPrd: string; cntrctCnclsDate: string
+        startDate: string; endDate: string; cntrctInsttNm: string
+        dminsttNms: string[]; corpNms: string[]; cntrctInfoUrl: string
+      }> = json.data?.contracts || []
+      const items: G2bCntrctItem[] = contracts.map((c) => ({
+        key: `${c.cnstwkNm}|${c.cntrctCnclsDate}|${c.totCntrctAmt}|${(c.corpNms || []).join(',')}`,
+        // 물품·외자는 프로젝트 성격상 없다고 보고 용역 표기가 없으면 공사로 분류
+        type: (c.bsnsDivNm || '').includes('용역') ? '용역' : '공사',
+        name: c.cnstwkNm,
+        untyCntrctNo: c.untyCntrctNo || '',
+        cntrctNo: c.cntrctNo || '',
+        cntrctDate: c.cntrctCnclsDate || '',
+        totAmt: c.totCntrctAmt || 0,
+        thtmAmt: c.thtmCntrctAmt || 0,
+        prd: c.cntrctPrd || '',
+        startDate: c.startDate || '',
+        endDate: c.endDate || '',
+        cntrctInsttNm: c.cntrctInsttNm || '',
+        dminsttNms: c.dminsttNms || [],
+        corpNms: c.corpNms || [],
+        url: c.cntrctInfoUrl || '',
+      }))
+      setLookupItems(items)
+    } catch (err: unknown) {
+      setLookupError(err instanceof Error ? err.message : '조회에 실패했습니다.')
+    } finally {
+      setNoLoading(false)
+    }
+  }
+
+  const parseAmt = (s: string) => {
+    const n = Number(s.replace(/[^0-9]/g, ''))
+    return n > 0 ? n : null
+  }
+  const formatAmtInput = (s: string) =>
+    s.replace(/[^0-9]/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+
+  // 직접 등록
+  const handleManualSave = async () => {
+    if (!user) return
+    if (!mForm.name.trim()) { alert('계약명을 입력해주세요.'); return }
+    setMSaving(true)
+    try {
+      const { error } = await (supabase as any).from('project_contracts').insert([{
+        project_id: projectId,
+        created_by: user.id,
+        contract_type: mForm.type,
+        cntrct_nm: mForm.name.trim(),
+        corp_nm: mForm.corp.trim() || null,
+        tot_cntrct_amt: parseAmt(mForm.totAmt),
+        thtm_cntrct_amt: parseAmt(mForm.thtmAmt),
+        cntrct_date: mForm.cntrctDate || null,
+        start_date: mForm.startDate || null,
+        end_date: mForm.endDate || null,
+        dminstt_nm: mForm.dminstt.trim() || null,
+      }])
+      if (error) throw error
+      setMForm((p) => ({ ...p, name: '', corp: '', totAmt: '', thtmAmt: '', cntrctDate: '', startDate: '', endDate: '', dminstt: '' }))
+      await loadRecords()
+      setIsLookupOpen(false)
+      alert('등록되었습니다.')
+    } catch (err: unknown) {
+      alert('등록 실패: ' + (err instanceof Error ? err.message : '알 수 없는 오류'))
+    } finally {
+      setMSaving(false)
+    }
+  }
+
+  // 계약명 클라이언트 필터 — 공백 제거 후 단어 OR 부분일치, 일치 단어 많은 순 (계약번호 조회 결과에는 미적용)
   const visibleItems = useMemo(() => {
     if (!lookupItems) return []
+    if (lookupDiv === 'byno') return lookupItems
     const tokens = lookupKeyword.trim().split(/\s+/).map((t) => t.replace(/\s+/g, '')).filter(Boolean)
     if (tokens.length === 0) return lookupItems
     const matchCount = (item: G2bCntrctItem) => {
@@ -282,7 +378,7 @@ export default function ContractStatusPage() {
       .filter((x) => x.hits > 0)
       .sort((a, b) => b.hits - a.hits || (b.item.cntrctDate || '').localeCompare(a.item.cntrctDate || ''))
       .map((x) => x.item)
-  }, [lookupItems, lookupKeyword])
+  }, [lookupItems, lookupKeyword, lookupDiv])
 
   const selectableItems = useMemo(() => visibleItems.filter((i) => !isRegistered(i)), [visibleItems, isRegistered])
   const allSelected = selectableItems.length > 0 && selectableItems.every((i) => lookupChecked.has(i.key))
@@ -381,8 +477,8 @@ export default function ContractStatusPage() {
               onClick={openLookup}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-blue-700 rounded-lg hover:bg-blue-50 shrink-0"
             >
-              <Search className="h-4 w-4" />
-              조달청 조회
+              <Plus className="h-4 w-4" />
+              추가
             </button>
           </div>
 
@@ -391,13 +487,13 @@ export default function ContractStatusPage() {
           ) : sortedRecords.length === 0 ? (
             <div className="text-center py-16 px-4">
               <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm text-gray-500 mb-4">등록된 계약이 없습니다. 조달청 조회로 공사·용역 계약을 불러와 등록하세요.</p>
+              <p className="text-sm text-gray-500 mb-4">등록된 계약이 없습니다. 조달청 조회 또는 직접 등록으로 공사·용역 계약을 추가하세요.</p>
               <button
                 onClick={openLookup}
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
-                <Search className="h-4 w-4" />
-                조달청 조회
+                <Plus className="h-4 w-4" />
+                추가
               </button>
             </div>
           ) : (
@@ -487,22 +583,22 @@ export default function ContractStatusPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between shrink-0">
-              <h3 className="font-semibold text-sm sm:text-base">조달청 계약현황 조회</h3>
+              <h3 className="font-semibold text-sm sm:text-base">계약 등록</h3>
               <button onClick={() => setIsLookupOpen(false)} className="p-1 text-blue-200 hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="p-4 space-y-3 overflow-y-auto">
-              {/* 구분 탭 */}
+              {/* 등록 방식 탭 */}
               <div className="grid grid-cols-2 gap-2">
-                {LOOKUP_TABS.map(({ div, label }) => (
+                {([['manual', '직접 등록'], ['g2b', '조달청 조회']] as const).map(([tab, label]) => (
                   <button
-                    key={div}
+                    key={tab}
                     type="button"
-                    onClick={() => switchLookupDiv(div)}
+                    onClick={() => setModalTab(tab)}
                     className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                      lookupDiv === div
+                      modalTab === tab
                         ? 'bg-blue-600 text-white border-blue-600'
                         : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
                     }`}
@@ -512,6 +608,28 @@ export default function ContractStatusPage() {
                 ))}
               </div>
 
+              {modalTab === 'g2b' && (
+              <>
+              {/* 구분 탭 — 공사/용역(기간 조회), 계약번호(단건 조회) */}
+              <div className="grid grid-cols-3 gap-2">
+                {LOOKUP_TABS.map(({ div, label }) => (
+                  <button
+                    key={div}
+                    type="button"
+                    onClick={() => switchLookupDiv(div)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
+                      lookupDiv === div
+                        ? 'bg-blue-50 text-blue-700 border-blue-400'
+                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {lookupDiv !== 'byno' && (
+              <>
               {/* 계약명 검색어 */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">계약명 검색어 (선택 — 기관명과 함께 조회 조건으로 적용)</label>
@@ -588,6 +706,34 @@ export default function ContractStatusPage() {
                   </>
                 )}
               </button>
+              </>
+              )}
+
+              {/* 계약번호·공고번호 조회 */}
+              {lookupDiv === 'byno' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">계약번호 또는 공고번호</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={noInput}
+                      onChange={(e) => setNoInput(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && !noLoading) handleNoLookup() }}
+                      placeholder="예: R26TA01918221 또는 20231019521"
+                      className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={handleNoLookup}
+                      disabled={noLoading}
+                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60 shrink-0"
+                    >
+                      {noLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                      조회
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1">나라장터 확정계약번호·공고번호·통합계약번호 모두 조회됩니다. 공사·용역 구분은 자동 판별됩니다.</p>
+                </div>
+              )}
 
               {lookupError && <p className="text-xs text-red-600">{lookupError}</p>}
 
@@ -606,7 +752,7 @@ export default function ContractStatusPage() {
                       표시된 미등록 건 전체 선택
                     </label>
                     <span className="text-xs text-gray-500 shrink-0">
-                      {lookupKeyword.trim()
+                      {lookupDiv !== 'byno' && lookupKeyword.trim()
                         ? `전체 ${lookupItems.length}건 중 ${visibleItems.length}건 표시`
                         : `${lookupItems.length}건`}
                     </span>
@@ -659,6 +805,114 @@ export default function ContractStatusPage() {
                   )}
                 </div>
               )}
+              </>
+              )}
+
+              {/* 직접 등록 폼 */}
+              {modalTab === 'manual' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">구분</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['공사', '용역'] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setMForm((p) => ({ ...p, type: t }))}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
+                          mForm.type === t
+                            ? 'bg-blue-50 text-blue-700 border-blue-400'
+                            : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">계약명 <span className="text-red-500">*</span></label>
+                  <input
+                    type="text"
+                    value={mForm.name}
+                    onChange={(e) => setMForm((p) => ({ ...p, name: e.target.value }))}
+                    placeholder="예: 백사지구 배수개선사업 자동화공사"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">계약상대자</label>
+                    <input
+                      type="text"
+                      value={mForm.corp}
+                      onChange={(e) => setMForm((p) => ({ ...p, corp: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">수요기관</label>
+                    <input
+                      type="text"
+                      value={mForm.dminstt}
+                      onChange={(e) => setMForm((p) => ({ ...p, dminstt: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">총계약금액(원)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={mForm.totAmt}
+                      onChange={(e) => setMForm((p) => ({ ...p, totAmt: formatAmtInput(e.target.value) }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">금차계약금액(원)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={mForm.thtmAmt}
+                      onChange={(e) => setMForm((p) => ({ ...p, thtmAmt: formatAmtInput(e.target.value) }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">계약체결일</label>
+                    <input
+                      type="date"
+                      value={mForm.cntrctDate}
+                      onChange={(e) => setMForm((p) => ({ ...p, cntrctDate: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">착수일</label>
+                    <input
+                      type="date"
+                      value={mForm.startDate}
+                      onChange={(e) => setMForm((p) => ({ ...p, startDate: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">준공일</label>
+                    <input
+                      type="date"
+                      value={mForm.endDate}
+                      onChange={(e) => setMForm((p) => ({ ...p, endDate: e.target.value }))}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+              )}
             </div>
 
             {/* 하단 버튼 */}
@@ -669,14 +923,25 @@ export default function ContractStatusPage() {
               >
                 닫기
               </button>
-              <button
-                onClick={handleImport}
-                disabled={importing || lookupChecked.size === 0}
-                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
-                {importing && <Loader2 className="h-4 w-4 animate-spin" />}
-                선택 {lookupChecked.size}건 등록
-              </button>
+              {modalTab === 'manual' ? (
+                <button
+                  onClick={handleManualSave}
+                  disabled={mSaving || !mForm.name.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {mSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+                  등록
+                </button>
+              ) : (
+                <button
+                  onClick={handleImport}
+                  disabled={importing || lookupChecked.size === 0}
+                  className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {importing && <Loader2 className="h-4 w-4 animate-spin" />}
+                  선택 {lookupChecked.size}건 등록
+                </button>
+              )}
             </div>
           </div>
         </div>
