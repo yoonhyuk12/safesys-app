@@ -499,6 +499,20 @@ export default function ContractStatusPage() {
                 ))}
               </div>
 
+              {/* 계약명 검색어 */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">계약명 검색어 (선택 — 기관명과 함께 조회 조건으로 적용)</label>
+                <input
+                  type="text"
+                  value={lookupKeyword}
+                  onChange={(e) => setLookupKeyword(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !lookupLoading) handleLookup() }}
+                  placeholder="예: 북내지구"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">비우면 기관 전체 계약을 표시합니다. 여러 단어를 입력하면 단어별 부분일치로 거릅니다.</p>
+              </div>
+
               {/* 기관명 */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">기관명 (계약·수요기관, 부분일치)</label>
@@ -542,20 +556,6 @@ export default function ContractStatusPage() {
                     </button>
                   ))}
                 </div>
-              </div>
-
-              {/* 계약명 검색어 */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">계약명 검색어 (선택 — 기관명과 함께 조회 조건으로 적용)</label>
-                <input
-                  type="text"
-                  value={lookupKeyword}
-                  onChange={(e) => setLookupKeyword(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !lookupLoading) handleLookup() }}
-                  placeholder="예: 북내지구"
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-[11px] text-gray-400 mt-1">비우면 기관 전체 계약을 표시합니다. 여러 단어를 입력하면 단어별 부분일치로 거릅니다.</p>
               </div>
 
               <button
