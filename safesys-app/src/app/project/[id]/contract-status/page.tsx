@@ -648,17 +648,28 @@ export default function ContractStatusPage() {
     }
   }
 
-  // 등록 건 일괄 갱신 — 계약번호가 있는 행을 조달청 최신 계약(차수)으로 갱신.
-  // 조회값이 빈 항목은 기존 값을 지우지 않는 fill-if-present 방식 (프로젝트 상세 갱신 버튼과 동일)
+  // 등록 건 일괄 갱신 — 계약번호가 있는 행을 조달청 최신 계약(차수)으로 갱신하고, 미등록 연차/차수 계약이 있다면 신규 등록.
   const handleRefreshAll = async () => {
     if (!user || refreshing) return
     const targets = records.filter((r) => r.cntrct_no || r.unty_cntrct_no)
     if (targets.length === 0) { alert('갱신할 계약번호가 있는 등록 건이 없습니다.'); return }
-    if (!confirm(`등록된 ${targets.length}건을 조달청 최신 계약정보로 갱신할까요?`)) return
+    if (!confirm(`등록된 ${targets.length}건을 조달청 최신 계약정보로 갱신하고, 새로운 연차(차수) 계약이 있다면 추가할까요?`)) return
     setRefreshing(true)
     setRefreshProgress({ done: 0, total: targets.length })
     let updated = 0
+    let inserted = 0
     const failures: string[] = []
+
+    const activeRegisteredKeys = new Set(registeredKeys)
+    const findExistingRecord = (c: G2bContractResp) => {
+      return records.find((r) => {
+        if (c.cntrctNo && r.cntrct_no === c.cntrctNo) return true
+        if (c.untyCntrctNo && r.unty_cntrct_no === c.untyCntrctNo) return true
+        if (r.cntrct_nm === c.cnstwkNm && r.cntrct_date === c.cntrctCnclsDate) return true
+        return false
+      })
+    }
+
     try {
       for (const r of targets) {
         try {
@@ -666,29 +677,65 @@ export default function ContractStatusPage() {
           const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}`)
           const json = await res.json()
           if (!res.ok || !json.success) throw new Error(json.error || '조회 실패')
-          const c = json.data?.contracts?.[0]
-          if (!c) throw new Error('조회 결과 없음')
-          const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
-          if (c.totCntrctAmt > 0) patch.tot_cntrct_amt = c.totCntrctAmt
-          if (c.thtmCntrctAmt > 0) patch.thtm_cntrct_amt = c.thtmCntrctAmt
-          if (c.cntrctCnclsDate) patch.cntrct_date = c.cntrctCnclsDate
-          if (c.cntrctPrd) patch.cntrct_prd = c.cntrctPrd
-          if (c.startDate) patch.start_date = c.startDate
-          if (c.endDate) patch.end_date = c.endDate
-          if (c.thtmEndDate) patch.thtm_end_date = c.thtmEndDate
-          if ((c.corpNms || []).length > 0) patch.corp_nm = c.corpNms.join(', ')
-          if ((c.dminsttNms || []).length > 0) patch.dminstt_nm = c.dminsttNms.join(', ')
-          if (c.untyCntrctNo) patch.unty_cntrct_no = c.untyCntrctNo
-          if (c.cntrctNo) patch.cntrct_no = c.cntrctNo
-          if (c.cntrctDtlInfoUrl) patch.cntrct_info_url = c.cntrctDtlInfoUrl
-          const { data, error } = await (supabase as any)
-            .from('project_contracts')
-            .update(patch)
-            .eq('id', r.id)
-            .select('id')
-          if (error) throw error
-          if (data && data.length > 0) updated += 1
-          else failures.push(`${r.cntrct_nm} (작성자만 수정 가능)`)
+          const contracts: G2bContractResp[] = json.data?.contracts || []
+          if (contracts.length === 0) throw new Error('조회 결과 없음')
+
+          for (const c of contracts) {
+            const item = contractRespToItem(c)
+            
+            const cn = ctrtNoFromUrl(item.url)
+            const isItemRegistered = (
+              (!!cn && activeRegisteredKeys.has(cn)) ||
+              (!!item.untyCntrctNo && activeRegisteredKeys.has(item.untyCntrctNo)) ||
+              (!!item.cntrctNo && (activeRegisteredKeys.has(item.cntrctNo) ||
+                (item.cntrctNo.length >= 13 && activeRegisteredKeys.has(item.cntrctNo.slice(0, -2))))) ||
+              activeRegisteredKeys.has(`${item.name}|${item.cntrctDate}`)
+            )
+
+            if (isItemRegistered) {
+              const existing = findExistingRecord(c)
+              if (existing) {
+                const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+                if (c.totCntrctAmt > 0) patch.tot_cntrct_amt = c.totCntrctAmt
+                if (c.thtmCntrctAmt > 0) patch.thtm_cntrct_amt = c.thtmCntrctAmt
+                if (c.cntrctCnclsDate) patch.cntrct_date = c.cntrctCnclsDate
+                if (c.cntrctPrd) patch.cntrct_prd = c.cntrctPrd
+                if (c.startDate) patch.start_date = c.startDate
+                if (c.endDate) patch.end_date = c.endDate
+                if (c.thtmEndDate) patch.thtm_end_date = c.thtmEndDate
+                if ((c.corpNms || []).length > 0) patch.corp_nm = c.corpNms.join(', ')
+                if ((c.dminsttNms || []).length > 0) patch.dminstt_nm = c.dminsttNms.join(', ')
+                if (c.untyCntrctNo) patch.unty_cntrct_no = c.untyCntrctNo
+                if (c.cntrctNo) patch.cntrct_no = c.cntrctNo
+                if (c.cntrctDtlInfoUrl || c.cntrctInfoUrl) patch.cntrct_info_url = c.cntrctDtlInfoUrl || c.cntrctInfoUrl
+
+                const { data, error } = await (supabase as any)
+                  .from('project_contracts')
+                  .update(patch)
+                  .eq('id', existing.id)
+                  .select('id')
+                if (error) throw error
+                if (data && data.length > 0) updated += 1
+              }
+            } else {
+              const newRow = itemToRow(item, projectId, user.id)
+              const { data, error } = await (supabase as any)
+                .from('project_contracts')
+                .insert([newRow])
+                .select('id')
+              if (error) throw error
+              if (data && data.length > 0) {
+                inserted += 1
+                if (cn) activeRegisteredKeys.add(cn)
+                if (item.untyCntrctNo) activeRegisteredKeys.add(item.untyCntrctNo)
+                if (item.cntrctNo) {
+                  activeRegisteredKeys.add(item.cntrctNo)
+                  if (item.cntrctNo.length >= 13) activeRegisteredKeys.add(item.cntrctNo.slice(0, -2))
+                }
+                activeRegisteredKeys.add(`${item.name}|${item.cntrctDate}`)
+              }
+            }
+          }
         } catch (err: unknown) {
           failures.push(`${r.cntrct_nm} (${err instanceof Error ? err.message : '오류'})`)
         } finally {
@@ -697,9 +744,9 @@ export default function ContractStatusPage() {
       }
       await loadRecords()
       alert(
-        `갱신 완료: ${updated}건` +
+        `업데이트 완료\n- 기존 계약 정보 갱신: ${updated}건\n- 미등록 연차(차수) 계약 추가: ${inserted}건` +
         (failures.length
-          ? `\n실패/건너뜀 ${failures.length}건:\n- ${failures.slice(0, 5).join('\n- ')}${failures.length > 5 ? '\n…' : ''}`
+          ? `\n\n일부 갱신 실패/건너뜀 ${failures.length}건:\n- ${failures.slice(0, 5).join('\n- ')}${failures.length > 5 ? '\n…' : ''}`
           : '')
       )
     } finally {
