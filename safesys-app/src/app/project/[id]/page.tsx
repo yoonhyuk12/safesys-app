@@ -105,6 +105,7 @@ export default function ProjectDetailPage() {
   const [ptwCount, setPtwCount] = useState<number | null>(null)
   const [inspectionRequestCount, setInspectionRequestCount] = useState<number | null>(null)
   const [visitLogCount, setVisitLogCount] = useState<number | null>(null)
+  const [contractCount, setContractCount] = useState<number | null>(null)
   const [qualityMonthlyReportCount, setQualityMonthlyReportCount] = useState<number | null>(null)
   const [qualityTestRecordCount, setQualityTestRecordCount] = useState<number | null>(null)
   const [cardCounts, setCardCounts] = useState<Record<string, number>>({})
@@ -282,6 +283,19 @@ export default function ProjectDetailPage() {
       if (!countError) setVisitLogCount(count ?? 0)
     }
     loadVisitLogCount()
+  }, [user, projectId])
+
+  // 계약(공사·용역) 현황 건수 조회 (서류철 카드 표시용)
+  useEffect(() => {
+    if (!user || !projectId) return
+    const loadContractCount = async () => {
+      const { count, error: countError } = await (supabase as any)
+        .from('project_contracts')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+      if (!countError) setContractCount(count ?? 0)
+    }
+    loadContractCount()
   }, [user, projectId])
 
   // 품질시험 월례보고서 건수 조회 (서류철 카드 표시용)
@@ -851,7 +865,23 @@ export default function ProjectDetailPage() {
   const lowerCopyButton = renderInfoCopyButton(lowerInfoCopied, () => handleCopyInfoBlock(lowerInfoRef, setLowerInfoCopied))
 
   return (
-    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex flex-col">
+    <div className="min-h-screen relative bg-black flex flex-col" style={{ isolation: 'isolate' }}>
+      {/* 검은 배경 + 스포트라이트 조명 — 상단 중앙 광원이 캐비넷 영역을 비추는 무대 조명 (스크롤 시 고정) */}
+      <div
+        className="fixed inset-0"
+        style={{
+          zIndex: -1,
+          backgroundColor: '#000',
+          backgroundImage: [
+            // 상단 중앙에서 아래로 퍼지는 조명 빔
+            'conic-gradient(from 180deg at 50% -12%, transparent 40%, rgba(255,250,230,0.1) 45%, rgba(255,250,230,0.26) 50%, rgba(255,250,230,0.1) 55%, transparent 60%)',
+            // 캐비넷 위치의 빛 웅덩이
+            'radial-gradient(ellipse 58% 45% at 50% 60%, rgba(255,250,235,0.28) 0%, rgba(255,250,235,0.1) 45%, transparent 72%)',
+            // 광원 자체의 헤일로
+            'radial-gradient(ellipse 40% 24% at 50% 0%, rgba(255,255,245,0.35) 0%, transparent 70%)'
+          ].join(', ')
+        }}
+      />
       {/* 헤더 */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl lg:max-w-none mx-auto px-4 sm:px-6 lg:px-4">
@@ -1321,6 +1351,22 @@ export default function ProjectDetailPage() {
           {/* 문서철 그리드 - 기타 캐비넷 */}
           <CabinetDrawer open={openCabinet === '기타'} instantClose={openCabinet !== null}>
           <div className="flex flex-wrap justify-center gap-3">
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>P (계획)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="계약 현황
+(공사·용역)"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  docCount={contractCount ?? undefined}
+                  onClick={() => router.push(`/project/${projectId}/contract-status`)}
+                  pdcaCategory="P"
+                  bottomLabel="계약"
+                />
+              </div>
+            </div>
             <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
               <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>C (점검)</div>
               <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">

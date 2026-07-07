@@ -1,0 +1,672 @@
+// 계약(공사·용역) 현황 서류철 — 조달청 계약현황 조회로 등록하는 프로젝트 계약 목록 페이지
+'use client'
+
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
+import { supabase } from '@/lib/supabase'
+import { Project } from '@/lib/projects'
+import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import { ArrowLeft, X, FileText, ExternalLink, Trash2, Loader2, Search } from 'lucide-react'
+
+interface ContractRecord {
+  id: string
+  project_id: string
+  created_by: string | null
+  contract_type: '공사' | '용역'
+  cntrct_nm: string
+  unty_cntrct_no: string | null
+  cntrct_no: string | null
+  corp_nm: string | null
+  tot_cntrct_amt: number | null
+  thtm_cntrct_amt: number | null
+  cntrct_date: string | null
+  cntrct_prd: string | null
+  start_date: string | null
+  end_date: string | null
+  dminstt_nm: string | null
+  cntrct_instt_nm: string | null
+  cntrct_info_url: string | null
+  created_at: string
+}
+
+// /api/g2b/cntrct-list 응답 행
+interface G2bCntrctItem {
+  key: string
+  type: '공사' | '용역'
+  name: string
+  untyCntrctNo: string
+  cntrctNo: string
+  cntrctDate: string
+  totAmt: number
+  thtmAmt: number
+  prd: string
+  startDate: string
+  endDate: string
+  cntrctInsttNm: string
+  dminsttNms: string[]
+  corpNms: string[]
+  url: string
+}
+
+type LookupDiv = 'cnstwk' | 'servc'
+
+const LOOKUP_TABS: Array<{ div: LookupDiv; label: string }> = [
+  { div: 'cnstwk', label: '공사' },
+  { div: 'servc', label: '용역' },
+]
+
+const PERIOD_PRESETS = [6, 12, 18, 24, 30, 36]
+
+const formatAmt = (n: number | null | undefined) =>
+  n == null || n === 0 ? '-' : n.toLocaleString('ko-KR')
+
+// 'YYYY-MM' 범위를 월 단위 {bgn,end}(YYYYMMDD) 목록으로 변환 — 오늘 이후 제외, 최대 60개월
+function buildMonths(from: string, to: string): Array<{ bgn: string; end: string }> {
+  if (!/^\d{4}-\d{2}$/.test(from) || !/^\d{4}-\d{2}$/.test(to)) return []
+  const months: Array<{ bgn: string; end: string }> = []
+  const now = new Date()
+  const nowKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  let [y, m] = from.split('-').map(Number)
+  for (let i = 0; i < 60; i++) {
+    const key = `${y}-${String(m).padStart(2, '0')}`
+    if (key > to || key > nowKey) break
+    const lastDay = new Date(y, m, 0).getDate()
+    const mm = String(m).padStart(2, '0')
+    months.push({ bgn: `${y}${mm}01`, end: `${y}${mm}${String(lastDay).padStart(2, '0')}` })
+    m += 1
+    if (m > 12) { m = 1; y += 1 }
+  }
+  return months
+}
+
+const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+
+export default function ContractStatusPage() {
+  const params = useParams()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { user, loading: authLoading } = useAuth()
+  const projectId = params.id as string
+
+  const [project, setProject] = useState<Project | null>(null)
+  const [records, setRecords] = useState<ContractRecord[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // 조달청 조회 모달
+  const [isLookupOpen, setIsLookupOpen] = useState(false)
+  const [lookupDiv, setLookupDiv] = useState<LookupDiv>('cnstwk')
+  const [lookupInst, setLookupInst] = useState('')
+  const [lookupFrom, setLookupFrom] = useState('')
+  const [lookupTo, setLookupTo] = useState('')
+  const [lookupKeyword, setLookupKeyword] = useState('')
+  const [lookupLoading, setLookupLoading] = useState(false)
+  const [lookupProgress, setLookupProgress] = useState({ done: 0, total: 0 })
+  const [lookupError, setLookupError] = useState('')
+  const [lookupItems, setLookupItems] = useState<G2bCntrctItem[] | null>(null)
+  const [lookupChecked, setLookupChecked] = useState<Set<string>>(new Set())
+  const [importing, setImporting] = useState(false)
+
+  const handleBack = () => {
+    const returnUrl = searchParams.get('returnUrl')
+    if (returnUrl) { router.push(returnUrl); return }
+    if (typeof window !== 'undefined' && window.history.length > 1) { router.back(); return }
+    router.push(`/project/${projectId}`)
+  }
+
+  useEffect(() => {
+    if (!authLoading && !user) router.push('/login')
+  }, [authLoading, user, router])
+
+  useEffect(() => {
+    if (!user || !projectId) return
+    const loadProject = async () => {
+      const { data } = await supabase.from('projects').select('*').eq('id', projectId).single()
+      if (data) setProject(data as Project)
+    }
+    loadProject()
+  }, [user, projectId])
+
+  const loadRecords = useCallback(async () => {
+    if (!projectId) return
+    setLoading(true)
+    const { data, error } = await (supabase as any)
+      .from('project_contracts')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false })
+    if (!error && data) setRecords(data as ContractRecord[])
+    setLoading(false)
+  }, [projectId])
+
+  useEffect(() => { if (user && projectId) loadRecords() }, [user, projectId, loadRecords])
+
+  // 표 정렬: 공사 먼저 → 용역, 같은 구분 안에서는 체결일 오름차순 (사용자 지정 순서)
+  const sortedRecords = useMemo(() => {
+    const typeOrder = (t: string) => (t === '공사' ? 0 : 1)
+    return [...records].sort((a, b) => {
+      const t = typeOrder(a.contract_type) - typeOrder(b.contract_type)
+      if (t !== 0) return t
+      const da = a.cntrct_date || '9999-12-31'
+      const db = b.cntrct_date || '9999-12-31'
+      if (da !== db) return da < db ? -1 : 1
+      return (a.created_at || '').localeCompare(b.created_at || '')
+    })
+  }, [records])
+
+  const cnstwkCount = records.filter((r) => r.contract_type === '공사').length
+  const servcCount = records.length - cnstwkCount
+
+  // 등록됨 판정: 통합계약번호 → 확정계약번호 → 계약명+체결일 순 폴백
+  const registeredKeys = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of records) {
+      if (r.unty_cntrct_no) s.add(r.unty_cntrct_no)
+      if (r.cntrct_no) s.add(r.cntrct_no)
+      s.add(`${r.cntrct_nm}|${r.cntrct_date || ''}`)
+    }
+    return s
+  }, [records])
+
+  const isRegistered = useCallback((item: G2bCntrctItem) =>
+    (!!item.untyCntrctNo && registeredKeys.has(item.untyCntrctNo)) ||
+    (!!item.cntrctNo && registeredKeys.has(item.cntrctNo)) ||
+    registeredKeys.has(`${item.name}|${item.cntrctDate}`),
+  [registeredKeys])
+
+  // 조달청 조회 모달 열기 — 기관명·기간·검색어 프리필 (수불부 일괄 조회와 동일 패턴)
+  const openLookup = () => {
+    setIsLookupOpen(true)
+    setLookupError('')
+    if (!lookupFrom || !lookupTo) {
+      const now = new Date()
+      const from = new Date(now.getFullYear(), now.getMonth() - 11, 1)
+      setLookupFrom(monthKey(from))
+      setLookupTo(monthKey(now))
+    }
+    if (!lookupKeyword && project?.project_name) {
+      setLookupKeyword(project.project_name.replace(/\s*(용역|공사)\s*$/, '').trim())
+    }
+    if (!lookupInst) {
+      const branch = project?.managing_branch || ''
+      if (branch.endsWith('지사')) {
+        // 조달청 등록명은 '여주.이천지사' 형태 — '·'를 '.'로 변환하면 부분일치로 잡힌다
+        setLookupInst(branch.replace(/·/g, '.'))
+      } else if (project?.g2b_cntrct_no) {
+        fetch(`/api/g2b/contract?no=${encodeURIComponent(project.g2b_cntrct_no)}`)
+          .then((res) => res.json())
+          .then((json) => {
+            const nm = json?.success ? json.data?.contracts?.[0]?.dminsttNms?.[0] : ''
+            if (nm) setLookupInst((prev) => prev || nm)
+          })
+          .catch(() => {})
+      }
+    }
+  }
+
+  const switchLookupDiv = (div: LookupDiv) => {
+    if (div === lookupDiv) return
+    setLookupDiv(div)
+    setLookupItems(null)
+    setLookupChecked(new Set())
+    setLookupError('')
+  }
+
+  const applyPreset = (monthsBack: number) => {
+    const now = new Date()
+    const from = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1)
+    setLookupFrom(monthKey(from))
+    setLookupTo(monthKey(now))
+  }
+
+  const handleLookup = async () => {
+    const inst = lookupInst.trim()
+    if (inst.length < 2) { setLookupError('기관명을 2자 이상 입력해주세요.'); return }
+    const months = buildMonths(lookupFrom, lookupTo)
+    if (months.length === 0) { setLookupError('조회 기간을 확인해주세요.'); return }
+    // 검색어가 한 단어면 조달청 조회 조건으로 함께 전송(원문 부분일치).
+    // 여러 단어는 건명 띄어쓰기 편차로 서버 필터가 누락을 만들 수 있어 조회 후 클라이언트에서 거른다.
+    const keyword = lookupKeyword.trim()
+    const nmParam = keyword && !/\s/.test(keyword) ? `&nm=${encodeURIComponent(keyword)}` : ''
+    setLookupLoading(true)
+    setLookupError('')
+    setLookupItems(null)
+    setLookupChecked(new Set())
+    setLookupProgress({ done: 0, total: months.length })
+    const collected: G2bCntrctItem[] = []
+    let firstError = ''
+    let failCount = 0
+    let done = 0
+    const CONCURRENCY = 3
+    try {
+      for (let i = 0; i < months.length; i += CONCURRENCY) {
+        const batch = months.slice(i, i + CONCURRENCY)
+        await Promise.all(batch.map(async (m) => {
+          try {
+            const res = await fetch(`/api/g2b/cntrct-list?div=${lookupDiv}&inst=${encodeURIComponent(inst)}&bgn=${m.bgn}&end=${m.end}${nmParam}`)
+            const json = await res.json()
+            if (!res.ok || !json.success) throw new Error(json.error || '조회에 실패했습니다.')
+            collected.push(...(json.data?.items || []))
+          } catch (err: unknown) {
+            failCount += 1
+            if (!firstError) firstError = err instanceof Error ? err.message : '조회에 실패했습니다.'
+          } finally {
+            done += 1
+            setLookupProgress({ done, total: months.length })
+          }
+        }))
+      }
+      // 월 경계 중복 대비 키 기준 dedupe 후 체결일 내림차순
+      const byKey = new Map<string, G2bCntrctItem>()
+      for (const item of collected) if (!byKey.has(item.key)) byKey.set(item.key, item)
+      const items = [...byKey.values()].sort((a, b) => (b.cntrctDate || '').localeCompare(a.cntrctDate || ''))
+      setLookupItems(items)
+      if (failCount === months.length && firstError) setLookupError(firstError)
+      else if (firstError) setLookupError(`일부 구간 조회 실패: ${firstError}`)
+    } finally {
+      setLookupLoading(false)
+    }
+  }
+
+  // 계약명 클라이언트 필터 — 공백 제거 후 단어 OR 부분일치, 일치 단어 많은 순
+  const visibleItems = useMemo(() => {
+    if (!lookupItems) return []
+    const tokens = lookupKeyword.trim().split(/\s+/).map((t) => t.replace(/\s+/g, '')).filter(Boolean)
+    if (tokens.length === 0) return lookupItems
+    const matchCount = (item: G2bCntrctItem) => {
+      const name = item.name.replace(/\s+/g, '')
+      return tokens.filter((t) => name.includes(t)).length
+    }
+    return lookupItems
+      .map((item) => ({ item, hits: matchCount(item) }))
+      .filter((x) => x.hits > 0)
+      .sort((a, b) => b.hits - a.hits || (b.item.cntrctDate || '').localeCompare(a.item.cntrctDate || ''))
+      .map((x) => x.item)
+  }, [lookupItems, lookupKeyword])
+
+  const selectableItems = useMemo(() => visibleItems.filter((i) => !isRegistered(i)), [visibleItems, isRegistered])
+  const allSelected = selectableItems.length > 0 && selectableItems.every((i) => lookupChecked.has(i.key))
+
+  const toggleAll = () => {
+    setLookupChecked((prev) => {
+      if (allSelected) {
+        const next = new Set(prev)
+        selectableItems.forEach((i) => next.delete(i.key))
+        return next
+      }
+      return new Set([...prev, ...selectableItems.map((i) => i.key)])
+    })
+  }
+
+  const handleImport = async () => {
+    if (!user || !lookupItems) return
+    const targets = lookupItems.filter((i) => lookupChecked.has(i.key) && !isRegistered(i))
+    if (targets.length === 0) return
+    setImporting(true)
+    try {
+      const rows = targets.map((i) => ({
+        project_id: projectId,
+        created_by: user.id,
+        contract_type: i.type,
+        cntrct_nm: i.name,
+        unty_cntrct_no: i.untyCntrctNo || null,
+        cntrct_no: i.cntrctNo || null,
+        corp_nm: i.corpNms.join(', ') || null,
+        tot_cntrct_amt: i.totAmt || null,
+        thtm_cntrct_amt: i.thtmAmt || null,
+        cntrct_date: i.cntrctDate || null,
+        cntrct_prd: i.prd || null,
+        start_date: i.startDate || null,
+        end_date: i.endDate || null,
+        dminstt_nm: i.dminsttNms.join(', ') || null,
+        cntrct_instt_nm: i.cntrctInsttNm || null,
+        cntrct_info_url: i.url || null,
+      }))
+      const { error } = await (supabase as any).from('project_contracts').insert(rows)
+      if (error) throw error
+      setLookupChecked(new Set())
+      await loadRecords()
+      alert(`${rows.length}건이 등록되었습니다.`)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '알 수 없는 오류'
+      alert('등록 실패: ' + message)
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleDelete = async (record: ContractRecord) => {
+    if (!confirm(`"${record.cntrct_nm}" 계약을 삭제하시겠습니까?`)) return
+    const { error } = await (supabase as any).from('project_contracts').delete().eq('id', record.id)
+    if (!error) loadRecords()
+    else alert('삭제 실패: ' + error.message)
+  }
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    )
+  }
+  if (!user) return null
+
+  return (
+    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
+      {/* 헤더 */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="px-4">
+          <div className="flex items-center h-16 gap-3">
+            <button onClick={handleBack} className="text-gray-400 hover:text-gray-600 shrink-0">
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate">계약(공사·용역) 현황</h1>
+              {project && <p className="text-xs text-gray-500 truncate">{project.project_name}</p>}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-6xl mx-auto py-4 px-2 sm:px-4">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between gap-2">
+            <h2 className="font-semibold text-sm sm:text-base">
+              계약 현황
+              {records.length > 0 && (
+                <span className="ml-2 text-xs font-normal text-blue-100">공사 {cnstwkCount}건 · 용역 {servcCount}건</span>
+              )}
+            </h2>
+            <button
+              onClick={openLookup}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-blue-700 rounded-lg hover:bg-blue-50 shrink-0"
+            >
+              <Search className="h-4 w-4" />
+              조달청 조회
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center py-20"><LoadingSpinner /></div>
+          ) : sortedRecords.length === 0 ? (
+            <div className="text-center py-16 px-4">
+              <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm text-gray-500 mb-4">등록된 계약이 없습니다. 조달청 조회로 공사·용역 계약을 불러와 등록하세요.</p>
+              <button
+                onClick={openLookup}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                <Search className="h-4 w-4" />
+                조달청 조회
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm whitespace-nowrap">
+                <thead>
+                  <tr className="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
+                    <th className="px-3 py-2 text-left font-medium">구분</th>
+                    <th className="px-3 py-2 text-left font-medium">계약명</th>
+                    <th className="px-3 py-2 text-left font-medium">계약상대자</th>
+                    <th className="px-3 py-2 text-right font-medium">총계약금액(원)</th>
+                    <th className="px-3 py-2 text-left font-medium">계약체결일</th>
+                    <th className="px-3 py-2 text-left font-medium">계약기간</th>
+                    <th className="px-3 py-2 text-left font-medium">수요기관</th>
+                    <th className="px-3 py-2 text-center font-medium">관리</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedRecords.map((r) => (
+                    <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="px-3 py-2">
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                          r.contract_type === '공사' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                          {r.contract_type}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 max-w-[320px]">
+                        {r.cntrct_info_url ? (
+                          <a
+                            href={r.cntrct_info_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline inline-flex items-center gap-1 max-w-full"
+                            title={r.cntrct_nm}
+                          >
+                            <span className="truncate">{r.cntrct_nm}</span>
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                          </a>
+                        ) : (
+                          <span className="block truncate" title={r.cntrct_nm}>{r.cntrct_nm}</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 max-w-[180px] truncate" title={r.corp_nm || ''}>{r.corp_nm || '-'}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatAmt(r.tot_cntrct_amt)}</td>
+                      <td className="px-3 py-2">{r.cntrct_date || '-'}</td>
+                      <td className="px-3 py-2 max-w-[200px] truncate" title={r.cntrct_prd || ''}>
+                        {r.start_date && r.end_date ? `${r.start_date} ~ ${r.end_date}` : (r.cntrct_prd || '-')}
+                      </td>
+                      <td className="px-3 py-2 max-w-[200px] truncate" title={r.dminstt_nm || ''}>{r.dminstt_nm || '-'}</td>
+                      <td className="px-3 py-2 text-center">
+                        <button
+                          onClick={() => handleDelete(r)}
+                          className="p-1 text-gray-400 hover:text-red-600"
+                          title="삭제"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {/* 조달청 조회 모달 */}
+      {isLookupOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setIsLookupOpen(false)}>
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between shrink-0">
+              <h3 className="font-semibold text-sm sm:text-base">조달청 계약현황 조회</h3>
+              <button onClick={() => setIsLookupOpen(false)} className="p-1 text-blue-200 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 overflow-y-auto">
+              {/* 구분 탭 */}
+              <div className="grid grid-cols-2 gap-2">
+                {LOOKUP_TABS.map(({ div, label }) => (
+                  <button
+                    key={div}
+                    type="button"
+                    onClick={() => switchLookupDiv(div)}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${
+                      lookupDiv === div
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* 기관명 */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">기관명 (계약·수요기관, 부분일치)</label>
+                <input
+                  type="text"
+                  value={lookupInst}
+                  onChange={(e) => setLookupInst(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !lookupLoading) handleLookup() }}
+                  placeholder="예: 여주.이천지사"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* 기간 */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">계약체결일 기간</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="month"
+                    value={lookupFrom}
+                    onChange={(e) => setLookupFrom(e.target.value)}
+                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-400 shrink-0">~</span>
+                  <input
+                    type="month"
+                    value={lookupTo}
+                    onChange={(e) => setLookupTo(e.target.value)}
+                    className="flex-1 min-w-0 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {PERIOD_PRESETS.map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => applyPreset(n)}
+                      className="px-2 py-1 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-50"
+                    >
+                      최근 {n}개월
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 계약명 검색어 */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">계약명 검색어 (선택 — 기관명과 함께 조회 조건으로 적용)</label>
+                <input
+                  type="text"
+                  value={lookupKeyword}
+                  onChange={(e) => setLookupKeyword(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !lookupLoading) handleLookup() }}
+                  placeholder="예: 북내지구"
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">비우면 기관 전체 계약을 표시합니다. 여러 단어를 입력하면 단어별 부분일치로 거릅니다.</p>
+              </div>
+
+              <button
+                onClick={handleLookup}
+                disabled={lookupLoading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+              >
+                {lookupLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    조회 중… {lookupProgress.done}/{lookupProgress.total}개월
+                  </>
+                ) : (
+                  <>
+                    <Search className="h-4 w-4" />
+                    {LOOKUP_TABS.find((t) => t.div === lookupDiv)?.label} 계약 조회
+                  </>
+                )}
+              </button>
+
+              {lookupError && <p className="text-xs text-red-600">{lookupError}</p>}
+
+              {/* 조회 결과 */}
+              {lookupItems && (
+                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="bg-gray-50 px-3 py-2 flex items-center justify-between gap-2 border-b border-gray-200">
+                    <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleAll}
+                        disabled={selectableItems.length === 0}
+                        className="accent-blue-600"
+                      />
+                      표시된 미등록 건 전체 선택
+                    </label>
+                    <span className="text-xs text-gray-500 shrink-0">
+                      {lookupKeyword.trim()
+                        ? `전체 ${lookupItems.length}건 중 ${visibleItems.length}건 표시`
+                        : `${lookupItems.length}건`}
+                    </span>
+                  </div>
+                  {visibleItems.length === 0 ? (
+                    <p className="text-center text-sm text-gray-400 py-8 px-4">
+                      {lookupItems.length > 0
+                        ? '검색어와 일치하는 계약이 없습니다. 검색어를 줄이거나 비워보세요.'
+                        : '조회된 계약이 없습니다. 기관명·기간을 확인해주세요.'}
+                    </p>
+                  ) : (
+                    <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
+                      {visibleItems.map((item) => {
+                        const registered = isRegistered(item)
+                        return (
+                          <label
+                            key={item.key}
+                            className={`flex items-start gap-2 px-3 py-2 ${registered ? 'opacity-50' : 'cursor-pointer hover:bg-blue-50/50'}`}
+                          >
+                            <input
+                              type="checkbox"
+                              disabled={registered}
+                              checked={lookupChecked.has(item.key)}
+                              onChange={() => setLookupChecked((prev) => {
+                                const next = new Set(prev)
+                                if (next.has(item.key)) next.delete(item.key)
+                                else next.add(item.key)
+                                return next
+                              })}
+                              className="mt-1 accent-blue-600 shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm text-gray-900 break-all">
+                                {item.name}
+                                {registered && (
+                                  <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-700 align-middle">등록됨</span>
+                                )}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-0.5">
+                                체결 {item.cntrctDate || '-'} · 총액 {formatAmt(item.totAmt)}원
+                                {item.corpNms.length > 0 ? ` · ${item.corpNms.join(', ')}` : ''}
+                              </p>
+                              <p className="text-[11px] text-gray-400 truncate">{item.cntrctInsttNm}</p>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 하단 버튼 */}
+            <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-end gap-2 shrink-0">
+              <button
+                onClick={() => setIsLookupOpen(false)}
+                className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                닫기
+              </button>
+              <button
+                onClick={handleImport}
+                disabled={importing || lookupChecked.size === 0}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {importing && <Loader2 className="h-4 w-4 animate-spin" />}
+                선택 {lookupChecked.size}건 등록
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
