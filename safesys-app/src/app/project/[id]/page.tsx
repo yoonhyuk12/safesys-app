@@ -1384,9 +1384,9 @@ export default function ProjectDetailPage() {
             <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
               <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>P (계획)</div>
               <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                {/* title의 원시 줄바꿈은 SWC가 공백으로 접어버려 2줄 렌더링이 무력화됨 — 표현식으로 \n을 명시 전달 */}
                 <DocumentFolder
-                  title="계약 현황
-︵공사·용역︶"
+                  title={'계약 현황\n︵공사·용역︶'}
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
