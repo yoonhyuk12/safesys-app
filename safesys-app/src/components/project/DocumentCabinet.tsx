@@ -9,6 +9,7 @@ interface DocumentCabinetProps {
   titleSuffix?: string // 명판 제목 옆 부가 표시 (예: 공정률 %)
   color: CabinetColor
   isOpen?: boolean
+  receded?: boolean // 다른 캐비넷이 열려 있어 뒤로 물러난(축소·어두워진) 상태
   onClick?: () => void
   pendingCount?: number // 미조치 건수 — 있으면 닫힌 문틈에 라벨이 튀어나옴
 }
@@ -75,16 +76,17 @@ const COLOR_THEMES: Record<CabinetColor, CabinetTheme> = {
   },
 }
 
-const DocumentCabinet: React.FC<DocumentCabinetProps> = ({ title, titleSuffix, color, isOpen = false, onClick, pendingCount = 0 }) => {
+const DocumentCabinet: React.FC<DocumentCabinetProps> = ({ title, titleSuffix, color, isOpen = false, receded = false, onClick, pendingCount = 0 }) => {
   const theme = COLOR_THEMES[color]
 
   return (
     <div
       data-cabinet
       className={`
-        relative w-24 sm:w-28 lg:w-36 transition-transform duration-200
+        relative w-24 sm:w-28 lg:w-36 transition-all duration-300
         ${onClick ? 'cursor-pointer hover:scale-105' : ''}
       `}
+      style={receded ? { transform: 'scale(0.85)', transformOrigin: 'bottom center', filter: 'brightness(0.55)' } : undefined}
       onClick={onClick}
     >
       {/* 캐비넷 본체 */}

@@ -840,6 +840,9 @@ export default function ProjectDetailPage() {
     return rate === '' ? null : Math.round(parseFloat(rate))
   })()
 
+  // 캐비넷 열림 시 나머지 오브젝트(펜통·이젤)가 뒤로 물러나는 스타일 — DocumentCabinet의 receded와 동일 값
+  const recededStyle: React.CSSProperties = { transform: 'scale(0.85)', transformOrigin: 'bottom center', filter: 'brightness(0.55)' }
+
   // 사업 정보 줄 표시 여부 — 전체 복사 버튼을 마지막 줄 끝에 인라인 배치하기 위한 판별
   const hasPeriodLine = !!(project.construction_start_date || project.construction_end_date)
   const hasG2bLine = !!(project.g2b_corp_nm || project.g2b_tot_amt)
@@ -873,12 +876,14 @@ export default function ProjectDetailPage() {
           zIndex: -1,
           backgroundColor: '#000',
           backgroundImage: [
-            // 상단 중앙에서 아래로 퍼지는 조명 빔
-            'conic-gradient(from 180deg at 50% -12%, transparent 40%, rgba(255,250,230,0.1) 45%, rgba(255,250,230,0.26) 50%, rgba(255,250,230,0.1) 55%, transparent 60%)',
-            // 캐비넷 위치의 빛 웅덩이
-            'radial-gradient(ellipse 58% 45% at 50% 60%, rgba(255,250,235,0.28) 0%, rgba(255,250,235,0.1) 45%, transparent 72%)',
+            // 상단 중앙에서 아래로 퍼지는 조명 빔 (0%가 12시 방향이므로 50% 지점이 아래쪽 중심)
+            'conic-gradient(at 50% -12%, transparent 40%, rgba(255,250,230,0.12) 45%, rgba(255,250,230,0.3) 50%, rgba(255,250,230,0.12) 55%, transparent 60%)',
+            // 캐비넷 위치의 빛 웅덩이 — 중심이 콘텐츠에 가려지므로 가장자리까지 완만하게 퍼뜨림
+            'radial-gradient(ellipse 70% 48% at 50% 63%, rgba(255,250,235,0.38) 0%, rgba(255,250,235,0.26) 55%, rgba(255,250,235,0.1) 82%, transparent 100%)',
+            // 캐비넷 아래 바닥에 떨어지는 빛
+            'radial-gradient(ellipse 55% 12% at 50% 84%, rgba(255,250,235,0.2) 0%, transparent 100%)',
             // 광원 자체의 헤일로
-            'radial-gradient(ellipse 40% 24% at 50% 0%, rgba(255,255,245,0.35) 0%, transparent 70%)'
+            'radial-gradient(ellipse 42% 26% at 50% 0%, rgba(255,255,245,0.35) 0%, transparent 70%)'
           ].join(', ')
         }}
       />
@@ -1174,14 +1179,18 @@ export default function ProjectDetailPage() {
           <div className="mb-10 flex justify-center">
             <div className="flex flex-wrap items-end justify-center gap-x-4 sm:gap-x-6 lg:gap-x-8 gap-y-10">
               {/* 시공사 일괄서명 만년필 펜통 — 캐비넷 좌측 (감독용은 발주청 캐비넷 안) */}
-              <PenHolderButton
-                label="시공사 일괄서명"
-                theme="blue"
-                badgeCount={contractorUnsignedCount ?? undefined}
-                onClick={() => setBulkSignSigner('contractor')}
-              />
+              <div className="transition-all duration-300" style={openCabinet ? recededStyle : undefined}>
+                <PenHolderButton
+                  label="시공사 일괄서명"
+                  theme="blue"
+                  badgeCount={contractorUnsignedCount ?? undefined}
+                  onClick={() => setBulkSignSigner('contractor')}
+                />
+              </div>
               {project.business_card_pdf_url && (
-                <BusinessCardEasel onClick={handleBusinessCardClick} />
+                <div className="transition-all duration-300" style={openCabinet ? recededStyle : undefined}>
+                  <BusinessCardEasel onClick={handleBusinessCardClick} />
+                </div>
               )}
               {([
                 '시공', '안전', '품질', '기타',
@@ -1196,6 +1205,7 @@ export default function ProjectDetailPage() {
                     pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) + (managerPendingCount || 0) : undefined}
                     color={name === '시공' ? 'blue' : name === '안전' ? 'green' : name === '품질' ? 'amber' : name === '기타' ? 'slate' : 'purple'}
                     isOpen={openCabinet === name}
+                    receded={openCabinet !== null && openCabinet !== name}
                     onClick={() => toggleCabinet(name)}
                   />
                 )
@@ -1356,7 +1366,7 @@ export default function ProjectDetailPage() {
               <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
                 <DocumentFolder
                   title="계약 현황
-(공사·용역)"
+︵공사·용역︶"
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
