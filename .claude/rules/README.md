@@ -1,4 +1,7 @@
 # Rules
+
+> **이 프로젝트의 canonical 규칙 출처는 [`docs/conventions.md`](../../docs/conventions.md)다.** 이 `rules/` 디렉터리는 이식형 룰셋(공통+언어별)의 미러이며, SafeSys 규범과 충돌하면 `docs/`가 우선한다. 규칙을 갱신할 땐 `docs/`를 먼저 고치고 필요 시 여기 반영한다.
+
 ## Structure
 
 Rules are organized into a **common** layer plus **language-specific** directories:
