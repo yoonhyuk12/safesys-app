@@ -57,6 +57,34 @@ function toIsoDate(value?: string): string {
   return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`
 }
 
+// 조달청 목록 응답의 접근 경로만 선언한 느슨한 타입
+interface G2bListResponse {
+  response?: {
+    header?: { resultCode?: string; resultMsg?: string }
+    body?: { items?: unknown; totalCount?: number | string }
+  }
+  'nkoneps.com.response.ResponseError'?: { header?: { resultMsg?: string } }
+}
+
+// 조달청 API의 간헐적 일시 오류(연결 끊김·5xx·비JSON 응답, 2026-07-07 실사용 발생) 대응 — 1초 대기 후 1회 재시도.
+// 타임아웃은 재시도하면 함수 한도(maxDuration 60초)를 넘으므로 재시도하지 않고, 2차 시도는 남은 한도에 맞춰 짧게 잡는다
+async function fetchPageJson(url: string): Promise<G2bListResponse> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const res = await fetch(url, {
+        signal: AbortSignal.timeout(attempt === 1 ? 55000 : 40000),
+        cache: 'no-store',
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return await res.json()
+    } catch (err) {
+      if (attempt >= 2 || (err instanceof Error && err.name === 'TimeoutError')) throw err
+      console.error('조달청 계약현황 목록 API 일시 오류, 재시도:', err instanceof Error ? err.message : err)
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+    }
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const div = request.nextUrl.searchParams.get('div') as keyof typeof OPS | null
@@ -113,19 +141,7 @@ export async function GET(request: NextRequest) {
       if (nm) qs.set(div === 'cnstwk' ? 'cnstwkNm' : 'cntrctNm', nm)
       // 계약현황 API는 기관명 단독 조회가 무거운 달에서 28~36초 걸리는 게 실측돼(2026-07-07)
       // 함수 한도(maxDuration 60초) 내 최대로 둔다 — 40초로는 타임아웃이 무작위 발생
-      const res = await fetch(`${G2B_BASE}/${OPS[div].op}?${qs.toString()}`, {
-        signal: AbortSignal.timeout(55000),
-        cache: 'no-store',
-      })
-      if (!res.ok) {
-        console.error(`조달청 계약현황 목록 API HTTP 오류: ${res.status}`)
-        return NextResponse.json(
-          { success: false, error: `조달청 API 호출에 실패했습니다. (HTTP ${res.status})` },
-          { status: 502 }
-        )
-      }
-
-      const json = await res.json()
+      const json = await fetchPageJson(`${G2B_BASE}/${OPS[div].op}?${qs.toString()}`)
       const header = json?.response?.header
       if (header?.resultCode !== '00') {
         const msg = header?.resultMsg || json?.['nkoneps.com.response.ResponseError']?.header?.resultMsg || '알 수 없는 응답'
