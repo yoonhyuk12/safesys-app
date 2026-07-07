@@ -600,7 +600,8 @@ export default function MaterialLedgerPage() {
     setBulkError('')
     setBulkItems(null)
     setBulkChecked(new Set())
-    setBulkKeyword('')
+    // 검색어 기본값 = 프로젝트명 (말미의 용역/공사 표기는 조달청 건명에 잘 안 붙어 제거)
+    setBulkKeyword((project?.project_name || '').trim().replace(/(용역|공사)$/, ''))
     const today = new Date().toISOString().split('T')[0]
     const toMonth = today.slice(0, 7)
     let fromMonth: string = project?.construction_start_date?.slice(0, 7) || ''
@@ -612,14 +613,20 @@ export default function MaterialLedgerPage() {
     setBulkFrom(fromMonth)
     setBulkTo(toMonth)
     setIsBulkModalOpen(true)
-    // 수요기관명 프리필 — 프로젝트에 연계된 나라장터 계약의 수요기관 (실패 시 조용히 직접 입력으로)
-    if (!bulkInst && project?.g2b_cntrct_no) {
+    // 수요기관이 준비되면 바로 자동 조회 — 사용자는 프로젝트명 매칭 결과만 보면 됨
+    if (bulkInst.trim()) {
+      void handleBulkSearch(bulkInst, { from: fromMonth, to: toMonth })
+    } else if (project?.g2b_cntrct_no) {
+      // 프로젝트에 연계된 나라장터 계약의 수요기관 프리필 (실패 시 조용히 직접 입력으로)
       setBulkInstLoading(true)
       fetch(`/api/g2b/contract?no=${encodeURIComponent(project.g2b_cntrct_no)}`)
         .then(res => res.json())
         .then(json => {
           const nm = json?.success ? json.data?.contracts?.[0]?.dminsttNms?.[0] : ''
-          if (nm) setBulkInst(prev => prev || nm)
+          if (nm) {
+            setBulkInst(prev => prev || nm)
+            void handleBulkSearch(nm, { from: fromMonth, to: toMonth })
+          }
         })
         .catch(() => {})
         .finally(() => setBulkInstLoading(false))
@@ -648,10 +655,10 @@ export default function MaterialLedgerPage() {
     return months
   }
 
-  const handleBulkSearch = async () => {
-    const inst = bulkInst.trim()
+  const handleBulkSearch = async (instParam?: string, range?: { from: string; to: string }) => {
+    const inst = (instParam ?? bulkInst).trim()
     if (!inst || bulkLoading || bulkImporting) return
-    const months = buildBulkMonths(bulkFrom, bulkTo)
+    const months = buildBulkMonths(range?.from ?? bulkFrom, range?.to ?? bulkTo)
     if (months.length === 0) {
       setBulkError('조회 기간을 확인해주세요.')
       return
@@ -699,11 +706,14 @@ export default function MaterialLedgerPage() {
     setBulkLoading(false)
   }
 
-  // 키워드(건명·품명) 클라이언트 필터 — API가 건명 파라미터를 지원하지 않음
+  // 키워드(건명·품명) 클라이언트 필터 — API가 건명 파라미터를 지원하지 않음.
+  // 조달청 건명은 띄어쓰기 표기가 제각각이라("캠프 레드클라우드" vs "캠프레드클라우드") 공백을 제거하고
+  // 검색어를 공백 단위 단어로 나눠 모든 단어가 포함된 건만 표시
   const bulkVisibleItems = (bulkItems || []).filter(i => {
-    const kw = bulkKeyword.trim()
-    if (!kw) return true
-    return i.name.includes(kw) || i.prdctNm.includes(kw)
+    const tokens = bulkKeyword.trim().split(/\s+/).filter(Boolean)
+    if (tokens.length === 0) return true
+    const target = (i.name + i.prdctNm).replace(/\s+/g, '')
+    return tokens.every(t => target.includes(t.replace(/\s+/g, '')))
   })
 
   const handleBulkImport = async () => {
@@ -3590,14 +3600,13 @@ export default function MaterialLedgerPage() {
             <div className="px-5 py-4 space-y-3 overflow-y-auto">
               <div>
                 <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
-                  수요기관명 <span className="text-amber-200/60 text-xs ml-1">(부분일치 — 지역본부 입력 시 산하 지사 건 포함)</span>
+                  프로젝트명(건명) 검색 <span className="text-amber-200/60 text-xs ml-1">(공백 무시 — 단어가 모두 포함된 건만 표시)</span>
                 </label>
                 <input
                   type="text"
-                  value={bulkInst}
-                  onChange={e => setBulkInst(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleBulkSearch() }}
-                  placeholder={bulkInstLoading ? '계약정보에서 불러오는 중…' : '예: 한국농어촌공사 경기지역본부'}
+                  value={bulkKeyword}
+                  onChange={e => setBulkKeyword(e.target.value)}
+                  placeholder="예: 캠프레드클라우드 (비우면 수요기관 전체 표시)"
                   className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
                   style={{
                     background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
@@ -3607,9 +3616,27 @@ export default function MaterialLedgerPage() {
                 />
               </div>
               <div className="flex flex-wrap items-end gap-2">
+                <div className="flex-1 min-w-[180px]">
+                  <label className="block text-xs font-medium text-amber-200/70 mb-1.5" style={{ fontFamily: 'serif' }}>
+                    수요기관명 <span className="text-amber-200/40 ml-1">(계약정보 자동 입력 · 부분일치)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={bulkInst}
+                    onChange={e => setBulkInst(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleBulkSearch() }}
+                    placeholder={bulkInstLoading ? '계약정보에서 불러오는 중…' : '예: 한국농어촌공사 경기지역본부'}
+                    className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                    style={{
+                      background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                      border: '2px solid #4a4a55',
+                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                    }}
+                  />
+                </div>
                 <div className="flex items-center gap-2">
                   <div>
-                    <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>조회 기간</label>
+                    <label className="block text-xs font-medium text-amber-200/70 mb-1.5" style={{ fontFamily: 'serif' }}>조회 기간</label>
                     <input
                       type="month"
                       value={bulkFrom}
@@ -3639,7 +3666,7 @@ export default function MaterialLedgerPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={handleBulkSearch}
+                  onClick={() => handleBulkSearch()}
                   disabled={bulkLoading || bulkImporting || !bulkInst.trim()}
                   className="px-5 py-2 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 shrink-0"
                   style={{
@@ -3652,11 +3679,11 @@ export default function MaterialLedgerPage() {
                 >
                   {bulkLoading
                     ? <span className="inline-flex items-center gap-1.5"><Loader2 className="h-4 w-4 animate-spin" />{bulkProgress.done}/{bulkProgress.total}개월</span>
-                    : '조회'}
+                    : '재조회'}
                 </button>
               </div>
               <p className="text-[11px] text-amber-200/40">
-                수요기관 명의로 기간 내 접수된 조달청 납품요구(관급자재) 건을 월 단위로 전수 조회합니다. 기간이 길수록 조회에 시간이 걸립니다.
+                조달청 API가 건명 검색을 지원하지 않아, 수요기관 명의의 기간 내 납품요구 전체를 월 단위로 조회한 뒤 프로젝트명으로 추립니다.
               </p>
               {bulkError && (
                 <p className="text-xs text-red-400 break-all">{bulkError}</p>
@@ -3670,24 +3697,16 @@ export default function MaterialLedgerPage() {
                 }}>
                   {bulkItems.length === 0 ? (
                     <p className="text-xs text-amber-200/50">조회된 납품요구가 없습니다. 수요기관명·기간을 확인해주세요.</p>
+                  ) : bulkVisibleItems.length === 0 ? (
+                    <p className="text-xs text-amber-200/50">
+                      검색어와 일치하는 건이 없습니다. (전체 {bulkItems.length}건)
+                      <br />검색어를 줄이거나 비우면 수요기관 전체 건을 확인할 수 있습니다.
+                    </p>
                   ) : (
                     <>
-                      <div className="flex items-center gap-2 mb-2">
-                        <input
-                          type="text"
-                          value={bulkKeyword}
-                          onChange={e => setBulkKeyword(e.target.value)}
-                          placeholder="건명·품명 필터 (예: 레미콘, 사업명)"
-                          className="flex-1 min-w-0 px-3 py-1.5 rounded text-amber-100 placeholder-amber-200/30 text-xs"
-                          style={{
-                            background: 'rgba(0,0,0,0.35)',
-                            border: '1px solid #4a4a55'
-                          }}
-                        />
-                        <span className="text-[11px] text-amber-200/50 shrink-0">
-                          {bulkKeyword.trim() ? `${bulkVisibleItems.length}/${bulkItems.length}건` : `총 ${bulkItems.length}건`}
-                        </span>
-                      </div>
+                      <p className="text-[11px] text-amber-200/50 mb-2">
+                        {bulkKeyword.trim() ? `프로젝트명 일치 ${bulkVisibleItems.length}건 / 전체 ${bulkItems.length}건` : `총 ${bulkItems.length}건`}
+                      </p>
                       {(() => {
                         const visibleUnregistered = bulkVisibleItems.filter(i => !registeredDlvrNos.has(i.dlvrReqNo))
                         const allChecked = visibleUnregistered.length > 0 && visibleUnregistered.every(i => bulkChecked.has(i.dlvrReqNo))
