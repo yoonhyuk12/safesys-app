@@ -408,7 +408,7 @@ export default function ContractStatusPage() {
                     <th className="px-3 py-2 text-left font-medium">구분</th>
                     <th className="px-3 py-2 text-left font-medium">계약명</th>
                     <th className="px-3 py-2 text-left font-medium">계약상대자</th>
-                    <th className="px-3 py-2 text-right font-medium">총계약금액(원)</th>
+                    <th className="px-3 py-2 text-right font-medium">계약금액(원)</th>
                     <th className="px-3 py-2 text-left font-medium">계약체결일</th>
                     <th className="px-3 py-2 text-left font-medium">계약기간</th>
                     <th className="px-3 py-2 text-left font-medium">수요기관</th>
@@ -442,7 +442,12 @@ export default function ContractStatusPage() {
                         )}
                       </td>
                       <td className="px-3 py-2 max-w-[180px] truncate" title={r.corp_nm || ''}>{r.corp_nm || '-'}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatAmt(r.tot_cntrct_amt)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {formatAmt(r.tot_cntrct_amt)}
+                        {r.thtm_cntrct_amt != null && r.thtm_cntrct_amt > 0 && (
+                          <span className="block text-xs text-gray-500">금차 {formatAmt(r.thtm_cntrct_amt)}</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2">{r.cntrct_date || '-'}</td>
                       <td className="px-3 py-2 max-w-[200px] truncate" title={r.cntrct_prd || ''}>
                         {r.start_date && r.end_date ? `${r.start_date} ~ ${r.end_date}` : (r.cntrct_prd || '-')}
@@ -634,6 +639,7 @@ export default function ContractStatusPage() {
                               </p>
                               <p className="text-xs text-gray-500 mt-0.5">
                                 체결 {item.cntrctDate || '-'} · 총액 {formatAmt(item.totAmt)}원
+                                {item.thtmAmt > 0 && item.thtmAmt !== item.totAmt ? ` · 금차 ${formatAmt(item.thtmAmt)}원` : ''}
                                 {item.corpNms.length > 0 ? ` · ${item.corpNms.join(', ')}` : ''}
                               </p>
                               <p className="text-[11px] text-gray-400 truncate">{item.cntrctInsttNm}</p>
