@@ -173,8 +173,10 @@ const contractGroupKey = (i: G2bCntrctItem): string =>
   (i.cntrctNo.length >= 13 ? i.cntrctNo.slice(0, -2) : i.cntrctNo) ||
   i.name
 
-// 장기계속계약의 연차별 차수는 계약번호가 서로 달라 번호로 못 묶는다 — 계약명(공백 제거)+구분으로 묶는다
-const nameGroupKey = (type: string, name: string): string => `${type}|${name.replace(/\s+/g, '')}`
+// 장기계속계약의 연차별 차수는 계약번호가 서로 달라 번호로 못 묶는다 — 계약명(공백 제거)+구분으로 묶는다.
+// 연차 표기 접미어는 차수마다 달라("(2차년도_2025년도)", "(3차년도, 2026년)" 등, 1차는 접미어 없음) 제거 후 비교한다
+const nameGroupKey = (type: string, name: string): string =>
+  `${type}|${name.replace(/\(\s*\d+\s*차[^)]*\)\s*$/, '').replace(/\s+/g, '')}`
 
 // 표시용 계약 그룹 — 차수별 등록 행을 한 계약 한 행으로 병합
 interface ContractGroup {
