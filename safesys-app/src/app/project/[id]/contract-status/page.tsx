@@ -646,7 +646,7 @@ export default function ContractStatusPage() {
                                 )}
                               </p>
                               <p className="text-xs text-gray-500 mt-0.5">
-                                체결 {item.cntrctDate || '-'} · 총액 {formatAmt(item.totAmt)}원
+                                체결 {item.cntrctDate || '-'} · 준공 {item.endDate || '-'} · 총액 {formatAmt(item.totAmt)}원
                                 {item.thtmAmt > 0 && item.thtmAmt !== item.totAmt ? ` · 금차 ${formatAmt(item.thtmAmt)}원` : ''}
                                 {item.corpNms.length > 0 ? ` · ${item.corpNms.join(', ')}` : ''}
                               </p>
