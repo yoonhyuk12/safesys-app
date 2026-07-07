@@ -831,20 +831,21 @@ export default function ContractStatusPage() {
 
       <main className="max-w-none mx-auto py-4 px-2 sm:px-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between gap-2">
-            <h2 className="font-semibold text-sm sm:text-base">
+          <div className="bg-blue-600 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-y-2 gap-x-2">
+            <h2 className="font-semibold text-sm sm:text-base w-full sm:w-auto">
               계약 현황
               {records.length > 0 && (
                 <span className="ml-2 text-xs font-normal text-blue-100">공사 {cnstwkCount}건 · 용역 {servcCount}건</span>
               )}
             </h2>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
               <button
                 onClick={handleExcelExport}
+                title="엑셀 다운"
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-blue-700 rounded-lg hover:bg-blue-50"
               >
                 <Download className="h-4 w-4" />
-                엑셀 다운
+                <span className="hidden sm:inline">엑셀 다운</span>
               </button>
               <button
                 onClick={handleRefreshAll}
@@ -855,21 +856,22 @@ export default function ContractStatusPage() {
                 {refreshing ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    {refreshProgress.done}/{refreshProgress.total}
+                    <span className="hidden sm:inline">{refreshProgress.done}/{refreshProgress.total}</span>
                   </>
                 ) : (
                   <>
                     <RefreshCw className="h-4 w-4" />
-                    업데이트
+                    <span className="hidden sm:inline">업데이트</span>
                   </>
                 )}
               </button>
               <button
                 onClick={openLookup}
+                title="추가"
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-blue-700 rounded-lg hover:bg-blue-50"
               >
                 <Plus className="h-4 w-4" />
-                추가
+                <span className="hidden sm:inline">추가</span>
               </button>
             </div>
           </div>
