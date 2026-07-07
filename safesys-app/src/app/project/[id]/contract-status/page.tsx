@@ -408,7 +408,8 @@ export default function ContractStatusPage() {
                     <th className="px-3 py-2 text-left font-medium">구분</th>
                     <th className="px-3 py-2 text-left font-medium">계약명</th>
                     <th className="px-3 py-2 text-left font-medium">계약상대자</th>
-                    <th className="px-3 py-2 text-right font-medium">계약금액(원)</th>
+                    <th className="px-3 py-2 text-right font-medium">총계약금액(원)</th>
+                    <th className="px-3 py-2 text-right font-medium">금차계약금액(원)</th>
                     <th className="px-3 py-2 text-left font-medium">계약체결일</th>
                     <th className="px-3 py-2 text-left font-medium">계약기간</th>
                     <th className="px-3 py-2 text-left font-medium">수요기관</th>
@@ -416,6 +417,17 @@ export default function ContractStatusPage() {
                   </tr>
                 </thead>
                 <tbody>
+                  {/* 소계행 — 금액 합계 */}
+                  <tr className="bg-blue-50/60 border-b border-gray-200 font-semibold text-gray-700">
+                    <td className="px-3 py-2" colSpan={3}>소계 ({records.length}건)</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {records.reduce((s, r) => s + (r.tot_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      {records.reduce((s, r) => s + (r.thtm_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
+                    </td>
+                    <td colSpan={4} />
+                  </tr>
                   {sortedRecords.map((r) => (
                     <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="px-3 py-2">
@@ -442,12 +454,8 @@ export default function ContractStatusPage() {
                         )}
                       </td>
                       <td className="px-3 py-2 max-w-[180px] truncate" title={r.corp_nm || ''}>{r.corp_nm || '-'}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">
-                        {formatAmt(r.tot_cntrct_amt)}
-                        {r.thtm_cntrct_amt != null && r.thtm_cntrct_amt > 0 && (
-                          <span className="block text-xs text-gray-500">금차 {formatAmt(r.thtm_cntrct_amt)}</span>
-                        )}
-                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatAmt(r.tot_cntrct_amt)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums">{formatAmt(r.thtm_cntrct_amt)}</td>
                       <td className="px-3 py-2">{r.cntrct_date || '-'}</td>
                       <td className="px-3 py-2 max-w-[200px] truncate" title={r.cntrct_prd || ''}>
                         {r.start_date && r.end_date ? `${r.start_date} ~ ${r.end_date}` : (r.cntrct_prd || '-')}
