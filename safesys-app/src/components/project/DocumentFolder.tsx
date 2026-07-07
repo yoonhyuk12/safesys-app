@@ -399,6 +399,8 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
                       charScale: veryCompact ? 'scaleY(0.75)' : compact ? 'scaleY(0.85)' : undefined,
                       charHeight: veryCompact ? 'h-2 lg:h-3.5' : compact ? 'h-2.5 lg:h-3.5' : 'h-3 lg:h-4',
                       smallCharHeight: veryCompact ? 'h-1.5 lg:h-2.5' : compact ? 'h-2 lg:h-2.5' : 'h-2.5 lg:h-3',
+                      // 글자 수가 많으면 모바일에서 세로 간격을 없애 잘림 방지 (데스크톱 lg는 유지)
+                      charMargin: (compact || veryCompact) ? 'mb-0 lg:mb-1' : 'mb-0.5 lg:mb-1',
                     }
                   }
 
@@ -411,6 +413,32 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
 
                   // 줄바꿈이 있는 경우 각 줄을 단어 단위로 처리
                   if (lines.length > 1) {
+                    // 한 줄이 길어 세로로 쌓으면 넘치는 2줄 제목(예: ︵공사·용역︶ 7자)은
+                    // 두 열로 나눠 글씨 포인트를 줄여 표시 — 모바일 세로 잘림 방지
+                    const maxLineLen = Math.max(...lines.map(l => l.replace(/\s+/g, '').length))
+                    if (lines.length === 2 && maxLineLen >= 7) {
+                      return (
+                        <div className="flex space-x-1 justify-center h-full w-full px-1">
+                          {lines.map((line, lineIndex) => {
+                            const isSmallText = line.startsWith('︵') && line.endsWith('︶')
+                            const chars = line.replace(/\s+/g, '').split('')
+                            return (
+                              // 세로 여백이 남지 않도록 열이 박스 높이를 채우고 글자 사이에 공간을 고르게 분배
+                              <div key={lineIndex} className="flex flex-col items-center justify-evenly h-full">
+                                {chars.map((char, charIndex) => (
+                                  <div
+                                    key={charIndex}
+                                    className={`${isSmallText ? 'text-[10px] lg:text-sm' : 'text-xs lg:text-base'} leading-none font-medium ${isGrayedOut ? 'text-gray-500' : 'text-gray-800'} flex items-center justify-center`}
+                                  >
+                                    {char}
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    }
                     return (
                       <div className="flex flex-col items-center justify-center space-y-0 h-full w-full px-1">
                         {lines.map((line, lineIndex) => {
@@ -440,7 +468,7 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
                                     {chars.map((char, charIndex) => (
                                       <div
                                         key={charIndex}
-                                        className={`${isSmallText ? 'text-[10px] lg:text-xs' : 'text-xs lg:text-sm'} font-medium ${isGrayedOut ? 'text-gray-500' : 'text-gray-800'} ${isSmallText ? multiLineStyle.smallCharHeight : multiLineStyle.charHeight} flex items-center justify-center mb-0.5 lg:mb-1`}
+                                        className={`${isSmallText ? 'text-[10px] lg:text-xs' : 'text-xs lg:text-sm'} font-medium ${isGrayedOut ? 'text-gray-500' : 'text-gray-800'} ${isSmallText ? multiLineStyle.smallCharHeight : multiLineStyle.charHeight} flex items-center justify-center ${multiLineStyle.charMargin}`}
                                         style={multiLineStyle.charScale ? { transform: multiLineStyle.charScale } : undefined}
                                       >
                                         {char}
