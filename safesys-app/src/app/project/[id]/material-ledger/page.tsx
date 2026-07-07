@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil, Link2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil, Link2, Loader2, Download } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { guessInstName } from '@/lib/g2b-inst'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignaturePad from '@/components/ui/SignaturePad'
 import { downloadMaterialLedgerExcel } from '@/lib/excel/material-ledger-export'
+import { downloadMaterialContractStatusExcel, type MaterialContractRow } from '@/lib/excel/material-contract-status-export'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 // ── 타입 ──
@@ -254,6 +255,10 @@ export default function MaterialLedgerPage() {
   const [bulkItems, setBulkItems] = useState<BulkDlvrItem[] | null>(null)
   const [bulkChecked, setBulkChecked] = useState<Set<string>>(new Set())
   const [bulkImporting, setBulkImporting] = useState(false)
+
+  // 지급자재 계약 현황 엑셀 다운로드
+  const [contractExporting, setContractExporting] = useState(false)
+  const [contractProgress, setContractProgress] = useState(0)
 
   // 내역 등록/수정 모달
   const [isRowModalOpen, setIsRowModalOpen] = useState(false)
@@ -825,6 +830,82 @@ export default function MaterialLedgerPage() {
     } else {
       setIsBulkModalOpen(false)
       if (added.length > 0) alert(`조달청 납품요구 ${added.length}건을 자재로 등록했습니다.`)
+    }
+  }
+
+  // ── 지급자재 계약 현황 엑셀 다운로드 ──
+
+  // 자재별 계약 정보(납품요구번호·계약자·품대·수수료·인도조건·납품기한)를 일괄로 엑셀에 담는다.
+  // 계약명은 조달청 납품요구 건명을 조회해 채우고, 실패하거나 미연계면 자재명으로 대체.
+  const handleDownloadContractStatus = async () => {
+    if (contractExporting) return
+    if (materials.length === 0) {
+      alert('다운로드할 자재가 없습니다.')
+      return
+    }
+    setContractExporting(true)
+    setContractProgress(0)
+    try {
+      const nos = [...new Set(
+        materials.flatMap(m => [m.dlvrReqNo, ...m.rows.map(r => r.dlvrReqNo)]).filter((v): v is string => !!v)
+      )]
+      const titles = new Map<string, string>()
+      // 납품요구 건명 조회를 동시 5개씩 처리 (조회 완료 수로 진행률 표시)
+      const queue = [...nos]
+      const total = nos.length
+      let done = 0
+      await Promise.all(Array.from({ length: 5 }, async () => {
+        while (queue.length > 0) {
+          const no = queue.shift()
+          if (!no) break
+          try {
+            const res = await fetch(`/api/g2b/dlvr-req?no=${encodeURIComponent(no)}`)
+            const json = await res.json()
+            if (res.ok && json.success && json.data?.title) titles.set(no, json.data.title)
+          } catch {
+            // 건명 조회 실패는 자재명으로 대체하므로 조용히 넘어간다
+          } finally {
+            done += 1
+            // 건명 조회는 전체의 90%까지, 나머지 10%는 엑셀 생성 단계
+            setContractProgress(total > 0 ? Math.round((done / total) * 90) : 90)
+          }
+        }
+      }))
+      // 품목(규격)당 한 줄 — 같은 규격의 행들(연계 행·보정 행)을 묶어 금액을 합산
+      const rows: MaterialContractRow[] = materials.flatMap(m => {
+        const specs = getSpecList(m)
+        if (specs.length === 0) specs.push('')
+        return specs.map(spec => {
+          const specRows = m.rows.filter(r => r.nameOrSpec === spec)
+          const prdctAmt = specRows.reduce((s, r) => s + (parseFloat(stripComma(r.prdctAmt || '')) || 0), 0)
+          const feeAmt = specRows.reduce((s, r) => s + (parseFloat(stripComma(r.feeAmt || '')) || 0), 0)
+          const cndtn = [...new Set(specRows.map(r => r.dlvrCndtn).filter(Boolean))].join(', ')
+          const dlvrReqNo = specRows.find(r => r.dlvrReqNo)?.dlvrReqNo || m.dlvrReqNo || ''
+          return {
+            contractName: (dlvrReqNo && titles.get(dlvrReqNo)) || m.name,
+            itemName: m.name,
+            spec,
+            qty: calcEffectiveOrderQty(specRows),
+            unit: m.unit || '',
+            dlvrReqNo,
+            supplier: m.dlvrSupplier || '',
+            cndtn,
+            deadline: m.dlvrDeadline || '',
+            prdctAmt,
+            feeAmt,
+            note: m.dlvrSupplierTel || '',
+          }
+        })
+      })
+      setContractProgress(95)
+      await downloadMaterialContractStatusExcel(project?.project_name || '', rows)
+      setContractProgress(100)
+    } catch (err: unknown) {
+      console.error('계약 현황 다운로드 실패:', err)
+      alert('엑셀 다운로드에 실패했습니다.')
+    } finally {
+      setContractExporting(false)
+      setContractProgress(0)
     }
   }
 
@@ -3029,7 +3110,7 @@ export default function MaterialLedgerPage() {
       }}>
         <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-transparent via-amber-600/50 to-transparent" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-4">
-          <div className="flex items-center h-16">
+          <div className="flex flex-wrap items-center gap-y-2 py-3 sm:h-16 sm:py-0 sm:flex-nowrap">
             <button onClick={handleBack} className="mr-4 p-2 text-amber-200/60 hover:text-amber-200 rounded-md hover:bg-amber-900/20 transition-all">
               <ArrowLeft className="h-5 w-5" />
             </button>
@@ -3045,10 +3126,33 @@ export default function MaterialLedgerPage() {
               </div>
             </div>
 
+            {/* 액션 버튼 그룹: 모바일에서 제목줄 아래로 줄바꿈 */}
+            <div className="w-full flex items-center justify-end gap-2 sm:w-auto sm:ml-auto">
+            {/* 지급자재 계약 현황 엑셀 다운로드 */}
+            <button
+              onClick={handleDownloadContractStatus}
+              disabled={contractExporting}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium transition-all hover:scale-105 shrink-0 disabled:opacity-60"
+              style={{
+                background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
+                border: '2px solid #6a5a40',
+                borderRadius: '6px',
+                color: '#f5d78e',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)',
+                fontFamily: 'serif'
+              }}
+            >
+              {contractExporting
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Download className="h-4 w-4" />}
+              <span className="hidden sm:inline">계약 현황 다운</span>
+              <span className="sm:hidden">다운</span>
+            </button>
+
             {/* 조달청 지급자재 계약건 일괄 조회 */}
             <button
               onClick={openBulkModal}
-              className="ml-auto flex items-center gap-2 px-3 py-2 text-sm font-medium transition-all hover:scale-105 shrink-0"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium transition-all hover:scale-105 shrink-0"
               style={{
                 background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
                 border: '2px solid #6a5a40',
@@ -3062,9 +3166,44 @@ export default function MaterialLedgerPage() {
               <span className="hidden sm:inline">조달청 일괄 조회</span>
               <span className="sm:hidden">일괄 조회</span>
             </button>
+            </div>
           </div>
         </div>
       </header>
+
+      {/* 계약 현황 다운로드 진행률 오버레이 */}
+      {contractExporting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div
+            className="w-[85%] max-w-md px-6 py-6 rounded-lg"
+            style={{
+              background: 'linear-gradient(180deg, #252530 0%, #1a1a22 100%)',
+              border: '3px solid #4a3a28',
+              boxShadow: 'inset 0 0 40px rgba(0,0,0,0.8), 0 10px 40px rgba(0,0,0,0.8)',
+              fontFamily: 'serif',
+            }}
+          >
+            <div className="flex items-center gap-2 mb-4 text-amber-100">
+              <Loader2 className="h-5 w-5 animate-spin text-amber-300" />
+              <span className="text-sm font-medium">계약 현황 엑셀 생성 중…</span>
+            </div>
+            <div
+              className="w-full h-4 rounded-full overflow-hidden"
+              style={{ background: '#12121a', border: '1px solid #4a3a28', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.8)' }}
+            >
+              <div
+                className="h-full transition-all duration-300 ease-out"
+                style={{
+                  width: `${contractProgress}%`,
+                  background: 'linear-gradient(90deg, #8a6a30 0%, #f5d78e 50%, #8a6a30 100%)',
+                  boxShadow: '0 0 10px rgba(245,215,142,0.6)',
+                }}
+              />
+            </div>
+            <div className="mt-2 text-right text-xs text-amber-200/70">{contractProgress}%</div>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 w-full max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-4">
         {/* 호라드릭 큐브 프레임 */}
