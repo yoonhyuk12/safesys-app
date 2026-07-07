@@ -24,6 +24,7 @@ interface ContractRecord {
   cntrct_prd: string | null
   start_date: string | null
   end_date: string | null
+  thtm_end_date: string | null
   dminstt_nm: string | null
   cntrct_instt_nm: string | null
   cntrct_info_url: string | null
@@ -43,6 +44,8 @@ interface G2bCntrctItem {
   prd: string
   startDate: string
   endDate: string
+  thtmEndDate: string
+  lngtrmDiv: string
   cntrctInsttNm: string
   dminsttNms: string[]
   corpNms: string[]
@@ -71,9 +74,10 @@ const guessInstName = (branch: string): string => {
   return ''
 }
 
-// 금차 귀속 연도 — 준공이 지난 계약은 준공 연도, 진행 중(준공 전·준공일 미상)이면 올해.
-// 금차 = 현재 진행 중인 차수의 금액이므로 진행 계약의 금차는 올해 컬럼에 귀속된다
-const contractYear = (r: { end_date: string | null; cntrct_date: string | null }): string => {
+// 금차 귀속 연도 — 금차 준공일(차수분 준공)이 있으면 그 연도가 곧 차수의 귀속 연도.
+// 없으면(직접 등록·구버전 등록 건) 총준공 기준 폴백: 준공이 지난 계약은 준공 연도, 진행 중이면 올해
+const contractYear = (r: { thtm_end_date?: string | null; end_date: string | null; cntrct_date: string | null }): string => {
+  if (r.thtm_end_date) return r.thtm_end_date.slice(0, 4)
   const today = new Date().toISOString().slice(0, 10)
   if (r.end_date && r.end_date < today) return r.end_date.slice(0, 4)
   if (r.end_date || r.cntrct_date) return String(new Date().getFullYear())
@@ -103,6 +107,8 @@ interface G2bContractResp {
   cntrctCnclsDate: string
   startDate: string
   endDate: string
+  thtmEndDate?: string
+  lngtrmDiv?: string
   cntrctInsttNm: string
   dminsttNms: string[]
   corpNms: string[]
@@ -123,6 +129,8 @@ const contractRespToItem = (c: G2bContractResp): G2bCntrctItem => ({
   prd: c.cntrctPrd || '',
   startDate: c.startDate || '',
   endDate: c.endDate || '',
+  thtmEndDate: c.thtmEndDate || '',
+  lngtrmDiv: c.lngtrmDiv || '',
   cntrctInsttNm: c.cntrctInsttNm || '',
   dminsttNms: c.dminsttNms || [],
   corpNms: c.corpNms || [],
@@ -159,6 +167,7 @@ const itemToRow = (i: G2bCntrctItem, projectId: string, userId: string) => ({
   cntrct_prd: i.prd || null,
   start_date: i.startDate || null,
   end_date: i.endDate || null,
+  thtm_end_date: i.thtmEndDate || null,
   dminstt_nm: i.dminsttNms.join(', ') || null,
   cntrct_instt_nm: i.cntrctInsttNm || null,
   cntrct_info_url: i.url || null,
@@ -595,6 +604,7 @@ export default function ContractStatusPage() {
           if (c.cntrctPrd) patch.cntrct_prd = c.cntrctPrd
           if (c.startDate) patch.start_date = c.startDate
           if (c.endDate) patch.end_date = c.endDate
+          if (c.thtmEndDate) patch.thtm_end_date = c.thtmEndDate
           if ((c.corpNms || []).length > 0) patch.corp_nm = c.corpNms.join(', ')
           if ((c.dminsttNms || []).length > 0) patch.dminstt_nm = c.dminsttNms.join(', ')
           if (c.untyCntrctNo) patch.unty_cntrct_no = c.untyCntrctNo
@@ -1013,12 +1023,24 @@ export default function ContractStatusPage() {
                             <div className="min-w-0 flex-1">
                               <p className="text-sm text-gray-900 break-all">
                                 {item.name}
+                                {item.lngtrmDiv === '차수' && (
+                                  <span
+                                    className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] bg-amber-100 text-amber-700 align-middle"
+                                    title="장기계속계약의 연차별 차수 계약 — 같은 계약명이 차수마다 별도 건으로 조회됩니다"
+                                  >
+                                    장기계속(차수)
+                                  </span>
+                                )}
                                 {registered && (
                                   <span className="ml-2 inline-block px-1.5 py-0.5 rounded text-[10px] bg-green-100 text-green-700 align-middle">등록됨</span>
                                 )}
                               </p>
                               <p className="text-xs text-gray-500 mt-0.5">
-                                체결 {item.cntrctDate || '-'} · 준공 {item.endDate || '-'} · 총액 {formatAmt(item.totAmt)}원
+                                체결 {item.cntrctDate || '-'}
+                                {item.thtmEndDate && item.thtmEndDate !== item.endDate
+                                  ? ` · 금차준공 ${item.thtmEndDate} · 총준공 ${item.endDate || '-'}`
+                                  : ` · 준공 ${item.endDate || '-'}`}
+                                {' · 총액 '}{formatAmt(item.totAmt)}원
                                 {item.thtmAmt > 0 && item.thtmAmt !== item.totAmt ? ` · 금차 ${formatAmt(item.thtmAmt)}원` : ''}
                                 {item.corpNms.length > 0 ? ` · ${item.corpNms.join(', ')}` : ''}
                               </p>

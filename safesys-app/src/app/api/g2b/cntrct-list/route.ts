@@ -29,6 +29,9 @@ interface G2bRawContractRow {
   wbgnDate?: string
   ttalCcmpltDate?: string
   ttalScmpltDate?: string
+  thtmCcmpltDate?: string
+  thtmScmpltDate?: string
+  lngtrmCtnuDivNm?: string
   cntrctInsttNm?: string
   dminsttList?: string
   corpList?: string
@@ -153,6 +156,9 @@ export async function GET(request: NextRequest) {
         prd: it.cntrctPrd || '',
         startDate: toIsoDate(it.cbgnDate || it.wbgnDate),
         endDate: toIsoDate(it.ttalCcmpltDate || it.ttalScmpltDate),
+        // 금차 준공일 — 장기계속계약은 차수(연차)별 계약이 별개 행으로 조회되므로 차수 구분의 기준
+        thtmEndDate: toIsoDate(it.thtmCcmpltDate || it.thtmScmpltDate),
+        lngtrmDiv: (it.lngtrmCtnuDivNm || '').trim(),
         cntrctInsttNm: it.cntrctInsttNm || '',
         dminsttNms: parseCaretList(it.dminsttList, 2),
         corpNms,

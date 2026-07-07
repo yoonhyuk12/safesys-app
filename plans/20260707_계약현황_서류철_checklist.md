@@ -10,3 +10,5 @@
 - [x] 커밋
 - [ ] (사용자) Supabase 웹 콘솔에서 `database/20260707-1323_add_project_contracts.sql` 실행
 - [ ] (사용자) 실제 프로젝트에서 조회·등록 확인
+- [x] 페이지 피드백 5차 반영 — 장기계속계약 차수 배지 + 금차준공일 표시·연도 귀속
+- [ ] (사용자) Supabase 웹 콘솔에서 `database/20260707-1503_add_project_contracts_thtm_end_date.sql` 실행 (미실행 시 조달청 조회 등록이 실패함)
