@@ -62,6 +62,15 @@ const PERIOD_PRESETS = [6, 12, 18, 24, 30, 36]
 const formatAmt = (n: number | null | undefined) =>
   n == null || n === 0 ? '-' : n.toLocaleString('ko-KR')
 
+// 프로젝트 본부·지사명 → 조달청 기관명 추정 — 지사는 '여주.이천지사'(중점→마침표),
+// 도 단위 본부는 '경기지역본부' 형태
+const guessInstName = (branch: string): string => {
+  if (branch.endsWith('지사')) return branch.replace(/·/g, '.')
+  if (/^(경기|강원|충북|충남|전북|전남|경북|경남|제주)본부$/.test(branch)) return branch.replace('본부', '지역본부')
+  if (branch && branch !== '본사') return branch.replace(/·/g, '.')
+  return ''
+}
+
 // 계약 귀속 연도 — 준공일(준공된 계약의 연도) 우선, 없으면 체결일 연도
 const contractYear = (r: { end_date: string | null; cntrct_date: string | null }): string => {
   const d = r.end_date || r.cntrct_date
@@ -353,22 +362,24 @@ export default function ContractStatusPage() {
     if (!lookupKeyword && project?.project_name) {
       setLookupKeyword(project.project_name.replace(/\s*(용역|공사)\s*$/, '').trim())
     }
-    if (!lookupInst) {
-      const branch = project?.managing_branch || ''
-      if (branch.endsWith('지사')) {
-        // 조달청 등록명은 '여주.이천지사' 형태 — '·'를 '.'로 변환하면 부분일치로 잡힌다
-        setLookupInst(branch.replace(/·/g, '.'))
-      } else if (project?.g2b_cntrct_no) {
-        fetch(`/api/g2b/contract?no=${encodeURIComponent(project.g2b_cntrct_no)}`)
-          .then((res) => res.json())
-          .then((json) => {
-            const nm = json?.success ? json.data?.contracts?.[0]?.dminsttNms?.[0] : ''
-            if (nm) setLookupInst((prev) => prev || nm)
-          })
-          .catch(() => {})
-      }
-    }
   }
+
+  // 기관명 프리필 — 프로젝트 본부·지사명 기준 (사용자가 직접 입력한 값은 유지)
+  useEffect(() => {
+    if (!project) return
+    const guess = guessInstName(project.managing_branch || '')
+    if (guess) {
+      setLookupInst((prev) => prev || guess)
+    } else if (project.g2b_cntrct_no) {
+      fetch(`/api/g2b/contract?no=${encodeURIComponent(project.g2b_cntrct_no)}`)
+        .then((res) => res.json())
+        .then((json) => {
+          const nm = json?.success ? json.data?.contracts?.[0]?.dminsttNms?.[0] : ''
+          if (nm) setLookupInst((prev) => prev || nm)
+        })
+        .catch(() => {})
+    }
+  }, [project])
 
   const switchLookupDiv = (div: LookupDiv) => {
     if (div === lookupDiv) return
