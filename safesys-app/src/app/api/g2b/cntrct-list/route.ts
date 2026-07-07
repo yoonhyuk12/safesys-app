@@ -1,4 +1,4 @@
-// 조달청 나라장터 계약현황(공사·용역) 목록을 기관명·월 단위 기간으로 조회하는 API 라우트 (계약 현황 서류철용)
+// 조달청 나라장터 계약현황(공사·용역) 목록을 수요기관명·월 단위 기간으로 조회하는 API 라우트 (계약 현황 서류철용)
 import { NextRequest, NextResponse } from 'next/server'
 
 const G2B_BASE = 'https://apis.data.go.kr/1230000/ao/CntrctInfoService'
@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
     if (!inst || inst.length < 2 || inst.length > 60) {
       return NextResponse.json(
-        { success: false, error: '기관명을 입력해주세요.' },
+        { success: false, error: '수요기관명을 입력해주세요.' },
         { status: 400 }
       )
     }
@@ -103,6 +103,10 @@ export async function GET(request: NextRequest) {
         inqryDiv: '1',
         inqryBgnDate: bgn,
         inqryEndDate: end,
+        // insttDivCd=2: insttNm을 수요기관명 기준으로 매칭 (1 또는 미지정은 계약기관명 기준 — 2026-07-07 실호출 확인).
+        // 조달청 위탁계약은 계약기관이 '조달청 ○○지방조달청'이라 계약기관 기준으로는 지사명 검색에 안 걸린다.
+        // 수요기관 기준은 자체계약(수요기관=계약기관)도 포함하므로 상위집합이다.
+        insttDivCd: '2',
         insttNm: inst,
       })
       // 계약명 서버측 필터 — 공사는 cnstwkNm, 용역은 cntrctNm (2026-07-07 실호출 확인, 원문 부분일치)

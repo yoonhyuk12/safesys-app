@@ -66,7 +66,7 @@ const PERIOD_PRESETS = [6, 12, 18, 24, 30, 36]
 const formatAmt = (n: number | null | undefined) =>
   n == null || n === 0 ? '-' : n.toLocaleString('ko-KR')
 
-// 프로젝트 본부·지사명 → 조달청 기관명 추정 — 지사는 '여주.이천지사'(중점→마침표),
+// 프로젝트 본부·지사명 → 조달청 수요기관명 추정 — 지사는 '여주.이천지사'(중점→마침표),
 // 도 단위 본부는 '경기지역본부' 형태
 const guessInstName = (branch: string): string => {
   if (branch.endsWith('지사')) return branch.replace(/·/g, '.')
@@ -490,7 +490,7 @@ export default function ContractStatusPage() {
 
   const handleLookup = async () => {
     const inst = lookupInst.trim()
-    if (inst.length < 2) { setLookupError('기관명을 2자 이상 입력해주세요.'); return }
+    if (inst.length < 2) { setLookupError('수요기관명을 2자 이상 입력해주세요.'); return }
     const months = buildMonths(lookupFrom, lookupTo)
     if (months.length === 0) { setLookupError('조회 기간을 확인해주세요.'); return }
     // 검색어의 첫 단어는 조달청 조회 조건으로 함께 전송 (원문 부분일치 — 단일 토큰만 안전).
@@ -670,10 +670,12 @@ export default function ContractStatusPage() {
       const tot = g.repr.tot_cntrct_amt || 0
       const thtmSum = g.members.reduce((s, m) => s + (m.thtm_cntrct_amt || 0), 0)
       if (!tot || thtmSum >= tot) return []
+      // 서버 목록 조회가 수요기관명 기준(insttDivCd=2)이므로 수요기관명을 우선 사용 —
+      // 조달청 위탁계약은 계약기관명이 '조달청 ○○지방조달청'이라 검색어로 쓰면 걸리지 않는다
       const inst =
-        (g.repr.cntrct_instt_nm || '').trim() ||
         ((g.repr.dminstt_nm || '').split(',')[0] || '').trim() ||
-        guessInstName(project?.managing_branch || '')
+        guessInstName(project?.managing_branch || '') ||
+        (g.repr.cntrct_instt_nm || '').trim()
       const lastDate = g.members.reduce((max, m) => ((m.cntrct_date || '') > max ? (m.cntrct_date as string) : max), '')
       if (inst.length < 2 || !lastDate) return []
       // 새 연차 계약은 최신 차수 체결월 이후에만 체결되므로 그 구간만 조회 (최대 24개월)
@@ -1195,7 +1197,7 @@ export default function ContractStatusPage() {
               <>
               {/* 계약명 검색어 */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">계약명 검색어 (선택 — 기관명과 함께 조회 조건으로 적용)</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">계약명 검색어 (선택 — 수요기관명과 함께 조회 조건으로 적용)</label>
                 <input
                   type="text"
                   value={lookupKeyword}
@@ -1209,7 +1211,7 @@ export default function ContractStatusPage() {
 
               {/* 기관명 */}
               <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">기관명 (계약·수요기관, 부분일치)</label>
+                <label className="block text-xs font-medium text-gray-600 mb-1">수요기관명 (부분일치)</label>
                 <input
                   type="text"
                   value={lookupInst}
@@ -1326,7 +1328,7 @@ export default function ContractStatusPage() {
                     <p className="text-center text-sm text-gray-400 py-8 px-4">
                       {lookupItems.length > 0
                         ? '검색어와 일치하는 계약이 없습니다. 검색어를 줄이거나 비워보세요.'
-                        : '조회된 계약이 없습니다. 기관명·기간을 확인해주세요.'}
+                        : '조회된 계약이 없습니다. 수요기관명·기간을 확인해주세요.'}
                     </p>
                   ) : (
                     <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
