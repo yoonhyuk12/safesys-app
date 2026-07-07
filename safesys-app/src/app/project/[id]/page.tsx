@@ -818,6 +818,28 @@ export default function ProjectDetailPage() {
     return rate === '' ? null : Math.round(parseFloat(rate))
   })()
 
+  // 사업 정보 줄 표시 여부 — 전체 복사 버튼을 마지막 줄 끝에 인라인 배치하기 위한 판별
+  const hasPeriodLine = !!(project.construction_start_date || project.construction_end_date)
+  const hasG2bLine = !!(project.g2b_corp_nm || project.g2b_tot_amt)
+  const hasOptionalLine = !!(project.total_budget || project.current_year_budget || project.supervisor_position ||
+    project.supervisor_name || project.actual_work_address || project.construction_law_safety_plan ||
+    project.industrial_law_safety_ledger || (project as any).disaster_prevention_target || project.business_card_pdf_url)
+
+  // 사업 정보 전체 복사 버튼 (아이콘만) — 마지막으로 표시되는 정보 줄의 맨 우측 끝에 배치
+  const infoCopyButton = (
+    <button
+      onClick={handleCopyProjectInfo}
+      className="float-right inline-flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+      title="사업 정보 전체 복사"
+    >
+      {infoCopied ? (
+        <Check className="h-3.5 w-3.5 text-green-600" />
+      ) : (
+        <Copy className="h-3.5 w-3.5" />
+      )}
+    </button>
+  )
+
   return (
     <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex flex-col">
       {/* 헤더 */}
@@ -976,32 +998,33 @@ export default function ProjectDetailPage() {
                     )}
                   </>
                 )}
+                {!hasPeriodLine && !hasG2bLine && !hasOptionalLine && infoCopyButton}
               </div>
 
               {/* 공사기간 (착공일·준공일) — 값이 있을 때만 새 줄로 표시 */}
-              {(project.construction_start_date || project.construction_end_date) && (
+              {hasPeriodLine && (
                 <div className="text-sm text-gray-600">
                   {[
                     project.construction_start_date && `착공일: ${project.construction_start_date}`,
                     project.construction_end_date && `준공일: ${project.construction_end_date}`,
                   ].filter(Boolean).join(' / ')}
+                  {!hasG2bLine && !hasOptionalLine && infoCopyButton}
                 </div>
               )}
 
               {/* 나라장터 계약 정보 (계약업체·총계약금액 천원 단위) — 연계된 프로젝트만 */}
-              {(project.g2b_corp_nm || project.g2b_tot_amt) && (
+              {hasG2bLine && (
                 <div className="text-sm text-gray-600">
                   {[
                     project.g2b_corp_nm && `계약업체: ${project.g2b_corp_nm}`,
                     project.g2b_tot_amt && `총계약금액: ${Math.round(project.g2b_tot_amt / 1000).toLocaleString()}천원`,
                   ].filter(Boolean).join(' / ')}
+                  {!hasOptionalLine && infoCopyButton}
                 </div>
               )}
 
               {/* 선택사항 정보 */}
-              {(project.total_budget || project.current_year_budget || project.supervisor_position ||
-                project.supervisor_name || project.actual_work_address || project.construction_law_safety_plan ||
-                project.industrial_law_safety_ledger || (project as any).disaster_prevention_target || project.business_card_pdf_url) && (
+              {hasOptionalLine && (
                   <>
                     <div className="border-t border-gray-200"></div>
                     <div className="text-sm text-gray-600">
@@ -1057,25 +1080,10 @@ export default function ProjectDetailPage() {
                           </button>
                         </>
                       )}
+                      {infoCopyButton}
                     </div>
                   </>
                 )}
-            </div>
-
-            {/* 사업 정보 전체 복사 버튼 — 정보 블록 하단 우측 */}
-            <div className="flex justify-end mt-1">
-              <button
-                onClick={handleCopyProjectInfo}
-                className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                title="사업 정보 전체 복사"
-              >
-                {infoCopied ? (
-                  <Check className="h-3.5 w-3.5 text-green-600" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-                {infoCopied ? '복사됨' : '전체 복사'}
-              </button>
             </div>
           </div>
 
