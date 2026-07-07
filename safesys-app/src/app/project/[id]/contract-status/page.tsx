@@ -71,10 +71,13 @@ const guessInstName = (branch: string): string => {
   return ''
 }
 
-// 계약 귀속 연도 — 준공일(준공된 계약의 연도) 우선, 없으면 체결일 연도
+// 금차 귀속 연도 — 준공이 지난 계약은 준공 연도, 진행 중(준공 전·준공일 미상)이면 올해.
+// 금차 = 현재 진행 중인 차수의 금액이므로 진행 계약의 금차는 올해 컬럼에 귀속된다
 const contractYear = (r: { end_date: string | null; cntrct_date: string | null }): string => {
-  const d = r.end_date || r.cntrct_date
-  return d ? d.slice(0, 4) : ''
+  const today = new Date().toISOString().slice(0, 10)
+  if (r.end_date && r.end_date < today) return r.end_date.slice(0, 4)
+  if (r.end_date || r.cntrct_date) return String(new Date().getFullYear())
+  return ''
 }
 
 // g2b.go.kr 홈만 가리키는 URL은 계약 상세가 아니므로 링크로 렌더하지 않는다
