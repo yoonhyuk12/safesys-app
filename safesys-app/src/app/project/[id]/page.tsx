@@ -88,6 +88,8 @@ export default function ProjectDetailPage() {
   const [navigationModal, setNavigationModal] = useState<{ isOpen: boolean; address: string }>({ isOpen: false, address: '' })
   const [showEmail, setShowEmail] = useState(false)
   const [emailCopied, setEmailCopied] = useState(false)
+  const [infoCopied, setInfoCopied] = useState(false)
+  const projectInfoRef = useRef<HTMLDivElement>(null)
   const [supervisorPhoneModal, setSupervisorPhoneModal] = useState<{ isOpen: boolean; phone: string; name: string; title: string }>({ isOpen: false, phone: '', name: '', title: '' })
   const [phoneCopied, setPhoneCopied] = useState(false)
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
@@ -622,6 +624,19 @@ export default function ProjectDetailPage() {
     }
   }
 
+  // 상단 사업 정보 블록 전체 텍스트 복사 (화면에 보이는 텍스트 그대로)
+  const handleCopyProjectInfo = async () => {
+    const text = projectInfoRef.current?.innerText
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(text)
+      setInfoCopied(true)
+      setTimeout(() => setInfoCopied(false), 2000)
+    } catch (err) {
+      console.error('사업 정보 복사 실패:', err)
+    }
+  }
+
   const handleSupervisorPhoneClick = (phone: string, name: string, title: string = '연락처') => {
     setSupervisorPhoneModal({ isOpen: true, phone, name, title })
     setPhoneCopied(false)
@@ -905,7 +920,7 @@ export default function ProjectDetailPage() {
               )}
             </div>
 
-            <div className="space-y-2">
+            <div ref={projectInfoRef} className="space-y-2">
               {/* 기본 정보 */}
               <div className="text-sm text-gray-600">
                 {project.project_name} / {project.managing_hq} / {project.managing_branch} /
@@ -1045,6 +1060,22 @@ export default function ProjectDetailPage() {
                     </div>
                   </>
                 )}
+            </div>
+
+            {/* 사업 정보 전체 복사 버튼 — 정보 블록 하단 우측 */}
+            <div className="flex justify-end mt-1">
+              <button
+                onClick={handleCopyProjectInfo}
+                className="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                title="사업 정보 전체 복사"
+              >
+                {infoCopied ? (
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+                {infoCopied ? '복사됨' : '전체 복사'}
+              </button>
             </div>
           </div>
 
