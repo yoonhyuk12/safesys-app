@@ -75,10 +75,12 @@ async function fetchPageJson(url: string): Promise<G2bListResponse> {
         signal: AbortSignal.timeout(attempt === 1 ? 55000 : 40000),
         cache: 'no-store',
       })
+      // 일일 호출 한도 초과(HTTP 429 평문 응답, 2026-07-07 실측)는 자정(KST) 리셋까지 지속되므로 재시도하지 않는다
+      if (res.status === 429) throw new Error('G2B_QUOTA_EXCEEDED')
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       return await res.json()
     } catch (err) {
-      if (attempt >= 2 || (err instanceof Error && err.name === 'TimeoutError')) throw err
+      if (attempt >= 2 || (err instanceof Error && (err.name === 'TimeoutError' || err.message === 'G2B_QUOTA_EXCEEDED'))) throw err
       console.error('조달청 계약현황 목록 API 일시 오류, 재시도:', err instanceof Error ? err.message : err)
       await new Promise((resolve) => setTimeout(resolve, 1000))
     }
@@ -197,6 +199,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data: { items: [...byKey.values()] } })
   } catch (err: unknown) {
     console.error('조달청 계약현황 목록 조회 실패:', err)
+    if (err instanceof Error && err.message === 'G2B_QUOTA_EXCEEDED') {
+      return NextResponse.json(
+        { success: false, error: '조달청 API 일일 호출 한도를 초과했습니다. 내일 다시 시도해주세요.' },
+        { status: 429 }
+      )
+    }
     const isTimeout = err instanceof Error && err.name === 'TimeoutError'
     return NextResponse.json(
       {
