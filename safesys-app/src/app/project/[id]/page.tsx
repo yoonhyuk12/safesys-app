@@ -1251,17 +1251,6 @@ export default function ProjectDetailPage() {
                   pdcaCategory="C"
                   bottomLabel="시공"
                 />
-                <DocumentFolder
-                  title="단속·점검
-방문일지"
-                  year={new Date().getFullYear().toString()}
-                  isActive={false}
-                  projectId={projectId}
-                  docCount={visitLogCount ?? undefined}
-                  onClick={() => router.push(`/project/${projectId}/inspection-visit-log`)}
-                  pdcaCategory="C"
-                  bottomLabel="시공"
-                />
               </div>
             </div>
           </div>
@@ -1329,10 +1318,25 @@ export default function ProjectDetailPage() {
           </div>
           </CabinetDrawer>
 
-          {/* 문서철 그리드 - 기타 캐비넷 (서류철 추가 전까지 빈 상태 안내) */}
+          {/* 문서철 그리드 - 기타 캐비넷 */}
           <CabinetDrawer open={openCabinet === '기타'} instantClose={openCabinet !== null}>
           <div className="flex flex-wrap justify-center gap-3">
-            <p className="py-6 text-sm text-blue-100/70">등록된 서류철이 없습니다.</p>
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>C (점검)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="단속·점검
+방문일지"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  docCount={visitLogCount ?? undefined}
+                  onClick={() => router.push(`/project/${projectId}/inspection-visit-log`)}
+                  pdcaCategory="C"
+                  bottomLabel="시공"
+                />
+              </div>
+            </div>
           </div>
           </CabinetDrawer>
 
