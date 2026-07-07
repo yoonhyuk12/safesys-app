@@ -660,11 +660,24 @@ export default function ContractStatusPage() {
     let inserted = 0
     const failures: string[] = []
 
-    const activeRegisteredKeys = new Set(registeredKeys)
+    // activeRegisteredKeys: 이미 등록된 계약의 식별자 집합
+    // unty_cntrct_no(통합계약번호)는 장기계속계약의 모든 연차가 공유하므로 포함하지 않음 — 오판 방지
+    const activeRegisteredKeys = new Set<string>()
+    for (const rec of records) {
+      const cn = ctrtNoFromUrl(rec.cntrct_info_url)
+      if (cn) activeRegisteredKeys.add(cn)
+      if (rec.cntrct_no) {
+        activeRegisteredKeys.add(rec.cntrct_no)
+        if (rec.cntrct_no.length >= 13) activeRegisteredKeys.add(rec.cntrct_no.slice(0, -2))
+      }
+      activeRegisteredKeys.add(`${rec.cntrct_nm}|${rec.cntrct_date || ''}`)
+    }
+
+    // 기존 등록 건 매칭: cntrctNo(확정계약번호)와 계약명+체결일 기준으로만 매칭
+    // unty_cntrct_no는 연차별 계약이 모두 같으므로 매칭 기준으로 사용하지 않음
     const findExistingRecord = (c: G2bContractResp) => {
       return records.find((r) => {
         if (c.cntrctNo && r.cntrct_no === c.cntrctNo) return true
-        if (c.untyCntrctNo && r.unty_cntrct_no === c.untyCntrctNo) return true
         if (r.cntrct_nm === c.cnstwkNm && r.cntrct_date === c.cntrctCnclsDate) return true
         return false
       })
@@ -673,7 +686,8 @@ export default function ContractStatusPage() {
     try {
       for (const r of targets) {
         try {
-          const no = r.cntrct_no || r.unty_cntrct_no || ''
+          // 장기계속계약의 연차별 계약 전체를 가져오려면 확정계약번호보다 통합계약번호(unty_cntrct_no)로 조회해야 함
+          const no = r.unty_cntrct_no || r.cntrct_no || ''
           const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}`)
           const json = await res.json()
           if (!res.ok || !json.success) throw new Error(json.error || '조회 실패')
@@ -684,9 +698,9 @@ export default function ContractStatusPage() {
             const item = contractRespToItem(c)
             
             const cn = ctrtNoFromUrl(item.url)
+            // unty_cntrct_no는 연차별 계약이 모두 같으므로 등록 여부 판정에 사용하지 않음
             const isItemRegistered = (
               (!!cn && activeRegisteredKeys.has(cn)) ||
-              (!!item.untyCntrctNo && activeRegisteredKeys.has(item.untyCntrctNo)) ||
               (!!item.cntrctNo && (activeRegisteredKeys.has(item.cntrctNo) ||
                 (item.cntrctNo.length >= 13 && activeRegisteredKeys.has(item.cntrctNo.slice(0, -2))))) ||
               activeRegisteredKeys.has(`${item.name}|${item.cntrctDate}`)
@@ -727,7 +741,6 @@ export default function ContractStatusPage() {
               if (data && data.length > 0) {
                 inserted += 1
                 if (cn) activeRegisteredKeys.add(cn)
-                if (item.untyCntrctNo) activeRegisteredKeys.add(item.untyCntrctNo)
                 if (item.cntrctNo) {
                   activeRegisteredKeys.add(item.cntrctNo)
                   if (item.cntrctNo.length >= 13) activeRegisteredKeys.add(item.cntrctNo.slice(0, -2))
