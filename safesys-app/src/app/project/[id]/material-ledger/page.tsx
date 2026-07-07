@@ -618,30 +618,25 @@ export default function MaterialLedgerPage() {
     setBulkFrom(fromMonth)
     setBulkTo(toMonth)
     setIsBulkModalOpen(true)
-    // 수요기관이 준비되면 바로 자동 조회 — 사용자는 프로젝트명 매칭 결과만 보면 됨.
+    // 수요기관 프리필만 하고 조회는 사용자가 검색어·수요기관을 확인한 뒤 조회 버튼으로 직접 시작.
     // 기본값은 ① 프로젝트 관리지사(조달청 표기 '여주.이천지사'는 '·'→'.' 변환, 부분일치라 지사명만으로 매칭)
     // ② 본부 관리 프로젝트는 연계 계약의 수요기관 — 계약이 다른 사업에 잘못 연계된 경우에도 ①이 프로젝트와 일치
     const branch = String(project?.managing_branch || '').trim()
-    if (bulkInst.trim()) {
-      void handleBulkSearch(bulkInst, { from: fromMonth, to: toMonth })
-    } else if (branch.endsWith('지사')) {
-      const inst = branch.replace(/·/g, '.')
-      setBulkInst(inst)
-      void handleBulkSearch(inst, { from: fromMonth, to: toMonth })
-    } else if (project?.g2b_cntrct_no) {
-      // 나라장터 계약의 수요기관 프리필 (실패 시 조용히 직접 입력으로)
-      setBulkInstLoading(true)
-      fetch(`/api/g2b/contract?no=${encodeURIComponent(project.g2b_cntrct_no)}`)
-        .then(res => res.json())
-        .then(json => {
-          const nm = json?.success ? json.data?.contracts?.[0]?.dminsttNms?.[0] : ''
-          if (nm) {
-            setBulkInst(prev => prev || nm)
-            void handleBulkSearch(nm, { from: fromMonth, to: toMonth })
-          }
-        })
-        .catch(() => {})
-        .finally(() => setBulkInstLoading(false))
+    if (!bulkInst.trim()) {
+      if (branch.endsWith('지사')) {
+        setBulkInst(branch.replace(/·/g, '.'))
+      } else if (project?.g2b_cntrct_no) {
+        // 나라장터 계약의 수요기관 프리필 (실패 시 조용히 직접 입력으로)
+        setBulkInstLoading(true)
+        fetch(`/api/g2b/contract?no=${encodeURIComponent(project.g2b_cntrct_no)}`)
+          .then(res => res.json())
+          .then(json => {
+            const nm = json?.success ? json.data?.contracts?.[0]?.dminsttNms?.[0] : ''
+            if (nm) setBulkInst(prev => prev || nm)
+          })
+          .catch(() => {})
+          .finally(() => setBulkInstLoading(false))
+      }
     }
   }
 
