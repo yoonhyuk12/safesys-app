@@ -1937,8 +1937,21 @@ export default function MaterialLedgerPage() {
   if (selectedMaterial) {
     return (
       <div className="min-h-screen" style={{
-        background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0d0d15 50%, #000000 100%)'
+        background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0d0d15 50%, #000000 100%)',
+        isolation: 'isolate'
       }}>
+        {/* 창고 배경 사진 — 흐림 + 어두운 그라데이션 오버레이로 다크 테마와 조화 (스크롤 시 고정) */}
+        <div
+          className="fixed inset-0"
+          style={{
+            zIndex: -1,
+            backgroundImage: "linear-gradient(180deg, rgba(20,18,30,0.72) 0%, rgba(10,10,16,0.8) 55%, rgba(0,0,0,0.92) 100%), url('/창고 배경 사진.png')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            filter: 'blur(3px)',
+            transform: 'scale(1.03)'
+          }}
+        />
         {/* 헤더 - 디아블로 스타일 */}
         <header className="relative" style={{
           background: 'linear-gradient(180deg, #2a2a3a 0%, #1a1a25 100%)',
@@ -2896,8 +2909,21 @@ export default function MaterialLedgerPage() {
 
   return (
     <div className="min-h-screen flex flex-col" style={{
-      background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0d0d15 50%, #000000 100%)'
+      background: 'radial-gradient(ellipse at center, #1a1a2e 0%, #0d0d15 50%, #000000 100%)',
+      isolation: 'isolate'
     }}>
+      {/* 창고 배경 사진 — 흐림 + 어두운 그라데이션 오버레이로 다크 테마와 조화 (스크롤 시 고정) */}
+      <div
+        className="fixed inset-0"
+        style={{
+          zIndex: -1,
+          backgroundImage: "linear-gradient(180deg, rgba(20,18,30,0.72) 0%, rgba(10,10,16,0.8) 55%, rgba(0,0,0,0.92) 100%), url('/창고 배경 사진.png')",
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          filter: 'blur(3px)',
+          transform: 'scale(1.03)'
+        }}
+      />
       {/* 드래그 중 흔들림 애니메이션 */}
       {draggingMaterialId && (
         <style>{`
