@@ -488,6 +488,13 @@ export default function ContractStatusPage() {
     setLookupTo(monthKey(now))
   }
 
+  // 현재 기간 값이 프리셋과 일치하면 해당 버튼을 선택 상태로 표시 (기간 수동 변경 시 자동 해제)
+  const isPresetActive = (monthsBack: number) => {
+    const now = new Date()
+    const from = new Date(now.getFullYear(), now.getMonth() - (monthsBack - 1), 1)
+    return lookupFrom === monthKey(from) && lookupTo === monthKey(now)
+  }
+
   const handleLookup = async () => {
     const inst = lookupInst.trim()
     if (inst.length < 2) { setLookupError('수요기관명을 2자 이상 입력해주세요.'); return }
@@ -1246,7 +1253,11 @@ export default function ContractStatusPage() {
                       key={n}
                       type="button"
                       onClick={() => applyPreset(n)}
-                      className="px-2 py-1 text-xs border border-gray-300 rounded text-gray-600 hover:bg-gray-50"
+                      className={`px-2 py-1 text-xs border rounded transition-colors ${
+                        isPresetActive(n)
+                          ? 'bg-blue-50 text-blue-700 border-blue-400 font-medium'
+                          : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                      }`}
                     >
                       최근 {n}개월
                     </button>
