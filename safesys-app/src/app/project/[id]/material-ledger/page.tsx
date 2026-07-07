@@ -1131,6 +1131,24 @@ export default function MaterialLedgerPage() {
     return String(Math.round(remain * 1000) / 1000)
   }
 
+  // 이전 등록 행에서 인도조건·단가·품대·수수료 기본값 추출 — 같은 규격의 최근 행부터 비어있지 않은 값 사용
+  const getPrevCondDefaults = (rows: MaterialRow[], nameOrSpec: string) => {
+    const matching = rows.filter(r => r.nameOrSpec === nameOrSpec)
+    const lastNonEmpty = (get: (r: MaterialRow) => string | undefined) => {
+      for (let i = matching.length - 1; i >= 0; i--) {
+        const v = (get(matching[i]) || '').trim()
+        if (v) return v
+      }
+      return ''
+    }
+    return {
+      dlvrCndtn: lastNonEmpty(r => r.dlvrCndtn),
+      unitPrice: lastNonEmpty(r => r.unitPrice),
+      prdctAmt: lastNonEmpty(r => r.prdctAmt),
+      feeAmt: lastNonEmpty(r => r.feeAmt),
+    }
+  }
+
   const openRowModal = () => {
     const today = new Date().toISOString().split('T')[0]
     const rows = selectedMaterial?.rows || []
@@ -1162,23 +1180,16 @@ export default function MaterialLedgerPage() {
       defaultNameOrSpec = selectedMaterial?.name || ''
     }
 
-    // 같은 품명/규격의 이전 잔량이 있으면 출고량 기본값에 반영
-    let prevRemain = 0
-    if (defaultNameOrSpec && rows.length > 0) {
-      const matchingRows = rows.filter(row => row.nameOrSpec === defaultNameOrSpec)
-      if (matchingRows.length > 0) {
-        prevRemain = parseFloat(matchingRows[matchingRows.length - 1].remainQty) || 0
-      }
-    }
-    const defaultReleaseQty = prevRemain !== 0 ? String(prevRemain) : ''
+    // 이전 등록의 인도조건·단가·품대·수수료를 기본값으로 사용
+    const condDefaults = getPrevCondDefaults(rows, defaultNameOrSpec)
 
     setEditingRowId(null)
     setRowForm({
       nameOrSpec: defaultNameOrSpec,
       orderQty: defaultOrderQty,
-      dlvrCndtn: '', unitPrice: '', prdctAmt: '', feeAmt: '',
+      ...condDefaults,
       receiveDate: today, receiveQty: '', passQtyCurrent: '',
-      failQty: '-', action: '해당없음', releaseDate: today, releaseQty: defaultReleaseQty,
+      failQty: '-', action: '해당없음', releaseDate: today, releaseQty: '',
     })
     setIsRowModalOpen(true)
   }
@@ -1203,22 +1214,10 @@ export default function MaterialLedgerPage() {
     setIsRowModalOpen(true)
   }
 
-  const calcAutoRelease = (receiveValue: string, nameOrSpec: string, failQtyValue?: string) => {
-    const rows = selectedMaterial?.rows || []
-    // 같은 품명/규격의 마지막 행에서 잔량 가져오기
-    const matchingRows = rows.filter(row => row.nameOrSpec === nameOrSpec)
-    const prevRemain = matchingRows.length > 0 ? parseFloat(matchingRows[matchingRows.length - 1].remainQty) || 0 : 0
-    const receive = parseFloat(receiveValue) || 0
-    // 불합격량 제외 (숫자인 경우만)
-    const failQty = parseFloat(failQtyValue || '') || 0
-    const total = receive + prevRemain - failQty
-    return total !== 0 ? String(total) : ''
-  }
-
-  // 품명/규격이 변경되면 발주잔량 및 출고량 자동 계산
+  // 품명/규격이 변경되면 발주잔량 및 등록 조건 기본값 자동 계산
   const handleNameOrSpecChange = (value: string) => {
     if (!selectedMaterial) {
-      setRowForm(p => ({ ...p, nameOrSpec: value, orderQty: '', releaseQty: '' }))
+      setRowForm(p => ({ ...p, nameOrSpec: value, orderQty: '' }))
       return
     }
 
@@ -1228,7 +1227,6 @@ export default function MaterialLedgerPage() {
     )
 
     let newOrderQty = ''
-    let prevRemainQty = 0
 
     if (matchingRows.length > 0) {
       // 같은 품명이 있는 경우: 유효 발주량(첫 행 + 증감 행 합산)에서 합격량 누계를 빼서 잔량 계산
@@ -1242,36 +1240,25 @@ export default function MaterialLedgerPage() {
       // 발주잔량 = 발주량 - 합격량 누계
       const remainingQty = originalOrderQty - totalPassed
       newOrderQty = remainingQty > 0 ? String(remainingQty) : ''
-
-      // 같은 품명의 마지막 행의 잔량 (재고)
-      prevRemainQty = parseFloat(matchingRows[matchingRows.length - 1].remainQty) || 0
     }
 
-    setRowForm(p => {
-      // 현재 반입량을 가져와서 출고량 계산 (불합격량 제외)
-      const currentReceiveQty = parseFloat(p.receiveQty) || 0
-      const currentFailQty = parseFloat(p.failQty) || 0
-      const newReleaseQty = currentReceiveQty + prevRemainQty - currentFailQty
+    // 신규 등록 중 규격 변경 시 인도조건·단가·품대·수수료도 해당 규격의 이전 값으로 갱신
+    const condDefaults = editingRowId ? null : getPrevCondDefaults(selectedMaterial.rows, value)
 
-      return {
-        ...p,
-        nameOrSpec: value,
-        orderQty: newOrderQty,
-        releaseQty: newReleaseQty !== 0 ? String(newReleaseQty) : ''
-      }
-    })
+    setRowForm(p => ({
+      ...p,
+      nameOrSpec: value,
+      orderQty: newOrderQty,
+      ...(condDefaults ?? {}),
+    }))
   }
 
   const handleReceiveQtyChange = (value: string) => {
     setRowForm(p => {
-      const prevAutoRelease = calcAutoRelease(p.receiveQty, p.nameOrSpec, p.failQty)
-      const syncRelease = p.releaseQty === '' || p.releaseQty === prevAutoRelease || p.releaseQty === p.receiveQty
       const syncPass = p.passQtyCurrent === '' || p.passQtyCurrent === p.receiveQty
-      const newAutoRelease = calcAutoRelease(value, p.nameOrSpec, p.failQty)
       return {
         ...p,
         receiveQty: value,
-        ...(syncRelease ? { releaseQty: newAutoRelease } : {}),
         ...(syncPass ? { passQtyCurrent: value } : {}),
       }
     })
@@ -1292,17 +1279,10 @@ export default function MaterialLedgerPage() {
         newFailQty = '-'
       }
 
-      // 출고량 재계산 (불합격량 반영)
-      const failQtyNum = parseFloat(newFailQty) || 0
-      const newAutoRelease = calcAutoRelease(p.receiveQty, p.nameOrSpec, newFailQty)
-      const prevAutoRelease = calcAutoRelease(p.receiveQty, p.nameOrSpec, p.failQty)
-      const syncRelease = p.releaseQty === '' || p.releaseQty === prevAutoRelease
-
       return {
         ...p,
         passQtyCurrent: value,
         failQty: newFailQty,
-        ...(syncRelease ? { releaseQty: newAutoRelease } : {}),
       }
     })
   }
