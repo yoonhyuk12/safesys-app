@@ -67,6 +67,26 @@ function CabinetDrawer({ open, instantClose = false, children }: { open: boolean
   )
 }
 
+// 두루마리 봉 — 페이지 콘텐츠 상·하단을 감싸는 말린 종이 원통 장식
+function DurumariRod() {
+  return (
+    <div className="relative h-8 mx-1" aria-hidden="true">
+      {/* 말린 종이 원통 */}
+      <span
+        className="absolute inset-x-2 top-1/2 -translate-y-1/2 h-[22px] rounded-full shadow-lg"
+        style={{
+          background: 'linear-gradient(to bottom, #fafaf9 0%, #f5f5f4 25%, #d6d3d1 55%, #a8a29e 75%, #e7e5e4 100%)',
+        }}
+      />
+      {/* 원통 위 종이 겹 줄무늬 */}
+      <span className="absolute inset-x-3 top-1/2 -translate-y-[9px] h-px bg-stone-300/80" />
+      {/* 양끝 나무 축 손잡이 */}
+      <span className="absolute -left-1 top-1/2 -translate-y-1/2 h-9 w-4 rounded-full bg-gradient-to-b from-amber-600 to-amber-900 shadow-md" />
+      <span className="absolute -right-1 top-1/2 -translate-y-1/2 h-9 w-4 rounded-full bg-gradient-to-b from-amber-600 to-amber-900 shadow-md" />
+    </div>
+  )
+}
+
 export default function ProjectDetailPage() {
   const { user, userProfile, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -934,9 +954,10 @@ export default function ProjectDetailPage() {
         </div>
       </header>
 
-      {/* 메인 콘텐츠 */}
+      {/* 메인 콘텐츠 — 페이지 전체를 두루마리(상·하단 봉 + 펼침 애니메이션)로 표현 */}
       <main className="flex-1 w-full max-w-7xl lg:max-w-none mx-auto py-6 sm:px-6 lg:px-4">
-        <div className="px-4 py-6 sm:px-0 lg:px-0" onClick={handleContentClick}>
+        <DurumariRod />
+        <div className="px-4 py-6 sm:px-0 lg:px-0 durumari-unroll" onClick={handleContentClick}>
           {/* 프로젝트 정보 */}
           <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative">
             {/* 점점점 메뉴 버튼 */}
@@ -1660,6 +1681,7 @@ export default function ProjectDetailPage() {
           </div>
           </CabinetDrawer>
         </div>
+        <DurumariRod />
       </main>
 
       <footer className="w-full px-4 py-6 [&_p]:!text-blue-200/70 [&_p:first-child]:!text-blue-100">
