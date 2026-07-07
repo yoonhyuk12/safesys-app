@@ -62,6 +62,17 @@ const PERIOD_PRESETS = [6, 12, 18, 24, 30, 36]
 const formatAmt = (n: number | null | undefined) =>
   n == null || n === 0 ? '-' : n.toLocaleString('ko-KR')
 
+// g2b.go.kr 홈만 가리키는 URL은 계약 상세가 아니므로 링크로 렌더하지 않는다
+const isDetailUrl = (u: string | null): u is string =>
+  !!u && !/^https?:\/\/(www\.)?g2b\.go\.kr\/?$/.test(u)
+
+// 계약 상세 딥링크의 ctrtNo(기본 계약번호, 차수 없음) — 조회 경로마다 통합계약번호가 달라져도
+// 같은 계약이면 이 값은 동일하므로 등록됨 판정의 안정적인 키로 쓴다
+const ctrtNoFromUrl = (u: string | null | undefined): string => {
+  const m = u?.match(/[?&]ctrtNo=([A-Za-z0-9]+)/)
+  return m ? m[1] : ''
+}
+
 // 'YYYY-MM' 범위를 월 단위 {bgn,end}(YYYYMMDD) 목록으로 변환 — 오늘 이후 제외, 최대 60개월
 function buildMonths(from: string, to: string): Array<{ bgn: string; end: string }> {
   if (!/^\d{4}-\d{2}$/.test(from) || !/^\d{4}-\d{2}$/.test(to)) return []
@@ -170,22 +181,35 @@ export default function ContractStatusPage() {
   const cnstwkCount = records.filter((r) => r.contract_type === '공사').length
   const servcCount = records.length - cnstwkCount
 
-  // 등록됨 판정: 통합계약번호 → 확정계약번호 → 계약명+체결일 순 폴백
+  // 등록됨 판정: 딥링크 ctrtNo → 통합계약번호 → 확정계약번호 → 계약명+체결일 순 폴백.
+  // 같은 계약이 조회 경로(기간/번호)마다 통합계약번호가 다르고 확정계약번호가 빈 값일 수 있어
+  // 번호만으로는 놓친다 — 딥링크 ctrtNo와 계약명 단독 키를 함께 등록해 중복 등록을 막는다
   const registeredKeys = useMemo(() => {
     const s = new Set<string>()
     for (const r of records) {
+      const cn = ctrtNoFromUrl(r.cntrct_info_url)
+      if (cn) s.add(cn)
       if (r.unty_cntrct_no) s.add(r.unty_cntrct_no)
-      if (r.cntrct_no) s.add(r.cntrct_no)
+      if (r.cntrct_no) {
+        s.add(r.cntrct_no)
+        // 확정계약번호는 '기본번호+차수 2자리' 결합형이 있어 기본번호도 키로 등록
+        if (r.cntrct_no.length >= 13) s.add(r.cntrct_no.slice(0, -2))
+      }
       s.add(`${r.cntrct_nm}|${r.cntrct_date || ''}`)
     }
     return s
   }, [records])
 
-  const isRegistered = useCallback((item: G2bCntrctItem) =>
-    (!!item.untyCntrctNo && registeredKeys.has(item.untyCntrctNo)) ||
-    (!!item.cntrctNo && registeredKeys.has(item.cntrctNo)) ||
-    registeredKeys.has(`${item.name}|${item.cntrctDate}`),
-  [registeredKeys])
+  const isRegistered = useCallback((item: G2bCntrctItem) => {
+    const cn = ctrtNoFromUrl(item.url)
+    return (
+      (!!cn && registeredKeys.has(cn)) ||
+      (!!item.untyCntrctNo && registeredKeys.has(item.untyCntrctNo)) ||
+      (!!item.cntrctNo && (registeredKeys.has(item.cntrctNo) ||
+        (item.cntrctNo.length >= 13 && registeredKeys.has(item.cntrctNo.slice(0, -2))))) ||
+      registeredKeys.has(`${item.name}|${item.cntrctDate}`)
+    )
+  }, [registeredKeys])
 
   // 조달청 조회 모달 열기 — 기관명·기간·검색어 프리필 (수불부 일괄 조회와 동일 패턴)
   const openLookup = () => {
@@ -297,7 +321,7 @@ export default function ContractStatusPage() {
         cnstwkNm: string; bsnsDivNm: string; cntrctNo: string; untyCntrctNo: string
         totCntrctAmt: number; thtmCntrctAmt: number; cntrctPrd: string; cntrctCnclsDate: string
         startDate: string; endDate: string; cntrctInsttNm: string
-        dminsttNms: string[]; corpNms: string[]; cntrctInfoUrl: string
+        dminsttNms: string[]; corpNms: string[]; cntrctInfoUrl: string; cntrctDtlInfoUrl?: string
       }> = json.data?.contracts || []
       const items: G2bCntrctItem[] = contracts.map((c) => ({
         key: `${c.cnstwkNm}|${c.cntrctCnclsDate}|${c.totCntrctAmt}|${(c.corpNms || []).join(',')}`,
@@ -315,7 +339,7 @@ export default function ContractStatusPage() {
         cntrctInsttNm: c.cntrctInsttNm || '',
         dminsttNms: c.dminsttNms || [],
         corpNms: c.corpNms || [],
-        url: c.cntrctInfoUrl || '',
+        url: c.cntrctDtlInfoUrl || c.cntrctInfoUrl || '',
       }))
       setLookupItems(items)
     } catch (err: unknown) {
@@ -534,7 +558,7 @@ export default function ContractStatusPage() {
                         </span>
                       </td>
                       <td className="px-3 py-2 max-w-[320px]">
-                        {r.cntrct_info_url ? (
+                        {isDetailUrl(r.cntrct_info_url) ? (
                           <a
                             href={r.cntrct_info_url}
                             target="_blank"

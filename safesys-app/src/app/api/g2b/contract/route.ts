@@ -40,6 +40,7 @@ interface G2bRawContract {
   dminsttList?: string
   corpList?: string
   cntrctInfoUrl?: string
+  cntrctDtlInfoUrl?: string
 }
 
 // corpList/dminsttList는 '[a^b^c^...]' 형태의 캐럿 구분 문자열 (2026-07-06 실호출 확인)
@@ -232,6 +233,8 @@ export async function GET(request: NextRequest) {
       dminsttNms: parseDminsttNames(it.dminsttList),
       corpNms: parseCorpNames(it.corpList),
       cntrctInfoUrl: it.cntrctInfoUrl || '',
+      // cntrctInfoUrl은 g2b.go.kr 홈만 가리키는 경우가 많음 — 계약 상세 딥링크는 이 필드
+      cntrctDtlInfoUrl: it.cntrctDtlInfoUrl || '',
     }))
 
     // 최신 계약(계약체결일자 최근순)이 앞에 오도록 정렬 — 차수 계약 여러 건이면 최신만 적용 대상
