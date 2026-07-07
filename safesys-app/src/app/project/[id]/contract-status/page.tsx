@@ -358,6 +358,8 @@ export default function ContractStatusPage() {
     for (const g of groups) for (const y of g.yearAmts.keys()) s.add(y)
     return [...s].sort((a, b) => (a === '기타' ? 1 : b === '기타' ? -1 : a.localeCompare(b)))
   }, [groups])
+  // 올해 연도 컬럼은 배경색으로 강조 (사용자 지정)
+  const thisYear = String(new Date().getFullYear())
 
   // 등록됨 판정: 딥링크 ctrtNo → 통합계약번호 → 확정계약번호 → 계약명+체결일 순 폴백.
   // 같은 계약이 조회 경로(기간/번호)마다 통합계약번호가 다르고 확정계약번호가 빈 값일 수 있어
@@ -786,8 +788,8 @@ export default function ContractStatusPage() {
                     <th className="px-3 py-2 text-left font-medium">계약상대자</th>
                     <th className="px-3 py-2 text-right font-medium">총계약금액(원)</th>
                     {yearCols.map((y) => (
-                      <th key={y} className="px-3 py-2 text-right font-medium">
-                        {y === '기타' ? '연도미상 금차' : `${y.slice(2)}년 금차(원)`}
+                      <th key={y} className={`px-3 py-2 text-right font-medium ${y === thisYear ? 'bg-amber-100/70 text-amber-800' : ''}`}>
+                        {y === '기타' ? '연도미상' : `${y.slice(2)}년`}
                       </th>
                     ))}
                     <th className="px-3 py-2 text-left font-medium">계약체결일</th>
@@ -804,7 +806,7 @@ export default function ContractStatusPage() {
                       {groups.reduce((s, g) => s + (g.repr.tot_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
                     </td>
                     {yearCols.map((y) => (
-                      <td key={y} className="px-3 py-2 text-right tabular-nums">
+                      <td key={y} className={`px-3 py-2 text-right tabular-nums ${y === thisYear ? 'bg-amber-100/60' : ''}`}>
                         {groups.reduce((s, g) => s + (g.yearAmts.get(y) || 0), 0).toLocaleString('ko-KR')}
                       </td>
                     ))}
@@ -843,7 +845,7 @@ export default function ContractStatusPage() {
                       <td className="px-3 py-2 max-w-[180px] xl:max-w-none truncate" title={r.corp_nm || ''}>{r.corp_nm || '-'}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatAmt(r.tot_cntrct_amt)}</td>
                       {yearCols.map((y) => (
-                        <td key={y} className="px-3 py-2 text-right tabular-nums">
+                        <td key={y} className={`px-3 py-2 text-right tabular-nums ${y === thisYear ? 'bg-amber-50/70' : ''}`}>
                           {g.yearAmts.has(y) ? formatAmt(g.yearAmts.get(y)) : '-'}
                         </td>
                       ))}
