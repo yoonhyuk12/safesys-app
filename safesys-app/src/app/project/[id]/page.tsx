@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Building, Phone, MoreVertical, Copy, Check, FileText, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, Phone, MoreVertical, Copy, Check, FileText, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { Project, deleteProject } from '@/lib/projects'
 import { computeProgressRate, ProgressAnchor } from '@/lib/work-daily-report/work-daily-report-types'
 import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
@@ -900,7 +900,6 @@ export default function ProjectDetailPage() {
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
-              <Building className="h-6 w-6 text-blue-600 mr-2 lg:mr-3 flex-shrink-0" />
               <h1 className="text-sm lg:text-xl font-bold text-gray-900 truncate">{project.project_name}</h1>
               {/* 나라장터 연계 마크 — 프로젝트명 바로 옆 */}
               {(project.g2b_cntrct_no || project.g2b_ntce_no) && (
@@ -910,15 +909,6 @@ export default function ProjectDetailPage() {
                   title="나라장터 연계"
                   className="ml-1.5 lg:ml-2 h-4 w-4 lg:h-5 lg:w-5 flex-shrink-0 object-contain"
                 />
-              )}
-              {project.business_card_pdf_url && (
-                <button
-                  onClick={handleBusinessCardClick}
-                  className="ml-2 lg:ml-3 p-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-md transition-colors flex-shrink-0"
-                  title="사업카드 보기"
-                >
-                  <FileText className="h-5 w-5" />
-                </button>
               )}
             </div>
             <div className="flex items-center space-x-2 lg:space-x-4">

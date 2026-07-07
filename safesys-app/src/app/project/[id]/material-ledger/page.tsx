@@ -3115,9 +3115,6 @@ export default function MaterialLedgerPage() {
               <ArrowLeft className="h-5 w-5" />
             </button>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-amber-800 flex items-center justify-center shadow-lg shadow-amber-900/50 border border-amber-400/50">
-                <Package className="h-5 w-5 text-amber-100" />
-              </div>
               <div>
                 <h1 className="text-lg font-bold text-amber-100" style={{ fontFamily: 'serif', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
                   지급자재 수불부
