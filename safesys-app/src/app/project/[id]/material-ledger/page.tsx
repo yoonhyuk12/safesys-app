@@ -1253,13 +1253,18 @@ export default function MaterialLedgerPage() {
     }))
   }
 
+  // 반입량 입력 시 합격량·출고량이 같이 따라감 (직접 수정하면 동기화 중단).
+  // 출고량은 해당 행의 반입량만 따라가고 이전 보관 잔량은 합산하지 않는다 — 잔량 계산이 어긋나던 원인
   const handleReceiveQtyChange = (value: string) => {
     setRowForm(p => {
       const syncPass = p.passQtyCurrent === '' || p.passQtyCurrent === p.receiveQty
+      const syncRelease = p.releaseQty === '' || p.releaseQty === p.passQtyCurrent || p.releaseQty === p.receiveQty
+      const newPass = syncPass ? value : p.passQtyCurrent
       return {
         ...p,
         receiveQty: value,
-        ...(syncPass ? { passQtyCurrent: value } : {}),
+        passQtyCurrent: newPass,
+        ...(syncRelease ? { releaseQty: newPass } : {}),
       }
     })
   }
@@ -1279,10 +1284,14 @@ export default function MaterialLedgerPage() {
         newFailQty = '-'
       }
 
+      // 출고량이 합격량을 따라가던 중이면 같이 갱신 (불합격분 출고 제외)
+      const syncRelease = p.releaseQty === '' || p.releaseQty === p.passQtyCurrent || p.releaseQty === p.receiveQty
+
       return {
         ...p,
         passQtyCurrent: value,
         failQty: newFailQty,
+        ...(syncRelease ? { releaseQty: value } : {}),
       }
     })
   }
