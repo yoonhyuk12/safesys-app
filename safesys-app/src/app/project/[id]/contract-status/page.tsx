@@ -274,12 +274,15 @@ export default function ContractStatusPage() {
   // 계약번호·공고번호 조회
   const [noInput, setNoInput] = useState('')
   const [noLoading, setNoLoading] = useState(false)
-  // 직접 등록 폼
+  // 직접 등록 폼 — 장기계속계약은 차수(연도)별 금액을 여러 건 입력해 차수당 1행으로 저장한다
   const [mForm, setMForm] = useState({
     type: '공사' as '공사' | '용역',
-    name: '', corp: '', totAmt: '', thtmAmt: '',
+    name: '', corp: '', totAmt: '',
     cntrctDate: '', startDate: '', endDate: '', dminstt: '',
   })
+  const [mThtmRows, setMThtmRows] = useState<Array<{ year: string; amt: string }>>([
+    { year: String(new Date().getFullYear()), amt: '' },
+  ])
   const [mSaving, setMSaving] = useState(false)
   // 등록 건 일괄 갱신 (조달청 최신 계약정보 반영)
   const [refreshing, setRefreshing] = useState(false)
@@ -582,27 +585,52 @@ export default function ContractStatusPage() {
   const formatAmtInput = (s: string) =>
     s.replace(/[^0-9]/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 
-  // 직접 등록
+  // 차수 행 추가 — 새 행 연도는 기존 최대 연도 +1로 제안
+  const addThtmRow = () =>
+    setMThtmRows((rows) => {
+      const maxYear = Math.max(new Date().getFullYear() - 1, ...rows.map((r) => Number(r.year) || 0))
+      return [...rows, { year: String(maxYear + 1), amt: '' }]
+    })
+  const updateThtmRow = (idx: number, patch: Partial<{ year: string; amt: string }>) =>
+    setMThtmRows((rows) => rows.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+  const removeThtmRow = (idx: number) =>
+    setMThtmRows((rows) => rows.filter((_, i) => i !== idx))
+
+  // 직접 등록 — 차수(연도)별 금액 행마다 project_contracts 1행씩 저장.
+  // 연도 컬럼 귀속(contractYear)이 금차 준공일을 우선 사용하므로 thtm_end_date를 해당 연도 말일로 채운다.
   const handleManualSave = async () => {
     if (!user) return
     if (!mForm.name.trim()) { alert('계약명을 입력해주세요.'); return }
+    const entries = mThtmRows
+      .map((r) => ({ year: r.year.trim(), amt: parseAmt(r.amt) }))
+      .filter((r): r is { year: string; amt: number } => r.amt != null)
+    if (entries.some((r) => !/^\d{4}$/.test(r.year))) {
+      alert('차수별 계약금액의 연도를 4자리로 입력해주세요.')
+      return
+    }
     setMSaving(true)
     try {
-      const { error } = await (supabase as any).from('project_contracts').insert([{
+      // 총액 미입력 시 차수 금액이 여러 건이면 합계로 보완 — 총액=금차인 단건은 단년도 계약으로 취급
+      const totAmt = parseAmt(mForm.totAmt) ?? (entries.length > 1 ? entries.reduce((s, r) => s + r.amt, 0) : null)
+      const base = {
         project_id: projectId,
         created_by: user.id,
         contract_type: mForm.type,
         cntrct_nm: mForm.name.trim(),
         corp_nm: mForm.corp.trim() || null,
-        tot_cntrct_amt: parseAmt(mForm.totAmt),
-        thtm_cntrct_amt: parseAmt(mForm.thtmAmt),
+        tot_cntrct_amt: totAmt,
         cntrct_date: mForm.cntrctDate || null,
         start_date: mForm.startDate || null,
         end_date: mForm.endDate || null,
         dminstt_nm: mForm.dminstt.trim() || null,
-      }])
+      }
+      const rows = entries.length === 0
+        ? [{ ...base, thtm_cntrct_amt: null, thtm_end_date: null }]
+        : entries.map((r) => ({ ...base, thtm_cntrct_amt: r.amt, thtm_end_date: `${r.year}-12-31` }))
+      const { error } = await (supabase as any).from('project_contracts').insert(rows)
       if (error) throw error
-      setMForm((p) => ({ ...p, name: '', corp: '', totAmt: '', thtmAmt: '', cntrctDate: '', startDate: '', endDate: '', dminstt: '' }))
+      setMForm((p) => ({ ...p, name: '', corp: '', totAmt: '', cntrctDate: '', startDate: '', endDate: '', dminstt: '' }))
+      setMThtmRows([{ year: String(new Date().getFullYear()), amt: '' }])
       await loadRecords()
       setIsLookupOpen(false)
       alert('등록되었습니다.')
@@ -1486,27 +1514,63 @@ export default function ContractStatusPage() {
                     />
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">총계약금액(원)</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={mForm.totAmt}
-                      onChange={(e) => setMForm((p) => ({ ...p, totAmt: formatAmtInput(e.target.value) }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">총계약금액(원)</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={mForm.totAmt}
+                    onChange={(e) => setMForm((p) => ({ ...p, totAmt: formatAmtInput(e.target.value) }))}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-gray-600">차수별(연도별) 계약금액</label>
+                    <button
+                      type="button"
+                      onClick={addThtmRow}
+                      className="inline-flex items-center gap-0.5 text-xs font-medium text-blue-600 hover:text-blue-700"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      차수 추가
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">금차계약금액(원)</label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={mForm.thtmAmt}
-                      onChange={(e) => setMForm((p) => ({ ...p, thtmAmt: formatAmtInput(e.target.value) }))}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
+                  <div className="space-y-2">
+                    {mThtmRows.map((row, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={row.year}
+                          onChange={(e) => updateThtmRow(idx, { year: e.target.value.replace(/[^0-9]/g, '').slice(0, 4) })}
+                          placeholder="연도"
+                          className="w-20 px-3 py-2 text-sm border border-gray-300 rounded-lg text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={row.amt}
+                          onChange={(e) => updateThtmRow(idx, { amt: formatAmtInput(e.target.value) })}
+                          placeholder="해당 차수 계약금액(원)"
+                          className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        {mThtmRows.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removeThtmRow(idx)}
+                            className="p-1 text-gray-400 hover:text-red-600"
+                            title="차수 삭제"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
+                  <p className="mt-1 text-[11px] text-gray-400">
+                    장기계속계약은 차수를 추가해 연도별 계약금액을 각각 입력하세요. 차수마다 별도 건으로 저장되고 표에서 한 계약으로 병합됩니다.
+                  </p>
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                   <div>
