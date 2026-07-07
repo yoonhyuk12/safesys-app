@@ -5,8 +5,10 @@ import ExcelJS from 'exceljs'
 import {
   InspectionRequestRecord,
   normalizeChecklistItems,
+  normalizeInspectionPhotos,
 } from '@/lib/inspection/inspection-types'
 import { addRequestSheet } from '@/lib/excel/inspection-request-export'
+import { addInspectionPhotoSheet } from '@/lib/excel/inspection-photo-report'
 
 const thin: ExcelJS.Border = { style: 'thin', color: { argb: 'FF000000' } }
 const allBorders: Partial<ExcelJS.Borders> = { top: thin, bottom: thin, left: thin, right: thin }
@@ -276,7 +278,7 @@ export function addChecklistSheet(
   return ws
 }
 
-// ── 검측요청서(시트1) + 검측 체크리스트(시트2)를 한 파일로 출력
+// ── 검측요청서(시트1) + 검측 체크리스트(시트2) + 사진대지(시트3, 사진 있을 때)를 한 파일로 출력
 export async function downloadInspectionRequestWithChecklistExcel(
   record: InspectionRequestRecord,
   projectName: string
@@ -284,6 +286,9 @@ export async function downloadInspectionRequestWithChecklistExcel(
   const workbook = new ExcelJS.Workbook()
   addRequestSheet(workbook, record, projectName) // 시트1: 검측요청서
   addChecklistSheet(workbook, record) // 시트2: 검측 체크리스트
+  if (normalizeInspectionPhotos(record.photos).length > 0) {
+    await addInspectionPhotoSheet(workbook, record, projectName) // 시트3: 사진대지
+  }
   const dateStr = record.request_date || new Date().toISOString().split('T')[0]
   const filename = `검측요청서_체크리스트_${record.request_no ? `제${record.request_no}호_` : ''}${dateStr}.xlsx`
   await downloadWorkbook(workbook, filename)

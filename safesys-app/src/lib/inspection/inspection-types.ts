@@ -15,6 +15,14 @@ export interface ChecklistItem {
 // 양식과 동일한 고정 행 수 — 폼·엑셀 공통 단일 출처
 export const CHECKLIST_ROW_COUNT = 14
 
+// 검측 사진 — 최소 1컷, 최대 2컷 (사진대지 출력용)
+export interface InspectionPhoto {
+  url: string // Storage public URL
+  caption: string // 사진 설명
+}
+
+export const INSPECTION_PHOTO_MAX = 2
+
 export interface InspectionRequestFormData {
   // 검측요청서 (별지 제4호)
   request_no: string // 요청 번호
@@ -50,6 +58,9 @@ export interface InspectionRequestFormData {
   contractor_check_date: string | null // 시공자 점검일자 (YYYY-MM-DD)
   supervisor_check_date: string | null // 감독원 검측일자 (YYYY-MM-DD)
 
+  // 검측 사진 (사진대지) — 최대 2컷
+  photos: InspectionPhoto[]
+
   remarks: string
 }
 
@@ -71,6 +82,19 @@ export const createEmptyChecklistItem = (): ChecklistItem => ({
 
 export const createEmptyChecklistItems = (): ChecklistItem[] =>
   Array.from({ length: CHECKLIST_ROW_COUNT }, () => createEmptyChecklistItem())
+
+// DB에서 불러온 사진 목록(null·구조 불일치 가능)을 [{url, caption}] 최대 2개로 정규화
+export const normalizeInspectionPhotos = (photos: unknown): InspectionPhoto[] => {
+  if (!Array.isArray(photos)) return []
+  return photos
+    .filter((p): p is Record<string, unknown> => !!p && typeof p === 'object')
+    .map((p) => ({
+      url: typeof p.url === 'string' ? p.url : '',
+      caption: typeof p.caption === 'string' ? p.caption : '',
+    }))
+    .filter((p) => p.url)
+    .slice(0, INSPECTION_PHOTO_MAX)
+}
 
 // DB에서 불러온 항목(null·길이 불일치 가능)을 고정 행 수에 맞게 정규화
 export const normalizeChecklistItems = (items: unknown): ChecklistItem[] => {
@@ -110,6 +134,7 @@ export const createEmptyInspectionRequest = (
   checklist_items: createEmptyChecklistItems(),
   contractor_check_date: null,
   supervisor_check_date: null,
+  photos: [],
   remarks: '',
   ...defaults,
 })

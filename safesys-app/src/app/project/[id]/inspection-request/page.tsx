@@ -3,19 +3,22 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Download, Printer, X, FileText } from 'lucide-react'
+import { ArrowLeft, Plus, Download, Printer, X, FileText, Image as ImageIcon } from 'lucide-react'
 import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import InspectionRequestList from '@/components/project/inspection/InspectionRequestList'
 import InspectionRequestForm from '@/components/project/inspection/InspectionRequestForm'
+import { inspectionPhotoStoragePath } from '@/components/project/inspection/InspectionPhotoTab'
 import { downloadInspectionLedgerExcel } from '@/lib/excel/inspection-request-export'
 import { downloadInspectionRequestWithChecklistExcel } from '@/lib/excel/inspection-checklist-export'
+import { downloadInspectionPhotoLedgerExcel } from '@/lib/excel/inspection-photo-report'
 import {
   InspectionRequestFormData,
   InspectionRequestRecord,
   createEmptyInspectionRequest,
   normalizeChecklistItems,
+  normalizeInspectionPhotos,
 } from '@/lib/inspection/inspection-types'
 
 export default function InspectionRequestPage() {
@@ -40,6 +43,7 @@ export default function InspectionRequestPage() {
   const [saving, setSaving] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [ledgerDownloading, setLedgerDownloading] = useState(false)
+  const [photoLedgerDownloading, setPhotoLedgerDownloading] = useState(false)
 
   const handleBack = () => {
     // 진입 경로를 returnUrl 쿼리로 받은 경우 그 위치(지사 프로젝트 목록 등)로 정확히 복귀.
@@ -142,6 +146,7 @@ export default function InspectionRequestPage() {
       ...createEmptyInspectionRequest(),
       ...fields,
       checklist_items: normalizeChecklistItems(fields.checklist_items),
+      photos: normalizeInspectionPhotos(fields.photos),
     })
     setEditingRecordId(record.id)
     setShowForm(true)
@@ -198,7 +203,7 @@ export default function InspectionRequestPage() {
     }
   }
 
-  // 삭제
+  // 삭제 — DB 행 삭제 후 검측 사진 Storage 파일도 함께 정리
   const handleDelete = async (record: InspectionRequestRecord) => {
     if (!confirm('정말 삭제하시겠습니까?')) return
     const { error } = await (supabase as any)
@@ -206,6 +211,12 @@ export default function InspectionRequestPage() {
       .delete()
       .eq('id', record.id)
     if (!error) {
+      const paths = normalizeInspectionPhotos(record.photos)
+        .map((p) => inspectionPhotoStoragePath(p.url))
+        .filter((p): p is string => !!p)
+      if (paths.length > 0) {
+        await supabase.storage.from('safety-inspection-photos').remove(paths)
+      }
       if (editingRecordId === record.id) resetForm()
       loadRecords()
     } else {
@@ -245,6 +256,22 @@ export default function InspectionRequestPage() {
       setLedgerDownloading(false)
     }
   }
+
+  // 검측 사진대지(자율 양식) 전체 엑셀 출력 — 사진이 있는 검측건만 건당 1페이지
+  const handlePhotoLedgerDownload = async () => {
+    setPhotoLedgerDownloading(true)
+    try {
+      // 대장 출력과 동일하게 작성 순서(오래된 것부터)
+      await downloadInspectionPhotoLedgerExcel([...records].reverse(), project?.project_name || '')
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '알 수 없는 오류'
+      alert('사진대지 생성 실패: ' + message)
+    } finally {
+      setPhotoLedgerDownloading(false)
+    }
+  }
+
+  const hasAnyPhoto = records.some((r) => normalizeInspectionPhotos(r.photos).length > 0)
 
   if (authLoading) {
     return (
@@ -311,6 +338,15 @@ export default function InspectionRequestPage() {
                   대장 출력
                 </button>
                 <button
+                  onClick={handlePhotoLedgerDownload}
+                  disabled={photoLedgerDownloading || !hasAnyPhoto}
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-blue-700 rounded-lg hover:bg-blue-50 text-xs sm:text-sm font-medium disabled:opacity-50"
+                  title="검측 사진대지 엑셀 출력 (사진이 있는 검측건만)"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  사진대지
+                </button>
+                <button
                   onClick={handleAddClick}
                   className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-blue-700 rounded-lg hover:bg-blue-50 text-xs sm:text-sm font-medium"
                 >
@@ -361,7 +397,7 @@ export default function InspectionRequestPage() {
                 </div>
 
                 <div className="p-3 sm:p-4 space-y-4">
-                  <InspectionRequestForm formData={formData} onChange={setFormData} />
+                  <InspectionRequestForm projectId={projectId} formData={formData} onChange={setFormData} />
 
                   {/* 버튼 */}
                   <div className="flex justify-end gap-2 pt-1">
@@ -373,7 +409,7 @@ export default function InspectionRequestPage() {
                         }}
                         disabled={downloadingId === editingRecordId}
                         className="flex items-center gap-1 px-3 py-2 text-sm text-green-700 bg-green-50 border border-green-300 rounded-lg hover:bg-green-100 disabled:opacity-50"
-                        title="검측요청서(시트1) + 체크리스트(시트2) 엑셀 다운로드"
+                        title="검측요청서(시트1) + 체크리스트(시트2) + 사진대지(사진 있을 때) 엑셀 다운로드"
                       >
                         <Download className="h-4 w-4" />
                         엑셀

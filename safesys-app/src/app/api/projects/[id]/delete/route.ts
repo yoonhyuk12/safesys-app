@@ -114,6 +114,9 @@ export async function POST(
     push(r.before_photo_url, r.after_photo_url)
   })
 
+  // 검측요청서 사진(inspection_requests.photos)은 safety-inspection-photos/{projectId}/에
+  // 평면 저장되므로 아래 4번 폴더 정리에서 함께 삭제된다.
+
   // URL을 버킷별 경로로 그룹핑 (base64 등은 parseStorageUrl이 걸러냄)
   const byBucket: Record<string, Set<string>> = {}
   for (const u of urls) {

@@ -4,9 +4,11 @@ import React, { useState } from 'react'
 import { ClipboardList, FileCheck, BookOpen } from 'lucide-react'
 import SignatureModal from '@/components/project/SignatureModal'
 import InspectionChecklistTab from '@/components/project/inspection/InspectionChecklistTab'
+import InspectionPhotoTab from '@/components/project/inspection/InspectionPhotoTab'
 import { InspectionRequestFormData, PassStatus } from '@/lib/inspection/inspection-types'
 
 interface InspectionRequestFormProps {
+  projectId: string
   formData: InspectionRequestFormData
   onChange: (data: InspectionRequestFormData) => void
 }
@@ -18,11 +20,11 @@ const bareInputCls =
   'border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
 
-export default function InspectionRequestForm({ formData, onChange }: InspectionRequestFormProps) {
+export default function InspectionRequestForm({ projectId, formData, onChange }: InspectionRequestFormProps) {
   const [activeSignType, setActiveSignType] = useState<
     'field_agent_signature' | 'inspector_signature' | 'supervisor_signature' | null
   >(null)
-  const [activeTab, setActiveTab] = useState<'request' | 'checklist'>('request')
+  const [activeTab, setActiveTab] = useState<'request' | 'checklist' | 'photo'>('request')
 
   const set = <K extends keyof InspectionRequestFormData>(key: K, value: InspectionRequestFormData[K]) => {
     onChange({ ...formData, [key]: value })
@@ -76,9 +78,14 @@ export default function InspectionRequestForm({ formData, onChange }: Inspection
         <button type="button" onClick={goToChecklist} className={tabBtnCls(activeTab === 'checklist')}>
           검측 체크리스트(선택사항)
         </button>
+        <button type="button" onClick={() => setActiveTab('photo')} className={tabBtnCls(activeTab === 'photo')}>
+          검측 사진
+        </button>
       </div>
 
-      {activeTab === 'checklist' ? (
+      {activeTab === 'photo' ? (
+        <InspectionPhotoTab projectId={projectId} formData={formData} onChange={onChange} />
+      ) : activeTab === 'checklist' ? (
         <InspectionChecklistTab formData={formData} onChange={onChange} />
       ) : (
       <div className="space-y-4">
