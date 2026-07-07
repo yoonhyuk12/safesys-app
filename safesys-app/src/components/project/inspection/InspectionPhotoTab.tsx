@@ -3,8 +3,9 @@
 // 검측 사진 업로드 탭 — 검측건당 최소 1컷, 최대 2컷. 엑셀 사진대지 출력에 사용된다.
 
 import React, { useState } from 'react'
-import { ImagePlus, Trash2 } from 'lucide-react'
+import { Crop, ImagePlus, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import ImageEditor from '@/components/ui/ImageEditor'
 import {
   InspectionRequestFormData,
   InspectionPhoto,
@@ -29,6 +30,7 @@ export const inspectionPhotoStoragePath = (url: string): string | null => {
 
 export default function InspectionPhotoTab({ projectId, formData, onChange }: InspectionPhotoTabProps) {
   const [uploading, setUploading] = useState(false)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const photos = formData.photos || []
 
   const setPhotos = (next: InspectionPhoto[]) => onChange({ ...formData, photos: next })
@@ -76,6 +78,30 @@ export default function InspectionPhotoTab({ projectId, formData, onChange }: In
     setPhotos(photos.map((p, i) => (i === index ? { ...p, caption } : p)))
   }
 
+  // 크롭/회전 결과 저장 — 새 파일 업로드 후 기존 파일 삭제, URL 교체 (설명은 유지)
+  const handleSaveEdited = async (blob: Blob) => {
+    if (editingIndex === null) return
+    const target = photos[editingIndex]
+    setUploading(true)
+    try {
+      const fileName = `${projectId}/${Date.now()}_inspection_request_${Math.random().toString(36).slice(2, 8)}.jpg`
+      const { data, error } = await supabase.storage
+        .from(BUCKET)
+        .upload(fileName, blob, { contentType: 'image/jpeg' })
+      if (error) throw error
+      const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(data.path)
+      const oldPath = inspectionPhotoStoragePath(target.url)
+      if (oldPath) await supabase.storage.from(BUCKET).remove([oldPath])
+      setPhotos(photos.map((p, i) => (i === editingIndex ? { ...p, url: urlData.publicUrl } : p)))
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '알 수 없는 오류'
+      alert('편집된 사진 저장 실패: ' + message)
+    } finally {
+      setUploading(false)
+      setEditingIndex(null)
+    }
+  }
+
   return (
     <div className="space-y-3">
       <p className="text-xs text-gray-500">
@@ -93,6 +119,14 @@ export default function InspectionPhotoTab({ projectId, formData, onChange }: In
                 alt={`검측 사진 ${index + 1}`}
                 className="w-full h-52 object-contain"
               />
+              <button
+                type="button"
+                onClick={() => setEditingIndex(index)}
+                className="absolute top-2 right-11 p-1.5 bg-white/90 text-gray-700 rounded-full shadow hover:bg-gray-100"
+                title="크롭/회전"
+              >
+                <Crop className="h-4 w-4" />
+              </button>
               <button
                 type="button"
                 onClick={() => handleRemove(index)}
@@ -135,6 +169,15 @@ export default function InspectionPhotoTab({ projectId, formData, onChange }: In
           </label>
         )}
       </div>
+
+      {/* 사진 편집 모달 (크롭/회전) */}
+      {editingIndex !== null && photos[editingIndex] && (
+        <ImageEditor
+          imageUrl={photos[editingIndex].url}
+          onSave={handleSaveEdited}
+          onClose={() => setEditingIndex(null)}
+        />
+      )}
     </div>
   )
 }
