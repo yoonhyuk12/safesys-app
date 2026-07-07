@@ -637,7 +637,7 @@ export default function ContractStatusPage() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto py-4 px-2 sm:px-4">
+      <main className="max-w-none mx-auto py-4 px-2 sm:px-4">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between gap-2">
             <h2 className="font-semibold text-sm sm:text-base">
@@ -728,7 +728,7 @@ export default function ContractStatusPage() {
                         </span>
                       </td>
                       <td className="px-3 py-2 tabular-nums">{contractYear(r) || '-'}</td>
-                      <td className="px-3 py-2 max-w-[320px]">
+                      <td className="px-3 py-2 max-w-[320px] xl:max-w-none">
                         {isDetailUrl(r.cntrct_info_url) ? (
                           <a
                             href={r.cntrct_info_url}
@@ -744,14 +744,14 @@ export default function ContractStatusPage() {
                           <span className="block truncate" title={r.cntrct_nm}>{r.cntrct_nm}</span>
                         )}
                       </td>
-                      <td className="px-3 py-2 max-w-[180px] truncate" title={r.corp_nm || ''}>{r.corp_nm || '-'}</td>
+                      <td className="px-3 py-2 max-w-[180px] xl:max-w-none truncate" title={r.corp_nm || ''}>{r.corp_nm || '-'}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatAmt(r.tot_cntrct_amt)}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatAmt(r.thtm_cntrct_amt)}</td>
                       <td className="px-3 py-2">{r.cntrct_date || '-'}</td>
-                      <td className="px-3 py-2 max-w-[200px] truncate" title={r.cntrct_prd || ''}>
+                      <td className="px-3 py-2 max-w-[200px] xl:max-w-none truncate" title={r.cntrct_prd || ''}>
                         {r.start_date && r.end_date ? `${r.start_date} ~ ${r.end_date}` : (r.cntrct_prd || '-')}
                       </td>
-                      <td className="px-3 py-2 max-w-[200px] truncate" title={r.dminstt_nm || ''}>{r.dminstt_nm || '-'}</td>
+                      <td className="px-3 py-2 max-w-[200px] xl:max-w-none truncate" title={r.dminstt_nm || ''}>{r.dminstt_nm || '-'}</td>
                       <td className="px-3 py-2 text-center">
                         <button
                           onClick={() => handleDelete(r)}
