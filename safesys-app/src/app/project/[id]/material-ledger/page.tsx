@@ -613,11 +613,18 @@ export default function MaterialLedgerPage() {
     setBulkFrom(fromMonth)
     setBulkTo(toMonth)
     setIsBulkModalOpen(true)
-    // 수요기관이 준비되면 바로 자동 조회 — 사용자는 프로젝트명 매칭 결과만 보면 됨
+    // 수요기관이 준비되면 바로 자동 조회 — 사용자는 프로젝트명 매칭 결과만 보면 됨.
+    // 기본값은 ① 프로젝트 관리지사(조달청 표기 '여주.이천지사'는 '·'→'.' 변환, 부분일치라 지사명만으로 매칭)
+    // ② 본부 관리 프로젝트는 연계 계약의 수요기관 — 계약이 다른 사업에 잘못 연계된 경우에도 ①이 프로젝트와 일치
+    const branch = String(project?.managing_branch || '').trim()
     if (bulkInst.trim()) {
       void handleBulkSearch(bulkInst, { from: fromMonth, to: toMonth })
+    } else if (branch.endsWith('지사')) {
+      const inst = branch.replace(/·/g, '.')
+      setBulkInst(inst)
+      void handleBulkSearch(inst, { from: fromMonth, to: toMonth })
     } else if (project?.g2b_cntrct_no) {
-      // 프로젝트에 연계된 나라장터 계약의 수요기관 프리필 (실패 시 조용히 직접 입력으로)
+      // 나라장터 계약의 수요기관 프리필 (실패 시 조용히 직접 입력으로)
       setBulkInstLoading(true)
       fetch(`/api/g2b/contract?no=${encodeURIComponent(project.g2b_cntrct_no)}`)
         .then(res => res.json())
@@ -707,14 +714,16 @@ export default function MaterialLedgerPage() {
   }
 
   // 키워드(건명·품명) 클라이언트 필터 — API가 건명 파라미터를 지원하지 않음.
-  // 조달청 건명은 띄어쓰기 표기가 제각각이라("캠프 레드클라우드" vs "캠프레드클라우드") 공백을 제거하고
-  // 검색어를 공백 단위 단어로 나눠 모든 단어가 포함된 건만 표시
-  const bulkVisibleItems = (bulkItems || []).filter(i => {
-    const tokens = bulkKeyword.trim().split(/\s+/).filter(Boolean)
-    if (tokens.length === 0) return true
+  // 조달청 건명은 띄어쓰기·축약 표기가 제각각이라("캠프 레드클라우드" vs "캠프레드클라우드") 공백을 제거하고
+  // 검색 단어가 하나라도 포함되면 부분 일치로 표시, 일치 단어가 많은 건부터 정렬
+  const bulkKeywordTokens = bulkKeyword.trim().split(/\s+/).filter(Boolean)
+  const bulkMatchCount = (i: BulkDlvrItem) => {
     const target = (i.name + i.prdctNm).replace(/\s+/g, '')
-    return tokens.every(t => target.includes(t.replace(/\s+/g, '')))
-  })
+    return bulkKeywordTokens.filter(t => target.includes(t.replace(/\s+/g, ''))).length
+  }
+  const bulkVisibleItems = (bulkItems || [])
+    .filter(i => bulkKeywordTokens.length === 0 || bulkMatchCount(i) > 0)
+    .sort((a, b) => bulkMatchCount(b) - bulkMatchCount(a) || b.rcptDate.localeCompare(a.rcptDate))
 
   const handleBulkImport = async () => {
     if (!bulkItems || bulkImporting || bulkLoading) return
@@ -3600,7 +3609,7 @@ export default function MaterialLedgerPage() {
             <div className="px-5 py-4 space-y-3 overflow-y-auto">
               <div>
                 <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
-                  프로젝트명(건명) 검색 <span className="text-amber-200/60 text-xs ml-1">(공백 무시 — 단어가 모두 포함된 건만 표시)</span>
+                  프로젝트명(건명) 검색 <span className="text-amber-200/60 text-xs ml-1">(부분 일치 — 단어 하나만 포함돼도 표시, 일치 많은 순)</span>
                 </label>
                 <input
                   type="text"
@@ -3618,7 +3627,7 @@ export default function MaterialLedgerPage() {
               <div className="flex flex-wrap items-end gap-2">
                 <div className="flex-1 min-w-[180px]">
                   <label className="block text-xs font-medium text-amber-200/70 mb-1.5" style={{ fontFamily: 'serif' }}>
-                    수요기관명 <span className="text-amber-200/40 ml-1">(계약정보 자동 입력 · 부분일치)</span>
+                    수요기관명 <span className="text-amber-200/40 ml-1">(관리지사 기준 자동 입력 · 부분일치 검색)</span>
                   </label>
                   <input
                     type="text"
@@ -3626,7 +3635,7 @@ export default function MaterialLedgerPage() {
                     onChange={e => setBulkInst(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') handleBulkSearch() }}
                     placeholder={bulkInstLoading ? '계약정보에서 불러오는 중…' : '예: 한국농어촌공사 경기지역본부'}
-                    className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                    className="w-full h-10 px-3 rounded text-amber-100 placeholder-amber-200/30 text-sm"
                     style={{
                       background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
                       border: '2px solid #4a4a55',
@@ -3634,14 +3643,27 @@ export default function MaterialLedgerPage() {
                     }}
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <div>
-                    <label className="block text-xs font-medium text-amber-200/70 mb-1.5" style={{ fontFamily: 'serif' }}>조회 기간</label>
+                <div>
+                  <label className="block text-xs font-medium text-amber-200/70 mb-1.5" style={{ fontFamily: 'serif' }}>조회 기간</label>
+                  <div className="flex items-center gap-2">
                     <input
                       type="month"
                       value={bulkFrom}
                       onChange={e => setBulkFrom(e.target.value)}
-                      className="px-3 py-2 rounded text-amber-100 text-sm"
+                      className="h-10 px-3 rounded text-amber-100 text-sm"
+                      style={{
+                        background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                        border: '2px solid #4a4a55',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
+                        colorScheme: 'dark'
+                      }}
+                    />
+                    <span className="text-amber-200/50">~</span>
+                    <input
+                      type="month"
+                      value={bulkTo}
+                      onChange={e => setBulkTo(e.target.value)}
+                      className="h-10 px-3 rounded text-amber-100 text-sm"
                       style={{
                         background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
                         border: '2px solid #4a4a55',
@@ -3650,25 +3672,12 @@ export default function MaterialLedgerPage() {
                       }}
                     />
                   </div>
-                  <span className="text-amber-200/50 pb-2.5">~</span>
-                  <input
-                    type="month"
-                    value={bulkTo}
-                    onChange={e => setBulkTo(e.target.value)}
-                    className="px-3 py-2 rounded text-amber-100 text-sm"
-                    style={{
-                      background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
-                      border: '2px solid #4a4a55',
-                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
-                      colorScheme: 'dark'
-                    }}
-                  />
                 </div>
                 <button
                   type="button"
                   onClick={() => handleBulkSearch()}
                   disabled={bulkLoading || bulkImporting || !bulkInst.trim()}
-                  className="px-5 py-2 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 shrink-0"
+                  className="h-10 px-5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 shrink-0"
                   style={{
                     background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
                     border: '2px solid #6a5a40',
