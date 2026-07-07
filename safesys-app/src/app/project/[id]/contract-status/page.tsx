@@ -1392,6 +1392,11 @@ export default function ContractStatusPage() {
                             />
                             <div className="min-w-0 flex-1">
                               <p className="text-sm text-gray-900 break-all">
+                                <span className={`mr-1.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-medium align-middle ${
+                                  item.type === '공사' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
+                                }`}>
+                                  {item.type}
+                                </span>
                                 {item.name}
                                 {item.lngtrmDiv === '차수' && (
                                   <span
