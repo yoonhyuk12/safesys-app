@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil, Link2, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { guessInstName } from '@/lib/g2b-inst'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignaturePad from '@/components/ui/SignaturePad'
 import { downloadMaterialLedgerExcel } from '@/lib/excel/material-ledger-export'
@@ -660,12 +661,12 @@ export default function MaterialLedgerPage() {
     setBulkTo(toMonth)
     setIsBulkModalOpen(true)
     // 수요기관 프리필만 하고 조회는 사용자가 검색어·수요기관을 확인한 뒤 조회 버튼으로 직접 시작.
-    // 기본값은 ① 프로젝트 관리지사(조달청 표기 '여주.이천지사'는 '·'→'.' 변환, 부분일치라 지사명만으로 매칭)
+    // 기본값은 ① 프로젝트 관리지사(복합 지사는 조달청 표기가 제각각이라 마지막 지명만 — guessInstName 참고)
     // ② 본부 관리 프로젝트는 연계 계약의 수요기관 — 계약이 다른 사업에 잘못 연계된 경우에도 ①이 프로젝트와 일치
     const branch = String(project?.managing_branch || '').trim()
     if (!bulkInst.trim()) {
       if (branch.endsWith('지사')) {
-        setBulkInst(branch.replace(/·/g, '.'))
+        setBulkInst(guessInstName(branch))
       } else if (project?.g2b_cntrct_no) {
         // 나라장터 계약의 수요기관 프리필 (실패 시 조용히 직접 입력으로)
         setBulkInstLoading(true)

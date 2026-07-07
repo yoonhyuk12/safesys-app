@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { Project } from '@/lib/projects'
+import { guessInstName } from '@/lib/g2b-inst'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { downloadContractStatusExcel, type ContractExcelRow } from '@/lib/excel/contract-status-export'
 import { ArrowLeft, Plus, RefreshCw, X, FileText, ExternalLink, Trash2, Loader2, Search, Download } from 'lucide-react'
@@ -66,14 +67,6 @@ const PERIOD_PRESETS = [6, 12, 18, 24, 30, 36]
 const formatAmt = (n: number | null | undefined) =>
   n == null || n === 0 ? '-' : n.toLocaleString('ko-KR')
 
-// 프로젝트 본부·지사명 → 조달청 수요기관명 추정 — 지사는 '여주.이천지사'(중점→마침표),
-// 도 단위 본부는 '경기지역본부' 형태
-const guessInstName = (branch: string): string => {
-  if (branch.endsWith('지사')) return branch.replace(/·/g, '.')
-  if (/^(경기|강원|충북|충남|전북|전남|경북|경남|제주)본부$/.test(branch)) return branch.replace('본부', '지역본부')
-  if (branch && branch !== '본사') return branch.replace(/·/g, '.')
-  return ''
-}
 
 // 금차 귀속 연도 — 장기계속계약의 차수분 계약은 총금액과 금차금액이 다르므로 금차 준공일(차수분 준공) 연도를 귀속 연도로 사용.
 // 일반 단년도 계약(총금액 = 금차금액)은 계약체결일의 연도를 귀속 연도로 사용.
