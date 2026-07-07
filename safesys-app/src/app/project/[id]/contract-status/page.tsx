@@ -648,45 +648,99 @@ export default function ContractStatusPage() {
     }
   }
 
-  // 등록 건 일괄 갱신 — 계약번호가 있는 행을 조달청 최신 계약(차수)으로 갱신하고, 미등록 연차/차수 계약이 있다면 신규 등록.
+  // 등록 건 일괄 갱신 — ① 번호가 있는 행을 조달청 최신 계약정보로 갱신하고,
+  // ② 장기계속계약의 미등록 연차(차수) 계약을 기관명+계약명 월별 목록 조회로 탐색해 신규 등록.
+  // 연차별 차수 계약은 확정·통합·공고번호가 전부 달라(2026-07-07 실호출 확정) 어떤 번호 재조회로도
+  // 다른 연차가 나오지 않는다 — 신규 연차 발견은 기간 목록 조회가 유일한 경로다.
   const handleRefreshAll = async () => {
     if (!user || refreshing) return
     const targets = records.filter((r) => r.cntrct_no || r.unty_cntrct_no)
-    if (targets.length === 0) { alert('갱신할 계약번호가 있는 등록 건이 없습니다.'); return }
-    if (!confirm(`등록된 ${targets.length}건을 조달청 최신 계약정보로 갱신하고, 새로운 연차(차수) 계약이 있다면 추가할까요?`)) return
+
+    // 신규 연차 탐색 대상: 등록 차수의 금차 합이 총액에 못 미치는 계약(누락 차수 존재) + 기관명 확보 가능
+    const nowKey = monthKey(new Date())
+    const scanPlans = groups.flatMap((g) => {
+      const tot = g.repr.tot_cntrct_amt || 0
+      const thtmSum = g.members.reduce((s, m) => s + (m.thtm_cntrct_amt || 0), 0)
+      if (!tot || thtmSum >= tot) return []
+      const inst =
+        (g.repr.cntrct_instt_nm || '').trim() ||
+        ((g.repr.dminstt_nm || '').split(',')[0] || '').trim() ||
+        guessInstName(project?.managing_branch || '')
+      const lastDate = g.members.reduce((max, m) => ((m.cntrct_date || '') > max ? (m.cntrct_date as string) : max), '')
+      if (inst.length < 2 || !lastDate) return []
+      // 새 연차 계약은 최신 차수 체결월 이후에만 체결되므로 그 구간만 조회 (최대 24개월)
+      const months = buildMonths(lastDate.slice(0, 7), nowKey).slice(-24)
+      if (months.length === 0) return []
+      // 서버측 계약명 필터는 원문 부분일치 단일 토큰만 안전 — 지구명인 첫 단어가 가장 안정적
+      const firstToken = g.repr.cntrct_nm.trim().split(/\s+/)[0] || ''
+      return [{ g, inst, nm: firstToken.length >= 2 ? firstToken : '', months }]
+    })
+
+    if (targets.length === 0 && scanPlans.length === 0) {
+      alert('갱신할 계약번호가 있는 등록 건이 없습니다.')
+      return
+    }
+    if (!confirm(`등록된 ${targets.length}건을 조달청 최신 계약정보로 갱신하고, 새로운 연차(차수) 계약이 있는지 확인할까요?`)) return
     setRefreshing(true)
-    setRefreshProgress({ done: 0, total: targets.length })
+    setRefreshProgress({ done: 0, total: targets.length + scanPlans.reduce((s, p) => s + p.months.length, 0) })
     let updated = 0
     let inserted = 0
     const failures: string[] = []
 
-    // activeRegisteredKeys: 이미 등록된 계약의 식별자 집합
-    // unty_cntrct_no(통합계약번호)는 장기계속계약의 모든 연차가 공유하므로 포함하지 않음 — 오판 방지
-    const activeRegisteredKeys = new Set<string>()
+    // knownKeys: 이미 등록된 계약의 식별자 집합.
+    // unty_cntrct_no(통합계약번호)는 같은 계약도 조회 경로마다 다른 변형 값이 붙어(실측) 식별자로 부적합 — 제외.
+    // 계약명 키는 공백 제거로 정규화 (등록 행에 뒤공백이 붙은 실사례 대응)
+    const nameDateKey = (name: string, date: string) => `${name.replace(/\s+/g, '')}|${date}`
+    const knownKeys = new Set<string>()
     for (const rec of records) {
       const cn = ctrtNoFromUrl(rec.cntrct_info_url)
-      if (cn) activeRegisteredKeys.add(cn)
+      if (cn) knownKeys.add(cn)
       if (rec.cntrct_no) {
-        activeRegisteredKeys.add(rec.cntrct_no)
-        if (rec.cntrct_no.length >= 13) activeRegisteredKeys.add(rec.cntrct_no.slice(0, -2))
+        knownKeys.add(rec.cntrct_no)
+        if (rec.cntrct_no.length >= 13) knownKeys.add(rec.cntrct_no.slice(0, -2))
       }
-      activeRegisteredKeys.add(`${rec.cntrct_nm}|${rec.cntrct_date || ''}`)
+      knownKeys.add(nameDateKey(rec.cntrct_nm, rec.cntrct_date || ''))
+    }
+    const isKnown = (item: G2bCntrctItem) => {
+      const cn = ctrtNoFromUrl(item.url)
+      return (
+        (!!cn && knownKeys.has(cn)) ||
+        (!!item.cntrctNo && (knownKeys.has(item.cntrctNo) ||
+          (item.cntrctNo.length >= 13 && knownKeys.has(item.cntrctNo.slice(0, -2))))) ||
+        knownKeys.has(nameDateKey(item.name, item.cntrctDate))
+      )
+    }
+    const insertItem = async (item: G2bCntrctItem) => {
+      const { data, error } = await (supabase as any)
+        .from('project_contracts')
+        .insert([itemToRow(item, projectId, user.id)])
+        .select('id')
+      if (error) throw error
+      if (data && data.length > 0) {
+        inserted += 1
+        const cn = ctrtNoFromUrl(item.url)
+        if (cn) knownKeys.add(cn)
+        if (item.cntrctNo) {
+          knownKeys.add(item.cntrctNo)
+          if (item.cntrctNo.length >= 13) knownKeys.add(item.cntrctNo.slice(0, -2))
+        }
+        knownKeys.add(nameDateKey(item.name, item.cntrctDate))
+      }
     }
 
-    // 기존 등록 건 매칭: cntrctNo(확정계약번호)와 계약명+체결일 기준으로만 매칭
-    // unty_cntrct_no는 연차별 계약이 모두 같으므로 매칭 기준으로 사용하지 않음
+    // 기존 등록 건 매칭: cntrctNo(확정계약번호)와 계약명+체결일 기준으로만 매칭 (unty는 변형이 있어 제외)
     const findExistingRecord = (c: G2bContractResp) => {
       return records.find((r) => {
         if (c.cntrctNo && r.cntrct_no === c.cntrctNo) return true
-        if (r.cntrct_nm === c.cnstwkNm && r.cntrct_date === c.cntrctCnclsDate) return true
+        if (nameDateKey(r.cntrct_nm, r.cntrct_date || '') === nameDateKey(c.cnstwkNm, c.cntrctCnclsDate)) return true
         return false
       })
     }
 
     try {
+      // ① 등록 건 번호 재조회 갱신 — 같은 차수의 변경계약(금액·기간 변경) 반영
       for (const r of targets) {
         try {
-          // 장기계속계약의 연차별 계약 전체를 가져오려면 확정계약번호보다 통합계약번호(unty_cntrct_no)로 조회해야 함
           const no = r.unty_cntrct_no || r.cntrct_no || ''
           const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}`)
           const json = await res.json()
@@ -696,17 +750,7 @@ export default function ContractStatusPage() {
 
           for (const c of contracts) {
             const item = contractRespToItem(c)
-            
-            const cn = ctrtNoFromUrl(item.url)
-            // unty_cntrct_no는 연차별 계약이 모두 같으므로 등록 여부 판정에 사용하지 않음
-            const isItemRegistered = (
-              (!!cn && activeRegisteredKeys.has(cn)) ||
-              (!!item.cntrctNo && (activeRegisteredKeys.has(item.cntrctNo) ||
-                (item.cntrctNo.length >= 13 && activeRegisteredKeys.has(item.cntrctNo.slice(0, -2))))) ||
-              activeRegisteredKeys.has(`${item.name}|${item.cntrctDate}`)
-            )
-
-            if (isItemRegistered) {
+            if (isKnown(item)) {
               const existing = findExistingRecord(c)
               if (existing) {
                 const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
@@ -732,21 +776,7 @@ export default function ContractStatusPage() {
                 if (data && data.length > 0) updated += 1
               }
             } else {
-              const newRow = itemToRow(item, projectId, user.id)
-              const { data, error } = await (supabase as any)
-                .from('project_contracts')
-                .insert([newRow])
-                .select('id')
-              if (error) throw error
-              if (data && data.length > 0) {
-                inserted += 1
-                if (cn) activeRegisteredKeys.add(cn)
-                if (item.cntrctNo) {
-                  activeRegisteredKeys.add(item.cntrctNo)
-                  if (item.cntrctNo.length >= 13) activeRegisteredKeys.add(item.cntrctNo.slice(0, -2))
-                }
-                activeRegisteredKeys.add(`${item.name}|${item.cntrctDate}`)
-              }
+              await insertItem(item)
             }
           }
         } catch (err: unknown) {
@@ -755,6 +785,46 @@ export default function ContractStatusPage() {
           setRefreshProgress((p) => ({ ...p, done: p.done + 1 }))
         }
       }
+
+      // ② 신규 연차(차수) 계약 탐색 — 최신 차수 체결월부터 이번 달까지 월별 목록 조회
+      const CONCURRENCY = 3
+      for (const plan of scanPlans) {
+        const div = plan.g.repr.contract_type === '용역' ? 'servc' : 'cnstwk'
+        const nmParam = plan.nm ? `&nm=${encodeURIComponent(plan.nm)}` : ''
+        const found: G2bCntrctItem[] = []
+        let scanFailed = 0
+        for (let i = 0; i < plan.months.length; i += CONCURRENCY) {
+          const batch = plan.months.slice(i, i + CONCURRENCY)
+          await Promise.all(batch.map(async (m) => {
+            try {
+              const res = await fetch(`/api/g2b/cntrct-list?div=${div}&inst=${encodeURIComponent(plan.inst)}&bgn=${m.bgn}&end=${m.end}${nmParam}`)
+              const json = await res.json()
+              if (!res.ok || !json.success) throw new Error(json.error || '조회 실패')
+              found.push(...(json.data?.items || []))
+            } catch {
+              scanFailed += 1
+            } finally {
+              setRefreshProgress((p) => ({ ...p, done: p.done + 1 }))
+            }
+          }))
+        }
+        // 같은 계약(계약명 공백 제거 일치)의 미등록 차수만 등록 — 변경차수는 최신만
+        const candidates = latestPerContract(
+          found.filter((it) => nameGroupKey(it.type, it.name) === plan.g.key)
+        )
+        for (const item of candidates) {
+          if (isKnown(item)) continue
+          try {
+            await insertItem(item)
+          } catch (err: unknown) {
+            failures.push(`${item.name} (${err instanceof Error ? err.message : '등록 실패'})`)
+          }
+        }
+        if (scanFailed > 0) {
+          failures.push(`${plan.g.repr.cntrct_nm.trim()} (신규 차수 탐색 ${scanFailed}개월 조회 실패)`)
+        }
+      }
+
       await loadRecords()
       alert(
         `업데이트 완료\n- 기존 계약 정보 갱신: ${updated}건\n- 미등록 연차(차수) 계약 추가: ${inserted}건` +
@@ -863,7 +933,7 @@ export default function ContractStatusPage() {
               <button
                 onClick={handleRefreshAll}
                 disabled={refreshing}
-                title="등록된 계약을 조달청 최신 정보로 일괄 갱신"
+                title="등록된 계약을 조달청 최신 정보로 갱신하고 새 연차(차수) 계약을 탐색해 추가"
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-60"
               >
                 {refreshing ? (
