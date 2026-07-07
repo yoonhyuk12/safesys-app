@@ -88,8 +88,10 @@ export default function ProjectDetailPage() {
   const [navigationModal, setNavigationModal] = useState<{ isOpen: boolean; address: string }>({ isOpen: false, address: '' })
   const [showEmail, setShowEmail] = useState(false)
   const [emailCopied, setEmailCopied] = useState(false)
-  const [infoCopied, setInfoCopied] = useState(false)
-  const projectInfoRef = useRef<HTMLDivElement>(null)
+  const [upperInfoCopied, setUpperInfoCopied] = useState(false)
+  const [lowerInfoCopied, setLowerInfoCopied] = useState(false)
+  const upperInfoRef = useRef<HTMLDivElement>(null)
+  const lowerInfoRef = useRef<HTMLDivElement>(null)
   const [supervisorPhoneModal, setSupervisorPhoneModal] = useState<{ isOpen: boolean; phone: string; name: string; title: string }>({ isOpen: false, phone: '', name: '', title: '' })
   const [phoneCopied, setPhoneCopied] = useState(false)
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
@@ -624,14 +626,17 @@ export default function ProjectDetailPage() {
     }
   }
 
-  // 상단 사업 정보 블록 전체 텍스트 복사 (화면에 보이는 텍스트 그대로)
-  const handleCopyProjectInfo = async () => {
-    const text = projectInfoRef.current?.innerText
+  // 사업 정보 텍스트 복사 (화면에 보이는 텍스트 그대로) — 구분선 위/아래 블록 각각
+  const handleCopyInfoBlock = async (
+    ref: React.RefObject<HTMLDivElement | null>,
+    setCopied: (copied: boolean) => void
+  ) => {
+    const text = ref.current?.innerText
     if (!text) return
     try {
       await navigator.clipboard.writeText(text)
-      setInfoCopied(true)
-      setTimeout(() => setInfoCopied(false), 2000)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('사업 정보 복사 실패:', err)
     }
@@ -825,20 +830,22 @@ export default function ProjectDetailPage() {
     project.supervisor_name || project.actual_work_address || project.construction_law_safety_plan ||
     project.industrial_law_safety_ledger || (project as any).disaster_prevention_target || project.business_card_pdf_url)
 
-  // 사업 정보 전체 복사 버튼 (아이콘만) — 마지막으로 표시되는 정보 줄의 맨 우측 끝에 배치
-  const infoCopyButton = (
+  // 사업 정보 복사 버튼 (아이콘만) — 각 블록의 마지막 줄 맨 우측 끝에 배치
+  const renderInfoCopyButton = (copied: boolean, onClick: () => void) => (
     <button
-      onClick={handleCopyProjectInfo}
+      onClick={onClick}
       className="float-right inline-flex items-center text-gray-400 hover:text-gray-600 transition-colors"
-      title="사업 정보 전체 복사"
+      title="사업 정보 복사"
     >
-      {infoCopied ? (
+      {copied ? (
         <Check className="h-3.5 w-3.5 text-green-600" />
       ) : (
         <Copy className="h-3.5 w-3.5" />
       )}
     </button>
   )
+  const upperCopyButton = renderInfoCopyButton(upperInfoCopied, () => handleCopyInfoBlock(upperInfoRef, setUpperInfoCopied))
+  const lowerCopyButton = renderInfoCopyButton(lowerInfoCopied, () => handleCopyInfoBlock(lowerInfoRef, setLowerInfoCopied))
 
   return (
     <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex flex-col">
@@ -942,7 +949,9 @@ export default function ProjectDetailPage() {
               )}
             </div>
 
-            <div ref={projectInfoRef} className="space-y-2">
+            <div className="space-y-2">
+              {/* 구분선 위 블록 (기본 정보·공사기간·계약 정보) — 상단 복사 버튼 대상 */}
+              <div ref={upperInfoRef} className="space-y-2">
               {/* 기본 정보 */}
               <div className="text-sm text-gray-600">
                 {project.project_name} / {project.managing_hq} / {project.managing_branch} /
@@ -998,7 +1007,7 @@ export default function ProjectDetailPage() {
                     )}
                   </>
                 )}
-                {!hasPeriodLine && !hasG2bLine && !hasOptionalLine && infoCopyButton}
+                {!hasPeriodLine && !hasG2bLine && upperCopyButton}
               </div>
 
               {/* 공사기간 (착공일·준공일) — 값이 있을 때만 새 줄로 표시 */}
@@ -1008,7 +1017,7 @@ export default function ProjectDetailPage() {
                     project.construction_start_date && `착공일: ${project.construction_start_date}`,
                     project.construction_end_date && `준공일: ${project.construction_end_date}`,
                   ].filter(Boolean).join(' / ')}
-                  {!hasG2bLine && !hasOptionalLine && infoCopyButton}
+                  {!hasG2bLine && upperCopyButton}
                 </div>
               )}
 
@@ -1019,15 +1028,16 @@ export default function ProjectDetailPage() {
                     project.g2b_corp_nm && `계약업체: ${project.g2b_corp_nm}`,
                     project.g2b_tot_amt && `총계약금액: ${Math.round(project.g2b_tot_amt / 1000).toLocaleString()}천원`,
                   ].filter(Boolean).join(' / ')}
-                  {!hasOptionalLine && infoCopyButton}
+                  {upperCopyButton}
                 </div>
               )}
+              </div>
 
-              {/* 선택사항 정보 */}
+              {/* 선택사항 정보 (구분선 아래 블록) — 하단 복사 버튼 대상 */}
               {hasOptionalLine && (
                   <>
                     <div className="border-t border-gray-200"></div>
-                    <div className="text-sm text-gray-600">
+                    <div ref={lowerInfoRef} className="text-sm text-gray-600">
                       {[
                         project.total_budget && `총사업비: ${Number(project.total_budget).toLocaleString()}백만원`,
                         project.current_year_budget && `당해년도사업비: ${Number(project.current_year_budget).toLocaleString()}백만원`,
@@ -1080,7 +1090,7 @@ export default function ProjectDetailPage() {
                           </button>
                         </>
                       )}
-                      {infoCopyButton}
+                      {lowerCopyButton}
                     </div>
                   </>
                 )}
