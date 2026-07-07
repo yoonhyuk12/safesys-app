@@ -152,6 +152,19 @@ const contractGroupKey = (i: G2bCntrctItem): string =>
   (i.cntrctNo.length >= 13 ? i.cntrctNo.slice(0, -2) : i.cntrctNo) ||
   i.name
 
+// 장기계속계약의 연차별 차수는 계약번호가 서로 달라 번호로 못 묶는다 — 계약명(공백 제거)+구분으로 묶는다
+const nameGroupKey = (type: string, name: string): string => `${type}|${name.replace(/\s+/g, '')}`
+
+// 표시용 계약 그룹 — 차수별 등록 행을 한 계약 한 행으로 병합
+interface ContractGroup {
+  key: string
+  repr: ContractRecord // 최신 차수(체결일 기준) — 총액·체결일·업체·링크 대표
+  members: ContractRecord[]
+  yearAmts: Map<string, number> // 연도 컬럼 → 해당 연도 차수의 금차 합
+  startDate: string | null // 멤버 최초 착수일
+  endDate: string | null // 멤버 최종 준공일
+}
+
 // 조회 항목 → project_contracts insert 행
 const itemToRow = (i: G2bCntrctItem, projectId: string, userId: string) => ({
   project_id: projectId,
@@ -284,32 +297,67 @@ export default function ContractStatusPage() {
 
   useEffect(() => { if (user && projectId) loadRecords() }, [user, projectId, loadRecords])
 
-  // 표 정렬: 공사 먼저 → 용역, 그다음 연도(준공 기준) → 체결일 오름차순 (사용자 지정 순서)
-  const sortedRecords = useMemo(() => {
-    const typeOrder = (t: string) => (t === '공사' ? 0 : 1)
-    return [...records].sort((a, b) => {
-      const t = typeOrder(a.contract_type) - typeOrder(b.contract_type)
-      if (t !== 0) return t
-      const ya = contractYear(a) || '9999'
-      const yb = contractYear(b) || '9999'
-      if (ya !== yb) return ya < yb ? -1 : 1
-      const da = a.cntrct_date || '9999-12-31'
-      const db = b.cntrct_date || '9999-12-31'
-      if (da !== db) return da < db ? -1 : 1
-      return (a.created_at || '').localeCompare(b.created_at || '')
+  // 차수별 등록 행을 계약 단위로 병합 — 한 계약 한 행, 차수 금차는 연도별 컬럼에 분산
+  const groups = useMemo<ContractGroup[]>(() => {
+    const byKey = new Map<string, ContractRecord[]>()
+    for (const r of records) {
+      const k = nameGroupKey(r.contract_type, r.cntrct_nm)
+      const arr = byKey.get(k)
+      if (arr) arr.push(r)
+      else byKey.set(k, [r])
+    }
+    return [...byKey.entries()].map(([key, members]) => {
+      const repr = members.reduce((a, b) => ((b.cntrct_date || '') > (a.cntrct_date || '') ? b : a))
+      const yearAmts = new Map<string, number>()
+      for (const m of members) {
+        if (!m.thtm_cntrct_amt) continue
+        const y = contractYear(m) || '기타'
+        yearAmts.set(y, (yearAmts.get(y) || 0) + m.thtm_cntrct_amt)
+      }
+      const starts = members.map((m) => m.start_date).filter((d): d is string => !!d)
+      const ends = members.map((m) => m.end_date).filter((d): d is string => !!d)
+      return {
+        key,
+        repr,
+        members,
+        yearAmts,
+        startDate: starts.length ? starts.reduce((a, b) => (a < b ? a : b)) : null,
+        endDate: ends.length ? ends.reduce((a, b) => (a > b ? a : b)) : null,
+      }
     })
   }, [records])
 
-  const cnstwkCount = records.filter((r) => r.contract_type === '공사').length
-  const servcCount = records.length - cnstwkCount
+  // 표 정렬: 공사 먼저 → 용역, 그다음 연도(그룹 최소 귀속 연도) → 최초 체결일 오름차순 (사용자 지정 순서)
+  const sortedGroups = useMemo(() => {
+    const typeOrder = (t: string) => (t === '공사' ? 0 : 1)
+    const groupYear = (g: ContractGroup) => {
+      const ys = [...g.yearAmts.keys()].filter((y) => y !== '기타').sort()
+      return ys[0] || contractYear(g.repr) || '9999'
+    }
+    const firstDate = (g: ContractGroup) =>
+      g.members.reduce((min, m) => ((m.cntrct_date || '9999-12-31') < min ? (m.cntrct_date || '9999-12-31') : min), '9999-12-31')
+    return [...groups].sort((a, b) => {
+      const t = typeOrder(a.repr.contract_type) - typeOrder(b.repr.contract_type)
+      if (t !== 0) return t
+      const ya = groupYear(a)
+      const yb = groupYear(b)
+      if (ya !== yb) return ya < yb ? -1 : 1
+      const da = firstDate(a)
+      const db = firstDate(b)
+      if (da !== db) return da < db ? -1 : 1
+      return (a.repr.created_at || '').localeCompare(b.repr.created_at || '')
+    })
+  }, [groups])
 
-  // 금차계약금액의 연도별 컬럼 — 금차 금액이 있는 행의 귀속 연도(준공 우선)만 컬럼으로 생성
-  const yearColOf = (r: ContractRecord) => contractYear(r) || '기타'
+  const cnstwkCount = groups.filter((g) => g.repr.contract_type === '공사').length
+  const servcCount = groups.length - cnstwkCount
+
+  // 금차계약금액의 연도별 컬럼 — 그룹에 금차 금액이 있는 귀속 연도만 컬럼으로 생성
   const yearCols = useMemo(() => {
     const s = new Set<string>()
-    for (const r of records) if (r.thtm_cntrct_amt) s.add(contractYear(r) || '기타')
+    for (const g of groups) for (const y of g.yearAmts.keys()) s.add(y)
     return [...s].sort((a, b) => (a === '기타' ? 1 : b === '기타' ? -1 : a.localeCompare(b)))
-  }, [records])
+  }, [groups])
 
   // 등록됨 판정: 딥링크 ctrtNo → 통합계약번호 → 확정계약번호 → 계약명+체결일 순 폴백.
   // 같은 계약이 조회 경로(기간/번호)마다 통합계약번호가 다르고 확정계약번호가 빈 값일 수 있어
@@ -636,9 +684,16 @@ export default function ContractStatusPage() {
     }
   }
 
-  const handleDelete = async (record: ContractRecord) => {
-    if (!confirm(`"${record.cntrct_nm}" 계약을 삭제하시겠습니까?`)) return
-    const { error } = await (supabase as any).from('project_contracts').delete().eq('id', record.id)
+  const handleDelete = async (g: ContractGroup) => {
+    const label =
+      g.members.length > 1
+        ? `"${g.repr.cntrct_nm}" 계약(차수 ${g.members.length}건 포함)`
+        : `"${g.repr.cntrct_nm}" 계약`
+    if (!confirm(`${label}을 삭제하시겠습니까?`)) return
+    const { error } = await (supabase as any)
+      .from('project_contracts')
+      .delete()
+      .in('id', g.members.map((m) => m.id))
     if (!error) loadRecords()
     else alert('삭제 실패: ' + error.message)
   }
@@ -709,7 +764,7 @@ export default function ContractStatusPage() {
 
           {loading ? (
             <div className="flex justify-center py-20"><LoadingSpinner /></div>
-          ) : sortedRecords.length === 0 ? (
+          ) : sortedGroups.length === 0 ? (
             <div className="text-center py-16 px-4">
               <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
               <p className="text-sm text-gray-500 mb-4">등록된 계약이 없습니다. 조달청 조회 또는 직접 등록으로 공사·용역 계약을 추가하세요.</p>
@@ -742,21 +797,23 @@ export default function ContractStatusPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* 소계행 — 금액 합계 */}
+                  {/* 소계행 — 금액 합계 (총액은 계약 단위로 1회만 합산 — 차수 중복 합산 방지) */}
                   <tr className="bg-blue-50/60 border-b border-gray-200 font-semibold text-gray-700">
-                    <td className="px-3 py-2" colSpan={3}>소계 ({records.length}건)</td>
+                    <td className="px-3 py-2" colSpan={3}>소계 ({groups.length}건)</td>
                     <td className="px-3 py-2 text-right tabular-nums">
-                      {records.reduce((s, r) => s + (r.tot_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
+                      {groups.reduce((s, g) => s + (g.repr.tot_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
                     </td>
                     {yearCols.map((y) => (
                       <td key={y} className="px-3 py-2 text-right tabular-nums">
-                        {records.filter((r) => yearColOf(r) === y).reduce((s, r) => s + (r.thtm_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
+                        {groups.reduce((s, g) => s + (g.yearAmts.get(y) || 0), 0).toLocaleString('ko-KR')}
                       </td>
                     ))}
                     <td colSpan={4} />
                   </tr>
-                  {sortedRecords.map((r) => (
-                    <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  {sortedGroups.map((g) => {
+                    const r = g.repr
+                    return (
+                    <tr key={g.key} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="px-3 py-2">
                         <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
                           r.contract_type === '공사' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
@@ -779,30 +836,34 @@ export default function ContractStatusPage() {
                         ) : (
                           <span className="block truncate" title={r.cntrct_nm}>{r.cntrct_nm}</span>
                         )}
+                        {g.members.length > 1 && (
+                          <span className="block text-[11px] text-gray-400">장기계속 · 차수 {g.members.length}건 병합</span>
+                        )}
                       </td>
                       <td className="px-3 py-2 max-w-[180px] xl:max-w-none truncate" title={r.corp_nm || ''}>{r.corp_nm || '-'}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatAmt(r.tot_cntrct_amt)}</td>
                       {yearCols.map((y) => (
                         <td key={y} className="px-3 py-2 text-right tabular-nums">
-                          {yearColOf(r) === y ? formatAmt(r.thtm_cntrct_amt) : '-'}
+                          {g.yearAmts.has(y) ? formatAmt(g.yearAmts.get(y)) : '-'}
                         </td>
                       ))}
                       <td className="px-3 py-2">{r.cntrct_date || '-'}</td>
                       <td className="px-3 py-2 max-w-[200px] xl:max-w-none truncate" title={r.cntrct_prd || ''}>
-                        {r.start_date && r.end_date ? `${r.start_date} ~ ${r.end_date}` : (r.cntrct_prd || '-')}
+                        {g.startDate && g.endDate ? `${g.startDate} ~ ${g.endDate}` : (r.cntrct_prd || '-')}
                       </td>
                       <td className="px-3 py-2 max-w-[200px] xl:max-w-none truncate" title={r.dminstt_nm || ''}>{r.dminstt_nm || '-'}</td>
                       <td className="px-3 py-2 text-center">
                         <button
-                          onClick={() => handleDelete(r)}
+                          onClick={() => handleDelete(g)}
                           className="p-1 text-gray-400 hover:text-red-600"
-                          title="삭제"
+                          title={g.members.length > 1 ? `차수 ${g.members.length}건 함께 삭제` : '삭제'}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1013,9 +1074,15 @@ export default function ContractStatusPage() {
                               disabled={registered}
                               checked={lookupChecked.has(item.key)}
                               onChange={() => setLookupChecked((prev) => {
+                                // 장기계속계약은 차수(연차)별 행이 별개 건이므로 같은 계약명의 차수를 함께 토글
                                 const next = new Set(prev)
-                                if (next.has(item.key)) next.delete(item.key)
-                                else next.add(item.key)
+                                const turnOn = !next.has(item.key)
+                                const gk = nameGroupKey(item.type, item.name)
+                                for (const v of visibleItems) {
+                                  if (isRegistered(v) || nameGroupKey(v.type, v.name) !== gk) continue
+                                  if (turnOn) next.add(v.key)
+                                  else next.delete(v.key)
+                                }
                                 return next
                               })}
                               className="mt-1 accent-blue-600 shrink-0"
