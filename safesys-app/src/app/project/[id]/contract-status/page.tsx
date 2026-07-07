@@ -291,6 +291,14 @@ export default function ContractStatusPage() {
   const cnstwkCount = records.filter((r) => r.contract_type === '공사').length
   const servcCount = records.length - cnstwkCount
 
+  // 금차계약금액의 연도별 컬럼 — 금차 금액이 있는 행의 귀속 연도(준공 우선)만 컬럼으로 생성
+  const yearColOf = (r: ContractRecord) => contractYear(r) || '기타'
+  const yearCols = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of records) if (r.thtm_cntrct_amt) s.add(contractYear(r) || '기타')
+    return [...s].sort((a, b) => (a === '기타' ? 1 : b === '기타' ? -1 : a.localeCompare(b)))
+  }, [records])
+
   // 등록됨 판정: 딥링크 ctrtNo → 통합계약번호 → 확정계약번호 → 계약명+체결일 순 폴백.
   // 같은 계약이 조회 경로(기간/번호)마다 통합계약번호가 다르고 확정계약번호가 빈 값일 수 있어
   // 번호만으로는 놓친다 — 딥링크 ctrtNo와 계약명 단독 키를 함께 등록해 중복 등록을 막는다
@@ -706,11 +714,14 @@ export default function ContractStatusPage() {
                 <thead>
                   <tr className="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
                     <th className="px-3 py-2 text-left font-medium">구분</th>
-                    <th className="px-3 py-2 text-left font-medium">연도</th>
                     <th className="px-3 py-2 text-left font-medium">계약명</th>
                     <th className="px-3 py-2 text-left font-medium">계약상대자</th>
                     <th className="px-3 py-2 text-right font-medium">총계약금액(원)</th>
-                    <th className="px-3 py-2 text-right font-medium">금차계약금액(원)</th>
+                    {yearCols.map((y) => (
+                      <th key={y} className="px-3 py-2 text-right font-medium">
+                        {y === '기타' ? '연도미상 금차' : `${y.slice(2)}년 금차(원)`}
+                      </th>
+                    ))}
                     <th className="px-3 py-2 text-left font-medium">계약체결일</th>
                     <th className="px-3 py-2 text-left font-medium">계약기간</th>
                     <th className="px-3 py-2 text-left font-medium">수요기관</th>
@@ -720,13 +731,15 @@ export default function ContractStatusPage() {
                 <tbody>
                   {/* 소계행 — 금액 합계 */}
                   <tr className="bg-blue-50/60 border-b border-gray-200 font-semibold text-gray-700">
-                    <td className="px-3 py-2" colSpan={4}>소계 ({records.length}건)</td>
+                    <td className="px-3 py-2" colSpan={3}>소계 ({records.length}건)</td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {records.reduce((s, r) => s + (r.tot_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {records.reduce((s, r) => s + (r.thtm_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
-                    </td>
+                    {yearCols.map((y) => (
+                      <td key={y} className="px-3 py-2 text-right tabular-nums">
+                        {records.filter((r) => yearColOf(r) === y).reduce((s, r) => s + (r.thtm_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
+                      </td>
+                    ))}
                     <td colSpan={4} />
                   </tr>
                   {sortedRecords.map((r) => (
@@ -738,7 +751,6 @@ export default function ContractStatusPage() {
                           {r.contract_type}
                         </span>
                       </td>
-                      <td className="px-3 py-2 tabular-nums">{contractYear(r) || '-'}</td>
                       <td className="px-3 py-2 max-w-[320px] xl:max-w-none">
                         {isDetailUrl(r.cntrct_info_url) ? (
                           <a
@@ -757,7 +769,11 @@ export default function ContractStatusPage() {
                       </td>
                       <td className="px-3 py-2 max-w-[180px] xl:max-w-none truncate" title={r.corp_nm || ''}>{r.corp_nm || '-'}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatAmt(r.tot_cntrct_amt)}</td>
-                      <td className="px-3 py-2 text-right tabular-nums">{formatAmt(r.thtm_cntrct_amt)}</td>
+                      {yearCols.map((y) => (
+                        <td key={y} className="px-3 py-2 text-right tabular-nums">
+                          {yearColOf(r) === y ? formatAmt(r.thtm_cntrct_amt) : '-'}
+                        </td>
+                      ))}
                       <td className="px-3 py-2">{r.cntrct_date || '-'}</td>
                       <td className="px-3 py-2 max-w-[200px] xl:max-w-none truncate" title={r.cntrct_prd || ''}>
                         {r.start_date && r.end_date ? `${r.start_date} ~ ${r.end_date}` : (r.cntrct_prd || '-')}
