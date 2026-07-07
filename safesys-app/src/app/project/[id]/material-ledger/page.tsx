@@ -1131,6 +1131,16 @@ export default function MaterialLedgerPage() {
     return String(Math.round(remain * 1000) / 1000)
   }
 
+  // 표시용 반입잔량 자동 계산 — 발주량(유효: 첫 행 + 증감 행) 대비 현재 행까지의 반입 누계 차감
+  const calcRunningReceiveRemain = (rows: MaterialRow[], idx: number): string => {
+    const spec = rows[idx].nameOrSpec
+    const upto = rows.slice(0, idx + 1).filter(r => r.nameOrSpec === spec)
+    const orderQty = calcEffectiveOrderQty(upto)
+    if (!orderQty) return ''
+    const received = upto.reduce((sum, r) => sum + (parseFloat(r.receiveQty) || 0), 0)
+    return String(Math.round((orderQty - received) * 1000) / 1000)
+  }
+
   // 이전 등록 행에서 인도조건·단가·품대·수수료 기본값 추출 — 같은 규격의 최근 행부터 비어있지 않은 값 사용
   const getPrevCondDefaults = (rows: MaterialRow[], nameOrSpec: string) => {
     const matching = rows.filter(r => r.nameOrSpec === nameOrSpec)
@@ -2170,6 +2180,7 @@ export default function MaterialLedgerPage() {
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>합계<br />(원)</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>반입일</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>반입량</th>
+                      <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>반입잔량</th>
                       <th colSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>합격량</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>불합격량</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>조치사항</th>
@@ -2238,6 +2249,12 @@ export default function MaterialLedgerPage() {
                         </td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatDate(row.receiveDate) || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.receiveQty) || '-'}</td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>
+                          {(() => {
+                            const remain = calcRunningReceiveRemain(selectedMaterial.rows, idx)
+                            return remain !== '' ? formatNumber(remain) : '-'
+                          })()}
+                        </td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.passQtyCurrent) || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.passQtyTotal) || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{row.failQty || '-'}</td>
