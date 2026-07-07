@@ -73,6 +73,95 @@ const ctrtNoFromUrl = (u: string | null | undefined): string => {
   return m ? m[1] : ''
 }
 
+// /api/g2b/contract 응답의 계약 행
+interface G2bContractResp {
+  cnstwkNm: string
+  bsnsDivNm: string
+  cntrctNo: string
+  untyCntrctNo: string
+  totCntrctAmt: number
+  thtmCntrctAmt: number
+  cntrctPrd: string
+  cntrctCnclsDate: string
+  startDate: string
+  endDate: string
+  cntrctInsttNm: string
+  dminsttNms: string[]
+  corpNms: string[]
+  cntrctInfoUrl: string
+  cntrctDtlInfoUrl?: string
+}
+
+const contractRespToItem = (c: G2bContractResp): G2bCntrctItem => ({
+  key: `${c.cnstwkNm}|${c.cntrctCnclsDate}|${c.totCntrctAmt}|${(c.corpNms || []).join(',')}`,
+  // 물품·외자는 프로젝트 성격상 없다고 보고 용역 표기가 없으면 공사로 분류
+  type: (c.bsnsDivNm || '').includes('용역') ? '용역' : '공사',
+  name: c.cnstwkNm,
+  untyCntrctNo: c.untyCntrctNo || '',
+  cntrctNo: c.cntrctNo || '',
+  cntrctDate: c.cntrctCnclsDate || '',
+  totAmt: c.totCntrctAmt || 0,
+  thtmAmt: c.thtmCntrctAmt || 0,
+  prd: c.cntrctPrd || '',
+  startDate: c.startDate || '',
+  endDate: c.endDate || '',
+  cntrctInsttNm: c.cntrctInsttNm || '',
+  dminsttNms: c.dminsttNms || [],
+  corpNms: c.corpNms || [],
+  url: c.cntrctDtlInfoUrl || c.cntrctInfoUrl || '',
+})
+
+// 나라장터 연계 계약 자동 등록의 세션 내 재시도 방지 (StrictMode 이중 실행·재방문 중복 insert 방지)
+const linkSyncTried = new Set<string>()
+
+// 딥링크의 ctrtChgOrd(차수) — 같은 계약의 원계약/변경계약 중 최신 판별용
+const chgOrdFromUrl = (u: string | null | undefined): number => {
+  const m = u?.match(/[?&]ctrtChgOrd=(\d+)/)
+  return m ? Number(m[1]) : -1
+}
+
+// 같은 계약 판별 키: 딥링크 ctrtNo → 결합형 확정계약번호의 기본번호 → 계약명
+const contractGroupKey = (i: G2bCntrctItem): string =>
+  ctrtNoFromUrl(i.url) ||
+  (i.cntrctNo.length >= 13 ? i.cntrctNo.slice(0, -2) : i.cntrctNo) ||
+  i.name
+
+// 조회 항목 → project_contracts insert 행
+const itemToRow = (i: G2bCntrctItem, projectId: string, userId: string) => ({
+  project_id: projectId,
+  created_by: userId,
+  contract_type: i.type,
+  cntrct_nm: i.name,
+  unty_cntrct_no: i.untyCntrctNo || null,
+  cntrct_no: i.cntrctNo || null,
+  corp_nm: i.corpNms.join(', ') || null,
+  tot_cntrct_amt: i.totAmt || null,
+  thtm_cntrct_amt: i.thtmAmt || null,
+  cntrct_date: i.cntrctDate || null,
+  cntrct_prd: i.prd || null,
+  start_date: i.startDate || null,
+  end_date: i.endDate || null,
+  dminstt_nm: i.dminsttNms.join(', ') || null,
+  cntrct_instt_nm: i.cntrctInsttNm || null,
+  cntrct_info_url: i.url || null,
+})
+
+// 차수(원계약·변경계약)별 행을 같은 계약으로 묶어 무조건 최신 차수만 남긴다.
+// 기간 조회에서 원계약과 변경계약이 다른 달에 걸리면 별개 행으로 수집되는 것을 방지
+const latestPerContract = (items: G2bCntrctItem[]): G2bCntrctItem[] => {
+  const byNo = new Map<string, G2bCntrctItem>()
+  for (const item of items) {
+    const k = contractGroupKey(item)
+    const prev = byNo.get(k)
+    if (!prev) { byNo.set(k, item); continue }
+    const a = chgOrdFromUrl(item.url)
+    const b = chgOrdFromUrl(prev.url)
+    const newer = a !== b ? a > b : (item.cntrctDate || '') > (prev.cntrctDate || '')
+    if (newer) byNo.set(k, item)
+  }
+  return [...byNo.values()]
+}
+
 // 'YYYY-MM' 범위를 월 단위 {bgn,end}(YYYYMMDD) 목록으로 변환 — 오늘 이후 제외, 최대 60개월
 function buildMonths(from: string, to: string): Array<{ bgn: string; end: string }> {
   if (!/^\d{4}-\d{2}$/.test(from) || !/^\d{4}-\d{2}$/.test(to)) return []
@@ -214,6 +303,34 @@ export default function ContractStatusPage() {
     )
   }, [registeredKeys])
 
+  // 프로젝트 나라장터 연계 계약(등록·수정 폼의 계약 연계)은 목록에 무조건 포함 — 미등록이면 자동 등록
+  useEffect(() => {
+    if (!user || !project || loading) return
+    const no = (project.g2b_cntrct_no || project.g2b_ntce_no || '').replace(/\s+/g, '')
+    if (!no) return
+    const syncKey = `${projectId}|${no}`
+    if (linkSyncTried.has(syncKey)) return
+    linkSyncTried.add(syncKey)
+    const sync = async () => {
+      try {
+        const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}`)
+        const json = await res.json()
+        if (!res.ok || !json.success) return
+        const c: G2bContractResp | undefined = json.data?.contracts?.[0]
+        if (!c) return
+        const item = contractRespToItem(c)
+        if (isRegistered(item)) return
+        const { error } = await (supabase as any)
+          .from('project_contracts')
+          .insert([itemToRow(item, projectId, user.id)])
+        if (!error) loadRecords()
+      } catch {
+        // 자동 등록 실패는 조용히 무시 — 계약번호 탭으로 수동 등록 가능
+      }
+    }
+    sync()
+  }, [user, project, loading, projectId, isRegistered, loadRecords])
+
   // 조달청 조회 모달 열기 — 기관명·기간·검색어 프리필 (수불부 일괄 조회와 동일 패턴)
   const openLookup = () => {
     setIsLookupOpen(true)
@@ -296,10 +413,11 @@ export default function ContractStatusPage() {
           }
         }))
       }
-      // 월 경계 중복 대비 키 기준 dedupe 후 체결일 내림차순
+      // 월 경계 중복 dedupe → 같은 계약의 차수별 행은 최신 차수만 → 체결일 내림차순
       const byKey = new Map<string, G2bCntrctItem>()
       for (const item of collected) if (!byKey.has(item.key)) byKey.set(item.key, item)
-      const items = [...byKey.values()].sort((a, b) => (b.cntrctDate || '').localeCompare(a.cntrctDate || ''))
+      const items = latestPerContract([...byKey.values()])
+        .sort((a, b) => (b.cntrctDate || '').localeCompare(a.cntrctDate || ''))
       setLookupItems(items)
       if (failCount === months.length && firstError) setLookupError(firstError)
       else if (firstError) setLookupError(`일부 구간 조회 실패: ${firstError}`)
@@ -320,31 +438,9 @@ export default function ContractStatusPage() {
       const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}`)
       const json = await res.json()
       if (!res.ok || !json.success) throw new Error(json.error || '조회에 실패했습니다.')
-      const contracts: Array<{
-        cnstwkNm: string; bsnsDivNm: string; cntrctNo: string; untyCntrctNo: string
-        totCntrctAmt: number; thtmCntrctAmt: number; cntrctPrd: string; cntrctCnclsDate: string
-        startDate: string; endDate: string; cntrctInsttNm: string
-        dminsttNms: string[]; corpNms: string[]; cntrctInfoUrl: string; cntrctDtlInfoUrl?: string
-      }> = json.data?.contracts || []
-      const items: G2bCntrctItem[] = contracts.map((c) => ({
-        key: `${c.cnstwkNm}|${c.cntrctCnclsDate}|${c.totCntrctAmt}|${(c.corpNms || []).join(',')}`,
-        // 물품·외자는 프로젝트 성격상 없다고 보고 용역 표기가 없으면 공사로 분류
-        type: (c.bsnsDivNm || '').includes('용역') ? '용역' : '공사',
-        name: c.cnstwkNm,
-        untyCntrctNo: c.untyCntrctNo || '',
-        cntrctNo: c.cntrctNo || '',
-        cntrctDate: c.cntrctCnclsDate || '',
-        totAmt: c.totCntrctAmt || 0,
-        thtmAmt: c.thtmCntrctAmt || 0,
-        prd: c.cntrctPrd || '',
-        startDate: c.startDate || '',
-        endDate: c.endDate || '',
-        cntrctInsttNm: c.cntrctInsttNm || '',
-        dminsttNms: c.dminsttNms || [],
-        corpNms: c.corpNms || [],
-        url: c.cntrctDtlInfoUrl || c.cntrctInfoUrl || '',
-      }))
-      setLookupItems(items)
+      const contracts: G2bContractResp[] = json.data?.contracts || []
+      // 차수 계약이 여러 건 조회되면 같은 계약은 최신 차수만 표시
+      setLookupItems(latestPerContract(contracts.map(contractRespToItem)))
     } catch (err: unknown) {
       setLookupError(err instanceof Error ? err.message : '조회에 실패했습니다.')
     } finally {
@@ -427,24 +523,7 @@ export default function ContractStatusPage() {
     if (targets.length === 0) return
     setImporting(true)
     try {
-      const rows = targets.map((i) => ({
-        project_id: projectId,
-        created_by: user.id,
-        contract_type: i.type,
-        cntrct_nm: i.name,
-        unty_cntrct_no: i.untyCntrctNo || null,
-        cntrct_no: i.cntrctNo || null,
-        corp_nm: i.corpNms.join(', ') || null,
-        tot_cntrct_amt: i.totAmt || null,
-        thtm_cntrct_amt: i.thtmAmt || null,
-        cntrct_date: i.cntrctDate || null,
-        cntrct_prd: i.prd || null,
-        start_date: i.startDate || null,
-        end_date: i.endDate || null,
-        dminstt_nm: i.dminsttNms.join(', ') || null,
-        cntrct_instt_nm: i.cntrctInsttNm || null,
-        cntrct_info_url: i.url || null,
-      }))
+      const rows = targets.map((i) => itemToRow(i, projectId, user.id))
       const { error } = await (supabase as any).from('project_contracts').insert(rows)
       if (error) throw error
       setLookupChecked(new Set())
