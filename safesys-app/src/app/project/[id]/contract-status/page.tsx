@@ -492,10 +492,12 @@ export default function ContractStatusPage() {
     if (inst.length < 2) { setLookupError('기관명을 2자 이상 입력해주세요.'); return }
     const months = buildMonths(lookupFrom, lookupTo)
     if (months.length === 0) { setLookupError('조회 기간을 확인해주세요.'); return }
-    // 검색어가 한 단어면 조달청 조회 조건으로 함께 전송(원문 부분일치).
-    // 여러 단어는 건명 띄어쓰기 편차로 서버 필터가 누락을 만들 수 있어 조회 후 클라이언트에서 거른다.
+    // 검색어의 첫 단어는 조달청 조회 조건으로 함께 전송 (원문 부분일치 — 단일 토큰만 안전).
+    // 기관명 단독 조회는 무거운 달에서 월 30초+ 걸려(실측) 타임아웃으로 "조회가 안 되는" 증상을 만들지만,
+    // 계약명 토큰을 함께 보내면 10초 내로 줄어든다. 나머지 단어는 조회 후 클라이언트에서 거른다.
     const keyword = lookupKeyword.trim()
-    const nmParam = keyword && !/\s/.test(keyword) ? `&nm=${encodeURIComponent(keyword)}` : ''
+    const nmToken = keyword.split(/\s+/)[0] || ''
+    const nmParam = nmToken ? `&nm=${encodeURIComponent(nmToken)}` : ''
     setLookupLoading(true)
     setLookupError('')
     setLookupItems(null)
@@ -1134,7 +1136,7 @@ export default function ContractStatusPage() {
                   placeholder="예: 북내지구"
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <p className="text-[11px] text-gray-400 mt-1">비우면 기관 전체 계약을 표시합니다. 여러 단어를 입력하면 단어별 부분일치로 거릅니다.</p>
+                <p className="text-[11px] text-gray-400 mt-1">첫 단어로 조달청을 조회하고 나머지 단어로 결과를 거릅니다. 비우면 기관 전체 계약을 표시합니다(느림).</p>
               </div>
 
               {/* 기관명 */}

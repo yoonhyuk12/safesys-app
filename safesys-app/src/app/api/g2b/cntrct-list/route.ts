@@ -107,9 +107,10 @@ export async function GET(request: NextRequest) {
       })
       // 계약명 서버측 필터 — 공사는 cnstwkNm, 용역은 cntrctNm (2026-07-07 실호출 확인, 원문 부분일치)
       if (nm) qs.set(div === 'cnstwk' ? 'cnstwkNm' : 'cntrctNm', nm)
-      // 계약현황 API는 납품요구 목록보다 응답이 느려(첫 호출 25초+ 실측) 타임아웃을 넉넉히 둔다
+      // 계약현황 API는 기관명 단독 조회가 무거운 달에서 28~36초 걸리는 게 실측돼(2026-07-07)
+      // 함수 한도(maxDuration 60초) 내 최대로 둔다 — 40초로는 타임아웃이 무작위 발생
       const res = await fetch(`${G2B_BASE}/${OPS[div].op}?${qs.toString()}`, {
-        signal: AbortSignal.timeout(40000),
+        signal: AbortSignal.timeout(55000),
         cache: 'no-store',
       })
       if (!res.ok) {
