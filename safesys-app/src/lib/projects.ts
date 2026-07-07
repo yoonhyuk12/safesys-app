@@ -52,6 +52,7 @@ export interface Project {
   g2b_ntce_no?: string | null
   g2b_corp_nm?: string | null
   g2b_tot_amt?: number | null
+  g2b_thtm_amt?: number | null
   user_profiles?: {
     role?: '발주청' | '감리단' | '시공사'
     company_name?: string
@@ -96,6 +97,7 @@ export interface CreateProjectData {
   g2b_ntce_no?: string | null
   g2b_corp_nm?: string | null
   g2b_tot_amt?: number | null
+  g2b_thtm_amt?: number | null
 }
 
 export interface ProjectWithCoords extends Project {

@@ -511,10 +511,11 @@ export default function ProjectDetailPage() {
         construction_start_date: c.startDate || project.construction_start_date || null,
         construction_end_date: c.endDate || project.construction_end_date || null,
         g2b_corp_nm: (c.corpNms || []).join(', ') || project.g2b_corp_nm || null,
-        g2b_tot_amt: c.totCntrctAmt > 0 ? c.totCntrctAmt : (project.g2b_tot_amt || null)
+        g2b_tot_amt: c.totCntrctAmt > 0 ? c.totCntrctAmt : (project.g2b_tot_amt || null),
+        g2b_thtm_amt: c.thtmCntrctAmt > 0 ? c.thtmCntrctAmt : (project.g2b_thtm_amt || null)
       }
       if (!next.construction_start_date && !next.construction_end_date &&
-          !next.g2b_corp_nm && !next.g2b_tot_amt) {
+          !next.g2b_corp_nm && !next.g2b_tot_amt && !next.g2b_thtm_amt) {
         alert('조회된 계약에 갱신할 정보가 없습니다.')
         return
       }
@@ -522,7 +523,8 @@ export default function ProjectDetailPage() {
       if ((project.construction_start_date || null) === next.construction_start_date &&
           (project.construction_end_date || null) === next.construction_end_date &&
           (project.g2b_corp_nm || null) === next.g2b_corp_nm &&
-          (project.g2b_tot_amt || null) === next.g2b_tot_amt) {
+          (project.g2b_tot_amt || null) === next.g2b_tot_amt &&
+          (project.g2b_thtm_amt || null) === next.g2b_thtm_amt) {
         alert('업데이트 사항이 없습니다.')
         return
       }
@@ -537,6 +539,7 @@ export default function ProjectDetailPage() {
         (next.construction_start_date || next.construction_end_date) &&
           `기간: ${next.construction_start_date || '?'} ~ ${next.construction_end_date || '?'}`,
         next.g2b_tot_amt && `총계약금액: ${Math.round(next.g2b_tot_amt / 1000).toLocaleString()}천원`,
+        next.g2b_thtm_amt && `금차계약금액: ${Math.round(next.g2b_thtm_amt / 1000).toLocaleString()}천원`,
         next.g2b_corp_nm && `계약업체: ${next.g2b_corp_nm}`,
       ].filter(Boolean).join('\n'))
     } catch (err) {
@@ -1026,7 +1029,10 @@ export default function ProjectDetailPage() {
                 <div className="text-sm text-gray-600">
                   {[
                     project.g2b_corp_nm && `계약업체: ${project.g2b_corp_nm}`,
-                    project.g2b_tot_amt && `총계약금액: ${Math.round(project.g2b_tot_amt / 1000).toLocaleString()}천원`,
+                    // 계약금액 — 금차 금액이 있으면 '총 / 금' 병기, 없으면 총액만
+                    project.g2b_tot_amt && (project.g2b_thtm_amt
+                      ? `계약금액: 총 ${Math.round(project.g2b_tot_amt / 1000).toLocaleString()}천원 / 금 ${Math.round(project.g2b_thtm_amt / 1000).toLocaleString()}천원`
+                      : `총계약금액: ${Math.round(project.g2b_tot_amt / 1000).toLocaleString()}천원`),
                   ].filter(Boolean).join(' / ')}
                   {upperCopyButton}
                 </div>

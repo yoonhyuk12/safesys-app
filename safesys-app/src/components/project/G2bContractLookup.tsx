@@ -8,6 +8,8 @@ import { BRANCH_OPTIONS } from '@/lib/constants'
 export interface G2bContractApplyData {
   projectName: string
   totalBudget: number
+  // 금차계약금액 (원 단위, 없으면 0)
+  thtmAmt: number
   startDate: string
   endDate: string
   cntrctNo: string
@@ -62,6 +64,7 @@ interface G2bContract {
   ntceNo: string
   untyCntrctNo: string
   totCntrctAmt: number
+  thtmCntrctAmt: number
   cntrctPrd: string
   cntrctCnclsDate: string
   startDate: string
@@ -123,6 +126,7 @@ export default function G2bContractLookup({
     onApply({
       projectName: c.cnstwkNm,
       totalBudget: c.totCntrctAmt,
+      thtmAmt: c.thtmCntrctAmt,
       startDate: c.startDate,
       endDate: c.endDate,
       cntrctNo: c.cntrctNo,
@@ -194,6 +198,7 @@ export default function G2bContractLookup({
             </p>
             <div className="mt-1 text-xs text-gray-600 space-y-0.5">
               {c.totCntrctAmt > 0 && <p>총계약금액: {c.totCntrctAmt.toLocaleString('ko-KR')}원</p>}
+              {c.thtmCntrctAmt > 0 && <p>금차계약금액: {c.thtmCntrctAmt.toLocaleString('ko-KR')}원</p>}
               {(c.startDate || c.endDate) && (
                 <p>공사기간: {c.startDate || '?'} ~ {c.endDate || '?'}</p>
               )}

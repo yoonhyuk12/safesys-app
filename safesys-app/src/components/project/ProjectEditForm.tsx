@@ -45,6 +45,7 @@ interface FormData {
   g2b_ntce_no?: string
   g2b_corp_nm?: string
   g2b_tot_amt?: number
+  g2b_thtm_amt?: number
 }
 
 interface ProjectEditFormProps {
@@ -90,7 +91,8 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
     g2b_cntrct_no: project.g2b_cntrct_no || '',
     g2b_ntce_no: project.g2b_ntce_no || '',
     g2b_corp_nm: project.g2b_corp_nm || '',
-    g2b_tot_amt: project.g2b_tot_amt || undefined
+    g2b_tot_amt: project.g2b_tot_amt || undefined,
+    g2b_thtm_amt: project.g2b_thtm_amt || undefined
   })
 
   // 천단위 쉼표 포맷팅 함수
@@ -131,7 +133,8 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
       g2b_cntrct_no: data.cntrctNo,
       g2b_ntce_no: data.ntceNo,
       g2b_corp_nm: data.corpNm || prev.g2b_corp_nm,
-      g2b_tot_amt: data.totalBudget > 0 ? data.totalBudget : prev.g2b_tot_amt
+      g2b_tot_amt: data.totalBudget > 0 ? data.totalBudget : prev.g2b_tot_amt,
+      g2b_thtm_amt: data.thtmAmt > 0 ? data.thtmAmt : prev.g2b_thtm_amt
     }))
   }
 
@@ -330,7 +333,8 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
         g2b_cntrct_no: formData.g2b_cntrct_no?.trim() || undefined,
         g2b_ntce_no: formData.g2b_ntce_no?.trim() || undefined,
         g2b_corp_nm: formData.g2b_corp_nm?.trim() || undefined,
-        g2b_tot_amt: formData.g2b_tot_amt || undefined
+        g2b_tot_amt: formData.g2b_tot_amt || undefined,
+        g2b_thtm_amt: formData.g2b_thtm_amt || undefined
       })
 
       alert('프로젝트가 성공적으로 수정되었습니다!')

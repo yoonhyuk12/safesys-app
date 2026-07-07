@@ -223,6 +223,7 @@ export async function GET(request: NextRequest) {
       untyCntrctNo: it.untyCntrctNo || '',
       // 물품(수의계약 등)은 totCntrctAmt가 0이고 금차계약금액(thtmCntrctAmt)에 값이 있는 경우가 있음
       totCntrctAmt: parseFloat(it.totCntrctAmt || '') || parseFloat(it.thtmCntrctAmt || '') || 0,
+      thtmCntrctAmt: parseFloat(it.thtmCntrctAmt || '') || 0,
       cntrctPrd: it.cntrctPrd || '',
       cntrctCnclsDate: toIsoDate(it.cntrctCnclsDate),
       startDate: toIsoDate(it.cbgnDate || it.wbgnDate),
