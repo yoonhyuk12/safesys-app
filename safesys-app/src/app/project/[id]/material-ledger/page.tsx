@@ -610,6 +610,11 @@ export default function MaterialLedgerPage() {
       d.setMonth(d.getMonth() - 11)
       fromMonth = d.toISOString().slice(0, 7)
     }
+    // 첫 자동 조회가 오래 걸리지 않게 기본 기간은 최근 12개월로 제한 — 더 긴 기간은 프리셋/기간 입력으로 확장
+    const minD = new Date()
+    minD.setMonth(minD.getMonth() - 11)
+    const minFrom = minD.toISOString().slice(0, 7)
+    if (fromMonth < minFrom) fromMonth = minFrom
     setBulkFrom(fromMonth)
     setBulkTo(toMonth)
     setIsBulkModalOpen(true)
@@ -640,6 +645,18 @@ export default function MaterialLedgerPage() {
     }
   }
 
+  // 기간 프리셋 — 오늘 기준 최근 n개월로 설정하고 바로 조회
+  const applyBulkPreset = (n: number) => {
+    if (bulkLoading || bulkImporting) return
+    const to = new Date().toISOString().slice(0, 7)
+    const d = new Date()
+    d.setMonth(d.getMonth() - (n - 1))
+    const from = d.toISOString().slice(0, 7)
+    setBulkFrom(from)
+    setBulkTo(to)
+    void handleBulkSearch(undefined, { from, to })
+  }
+
   // 'YYYY-MM' 범위를 월 단위 {bgn, end}(YYYYMMDD) 목록으로 변환 — 오늘 이후는 제외
   const buildBulkMonths = (from: string, to: string): Array<{ bgn: string; end: string }> => {
     const months: Array<{ bgn: string; end: string }> = []
@@ -648,7 +665,7 @@ export default function MaterialLedgerPage() {
     let y = Number(from.slice(0, 4))
     let mo = Number(from.slice(5, 7))
     const limit = Number(to.slice(0, 4)) * 100 + Number(to.slice(5, 7))
-    while (y * 100 + mo <= limit && months.length < 37) {
+    while (y * 100 + mo <= limit && months.length < 61) {
       const mm = String(mo).padStart(2, '0')
       const lastDay = new Date(y, mo, 0).getDate()
       const bgn = `${y}${mm}01`
@@ -663,15 +680,19 @@ export default function MaterialLedgerPage() {
   }
 
   const handleBulkSearch = async (instParam?: string, range?: { from: string; to: string }) => {
+    if (bulkLoading || bulkImporting) return
     const inst = (instParam ?? bulkInst).trim()
-    if (!inst || bulkLoading || bulkImporting) return
+    if (!inst) {
+      setBulkError('수요기관명을 입력해주세요.')
+      return
+    }
     const months = buildBulkMonths(range?.from ?? bulkFrom, range?.to ?? bulkTo)
     if (months.length === 0) {
       setBulkError('조회 기간을 확인해주세요.')
       return
     }
-    if (months.length > 36) {
-      setBulkError('조회 기간은 최대 36개월까지 가능합니다.')
+    if (months.length > 60) {
+      setBulkError('조회 기간은 최대 60개월까지 가능합니다.')
       return
     }
     setBulkLoading(true)
@@ -681,9 +702,9 @@ export default function MaterialLedgerPage() {
     setBulkProgress({ done: 0, total: months.length })
     const collected: BulkDlvrItem[] = []
     let firstError = ''
-    // 월별 조회를 동시 3개씩 처리
+    // 월별 조회를 동시 5개씩 처리
     const queue = [...months]
-    await Promise.all(Array.from({ length: 3 }, async () => {
+    await Promise.all(Array.from({ length: 5 }, async () => {
       while (queue.length > 0) {
         const mth = queue.shift()
         if (!mth) break
@@ -715,7 +736,7 @@ export default function MaterialLedgerPage() {
 
   // 키워드(건명·품명) 클라이언트 필터 — API가 건명 파라미터를 지원하지 않음.
   // 조달청 건명은 띄어쓰기·축약 표기가 제각각이라("캠프 레드클라우드" vs "캠프레드클라우드") 공백을 제거하고
-  // 검색 단어가 하나라도 포함되면 부분 일치로 표시, 일치 단어가 많은 건부터 정렬
+  // 검색 단어가 하나라도 포함되면 부분 일치로 표시. 정렬은 최종납품기한 늦은 순 (기한 없는 건은 뒤로)
   const bulkKeywordTokens = bulkKeyword.trim().split(/\s+/).filter(Boolean)
   const bulkMatchCount = (i: BulkDlvrItem) => {
     const target = (i.name + i.prdctNm).replace(/\s+/g, '')
@@ -723,7 +744,7 @@ export default function MaterialLedgerPage() {
   }
   const bulkVisibleItems = (bulkItems || [])
     .filter(i => bulkKeywordTokens.length === 0 || bulkMatchCount(i) > 0)
-    .sort((a, b) => bulkMatchCount(b) - bulkMatchCount(a) || b.rcptDate.localeCompare(a.rcptDate))
+    .sort((a, b) => (b.deadline || '').localeCompare(a.deadline || '') || b.rcptDate.localeCompare(a.rcptDate))
 
   const handleBulkImport = async () => {
     if (!bulkItems || bulkImporting || bulkLoading) return
@@ -3643,14 +3664,14 @@ export default function MaterialLedgerPage() {
                     }}
                   />
                 </div>
-                <div>
+                <div className="w-full sm:w-auto">
                   <label className="block text-xs font-medium text-amber-200/70 mb-1.5" style={{ fontFamily: 'serif' }}>조회 기간</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="month"
                       value={bulkFrom}
                       onChange={e => setBulkFrom(e.target.value)}
-                      className="h-10 px-3 rounded text-amber-100 text-sm"
+                      className="h-10 px-3 rounded text-amber-100 text-sm flex-1 min-w-0 sm:flex-none"
                       style={{
                         background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
                         border: '2px solid #4a4a55',
@@ -3658,12 +3679,12 @@ export default function MaterialLedgerPage() {
                         colorScheme: 'dark'
                       }}
                     />
-                    <span className="text-amber-200/50">~</span>
+                    <span className="text-amber-200/50 shrink-0">~</span>
                     <input
                       type="month"
                       value={bulkTo}
                       onChange={e => setBulkTo(e.target.value)}
-                      className="h-10 px-3 rounded text-amber-100 text-sm"
+                      className="h-10 px-3 rounded text-amber-100 text-sm flex-1 min-w-0 sm:flex-none"
                       style={{
                         background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
                         border: '2px solid #4a4a55',
@@ -3676,8 +3697,8 @@ export default function MaterialLedgerPage() {
                 <button
                   type="button"
                   onClick={() => handleBulkSearch()}
-                  disabled={bulkLoading || bulkImporting || !bulkInst.trim()}
-                  className="h-10 px-5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 shrink-0"
+                  disabled={bulkLoading || bulkImporting}
+                  className="h-10 px-5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 shrink-0 w-full sm:w-auto"
                   style={{
                     background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
                     border: '2px solid #6a5a40',
@@ -3688,8 +3709,37 @@ export default function MaterialLedgerPage() {
                 >
                   {bulkLoading
                     ? <span className="inline-flex items-center gap-1.5"><Loader2 className="h-4 w-4 animate-spin" />{bulkProgress.done}/{bulkProgress.total}개월</span>
-                    : '재조회'}
+                    : '조회'}
                 </button>
+              </div>
+              {/* 기간 프리셋 — 누르면 오늘 기준 최근 n개월로 설정 후 즉시 조회 */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] text-amber-200/50" style={{ fontFamily: 'serif' }}>오늘 기준</span>
+                {[6, 12, 18, 24, 30, 36].map(n => {
+                  const d = new Date()
+                  d.setMonth(d.getMonth() - (n - 1))
+                  const isActive = bulkTo === new Date().toISOString().slice(0, 7) && bulkFrom === d.toISOString().slice(0, 7)
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => applyBulkPreset(n)}
+                      disabled={bulkLoading || bulkImporting}
+                      className="px-2.5 py-1 text-xs transition-all duration-200 disabled:opacity-50"
+                      style={{
+                        background: isActive
+                          ? 'linear-gradient(180deg, #8b0000 0%, #5a0000 100%)'
+                          : 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
+                        border: isActive ? '1px solid #aa2020' : '1px solid #4a4a55',
+                        borderRadius: '4px',
+                        color: isActive ? '#fca5a5' : '#a8a8b0',
+                        boxShadow: isActive ? '0 0 10px rgba(139,0,0,0.5)' : 'none'
+                      }}
+                    >
+                      {n}개월
+                    </button>
+                  )
+                })}
               </div>
               <p className="text-[11px] text-amber-200/40">
                 조달청 API가 건명 검색을 지원하지 않아, 수요기관 명의의 기간 내 납품요구 전체를 월 단위로 조회한 뒤 프로젝트명으로 추립니다.
