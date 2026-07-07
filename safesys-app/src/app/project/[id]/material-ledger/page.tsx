@@ -56,6 +56,7 @@ interface MaterialRow {
   dlvrReqNo?: string | null
   dlvrReqPrdctSno?: number | null
   dlvrCndtn?: string
+  unitPrice?: string
   prdctAmt?: string
   feeAmt?: string
 }
@@ -69,6 +70,7 @@ interface RowFormData {
   nameOrSpec: string
   orderQty: string
   dlvrCndtn: string
+  unitPrice: string
   prdctAmt: string
   feeAmt: string
   receiveDate: string
@@ -236,7 +238,7 @@ export default function MaterialLedgerPage() {
   // 내역 등록/수정 모달
   const [isRowModalOpen, setIsRowModalOpen] = useState(false)
   const [editingRowId, setEditingRowId] = useState<string | null>(null) // null=신규, string=수정
-  const [rowForm, setRowForm] = useState<RowFormData>({ nameOrSpec: '', orderQty: '', dlvrCndtn: '', prdctAmt: '', feeAmt: '', receiveDate: '', receiveQty: '', passQtyCurrent: '', failQty: '', action: '', releaseDate: '', releaseQty: '' })
+  const [rowForm, setRowForm] = useState<RowFormData>({ nameOrSpec: '', orderQty: '', dlvrCndtn: '', unitPrice: '', prdctAmt: '', feeAmt: '', receiveDate: '', receiveQty: '', passQtyCurrent: '', failQty: '', action: '', releaseDate: '', releaseQty: '' })
 
   // 자재명/규격 수정 모달
   const [isMaterialEditModalOpen, setIsMaterialEditModalOpen] = useState(false)
@@ -394,6 +396,7 @@ export default function MaterialLedgerPage() {
             dlvrReqNo: e.dlvr_req_no || null,
             dlvrReqPrdctSno: e.dlvr_req_prdct_sno ?? null,
             dlvrCndtn: e.dlvr_cndtn || '',
+            unitPrice: e.unit_price != null ? String(e.unit_price) : '',
             prdctAmt: e.prdct_amt != null ? String(e.prdct_amt) : '',
             feeAmt: e.fee_amt != null ? String(e.fee_amt) : '',
           })
@@ -553,12 +556,13 @@ export default function MaterialLedgerPage() {
         dlvr_req_no: result.dlvrReqNo,
         dlvr_req_prdct_sno: i.sno,
         dlvr_cndtn: i.cndtn || null,
+        unit_price: i.unitPrice || null,
         prdct_amt: i.amt || null,
       })))
       .select()
     if (rowsError) throw rowsError
 
-    const newRows: MaterialRow[] = (rowsData || []).map((e: { id: string; name_or_spec: string | null; order_qty: number | null; dlvr_req_no: string | null; dlvr_req_prdct_sno: number | null; dlvr_cndtn: string | null; prdct_amt: number | null }) => ({
+    const newRows: MaterialRow[] = (rowsData || []).map((e: { id: string; name_or_spec: string | null; order_qty: number | null; dlvr_req_no: string | null; dlvr_req_prdct_sno: number | null; dlvr_cndtn: string | null; unit_price: number | null; prdct_amt: number | null }) => ({
       id: e.id,
       nameOrSpec: e.name_or_spec || '',
       orderQty: e.order_qty != null ? String(e.order_qty) : '',
@@ -568,6 +572,7 @@ export default function MaterialLedgerPage() {
       dlvrReqNo: e.dlvr_req_no || null,
       dlvrReqPrdctSno: e.dlvr_req_prdct_sno ?? null,
       dlvrCndtn: e.dlvr_cndtn || '',
+      unitPrice: e.unit_price != null ? String(e.unit_price) : '',
       prdctAmt: e.prdct_amt != null ? String(e.prdct_amt) : '',
       feeAmt: '',
     }))
@@ -926,6 +931,7 @@ export default function MaterialLedgerPage() {
             dlvr_req_no: linkResult.dlvrReqNo,
             dlvr_req_prdct_sno: item.sno,
             dlvr_cndtn: item.cndtn || null,
+            unit_price: item.unitPrice || null,
             prdct_amt: item.amt || null,
           })
           if (insErr) throw insErr
@@ -942,6 +948,7 @@ export default function MaterialLedgerPage() {
             dlvr_req_no: linkResult.dlvrReqNo,
             dlvr_req_prdct_sno: item.sno,
             dlvr_cndtn: item.cndtn || null,
+            unit_price: item.unitPrice || null,
             prdct_amt: item.amt || null,
           })
           .eq('id', matching[0].id)
@@ -1147,7 +1154,7 @@ export default function MaterialLedgerPage() {
     setRowForm({
       nameOrSpec: defaultNameOrSpec,
       orderQty: defaultOrderQty,
-      dlvrCndtn: '', prdctAmt: '', feeAmt: '',
+      dlvrCndtn: '', unitPrice: '', prdctAmt: '', feeAmt: '',
       receiveDate: today, receiveQty: '', passQtyCurrent: '',
       failQty: '-', action: '해당없음', releaseDate: today, releaseQty: defaultReleaseQty,
     })
@@ -1160,6 +1167,7 @@ export default function MaterialLedgerPage() {
       nameOrSpec: row.nameOrSpec,
       orderQty: row.orderQty,
       dlvrCndtn: row.dlvrCndtn || '',
+      unitPrice: row.unitPrice || '',
       prdctAmt: row.prdctAmt || '',
       feeAmt: row.feeAmt || '',
       receiveDate: row.receiveDate,
@@ -1313,6 +1321,7 @@ export default function MaterialLedgerPage() {
           name_or_spec: rowForm.nameOrSpec || null,
           order_qty: parseFloat(rowForm.orderQty) || null,
           dlvr_cndtn: rowForm.dlvrCndtn.trim() || null,
+          unit_price: parseFloat(stripComma(rowForm.unitPrice)) || null,
           prdct_amt: parseFloat(stripComma(rowForm.prdctAmt)) || null,
           fee_amt: parseFloat(stripComma(rowForm.feeAmt)) || null,
           receive_date: rowForm.receiveDate || null,
@@ -1337,6 +1346,7 @@ export default function MaterialLedgerPage() {
         nameOrSpec: rowForm.nameOrSpec,
         orderQty: rowForm.orderQty,
         dlvrCndtn: rowForm.dlvrCndtn.trim(),
+        unitPrice: stripComma(rowForm.unitPrice),
         prdctAmt: stripComma(rowForm.prdctAmt),
         feeAmt: stripComma(rowForm.feeAmt),
         receiveDate: rowForm.receiveDate,
@@ -1394,6 +1404,7 @@ export default function MaterialLedgerPage() {
           name_or_spec: rowForm.nameOrSpec || null,
           order_qty: parseFloat(rowForm.orderQty) || null,
           dlvr_cndtn: rowForm.dlvrCndtn.trim() || null,
+          unit_price: parseFloat(stripComma(rowForm.unitPrice)) || null,
           prdct_amt: parseFloat(stripComma(rowForm.prdctAmt)) || null,
           fee_amt: parseFloat(stripComma(rowForm.feeAmt)) || null,
           receive_date: rowForm.receiveDate || null,
@@ -1415,6 +1426,7 @@ export default function MaterialLedgerPage() {
         nameOrSpec: rowForm.nameOrSpec,
         orderQty: rowForm.orderQty,
         dlvrCndtn: rowForm.dlvrCndtn.trim(),
+        unitPrice: stripComma(rowForm.unitPrice),
         prdctAmt: stripComma(rowForm.prdctAmt),
         feeAmt: stripComma(rowForm.feeAmt),
         receiveDate: rowForm.receiveDate,
@@ -2128,6 +2140,7 @@ export default function MaterialLedgerPage() {
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>품명 및<br />규격</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>발주량<br />(설계량)</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>인도조건</th>
+                      <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>단가<br />(원)</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>품대<br />(원)</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>수수료<br />(원)</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>합계<br />(원)</th>
@@ -2190,6 +2203,7 @@ export default function MaterialLedgerPage() {
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-pre-line" style={{ border: '1px solid #3a3a45' }}>{row.nameOrSpec || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.orderQty) || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{row.dlvrCndtn || '-'}</td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.unitPrice || '') || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.prdctAmt || '') || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.feeAmt || '') || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>
@@ -2360,8 +2374,8 @@ export default function MaterialLedgerPage() {
                   </div>
                 </div>
 
-                {/* 인도조건 · 품대 · 수수료 — 품대·인도조건은 조달청 등록 시 자동, 수수료는 API 미제공으로 수동 입력 */}
-                <div className="grid grid-cols-3 gap-2">
+                {/* 인도조건 · 단가 · 품대 · 수수료 — 단가·품대·인도조건은 조달청 등록 시 자동, 수수료는 API 미제공으로 수동 입력 */}
+                <div className="grid grid-cols-2 gap-2">
                   <div>
                     <label className="block text-sm font-medium text-amber-100 mb-1" style={{ fontFamily: 'serif' }}>인도조건</label>
                     <input
@@ -2369,6 +2383,22 @@ export default function MaterialLedgerPage() {
                       value={rowForm.dlvrCndtn}
                       onChange={e => setRowForm(p => ({ ...p, dlvrCndtn: e.target.value }))}
                       placeholder="예: 도착도"
+                      className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                      style={{
+                        background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                        border: '2px solid #4a4a55',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-amber-100 mb-1" style={{ fontFamily: 'serif' }}>단가(원)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={formatNumber(rowForm.unitPrice)}
+                      onChange={e => setRowForm(p => ({ ...p, unitPrice: stripComma(e.target.value) }))}
+                      placeholder="품목 단가"
                       className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
                       style={{
                         background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
