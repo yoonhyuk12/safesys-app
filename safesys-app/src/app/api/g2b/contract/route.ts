@@ -174,6 +174,10 @@ export async function GET(request: NextRequest) {
       if (/^\d{11}$/.test(no)) {
         attempts.push({ param: 'ntceNo', value: `${no}00`, matchedBy: 'ntce' })
       }
+      // 차세대 확정계약번호(R##TA+8자리)도 결합 저장이라 차수 없이 입력하면 원계약(00) 결합으로 재시도
+      if (/^R\d{2}TA\d{8}$/.test(no)) {
+        attempts.push({ param: 'dcsnCntrctNo', value: `${no}00`, matchedBy: 'cntrct' })
+      }
       // 알 수 없는 차세대 접두어는 통합계약번호 가능성도 시도
       if (/^R\d{2}[A-Z]{2}/.test(no) && !/^R\d{2}(TA|BK)/.test(no)) {
         attempts.push({ param: 'untyCntrctNo', value: no, matchedBy: 'cntrct' })
