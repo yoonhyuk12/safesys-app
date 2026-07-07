@@ -640,16 +640,14 @@ export default function MaterialLedgerPage() {
     }
   }
 
-  // 기간 프리셋 — 오늘 기준 최근 n개월로 설정하고 바로 조회
+  // 기간 프리셋 — 오늘 기준 최근 n개월로 설정만 하고, 조회는 조회 버튼으로 직접 시작
   const applyBulkPreset = (n: number) => {
     if (bulkLoading || bulkImporting) return
     const to = new Date().toISOString().slice(0, 7)
     const d = new Date()
     d.setMonth(d.getMonth() - (n - 1))
-    const from = d.toISOString().slice(0, 7)
-    setBulkFrom(from)
+    setBulkFrom(d.toISOString().slice(0, 7))
     setBulkTo(to)
-    void handleBulkSearch(undefined, { from, to })
   }
 
   // 'YYYY-MM' 범위를 월 단위 {bgn, end}(YYYYMMDD) 목록으로 변환 — 오늘 이후는 제외
@@ -731,13 +729,15 @@ export default function MaterialLedgerPage() {
 
   // 키워드(건명·품명) 매칭 — API가 건명 파라미터를 지원하지 않아 클라이언트에서 처리.
   // 조달청 건명은 띄어쓰기·축약 표기가 제각각이라("캠프 레드클라우드" vs "캠프레드클라우드") 공백을 제거하고
-  // 부분 일치(단어 포함 수)로 판정. 전체 건을 사업명 일치 우선 → 최종납품기한 늦은 순으로 정렬해 표시
+  // 부분 일치(단어 하나 이상 포함)로 판정 — 일치 단어가 없는 건은 목록에서 제외.
+  // 정렬은 일치 단어 많은 순 → 최종납품기한 늦은 순
   const bulkKeywordTokens = bulkKeyword.trim().split(/\s+/).filter(Boolean)
   const bulkMatchCount = (i: BulkDlvrItem) => {
     const target = (i.name + i.prdctNm).replace(/\s+/g, '')
     return bulkKeywordTokens.filter(t => target.includes(t.replace(/\s+/g, ''))).length
   }
-  const bulkVisibleItems = [...(bulkItems || [])]
+  const bulkVisibleItems = (bulkItems || [])
+    .filter(i => bulkKeywordTokens.length === 0 || bulkMatchCount(i) > 0)
     .sort((a, b) =>
       bulkMatchCount(b) - bulkMatchCount(a) ||
       (b.deadline || '').localeCompare(a.deadline || '') ||
@@ -3753,50 +3753,46 @@ export default function MaterialLedgerPage() {
                 }}>
                   {bulkItems.length === 0 ? (
                     <p className="text-xs text-amber-200/50">조회된 납품요구가 없습니다. 수요기관명·기간을 확인해주세요.</p>
+                  ) : bulkVisibleItems.length === 0 ? (
+                    <p className="text-xs text-amber-200/50">
+                      사업명과 일치하는 건이 없습니다. (전체 {bulkItems.length}건)
+                      <br />검색어를 줄이거나 비우면 수요기관 전체 건을 확인할 수 있습니다.
+                    </p>
                   ) : (
                     <>
                       <p className="text-[11px] text-amber-200/50 mb-2">
-                        {(() => {
-                          const matchedCnt = bulkKeywordTokens.length > 0 ? bulkVisibleItems.filter(i => bulkMatchCount(i) > 0).length : 0
-                          if (bulkKeywordTokens.length === 0) return `총 ${bulkItems.length}건 — 납품기한 늦은 순`
-                          if (matchedCnt === 0) return `사업명과 일치하는 건이 없습니다 — 전체 ${bulkItems.length}건을 납품기한 늦은 순으로 표시`
-                          return `사업명 일치 ${matchedCnt}건 / 전체 ${bulkItems.length}건 — 일치 건 우선, 납품기한 늦은 순`
-                        })()}
+                        {bulkKeywordTokens.length > 0
+                          ? `사업명 일치 ${bulkVisibleItems.length}건 / 전체 ${bulkItems.length}건 — 납품기한 늦은 순`
+                          : `총 ${bulkItems.length}건 — 납품기한 늦은 순`}
                       </p>
                       {(() => {
-                        // 전체 선택은 사업명 일치(검색어 없으면 전체) + 미등록 건만 대상 — 무관한 건 일괄 등록 방지
-                        const selectPool = bulkVisibleItems.filter(i =>
-                          !registeredDlvrNos.has(i.dlvrReqNo) && (bulkKeywordTokens.length === 0 || bulkMatchCount(i) > 0))
-                        const allChecked = selectPool.length > 0 && selectPool.every(i => bulkChecked.has(i.dlvrReqNo))
+                        const visibleUnregistered = bulkVisibleItems.filter(i => !registeredDlvrNos.has(i.dlvrReqNo))
+                        const allChecked = visibleUnregistered.length > 0 && visibleUnregistered.every(i => bulkChecked.has(i.dlvrReqNo))
                         return (
                           <label className="flex items-center gap-2 pb-2 mb-1 cursor-pointer" style={{ borderBottom: '1px solid rgba(255,215,0,0.15)' }}>
                             <input
                               type="checkbox"
                               checked={allChecked}
-                              disabled={bulkImporting || selectPool.length === 0}
+                              disabled={bulkImporting || visibleUnregistered.length === 0}
                               onChange={() => setBulkChecked(prev => {
                                 const next = new Set(prev)
-                                if (allChecked) selectPool.forEach(i => next.delete(i.dlvrReqNo))
-                                else selectPool.forEach(i => next.add(i.dlvrReqNo))
+                                if (allChecked) visibleUnregistered.forEach(i => next.delete(i.dlvrReqNo))
+                                else visibleUnregistered.forEach(i => next.add(i.dlvrReqNo))
                                 return next
                               })}
                               className="accent-amber-600 shrink-0"
                             />
-                            <span className="text-[11px] text-amber-200/60">
-                              {bulkKeywordTokens.length > 0 ? '사업명 일치 미등록 건 전체 선택' : '미등록 건 전체 선택'}
-                            </span>
+                            <span className="text-[11px] text-amber-200/60">표시된 미등록 건 전체 선택</span>
                           </label>
                         )
                       })()}
                       <div className="space-y-1 max-h-[38vh] overflow-y-auto">
                         {bulkVisibleItems.map(item => {
                           const isRegistered = registeredDlvrNos.has(item.dlvrReqNo)
-                          const isMatched = bulkKeywordTokens.length > 0 && bulkMatchCount(item) > 0
                           return (
                             <label
                               key={item.dlvrReqNo}
                               className={`flex items-start gap-2 p-1.5 rounded ${isRegistered ? 'opacity-50' : 'cursor-pointer hover:bg-white/5'}`}
-                              style={{ borderLeft: isMatched ? '2px solid rgba(245,215,142,0.7)' : '2px solid transparent' }}
                             >
                               <input
                                 type="checkbox"
@@ -3811,7 +3807,7 @@ export default function MaterialLedgerPage() {
                                 className="mt-0.5 accent-amber-600 shrink-0"
                               />
                               <div className="min-w-0 flex-1">
-                                <p className={`text-xs break-all ${isMatched || bulkKeywordTokens.length === 0 ? 'text-amber-100' : 'text-amber-200/60'}`}>{item.name || item.prdctNm}</p>
+                                <p className="text-xs text-amber-100 break-all">{item.name || item.prdctNm}</p>
                                 <p className="text-[11px] text-amber-200/50 break-all">
                                   {item.dlvrReqNo}-{item.chgOrd} · 접수 {item.rcptDate}
                                   {item.prdctNm ? ` · ${item.prdctNm}` : ''}
