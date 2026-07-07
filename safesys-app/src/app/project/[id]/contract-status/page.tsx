@@ -7,7 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { Project } from '@/lib/projects'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
-import { ArrowLeft, Plus, X, FileText, ExternalLink, Trash2, Loader2, Search } from 'lucide-react'
+import { ArrowLeft, Plus, RefreshCw, X, FileText, ExternalLink, Trash2, Loader2, Search } from 'lucide-react'
 
 interface ContractRecord {
   id: string
@@ -130,6 +130,9 @@ export default function ContractStatusPage() {
     cntrctDate: '', startDate: '', endDate: '', dminstt: '',
   })
   const [mSaving, setMSaving] = useState(false)
+  // 등록 건 일괄 갱신 (조달청 최신 계약정보 반영)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshProgress, setRefreshProgress] = useState({ done: 0, total: 0 })
 
   const handleBack = () => {
     const returnUrl = searchParams.get('returnUrl')
@@ -455,6 +458,64 @@ export default function ContractStatusPage() {
     }
   }
 
+  // 등록 건 일괄 갱신 — 계약번호가 있는 행을 조달청 최신 계약(차수)으로 갱신.
+  // 조회값이 빈 항목은 기존 값을 지우지 않는 fill-if-present 방식 (프로젝트 상세 갱신 버튼과 동일)
+  const handleRefreshAll = async () => {
+    if (!user || refreshing) return
+    const targets = records.filter((r) => r.cntrct_no || r.unty_cntrct_no)
+    if (targets.length === 0) { alert('갱신할 계약번호가 있는 등록 건이 없습니다.'); return }
+    if (!confirm(`등록된 ${targets.length}건을 조달청 최신 계약정보로 갱신할까요?`)) return
+    setRefreshing(true)
+    setRefreshProgress({ done: 0, total: targets.length })
+    let updated = 0
+    const failures: string[] = []
+    try {
+      for (const r of targets) {
+        try {
+          const no = r.cntrct_no || r.unty_cntrct_no || ''
+          const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}`)
+          const json = await res.json()
+          if (!res.ok || !json.success) throw new Error(json.error || '조회 실패')
+          const c = json.data?.contracts?.[0]
+          if (!c) throw new Error('조회 결과 없음')
+          const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+          if (c.totCntrctAmt > 0) patch.tot_cntrct_amt = c.totCntrctAmt
+          if (c.thtmCntrctAmt > 0) patch.thtm_cntrct_amt = c.thtmCntrctAmt
+          if (c.cntrctCnclsDate) patch.cntrct_date = c.cntrctCnclsDate
+          if (c.cntrctPrd) patch.cntrct_prd = c.cntrctPrd
+          if (c.startDate) patch.start_date = c.startDate
+          if (c.endDate) patch.end_date = c.endDate
+          if ((c.corpNms || []).length > 0) patch.corp_nm = c.corpNms.join(', ')
+          if ((c.dminsttNms || []).length > 0) patch.dminstt_nm = c.dminsttNms.join(', ')
+          if (c.untyCntrctNo) patch.unty_cntrct_no = c.untyCntrctNo
+          if (c.cntrctNo) patch.cntrct_no = c.cntrctNo
+          if (c.cntrctDtlInfoUrl) patch.cntrct_info_url = c.cntrctDtlInfoUrl
+          const { data, error } = await (supabase as any)
+            .from('project_contracts')
+            .update(patch)
+            .eq('id', r.id)
+            .select('id')
+          if (error) throw error
+          if (data && data.length > 0) updated += 1
+          else failures.push(`${r.cntrct_nm} (작성자만 수정 가능)`)
+        } catch (err: unknown) {
+          failures.push(`${r.cntrct_nm} (${err instanceof Error ? err.message : '오류'})`)
+        } finally {
+          setRefreshProgress((p) => ({ ...p, done: p.done + 1 }))
+        }
+      }
+      await loadRecords()
+      alert(
+        `갱신 완료: ${updated}건` +
+        (failures.length
+          ? `\n실패/건너뜀 ${failures.length}건:\n- ${failures.slice(0, 5).join('\n- ')}${failures.length > 5 ? '\n…' : ''}`
+          : '')
+      )
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   const handleDelete = async (record: ContractRecord) => {
     if (!confirm(`"${record.cntrct_nm}" 계약을 삭제하시겠습니까?`)) return
     const { error } = await (supabase as any).from('project_contracts').delete().eq('id', record.id)
@@ -497,13 +558,33 @@ export default function ContractStatusPage() {
                 <span className="ml-2 text-xs font-normal text-blue-100">공사 {cnstwkCount}건 · 용역 {servcCount}건</span>
               )}
             </h2>
-            <button
-              onClick={openLookup}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-blue-700 rounded-lg hover:bg-blue-50 shrink-0"
-            >
-              <Plus className="h-4 w-4" />
-              추가
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleRefreshAll}
+                disabled={refreshing}
+                title="등록된 계약을 조달청 최신 정보로 일괄 갱신"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-60"
+              >
+                {refreshing ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {refreshProgress.done}/{refreshProgress.total}
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    업데이트
+                  </>
+                )}
+              </button>
+              <button
+                onClick={openLookup}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-blue-700 rounded-lg hover:bg-blue-50"
+              >
+                <Plus className="h-4 w-4" />
+                추가
+              </button>
+            </div>
           </div>
 
           {loading ? (
