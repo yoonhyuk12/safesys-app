@@ -62,6 +62,12 @@ const PERIOD_PRESETS = [6, 12, 18, 24, 30, 36]
 const formatAmt = (n: number | null | undefined) =>
   n == null || n === 0 ? '-' : n.toLocaleString('ko-KR')
 
+// 계약 귀속 연도 — 준공일(준공된 계약의 연도) 우선, 없으면 체결일 연도
+const contractYear = (r: { end_date: string | null; cntrct_date: string | null }): string => {
+  const d = r.end_date || r.cntrct_date
+  return d ? d.slice(0, 4) : ''
+}
+
 // g2b.go.kr 홈만 가리키는 URL은 계약 상세가 아니므로 링크로 렌더하지 않는다
 const isDetailUrl = (u: string | null): u is string =>
   !!u && !/^https?:\/\/(www\.)?g2b\.go\.kr\/?$/.test(u)
@@ -257,12 +263,15 @@ export default function ContractStatusPage() {
 
   useEffect(() => { if (user && projectId) loadRecords() }, [user, projectId, loadRecords])
 
-  // 표 정렬: 공사 먼저 → 용역, 같은 구분 안에서는 체결일 오름차순 (사용자 지정 순서)
+  // 표 정렬: 공사 먼저 → 용역, 그다음 연도(준공 기준) → 체결일 오름차순 (사용자 지정 순서)
   const sortedRecords = useMemo(() => {
     const typeOrder = (t: string) => (t === '공사' ? 0 : 1)
     return [...records].sort((a, b) => {
       const t = typeOrder(a.contract_type) - typeOrder(b.contract_type)
       if (t !== 0) return t
+      const ya = contractYear(a) || '9999'
+      const yb = contractYear(b) || '9999'
+      if (ya !== yb) return ya < yb ? -1 : 1
       const da = a.cntrct_date || '9999-12-31'
       const db = b.cntrct_date || '9999-12-31'
       if (da !== db) return da < db ? -1 : 1
@@ -686,6 +695,7 @@ export default function ContractStatusPage() {
                 <thead>
                   <tr className="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
                     <th className="px-3 py-2 text-left font-medium">구분</th>
+                    <th className="px-3 py-2 text-left font-medium">연도</th>
                     <th className="px-3 py-2 text-left font-medium">계약명</th>
                     <th className="px-3 py-2 text-left font-medium">계약상대자</th>
                     <th className="px-3 py-2 text-right font-medium">총계약금액(원)</th>
@@ -699,7 +709,7 @@ export default function ContractStatusPage() {
                 <tbody>
                   {/* 소계행 — 금액 합계 */}
                   <tr className="bg-blue-50/60 border-b border-gray-200 font-semibold text-gray-700">
-                    <td className="px-3 py-2" colSpan={3}>소계 ({records.length}건)</td>
+                    <td className="px-3 py-2" colSpan={4}>소계 ({records.length}건)</td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {records.reduce((s, r) => s + (r.tot_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
                     </td>
@@ -717,6 +727,7 @@ export default function ContractStatusPage() {
                           {r.contract_type}
                         </span>
                       </td>
+                      <td className="px-3 py-2 tabular-nums">{contractYear(r) || '-'}</td>
                       <td className="px-3 py-2 max-w-[320px]">
                         {isDetailUrl(r.cntrct_info_url) ? (
                           <a
