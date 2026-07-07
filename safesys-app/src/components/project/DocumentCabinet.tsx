@@ -2,7 +2,7 @@
 
 import React from 'react'
 
-type CabinetColor = 'blue' | 'green' | 'amber' | 'purple'
+type CabinetColor = 'blue' | 'green' | 'amber' | 'purple' | 'slate'
 
 interface DocumentCabinetProps {
   title: string
@@ -64,6 +64,14 @@ const COLOR_THEMES: Record<CabinetColor, CabinetTheme> = {
     doorGradient: 'linear-gradient(180deg, #c084fc 0%, #a855f7 60%, #9333ea 100%)',
     panelLine: 'rgba(126, 34, 206, 0.55)',
     louver: 'rgba(88, 28, 135, 0.55)',
+  },
+  slate: {
+    frame: '#334155',
+    bodyGradient: 'linear-gradient(180deg, #64748b 0%, #475569 100%)',
+    topGradient: 'linear-gradient(180deg, #94a3b8 0%, #64748b 100%)',
+    doorGradient: 'linear-gradient(180deg, #94a3b8 0%, #64748b 60%, #475569 100%)',
+    panelLine: 'rgba(51, 65, 85, 0.55)',
+    louver: 'rgba(30, 41, 59, 0.55)',
   },
 }
 

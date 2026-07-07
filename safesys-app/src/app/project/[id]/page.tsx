@@ -109,7 +109,7 @@ export default function ProjectDetailPage() {
   const [qualityTestRecordCount, setQualityTestRecordCount] = useState<number | null>(null)
   const [cardCounts, setCardCounts] = useState<Record<string, number>>({})
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
-  const [openCabinet, setOpenCabinet] = useState<'시공' | '안전' | '품질' | '발주청' | null>(null)
+  const [openCabinet, setOpenCabinet] = useState<'시공' | '안전' | '품질' | '기타' | '발주청' | null>(null)
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
   const menuRef = useRef<HTMLDivElement>(null)
   // 캐비넷 여닫기 효과음 (브라우저에서만 생성)
@@ -129,7 +129,7 @@ export default function ProjectDetailPage() {
   }
 
   // 캐비넷 토글 — 열 때는 열림음, 닫을 때는 닫힘음 재생
-  const toggleCabinet = (name: '시공' | '안전' | '품질' | '발주청') => {
+  const toggleCabinet = (name: '시공' | '안전' | '품질' | '기타' | '발주청') => {
     if (openCabinet === name) {
       playCabinetSound('close')
       setOpenCabinet(null)
@@ -1154,17 +1154,17 @@ export default function ProjectDetailPage() {
                 <BusinessCardEasel onClick={handleBusinessCardClick} />
               )}
               {([
-                '시공', '안전', '품질',
+                '시공', '안전', '품질', '기타',
                 // 발주청 캐비넷은 발주청 소속 사용자에게만 노출
                 ...(userProfile?.role === '발주청' ? ['발주청'] : []),
-              ] as Array<'시공' | '안전' | '품질' | '발주청'>).map((name) => {
+              ] as Array<'시공' | '안전' | '품질' | '기타' | '발주청'>).map((name) => {
                 const cabinet = (
                   <DocumentCabinet
                     key={name}
                     title={name}
                     titleSuffix={name === '시공' && constructionProgress !== null ? `(${constructionProgress}%)` : undefined}
                     pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) + (managerPendingCount || 0) : undefined}
-                    color={name === '시공' ? 'blue' : name === '안전' ? 'green' : name === '품질' ? 'amber' : 'purple'}
+                    color={name === '시공' ? 'blue' : name === '안전' ? 'green' : name === '품질' ? 'amber' : name === '기타' ? 'slate' : 'purple'}
                     isOpen={openCabinet === name}
                     onClick={() => toggleCabinet(name)}
                   />
@@ -1326,6 +1326,13 @@ export default function ProjectDetailPage() {
                 />
               </div>
             </div>
+          </div>
+          </CabinetDrawer>
+
+          {/* 문서철 그리드 - 기타 캐비넷 (서류철 추가 전까지 빈 상태 안내) */}
+          <CabinetDrawer open={openCabinet === '기타'} instantClose={openCabinet !== null}>
+          <div className="flex flex-wrap justify-center gap-3">
+            <p className="py-6 text-sm text-blue-100/70">등록된 서류철이 없습니다.</p>
           </div>
           </CabinetDrawer>
 
