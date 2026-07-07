@@ -127,8 +127,13 @@ const LoginForm: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-indigo-200 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full">
+    <div
+      className="relative min-h-screen flex items-center justify-center bg-cover bg-center py-12 px-4 sm:px-6 lg:px-8"
+      style={{ backgroundImage: 'url(/login-bg.jpg)' }}
+    >
+      {/* 배경 위 어두운 오버레이 */}
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative z-10 max-w-md w-full">
         {/* 로그인 컨테이너 */}
         <div className="bg-white rounded-2xl shadow-xl px-8 py-10 space-y-8 relative">
           {/* 공유 버튼 - 좌측 상단 */}
