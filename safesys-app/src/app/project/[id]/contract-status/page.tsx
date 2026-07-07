@@ -178,6 +178,12 @@ const contractGroupKey = (i: G2bCntrctItem): string =>
 const nameGroupKey = (type: string, name: string): string =>
   `${type}|${name.replace(/\(\s*\d+\s*차[^)]*\)\s*$/, '').replace(/\s+/g, '')}`
 
+// 계약명 연차 접미어의 차수 번호 — "(3차년도_2026년)" → 3, 접미어 없으면 1(원계약)
+const iterOrdFromName = (name: string): number => {
+  const m = name.match(/\(\s*(\d+)\s*차[^)]*\)\s*$/)
+  return m ? Number(m[1]) : 1
+}
+
 // 표시용 계약 그룹 — 차수별 등록 행을 한 계약 한 행으로 병합
 interface ContractGroup {
   key: string
@@ -666,19 +672,28 @@ export default function ContractStatusPage() {
   }
 
   // 등록 건 일괄 갱신 — ① 번호가 있는 행을 조달청 최신 계약정보로 갱신하고,
-  // ② 장기계속계약의 미등록 연차(차수) 계약을 기관명+계약명 월별 목록 조회로 탐색해 신규 등록.
+  // ② 장기계속계약의 미등록 연차(차수) 계약을 수요기관명+계약명 월별 목록 조회로 탐색해 신규 등록
+  //    (3차년도만 등록된 경우의 과거 1·2차년도처럼 등록 차수보다 앞선 연차도 거슬러 탐색).
   // 연차별 차수 계약은 확정·통합·공고번호가 전부 달라(2026-07-07 실호출 확정) 어떤 번호 재조회로도
   // 다른 연차가 나오지 않는다 — 신규 연차 발견은 기간 목록 조회가 유일한 경로다.
   const handleRefreshAll = async () => {
     if (!user || refreshing) return
     const targets = records.filter((r) => r.cntrct_no || r.unty_cntrct_no)
 
-    // 신규 연차 탐색 대상: 등록 차수의 금차 합이 총액에 못 미치는 계약(누락 차수 존재) + 기관명 확보 가능
+    // 신규 연차 탐색 대상: 미등록 차수가 있는 계약 + 기관명 확보 가능.
+    // ① 금차 합 < 총액 → 미등록 차수 존재(과거·미래 불문), ② 차수 번호 1..최대 중 빠진 번호 → 과거 연차 누락
     const nowKey = monthKey(new Date())
     const scanPlans = groups.flatMap((g) => {
       const tot = g.repr.tot_cntrct_amt || 0
       const thtmSum = g.members.reduce((s, m) => s + (m.thtm_cntrct_amt || 0), 0)
-      if (!tot || thtmSum >= tot) return []
+      const ords = g.members.map((m) => iterOrdFromName(m.cntrct_nm))
+      const maxOrd = Math.max(...ords)
+      const ordSet = new Set(ords)
+      // 등록 차수보다 앞선 미등록 연차(1차 등) 존재 여부 — 초기 차수의 금차가 0인 계약은
+      // 금액 조건만으로 과거 누락을 못 잡아(실사례) 차수 번호로도 판정한다
+      const missingPast = maxOrd > 1 && Array.from({ length: maxOrd - 1 }, (_, i) => i + 1).some((o) => !ordSet.has(o))
+      const amountShort = tot > 0 && thtmSum < tot
+      if (!missingPast && !amountShort) return []
       // 서버 목록 조회가 수요기관명 기준(insttDivCd=2)이므로 수요기관명을 우선 사용 —
       // 조달청 위탁계약은 계약기관명이 '조달청 ○○지방조달청'이라 검색어로 쓰면 걸리지 않는다
       const inst =
@@ -687,8 +702,20 @@ export default function ContractStatusPage() {
         (g.repr.cntrct_instt_nm || '').trim()
       const lastDate = g.members.reduce((max, m) => ((m.cntrct_date || '') > max ? (m.cntrct_date as string) : max), '')
       if (inst.length < 2 || !lastDate) return []
-      // 새 연차 계약은 최신 차수 체결월 이후에만 체결되므로 그 구간만 조회 (최대 24개월)
-      const months = buildMonths(lastDate.slice(0, 7), nowKey).slice(-24)
+      // 조회 시작월 — 과거 연차가 빠져 있으면 연차가 대략 1년 간격인 점을 이용해
+      // 가장 이른 등록 차수 체결월에서 (최소차수-1)년 + 여유 2개월을 거슬러 시작.
+      // 과거 누락이 없으면 새 연차는 최신 차수 체결월 이후에만 체결되므로 그 구간만 조회 (최대 36개월)
+      let fromMonth = lastDate.slice(0, 7)
+      if (missingPast) {
+        const firstDate = g.members.reduce(
+          (min, m) => ((m.cntrct_date || '') && (m.cntrct_date as string) < min ? (m.cntrct_date as string) : min),
+          '9999-12'
+        )
+        const minOrd = Math.min(...ords)
+        const [fy, fm] = firstDate.slice(0, 7).split('-').map(Number)
+        fromMonth = monthKey(new Date(fy, fm - 1 - ((minOrd - 1) * 12 + 2), 1))
+      }
+      const months = buildMonths(fromMonth, nowKey).slice(-36)
       if (months.length === 0) return []
       // 서버측 계약명 필터는 원문 부분일치 단일 토큰만 안전 — 지구명인 첫 단어가 가장 안정적
       const firstToken = g.repr.cntrct_nm.trim().split(/\s+/)[0] || ''
