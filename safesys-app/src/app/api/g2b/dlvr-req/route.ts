@@ -11,13 +11,48 @@ interface G2bRawItem {
   prdctSno: string
   dtilPrdctClsfcNoNm: string
   prdctClsfcNoNm: string
+  prdctIdntNo: string
   prdctIdntNoNm: string
   prdctUprc: string
   prdctUnit: string
   incdecQty: string
+  incdecAmt: string
   dlvrTmlmtDate: string
   dminsttNm: string
   corpNm: string
+}
+
+// 품목식별번호로 종합쇼핑몰 품목의 인도조건 조회 — 다수공급자계약 우선, 제3자단가 순.
+// 인도조건은 부가 정보라 실패해도 상세 조회를 막지 않는다
+const CNDTN_ENDPOINTS = [
+  'https://apis.data.go.kr/1230000/at/ShoppingMallPrdctInfoService/getMASCntrctPrdctInfoList',
+  'https://apis.data.go.kr/1230000/at/ShoppingMallPrdctInfoService/getThptyUcntrctPrdctInfoList',
+]
+
+async function fetchDlvrCndtn(apiKey: string, idntNo: string): Promise<string> {
+  for (const endpoint of CNDTN_ENDPOINTS) {
+    try {
+      const qs = new URLSearchParams({
+        serviceKey: apiKey,
+        pageNo: '1',
+        numOfRows: '1',
+        type: 'json',
+        inqryDiv: '2',
+        prdctIdntNo: idntNo,
+      })
+      const res = await fetch(`${endpoint}?${qs.toString()}`, {
+        signal: AbortSignal.timeout(10000),
+        cache: 'no-store',
+      })
+      if (!res.ok) continue
+      const json = await res.json()
+      const cndtn = json?.response?.body?.items?.[0]?.prdctDlvryCndtnNm
+      if (cndtn) return String(cndtn)
+    } catch {
+      // 다음 오퍼레이션 시도
+    }
+  }
+  return ''
 }
 
 export async function GET(request: NextRequest) {
@@ -103,16 +138,18 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // 품목(prdctSno)별 변경차수 증감(incdecQty)을 합산해 유효 수량 계산, 메타는 최신 차수 기준
-    const bySno = new Map<string, { latest: G2bRawItem; qty: number }>()
+    // 품목(prdctSno)별 변경차수 증감(incdecQty·incdecAmt)을 합산해 유효 수량·품대 계산, 메타는 최신 차수 기준
+    const bySno = new Map<string, { latest: G2bRawItem; qty: number; amt: number }>()
     for (const it of rawItems) {
       const sno = String(it.prdctSno)
       const inc = parseFloat(it.incdecQty) || 0
+      const incAmt = parseFloat(it.incdecAmt) || 0
       const cur = bySno.get(sno)
       if (!cur) {
-        bySno.set(sno, { latest: it, qty: inc })
+        bySno.set(sno, { latest: it, qty: inc, amt: incAmt })
       } else {
         cur.qty += inc
+        cur.amt += incAmt
         if ((parseInt(it.dlvrReqChgOrd) || 0) >= (parseInt(cur.latest.dlvrReqChgOrd) || 0)) {
           cur.latest = it
         }
@@ -120,17 +157,28 @@ export async function GET(request: NextRequest) {
     }
 
     const first = rawItems[0]
-    const items = [...bySno.values()]
-      .map(({ latest, qty }) => ({
+    const baseItems = [...bySno.values()]
+      .map(({ latest, qty, amt }) => ({
         sno: parseInt(latest.prdctSno) || 0,
         name: latest.dtilPrdctClsfcNoNm || latest.prdctClsfcNoNm || '',
         spec: latest.prdctIdntNoNm || '',
         unit: latest.prdctUnit || '',
         unitPrice: parseFloat(latest.prdctUprc) || 0,
         qty: Math.round(qty * 1000) / 1000,
+        amt: Math.round(amt),
         deadline: latest.dlvrTmlmtDate || '',
+        idntNo: latest.prdctIdntNo || '',
       }))
       .sort((a, b) => a.sno - b.sno)
+
+    // 인도조건 — 품목식별번호별 1회씩 병렬 조회 (실패 시 빈 값)
+    const cndtnByIdnt = new Map<string, string>()
+    await Promise.all(
+      [...new Set(baseItems.map(i => i.idntNo).filter(Boolean))].map(async idnt => {
+        cndtnByIdnt.set(idnt, await fetchDlvrCndtn(apiKey, idnt))
+      })
+    )
+    const items = baseItems.map(i => ({ ...i, cndtn: cndtnByIdnt.get(i.idntNo) || '' }))
 
     return NextResponse.json({
       success: true,

@@ -55,6 +55,9 @@ interface MaterialRow {
   supervisorConfirm: string
   dlvrReqNo?: string | null
   dlvrReqPrdctSno?: number | null
+  dlvrCndtn?: string
+  prdctAmt?: string
+  feeAmt?: string
 }
 
 // 연계 모달 매핑에서 "새 규격 행으로 추가"를 뜻하는 값
@@ -65,6 +68,9 @@ const MAP_SEP = String.fromCharCode(31)
 interface RowFormData {
   nameOrSpec: string
   orderQty: string
+  dlvrCndtn: string
+  prdctAmt: string
+  feeAmt: string
   receiveDate: string
   receiveQty: string
   passQtyCurrent: string
@@ -82,6 +88,8 @@ interface G2bItem {
   unit: string
   unitPrice: number
   qty: number
+  amt?: number // 품대(품목금액, 원)
+  cndtn?: string // 인도조건 (예: 현장설치도)
   deadline: string
 }
 
@@ -228,7 +236,7 @@ export default function MaterialLedgerPage() {
   // 내역 등록/수정 모달
   const [isRowModalOpen, setIsRowModalOpen] = useState(false)
   const [editingRowId, setEditingRowId] = useState<string | null>(null) // null=신규, string=수정
-  const [rowForm, setRowForm] = useState<RowFormData>({ nameOrSpec: '', orderQty: '', receiveDate: '', receiveQty: '', passQtyCurrent: '', failQty: '', action: '', releaseDate: '', releaseQty: '' })
+  const [rowForm, setRowForm] = useState<RowFormData>({ nameOrSpec: '', orderQty: '', dlvrCndtn: '', prdctAmt: '', feeAmt: '', receiveDate: '', receiveQty: '', passQtyCurrent: '', failQty: '', action: '', releaseDate: '', releaseQty: '' })
 
   // 자재명/규격 수정 모달
   const [isMaterialEditModalOpen, setIsMaterialEditModalOpen] = useState(false)
@@ -385,6 +393,9 @@ export default function MaterialLedgerPage() {
             supervisorConfirm: e.supervisor_confirm || '',
             dlvrReqNo: e.dlvr_req_no || null,
             dlvrReqPrdctSno: e.dlvr_req_prdct_sno ?? null,
+            dlvrCndtn: e.dlvr_cndtn || '',
+            prdctAmt: e.prdct_amt != null ? String(e.prdct_amt) : '',
+            feeAmt: e.fee_amt != null ? String(e.fee_amt) : '',
           })
         }
         for (const mat of matList) {
@@ -531,7 +542,7 @@ export default function MaterialLedgerPage() {
       .single()
     if (insertError) throw insertError
 
-    // 품목별 발주 행 생성 — 규격·발주량만 채우고 반입/검수/불출은 현장 입력
+    // 품목별 발주 행 생성 — 규격·발주량·품대·인도조건만 채우고 반입/검수/불출은 현장 입력
     const { data: rowsData, error: rowsError } = await supabase
       .from('material_ledger_entries')
       .insert(selected.map(i => ({
@@ -541,11 +552,13 @@ export default function MaterialLedgerPage() {
         created_by: user?.id,
         dlvr_req_no: result.dlvrReqNo,
         dlvr_req_prdct_sno: i.sno,
+        dlvr_cndtn: i.cndtn || null,
+        prdct_amt: i.amt || null,
       })))
       .select()
     if (rowsError) throw rowsError
 
-    const newRows: MaterialRow[] = (rowsData || []).map((e: { id: string; name_or_spec: string | null; order_qty: number | null; dlvr_req_no: string | null; dlvr_req_prdct_sno: number | null }) => ({
+    const newRows: MaterialRow[] = (rowsData || []).map((e: { id: string; name_or_spec: string | null; order_qty: number | null; dlvr_req_no: string | null; dlvr_req_prdct_sno: number | null; dlvr_cndtn: string | null; prdct_amt: number | null }) => ({
       id: e.id,
       nameOrSpec: e.name_or_spec || '',
       orderQty: e.order_qty != null ? String(e.order_qty) : '',
@@ -554,6 +567,9 @@ export default function MaterialLedgerPage() {
       supervisorConfirm: '',
       dlvrReqNo: e.dlvr_req_no || null,
       dlvrReqPrdctSno: e.dlvr_req_prdct_sno ?? null,
+      dlvrCndtn: e.dlvr_cndtn || '',
+      prdctAmt: e.prdct_amt != null ? String(e.prdct_amt) : '',
+      feeAmt: '',
     }))
 
     return {
@@ -909,6 +925,8 @@ export default function MaterialLedgerPage() {
             created_by: user?.id,
             dlvr_req_no: linkResult.dlvrReqNo,
             dlvr_req_prdct_sno: item.sno,
+            dlvr_cndtn: item.cndtn || null,
+            prdct_amt: item.amt || null,
           })
           if (insErr) throw insErr
           linkedMatIds.add(targetMat.id)
@@ -1060,6 +1078,25 @@ export default function MaterialLedgerPage() {
     return base + adjustments
   }
 
+  // 표시용 잔량 자동 계산 — 같은 규격 행들의 (반입 - 불합격 - 출고)를 현재 행까지 누적.
+  // 저장된 remain_qty는 행 수정 순서에 따라 낡을 수 있어 표에서는 항상 계산값을 보여준다
+  const calcRunningRemain = (rows: MaterialRow[], idx: number): string => {
+    const spec = rows[idx].nameOrSpec
+    let remain = 0
+    let hasActivity = false
+    for (let i = 0; i <= idx; i++) {
+      const r = rows[i]
+      if (r.nameOrSpec !== spec) continue
+      const rec = parseFloat(r.receiveQty) || 0
+      const fail = parseFloat(r.failQty) || 0
+      const rel = parseFloat(r.releaseQty) || 0
+      if (rec || rel) hasActivity = true
+      remain += rec - fail - rel
+    }
+    if (!hasActivity) return ''
+    return String(Math.round(remain * 1000) / 1000)
+  }
+
   const openRowModal = () => {
     const today = new Date().toISOString().split('T')[0]
     const rows = selectedMaterial?.rows || []
@@ -1105,6 +1142,7 @@ export default function MaterialLedgerPage() {
     setRowForm({
       nameOrSpec: defaultNameOrSpec,
       orderQty: defaultOrderQty,
+      dlvrCndtn: '', prdctAmt: '', feeAmt: '',
       receiveDate: today, receiveQty: '', passQtyCurrent: '',
       failQty: '-', action: '해당없음', releaseDate: today, releaseQty: defaultReleaseQty,
     })
@@ -1116,6 +1154,9 @@ export default function MaterialLedgerPage() {
     setRowForm({
       nameOrSpec: row.nameOrSpec,
       orderQty: row.orderQty,
+      dlvrCndtn: row.dlvrCndtn || '',
+      prdctAmt: row.prdctAmt || '',
+      feeAmt: row.feeAmt || '',
       receiveDate: row.receiveDate,
       receiveQty: row.receiveQty,
       passQtyCurrent: row.passQtyCurrent,
@@ -1266,6 +1307,9 @@ export default function MaterialLedgerPage() {
           material_id: selectedMaterialId,
           name_or_spec: rowForm.nameOrSpec || null,
           order_qty: parseFloat(rowForm.orderQty) || null,
+          dlvr_cndtn: rowForm.dlvrCndtn.trim() || null,
+          prdct_amt: parseFloat(stripComma(rowForm.prdctAmt)) || null,
+          fee_amt: parseFloat(stripComma(rowForm.feeAmt)) || null,
           receive_date: rowForm.receiveDate || null,
           receive_qty: receiveQty || null,
           pass_qty_current: currentPass || null,
@@ -1287,6 +1331,9 @@ export default function MaterialLedgerPage() {
         id: data.id,
         nameOrSpec: rowForm.nameOrSpec,
         orderQty: rowForm.orderQty,
+        dlvrCndtn: rowForm.dlvrCndtn.trim(),
+        prdctAmt: stripComma(rowForm.prdctAmt),
+        feeAmt: stripComma(rowForm.feeAmt),
         receiveDate: rowForm.receiveDate,
         receiveQty: rowForm.receiveQty,
         passQtyCurrent: rowForm.passQtyCurrent,
@@ -1341,6 +1388,9 @@ export default function MaterialLedgerPage() {
         .update({
           name_or_spec: rowForm.nameOrSpec || null,
           order_qty: parseFloat(rowForm.orderQty) || null,
+          dlvr_cndtn: rowForm.dlvrCndtn.trim() || null,
+          prdct_amt: parseFloat(stripComma(rowForm.prdctAmt)) || null,
+          fee_amt: parseFloat(stripComma(rowForm.feeAmt)) || null,
           receive_date: rowForm.receiveDate || null,
           receive_qty: receiveQty || null,
           pass_qty_current: currentPass || null,
@@ -1359,6 +1409,9 @@ export default function MaterialLedgerPage() {
         id: editingRowId,
         nameOrSpec: rowForm.nameOrSpec,
         orderQty: rowForm.orderQty,
+        dlvrCndtn: rowForm.dlvrCndtn.trim(),
+        prdctAmt: stripComma(rowForm.prdctAmt),
+        feeAmt: stripComma(rowForm.feeAmt),
         receiveDate: rowForm.receiveDate,
         receiveQty: rowForm.receiveQty,
         passQtyCurrent: rowForm.passQtyCurrent,
@@ -1369,6 +1422,8 @@ export default function MaterialLedgerPage() {
         releaseQty: rowForm.releaseQty,
         remainQty: remainQty != null ? String(remainQty) : '',
         supervisorConfirm: rows[editIdx].supervisorConfirm,
+        dlvrReqNo: rows[editIdx].dlvrReqNo,
+        dlvrReqPrdctSno: rows[editIdx].dlvrReqPrdctSno,
       }
 
       setMaterials(prev =>
@@ -2067,6 +2122,10 @@ export default function MaterialLedgerPage() {
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>No</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>품명 및<br />규격</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>발주량<br />(설계량)</th>
+                      <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>인도조건</th>
+                      <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>품대<br />(원)</th>
+                      <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>수수료<br />(원)</th>
+                      <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>합계<br />(원)</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>반입일</th>
                       <th rowSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>반입량</th>
                       <th colSpan={2} className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>합격량</th>
@@ -2125,6 +2184,15 @@ export default function MaterialLedgerPage() {
                         </td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-pre-line" style={{ border: '1px solid #3a3a45' }}>{row.nameOrSpec || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.orderQty) || '-'}</td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{row.dlvrCndtn || '-'}</td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.prdctAmt || '') || '-'}</td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.feeAmt || '') || '-'}</td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>
+                          {(() => {
+                            const total = (parseFloat(row.prdctAmt || '') || 0) + (parseFloat(row.feeAmt || '') || 0)
+                            return total ? formatNumber(String(total)) : '-'
+                          })()}
+                        </td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatDate(row.receiveDate) || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.receiveQty) || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.passQtyCurrent) || '-'}</td>
@@ -2133,7 +2201,12 @@ export default function MaterialLedgerPage() {
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{row.action || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatDate(row.releaseDate) || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.releaseQty) || '-'}</td>
-                        <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.remainQty) || '-'}</td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>
+                          {(() => {
+                            const auto = calcRunningRemain(selectedMaterial.rows, idx)
+                            return auto !== '' ? formatNumber(auto) : '-'
+                          })()}
+                        </td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>
                           {row.supervisorConfirm && row.supervisorConfirm.startsWith('data:image') ? (
                             <img src={row.supervisorConfirm} alt="서명" className="h-6 mx-auto" style={{ filter: 'invert(1)' }} />
@@ -2281,6 +2354,62 @@ export default function MaterialLedgerPage() {
                     {selectedMaterial?.unit && <span className="text-sm text-amber-200/60 whitespace-nowrap">{selectedMaterial.unit}</span>}
                   </div>
                 </div>
+
+                {/* 인도조건 · 품대 · 수수료 — 품대·인도조건은 조달청 등록 시 자동, 수수료는 API 미제공으로 수동 입력 */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-amber-100 mb-1" style={{ fontFamily: 'serif' }}>인도조건</label>
+                    <input
+                      type="text"
+                      value={rowForm.dlvrCndtn}
+                      onChange={e => setRowForm(p => ({ ...p, dlvrCndtn: e.target.value }))}
+                      placeholder="예: 도착도"
+                      className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                      style={{
+                        background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                        border: '2px solid #4a4a55',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-amber-100 mb-1" style={{ fontFamily: 'serif' }}>품대(원)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={formatNumber(rowForm.prdctAmt)}
+                      onChange={e => setRowForm(p => ({ ...p, prdctAmt: stripComma(e.target.value) }))}
+                      placeholder="물품대금"
+                      className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                      style={{
+                        background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                        border: '2px solid #4a4a55',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-amber-100 mb-1" style={{ fontFamily: 'serif' }}>수수료(원)</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={formatNumber(rowForm.feeAmt)}
+                      onChange={e => setRowForm(p => ({ ...p, feeAmt: stripComma(e.target.value) }))}
+                      placeholder="조달수수료"
+                      className="w-full px-3 py-2 rounded text-amber-100 placeholder-amber-200/30 text-sm"
+                      style={{
+                        background: 'linear-gradient(180deg, #1a1a22 0%, #252530 100%)',
+                        border: '2px solid #4a4a55',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)'
+                      }}
+                    />
+                  </div>
+                </div>
+                {((parseFloat(stripComma(rowForm.prdctAmt)) || 0) + (parseFloat(stripComma(rowForm.feeAmt)) || 0)) > 0 && (
+                  <p className="text-[11px] text-amber-200/50">
+                    합계 {formatNumber(String((parseFloat(stripComma(rowForm.prdctAmt)) || 0) + (parseFloat(stripComma(rowForm.feeAmt)) || 0)))} 원 (품대 + 수수료 자동 계산)
+                  </p>
+                )}
 
                 {/* 구분선 */}
                 <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
@@ -3042,7 +3171,7 @@ export default function MaterialLedgerPage() {
       {isMaterialModalOpen && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setIsMaterialModalOpen(false)}>
           <div
-            className="max-w-sm w-full rounded-lg overflow-hidden"
+            className="max-w-sm md:max-w-2xl w-full rounded-lg overflow-hidden"
             onClick={e => e.stopPropagation()}
             style={{
               background: 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 50%, #12121a 100%)',
@@ -3099,6 +3228,10 @@ export default function MaterialLedgerPage() {
 
               <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
 
+              {/* 데스크탑 2열 배치 — 모바일은 기존 1열 유지 */}
+              <div className="flex flex-col gap-4 md:grid md:grid-cols-2 md:gap-6 md:items-start">
+              {/* 좌측 열 */}
+              <div className="flex flex-col gap-4">
               {/* 납품요구번호 조회 */}
               {materialInputMode === 'g2b' && (
                 <div>
@@ -3267,11 +3400,14 @@ export default function MaterialLedgerPage() {
                 </div>
               </div>
               )}
+              </div>{/* /좌측 열 */}
 
+              {/* 우측 열 */}
+              <div className="flex flex-col gap-4">
               {/* 계약 부가정보 — 직접 입력 시 선택사항 */}
               {materialInputMode === 'manual' && (
               <>
-              <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
+              <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent md:hidden" />
               <div>
                 <label className="block text-sm font-medium text-amber-100 mb-2" style={{ fontFamily: 'serif' }}>
                   계약업체명 <span className="text-amber-200/50 text-xs ml-1">(선택사항)</span>
@@ -3328,7 +3464,7 @@ export default function MaterialLedgerPage() {
               </>
               )}
 
-              <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent" />
+              <div className="h-px bg-gradient-to-r from-transparent via-amber-600/30 to-transparent md:hidden" />
 
               {/* 배치 아이콘 배경색(보석) 선택 */}
               <div>
@@ -3372,6 +3508,8 @@ export default function MaterialLedgerPage() {
                   })}
                 </div>
               </div>
+              </div>{/* /우측 열 */}
+              </div>{/* /2열 배치 */}
             </div>
 
             {/* 하단 버튼 */}
