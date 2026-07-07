@@ -38,6 +38,7 @@ export default function QualityTestLedgerPage() {
   } | null>(null)
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
   const [activeTab, setActiveTab] = useState<TabKey>('records')
+  const [openSummaryId, setOpenSummaryId] = useState<string | null>(null)
 
   const handleBack = () => {
     // 진입 경로를 returnUrl 쿼리로 받은 경우 그 위치로 정확히 복귀.
@@ -160,6 +161,15 @@ export default function QualityTestLedgerPage() {
             userId={user.id}
             projectName={project?.project_name || ''}
             supervisorName={project?.supervisor_name || ''}
+            constructionPeriod={constructionPeriod}
+            currentProgressRate={currentProgressRate}
+            ownerCompanyName={projectOwner?.company_name || ''}
+            supervisorBranch={project?.managing_branch || ''}
+            supervisorPosition={project?.supervisor_position || ''}
+            onOpenSummary={(id) => {
+              setOpenSummaryId(id)
+              setActiveTab('summary')
+            }}
           />
         )}
         {activeTab === 'summary' && (
@@ -173,6 +183,8 @@ export default function QualityTestLedgerPage() {
             supervisorPosition={project?.supervisor_position || ''}
             supervisorName={project?.supervisor_name || ''}
             ownerCompanyName={projectOwner?.company_name || ''}
+            openReportId={openSummaryId}
+            onOpenReportConsumed={() => setOpenSummaryId(null)}
           />
         )}
         {activeTab === 'verification' && (

@@ -31,6 +31,7 @@ export interface QualityTestRecordFormData {
 export interface QualityTestRecord extends QualityTestRecordFormData {
   id: string
   project_id: string
+  summary_id: string | null // 소속 성과총괄표 (NULL이면 미지정)
   created_by: string | null
   created_at: string
   updated_at: string

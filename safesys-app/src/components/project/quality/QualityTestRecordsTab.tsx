@@ -18,6 +18,7 @@ import {
   TEST_CATEGORY_OPTIONS,
   createEmptyQualityTestItem,
   createEmptyQualityTestCommon,
+  createEmptyQualitySummary,
 } from '@/lib/quality/quality-test-types'
 
 interface QualityTestRecordsTabProps {
@@ -25,6 +26,20 @@ interface QualityTestRecordsTabProps {
   userId: string
   projectName: string
   supervisorName?: string
+  constructionPeriod?: string // 새 총괄표 자동 생성용 공사기간
+  currentProgressRate?: string // 새 총괄표 자동 생성용 현재 공정률(%)
+  ownerCompanyName?: string // 새 총괄표 작성자 소속 기본값
+  supervisorBranch?: string // 새 총괄표 확인자 소속 기본값
+  supervisorPosition?: string // 새 총괄표 확인자 직위 기본값
+  onOpenSummary: (summaryId: string) => void // 총괄표 헤더 클릭 시 총괄표 탭 열기
+}
+
+// 실시대장 폼에서 고를 수 있는 소속 총괄표 옵션
+interface SummaryOption {
+  id: string
+  report_date: string | null
+  writer_name: string | null
+  created_at: string
 }
 
 type SignatureField = 'quality_engineer_signature' | 'supervision_engineer_signature'
@@ -36,8 +51,21 @@ const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
 
 const VERDICT_OPTIONS: TestVerdict[] = ['합격', '불합격', '재시험']
 
-export default function QualityTestRecordsTab({ projectId, userId, projectName, supervisorName = '' }: QualityTestRecordsTabProps) {
+export default function QualityTestRecordsTab({
+  projectId,
+  userId,
+  projectName,
+  supervisorName = '',
+  constructionPeriod = '',
+  currentProgressRate = '',
+  ownerCompanyName = '',
+  supervisorBranch = '',
+  supervisorPosition = '',
+  onOpenSummary,
+}: QualityTestRecordsTabProps) {
   const [records, setRecords] = useState<QualityTestRecord[]>([])
+  const [summaries, setSummaries] = useState<SummaryOption[]>([])
+  const [selectedSummaryId, setSelectedSummaryId] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [commonData, setCommonData] = useState<QualityTestCommonFields | null>(null)
@@ -65,9 +93,20 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
     setLoading(false)
   }, [projectId])
 
+  // 소속 총괄표 목록 — 생성순(created_at 오름차순)으로 로드, 마지막이 최신 총괄표
+  const loadSummaries = useCallback(async () => {
+    const { data, error } = await (supabase as any)
+      .from('quality_summary_reports')
+      .select('id, report_date, writer_name, created_at')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true })
+    if (!error && data) setSummaries(data as SummaryOption[])
+  }, [projectId])
+
   useEffect(() => {
     loadRecords()
-  }, [loadRecords])
+    loadSummaries()
+  }, [loadRecords, loadSummaries])
 
   const computeNextSerialNo = () => records.reduce((max, r) => Math.max(max, r.serial_no || 0), 0) + 1
 
@@ -76,6 +115,7 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
     setCommonData(null)
     setItems([])
     setEditingSerialNo(null)
+    setSelectedSummaryId('')
   }
 
   const handleAddClick = () => {
@@ -86,6 +126,8 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
     const supervisionSignature =
       last && last.supervision_engineer_name === supervisionName ? last.supervision_engineer_signature : ''
 
+    // 총괄표가 없으면 저장 시 조용히 자동 생성('new'), 있으면 최신 총괄표를 기본 선택
+    setSelectedSummaryId(summaries.length === 0 ? 'new' : summaries[summaries.length - 1].id)
     setEditingSerialNo(null)
     setCommonData(createEmptyQualityTestCommon())
     setItems([
@@ -128,6 +170,8 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
       .sort((a, b) => a.created_at.localeCompare(b.created_at))
     const first = group[0] ?? record
 
+    // 제출건의 현재 소속 총괄표를 기본값으로 — 레거시(미지정) 기록은 ''
+    setSelectedSummaryId(first.summary_id ?? '')
     setCommonData({
       test_date: first.test_date,
       test_category: first.test_category,
@@ -180,9 +224,36 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
       const keptIds = new Set(items.filter((it) => it._id).map((it) => it._id as string))
       const toDelete = original.filter((r) => !keptIds.has(r.id))
 
+      // 소속 총괄표 결정 — 'new'면 총괄표를 먼저 생성, ''면 미지정(NULL)
+      let summaryId: string | null = selectedSummaryId === '' ? null : selectedSummaryId
+      if (selectedSummaryId === 'new') {
+        const { data: created, error: summaryError } = await (supabase as any)
+          .from('quality_summary_reports')
+          .insert([
+            {
+              ...createEmptyQualitySummary({
+                construction_period: constructionPeriod,
+                progress_rate: currentProgressRate,
+                writer_affiliation: ownerCompanyName,
+                writer_position: '품질관리자',
+                confirmer_affiliation: supervisorBranch,
+                confirmer_position: supervisorPosition,
+                confirmer_name: supervisorName,
+              }),
+              project_id: projectId,
+              created_by: userId,
+            },
+          ])
+          .select('id')
+          .single()
+        if (summaryError) throw summaryError
+        summaryId = (created as { id: string }).id
+      }
+
       for (const it of items) {
         const rowData = {
           ...commonData,
+          summary_id: summaryId,
           test_item: it.test_item,
           test_standard: it.test_standard,
           test_result: it.test_result,
@@ -216,6 +287,7 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
 
       resetForm()
       loadRecords()
+      loadSummaries()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '알 수 없는 오류'
       alert('저장 실패: ' + message)
@@ -300,6 +372,63 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
     setItems((prev) => prev.map((it) => (it._key === itemKey ? { ...it, [field]: value } : it)))
   }
 
+  // 총괄표 선택 UI 표시/옵션 계산
+  const editingGroupSummaryId =
+    editingSerialNo !== null
+      ? records.find((r) => r.serial_no === editingSerialNo)?.summary_id ?? ''
+      : null
+  const isLegacyEditing = editingSerialNo !== null && editingGroupSummaryId === ''
+  const showSummarySelect =
+    editingSerialNo === null ? summaries.length > 0 : summaries.length >= 1 || selectedSummaryId === ''
+
+  // 미지정 그룹 + 총괄표별 그룹 렌더용 — 로드 정렬(일련번호·created_at 오름차순) 유지
+  const unassignedRecords = records.filter((r) => !r.summary_id)
+  const renderRecordRow = (record: QualityTestRecord, index: number) => (
+    <tr
+      key={record.id}
+      onClick={() => handleSelectRecord(record)}
+      className={`border-t border-gray-100 cursor-pointer hover:bg-amber-50 ${
+        editingSerialNo === record.serial_no ? 'bg-amber-50' : ''
+      }`}
+    >
+      <td className="px-2 py-2 text-center text-gray-500">{record.serial_no ?? index + 1}</td>
+      <td className="px-2 py-2 text-center whitespace-nowrap">{record.test_date || '-'}</td>
+      <td className="px-2 py-2 text-center whitespace-nowrap">{record.test_category || '-'}</td>
+      <td className="px-2 py-2 text-center whitespace-nowrap">{record.work_type || '-'}</td>
+      <td className="px-2 py-2 text-center">{record.target_material || '-'}</td>
+      <td className="px-2 py-2 text-center">{record.test_item || '-'}</td>
+      <td className="px-2 py-2 text-center whitespace-nowrap">
+        <span
+          className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
+            record.result_verdict === '합격'
+              ? 'bg-green-100 text-green-700'
+              : record.result_verdict === '불합격'
+                ? 'bg-red-100 text-red-700'
+                : record.result_verdict === '재시험'
+                  ? 'bg-orange-100 text-orange-700'
+                  : 'bg-gray-100 text-gray-500'
+          }`}
+        >
+          {record.result_verdict || '-'}
+        </span>
+      </td>
+      <td className="px-2 py-2 text-center">
+        {record.created_by === userId && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              handleDelete(record)
+            }}
+            className="p-1 text-gray-400 hover:text-red-600"
+            title="삭제"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
+      </td>
+    </tr>
+  )
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -376,51 +505,37 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
                 </tr>
               </thead>
               <tbody>
-                {records.map((record, i) => (
-                  <tr
-                    key={record.id}
-                    onClick={() => handleSelectRecord(record)}
-                    className={`border-t border-gray-100 cursor-pointer hover:bg-amber-50 ${
-                      editingSerialNo === record.serial_no ? 'bg-amber-50' : ''
-                    }`}
-                  >
-                    <td className="px-2 py-2 text-center text-gray-500">{record.serial_no ?? i + 1}</td>
-                    <td className="px-2 py-2 text-center whitespace-nowrap">{record.test_date || '-'}</td>
-                    <td className="px-2 py-2 text-center whitespace-nowrap">{record.test_category || '-'}</td>
-                    <td className="px-2 py-2 text-center whitespace-nowrap">{record.work_type || '-'}</td>
-                    <td className="px-2 py-2 text-center">{record.target_material || '-'}</td>
-                    <td className="px-2 py-2 text-center">{record.test_item || '-'}</td>
-                    <td className="px-2 py-2 text-center whitespace-nowrap">
-                      <span
-                        className={`inline-block px-1.5 py-0.5 rounded text-xs font-medium ${
-                          record.result_verdict === '합격'
-                            ? 'bg-green-100 text-green-700'
-                            : record.result_verdict === '불합격'
-                              ? 'bg-red-100 text-red-700'
-                              : record.result_verdict === '재시험'
-                                ? 'bg-orange-100 text-orange-700'
-                                : 'bg-gray-100 text-gray-500'
-                        }`}
+                {unassignedRecords.length > 0 && (
+                  <>
+                    <tr className="bg-gray-100 text-gray-600">
+                      <td colSpan={8} className="px-3 py-2 text-xs font-semibold">
+                        총괄표 미지정
+                      </td>
+                    </tr>
+                    {unassignedRecords.map((record) => renderRecordRow(record, records.indexOf(record)))}
+                  </>
+                )}
+                {summaries.map((summary) => {
+                  const groupRecords = records.filter((r) => r.summary_id === summary.id)
+                  return (
+                    <React.Fragment key={summary.id}>
+                      <tr
+                        onClick={() => onOpenSummary(summary.id)}
+                        className="bg-amber-100 text-amber-800 cursor-pointer hover:bg-amber-200"
+                        title="총괄표 열기"
                       >
-                        {record.result_verdict || '-'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      {record.created_by === userId && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDelete(record)
-                          }}
-                          className="p-1 text-gray-400 hover:text-red-600"
-                          title="삭제"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                        <td colSpan={8} className="px-3 py-2 text-xs font-semibold">
+                          <span className="inline-flex items-center gap-1.5">
+                            <FileText className="h-3.5 w-3.5" />
+                            성과총괄표 — 작성일 {summary.report_date || '-'}
+                            {summary.writer_name ? ` · ${summary.writer_name}` : ''}
+                          </span>
+                        </td>
+                      </tr>
+                      {groupRecords.map((record) => renderRecordRow(record, records.indexOf(record)))}
+                    </React.Fragment>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -442,6 +557,24 @@ export default function QualityTestRecordsTab({ projectId, userId, projectName, 
           <div className="p-3 sm:p-4 space-y-4">
             {/* 공통 항목 — 한 제출건 내 모든 시험 항목이 공유 */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {showSummarySelect && (
+                <div>
+                  <label className={labelCls}>성과총괄표</label>
+                  <select
+                    value={selectedSummaryId}
+                    onChange={(e) => setSelectedSummaryId(e.target.value)}
+                    className={inputCls}
+                  >
+                    {isLegacyEditing && <option value="">총괄표 미지정 유지</option>}
+                    {summaries.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {`총괄표 (작성일 ${s.report_date || '-'})${s.writer_name ? ` · ${s.writer_name}` : ''}`}
+                      </option>
+                    ))}
+                    <option value="new">새 총괄표 생성</option>
+                  </select>
+                </div>
+              )}
               <div>
                 <label className={labelCls}>일련번호</label>
                 <input

@@ -33,6 +33,8 @@ interface QualitySummaryTabProps {
   supervisorPosition?: string // 감독직급 — 확인자 직위 기본값
   supervisorName?: string // 감독 이름 — 확인자 성명 기본값
   ownerCompanyName?: string // 프로젝트 소유자 회사명 — 작성자 소속 기본값
+  openReportId?: string | null // 실시대장 탭에서 열도록 요청된 총괄표 id
+  onOpenReportConsumed?: () => void // 요청 소비 후 호출 — 상위에서 openReportId 초기화
 }
 
 const inputCls =
@@ -70,6 +72,8 @@ export default function QualitySummaryTab({
   supervisorPosition = '',
   supervisorName = '',
   ownerCompanyName = '',
+  openReportId = null,
+  onOpenReportConsumed,
 }: QualitySummaryTabProps) {
   const [reports, setReports] = useState<QualitySummaryReport[]>([])
   const [loading, setLoading] = useState(true)
@@ -96,6 +100,16 @@ export default function QualitySummaryTab({
     loadReports()
   }, [loadReports])
 
+  // 실시대장 탭에서 총괄표 헤더를 눌러 넘어온 경우 — 로드 완료 후 해당 리포트를 자동으로 연다
+  useEffect(() => {
+    if (loading || !openReportId) return
+    const target = reports.find((r) => r.id === openReportId)
+    if (target) handleSelectReport(target)
+    onOpenReportConsumed?.()
+    // handleSelectReport는 매 렌더 재생성되므로 의존성에서 제외한다
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, openReportId, reports])
+
   const resetForm = () => {
     setShowForm(false)
     setFormData(null)
@@ -118,21 +132,46 @@ export default function QualitySummaryTab({
     setShowForm(true)
   }
 
-  const handleSelectReport = (report: QualitySummaryReport) => {
+  const handleSelectReport = async (report: QualitySummaryReport) => {
     const { id, project_id, created_by, created_at, updated_at, ...fields } = report
     void id; void project_id; void created_by; void created_at; void updated_at
+    const savedQualityRows =
+      Array.isArray(fields.quality_rows) && fields.quality_rows.length > 0
+        ? fields.quality_rows
+        : [createEmptyQualityPerformanceRow()]
+    const savedVerificationRows =
+      Array.isArray(fields.verification_rows) && fields.verification_rows.length > 0
+        ? fields.verification_rows
+        : [createEmptyVerificationPerformanceRow()]
+
+    // 하위 실시대장 기준으로 ④·⑤를 기본 집계 — 조회 실패나 0건이면 저장된 값을 그대로 둔다 (레거시 보호)
+    let qualityRows = savedQualityRows
+    let verificationRows = savedVerificationRows
+    try {
+      const { data, error } = await (supabase as any)
+        .from('quality_test_records')
+        .select('*')
+        .eq('summary_id', report.id)
+      if (!error && data) {
+        const children = data as QualityTestRecord[]
+        if (children.length > 0) {
+          const aggregated = aggregatePerformanceRows(children, savedQualityRows, savedVerificationRows)
+          if (aggregated.quality_rows.length > 0) qualityRows = aggregated.quality_rows
+          if (aggregated.verification_rows.length > 0) verificationRows = aggregated.verification_rows
+        }
+      }
+    } catch {
+      // 집계만 생략하고 저장된 폼 데이터는 아래에서 채운다
+    }
+
     setFormData({
       ...createEmptyQualitySummary(),
       ...fields,
       settlement_rows: Array.isArray(fields.settlement_rows) && fields.settlement_rows.length > 0
         ? fields.settlement_rows
         : [createEmptySettlementRow()],
-      quality_rows: Array.isArray(fields.quality_rows) && fields.quality_rows.length > 0
-        ? fields.quality_rows
-        : [createEmptyQualityPerformanceRow()],
-      verification_rows: Array.isArray(fields.verification_rows) && fields.verification_rows.length > 0
-        ? fields.verification_rows
-        : [createEmptyVerificationPerformanceRow()],
+      quality_rows: qualityRows,
+      verification_rows: verificationRows,
     })
     setEditingReportId(report.id)
     setShowForm(true)
@@ -179,7 +218,7 @@ export default function QualitySummaryTab({
   }
 
   const handleDelete = async (report: QualitySummaryReport) => {
-    if (!confirm('정말 삭제하시겠습니까?')) return
+    if (!confirm("정말 삭제하시겠습니까? 하위 실시대장 기록은 '총괄표 미지정'으로 남습니다.")) return
     const { error } = await (supabase as any).from('quality_summary_reports').delete().eq('id', report.id)
     if (!error) {
       if (editingReportId === report.id) resetForm()
@@ -206,12 +245,24 @@ export default function QualitySummaryTab({
     if (!formData) return
     setAggregating(true)
     try {
-      const { data, error } = await (supabase as any)
-        .from('quality_test_records')
-        .select('*')
-        .eq('project_id', projectId)
-      if (error) throw error
-      const records = (data ?? []) as QualityTestRecord[]
+      // 수정 중인 총괄표가 있으면 그 하위 기록만 집계 — 없으면(0건) 프로젝트 전체로 폴백
+      let records: QualityTestRecord[] = []
+      if (editingReportId) {
+        const { data: childData, error: childError } = await (supabase as any)
+          .from('quality_test_records')
+          .select('*')
+          .eq('summary_id', editingReportId)
+        if (childError) throw childError
+        records = (childData ?? []) as QualityTestRecord[]
+      }
+      if (records.length === 0) {
+        const { data, error } = await (supabase as any)
+          .from('quality_test_records')
+          .select('*')
+          .eq('project_id', projectId)
+        if (error) throw error
+        records = (data ?? []) as QualityTestRecord[]
+      }
       if (records.length === 0) {
         alert('집계할 실시대장 기록이 없습니다. 실시대장 탭에서 먼저 기록을 등록해주세요.')
         return
