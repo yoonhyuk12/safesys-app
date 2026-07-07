@@ -991,7 +991,7 @@ export default function ProjectDetailPage() {
 
             {/* 모바일에서는 위 2줄만 보이고 나머지는 두루마기처럼 접힘 (sm 이상은 항상 전체 표시) */}
             <div className="relative">
-            <div className={`space-y-2 overflow-hidden transition-[max-height] duration-300 sm:max-h-none sm:overflow-visible ${infoExpanded ? 'max-h-[1000px]' : 'max-h-10'}`}>
+            <div className={`space-y-2 overflow-hidden transition-[max-height] duration-500 ease-in-out sm:max-h-none sm:overflow-visible ${infoExpanded ? 'max-h-[1000px]' : 'max-h-10'}`}>
               {/* 구분선 위 블록 (기본 정보·공사기간·계약 정보) — 상단 복사 버튼 대상 */}
               <div ref={upperInfoRef} className="space-y-2">
               {/* 기본 정보 */}
@@ -1140,21 +1140,45 @@ export default function ProjectDetailPage() {
                   </>
                 )}
             </div>
-            {/* 접힘 상태 하단 페이드 (모바일 전용) */}
+            {/* 접힘 상태 — 종이가 두루마리 속으로 말려 들어가는 페이드 (모바일 전용) */}
             {!infoExpanded && (
-              <div className="sm:hidden pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white to-transparent" />
+              <div className="sm:hidden pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white via-white/70 to-transparent" />
             )}
             </div>
-            {/* 접기/펼치기 토글 (모바일 전용) */}
+            {/* 두루마리 봉 — 누르면 종이가 풀리듯 펼쳐지고 다시 말림 (모바일 전용) */}
             <button
               onClick={(e) => {
                 e.stopPropagation()
                 setInfoExpanded(!infoExpanded)
               }}
-              className="sm:hidden w-full flex items-center justify-center pt-1 -mb-3 text-gray-400 hover:text-gray-600 transition-colors"
-              aria-label={infoExpanded ? '프로젝트 정보 접기' : '프로젝트 정보 펼치기'}
+              className="sm:hidden relative w-full mt-2 -mb-2 h-7 flex items-center justify-center"
+              aria-label={infoExpanded ? '프로젝트 정보 말아 접기' : '프로젝트 정보 펼치기'}
             >
-              {infoExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+              {/* 말린 종이 원통 */}
+              <span
+                className="absolute inset-x-3 top-1/2 -translate-y-1/2 h-[18px] rounded-full shadow-md"
+                style={{
+                  background: 'linear-gradient(to bottom, #fafaf9 0%, #f5f5f4 25%, #d6d3d1 55%, #a8a29e 75%, #e7e5e4 100%)',
+                }}
+              />
+              {/* 원통 위 종이 겹 줄무늬 */}
+              <span className="absolute inset-x-3 top-1/2 -translate-y-[7px] h-px bg-stone-300/80" />
+              {/* 양끝 나무 축 손잡이 */}
+              <span className="absolute left-0.5 top-1/2 -translate-y-1/2 h-6 w-3 rounded-full bg-gradient-to-b from-amber-600 to-amber-900 shadow" />
+              <span className="absolute right-0.5 top-1/2 -translate-y-1/2 h-6 w-3 rounded-full bg-gradient-to-b from-amber-600 to-amber-900 shadow" />
+              <span className="relative flex items-center gap-1 text-[11px] font-medium text-stone-600">
+                {infoExpanded ? (
+                  <>
+                    <ChevronUp className="h-3.5 w-3.5" />
+                    말아 접기
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="h-3.5 w-3.5" />
+                    펼쳐 보기
+                  </>
+                )}
+              </span>
             </button>
           </div>
 
