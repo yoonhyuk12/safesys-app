@@ -180,6 +180,25 @@ function formatG2bSpec(item: G2bItem): string {
   return `${name}\n(${rest})`
 }
 
+// 조달수수료 계산 — 조달청고시 제2025-33호(2025-12-01 시행) 내자구매 '단가(일반·3자·MAS)' 요율.
+// 10억원까지 0.54%, 10억 초과분 0.47%, 100억 초과분 0.37% (초과분 체감적용). 면제·감경 특례 미반영 추정치.
+function calcG2bFee(amt: number): number {
+  if (!amt || amt <= 0) return 0
+  const b1 = 1_000_000_000
+  const b2 = 10_000_000_000
+  let fee = Math.min(amt, b1) * 0.0054
+  if (amt > b1) fee += (Math.min(amt, b2) - b1) * 0.0047
+  if (amt > b2) fee += (amt - b2) * 0.0037
+  return Math.round(fee)
+}
+
+// 품목별 조달수수료 안분 — 체감 요율이라 납품요구 건 전체 금액으로 산출한 뒤 품목 금액 비례로 나눈다
+function calcG2bItemFee(items: G2bItem[], item: G2bItem): number {
+  const total = items.reduce((s, it) => s + (it.amt || 0), 0)
+  if (total <= 0 || !item.amt) return 0
+  return Math.round(calcG2bFee(total) * (item.amt / total))
+}
+
 // ── 컴포넌트 ──
 
 export default function MaterialLedgerPage() {
@@ -558,11 +577,12 @@ export default function MaterialLedgerPage() {
         dlvr_cndtn: i.cndtn || null,
         unit_price: i.unitPrice || null,
         prdct_amt: i.amt || null,
+        fee_amt: calcG2bItemFee(result.items, i) || null,
       })))
       .select()
     if (rowsError) throw rowsError
 
-    const newRows: MaterialRow[] = (rowsData || []).map((e: { id: string; name_or_spec: string | null; order_qty: number | null; dlvr_req_no: string | null; dlvr_req_prdct_sno: number | null; dlvr_cndtn: string | null; unit_price: number | null; prdct_amt: number | null }) => ({
+    const newRows: MaterialRow[] = (rowsData || []).map((e: { id: string; name_or_spec: string | null; order_qty: number | null; dlvr_req_no: string | null; dlvr_req_prdct_sno: number | null; dlvr_cndtn: string | null; unit_price: number | null; prdct_amt: number | null; fee_amt: number | null }) => ({
       id: e.id,
       nameOrSpec: e.name_or_spec || '',
       orderQty: e.order_qty != null ? String(e.order_qty) : '',
@@ -574,7 +594,7 @@ export default function MaterialLedgerPage() {
       dlvrCndtn: e.dlvr_cndtn || '',
       unitPrice: e.unit_price != null ? String(e.unit_price) : '',
       prdctAmt: e.prdct_amt != null ? String(e.prdct_amt) : '',
-      feeAmt: '',
+      feeAmt: e.fee_amt != null ? String(e.fee_amt) : '',
     }))
 
     return {
@@ -933,6 +953,7 @@ export default function MaterialLedgerPage() {
             dlvr_cndtn: item.cndtn || null,
             unit_price: item.unitPrice || null,
             prdct_amt: item.amt || null,
+            fee_amt: calcG2bItemFee(linkResult.items, item) || null,
           })
           if (insErr) throw insErr
           linkedMatIds.add(targetMat.id)
@@ -942,7 +963,7 @@ export default function MaterialLedgerPage() {
         const matching = targetMat.rows.filter(r => r.nameOrSpec === target.spec)
         if (matching.length === 0) continue
 
-        // 규격의 첫 행에 연계 정보 저장 — 인도조건·품대도 조달청 값으로 갱신 (수수료는 API 미제공, 수동 입력값 유지)
+        // 규격의 첫 행에 연계 정보 저장 — 인도조건·단가·품대·수수료(고시 요율 추정)를 조달청 값으로 갱신
         const { error: updErr } = await supabase.from('material_ledger_entries')
           .update({
             dlvr_req_no: linkResult.dlvrReqNo,
@@ -950,6 +971,7 @@ export default function MaterialLedgerPage() {
             dlvr_cndtn: item.cndtn || null,
             unit_price: item.unitPrice || null,
             prdct_amt: item.amt || null,
+            fee_amt: calcG2bItemFee(linkResult.items, item) || null,
           })
           .eq('id', matching[0].id)
         if (updErr) throw updErr
