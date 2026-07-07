@@ -890,6 +890,7 @@ export default function ContractStatusPage() {
                   </>
                 )}
               </button>
+              <p className="text-[11px] text-gray-400 text-center">조달청에서 월단위 조회를 하여 조회 속도가 느립니다.</p>
               </>
               )}
 
