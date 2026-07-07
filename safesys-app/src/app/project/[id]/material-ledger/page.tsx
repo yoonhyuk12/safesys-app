@@ -936,9 +936,14 @@ export default function MaterialLedgerPage() {
         const matching = targetMat.rows.filter(r => r.nameOrSpec === target.spec)
         if (matching.length === 0) continue
 
-        // 규격의 첫 행에 연계 정보 저장
+        // 규격의 첫 행에 연계 정보 저장 — 인도조건·품대도 조달청 값으로 갱신 (수수료는 API 미제공, 수동 입력값 유지)
         const { error: updErr } = await supabase.from('material_ledger_entries')
-          .update({ dlvr_req_no: linkResult.dlvrReqNo, dlvr_req_prdct_sno: item.sno })
+          .update({
+            dlvr_req_no: linkResult.dlvrReqNo,
+            dlvr_req_prdct_sno: item.sno,
+            dlvr_cndtn: item.cndtn || null,
+            prdct_amt: item.amt || null,
+          })
           .eq('id', matching[0].id)
         if (updErr) throw updErr
         linkedMatIds.add(targetMat.id)
