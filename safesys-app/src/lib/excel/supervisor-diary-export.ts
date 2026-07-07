@@ -86,6 +86,7 @@ interface TBMSubmission {
  * @param latitude 프로젝트 위도 (날씨 조회용)
  * @param longitude 프로젝트 경도 (날씨 조회용)
  * @param useAI AI 사용 여부 (기본값: true)
+ * @param recordLogsMap 일자별 기록사항 라인(지급자재 반입·각 점검) — 전달 시 3. 기록사항을 이 내용으로 채움 (인원/장비 생략)
  */
 export async function generateSupervisorDiaryExcel(
   projectName: string,
@@ -97,7 +98,8 @@ export async function generateSupervisorDiaryExcel(
   supervisorSignature?: string,
   latitude?: number,
   longitude?: number,
-  useAI: boolean = true
+  useAI: boolean = true,
+  recordLogsMap?: Map<string, string[]>
 ) {
   const workbook = new ExcelJS.Workbook()
 
@@ -205,8 +207,9 @@ export async function generateSupervisorDiaryExcel(
                 return ''
               }
             })(),
-            // 기록사항 AI
+            // 기록사항 AI — 기록사항이 일자별 기록(recordLogsMap)으로 대체되면 생성 생략
             (async () => {
+              if (recordLogsMap) return ''
               try {
                 const personnelList = dayData.map(d => d.personnel_count).filter(Boolean)
                 const equipmentList = dayData.map(d => d.equipment_input).filter(Boolean)
@@ -322,7 +325,8 @@ export async function generateSupervisorDiaryExcel(
       weatherSummary,
       aiData,
       photoBuffer,
-      useAI
+      useAI,
+      recordLogsMap ? (recordLogsMap.get(date) || []) : undefined
     )
 
     // UI 업데이트를 위한 짧은 지연
@@ -385,7 +389,8 @@ async function createSupervisorDiarySheet(
   weatherSummary: string = '',
   aiData?: { supervisorInstructions: string; personnelEquipmentSummary: string },
   photoBuffer?: Buffer,
-  useAI: boolean = true
+  useAI: boolean = true,
+  recordLogs?: string[]
 ) {
   // 열 너비 설정 (7개 열: A-G)
   worksheet.columns = [
@@ -478,8 +483,8 @@ async function createSupervisorDiarySheet(
   // 2. 공사지휘 - 미리 조회한 AI 데이터 사용
   addSection2(worksheet, aiData?.supervisorInstructions || '')
 
-  // 3. 기록사항 - 미리 조회한 AI 데이터 또는 원본 데이터
-  addSection3(worksheet, dayData, aiData?.personnelEquipmentSummary, useAI)
+  // 3. 기록사항 - 일자별 기록(지급자재·점검) 또는 AI 데이터/원본 데이터
+  addSection3(worksheet, dayData, aiData?.personnelEquipmentSummary, useAI, recordLogs)
 
   // 4. 기타 - 미리 다운로드한 사진 사용
   addSection4(worksheet, dayData, workbook, photoBuffer)
@@ -615,9 +620,9 @@ async function generateSupervisorInstructions(data: { todayWork: string; previou
 }
 
 /**
- * 3. 기록사항 섹션 - 미리 생성된 AI 데이터 또는 원본 데이터 사용
+ * 3. 기록사항 섹션 - 일자별 기록(지급자재 반입·각 점검)이 전달되면 그것만 사용, 아니면 AI 데이터 또는 원본 데이터 사용
  */
-function addSection3(worksheet: ExcelJS.Worksheet, dayData: TBMSubmission[], aiSummary?: string, useAI: boolean = true) {
+function addSection3(worksheet: ExcelJS.Worksheet, dayData: TBMSubmission[], aiSummary?: string, useAI: boolean = true, recordLogs?: string[]) {
   const titleRow = worksheet.addRow(['3. 기록사항'])
   titleRow.font = { bold: true, size: 12 }
   worksheet.mergeCells(`A${titleRow.number}:G${titleRow.number}`)
@@ -633,8 +638,10 @@ function addSection3(worksheet: ExcelJS.Worksheet, dayData: TBMSubmission[], aiS
 
   let content = ''
 
-  // AI 요약이 있으면 사용, 없으면 원본 데이터 표시
-  if (useAI && aiSummary) {
+  // 일자별 기록이 전달되면 기록 라인만 표시 (인원/장비 생략)
+  if (recordLogs) {
+    content = recordLogs.join('\n')
+  } else if (useAI && aiSummary) {
     content = aiSummary
   } else if (dayData.length > 0) {
     // AI 사용 안 함: 값만 표시

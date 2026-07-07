@@ -6,6 +6,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { X, ChevronRight, Download } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { generateSupervisorDiaryExcel } from '@/lib/excel/supervisor-diary-export'
+import { loadDiaryRecordLogs } from '@/lib/supervisor-diary-records'
 
 interface SupervisorDiaryGeneratorProps {
   isOpen: boolean
@@ -401,7 +402,7 @@ export default function SupervisorDiaryGenerator({
                       />
                       <div>
                         <p className="font-medium text-gray-900">AI작성 (시간 걸림, 서명별도)</p>
-                        <p className="text-sm text-gray-500">AI가 공사기록과 기록사항을 작성합니다. 서명란은 공란입니다.</p>
+                        <p className="text-sm text-gray-500">AI가 공사기록을 작성합니다. 기록사항에는 지급자재 반입·점검 기록이 들어갑니다. 서명란은 공란입니다.</p>
                       </div>
                     </label>
                     <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
@@ -418,7 +419,7 @@ export default function SupervisorDiaryGenerator({
                           AI 없이 TBM 데이터 값만 입력합니다.<br />
                           - 공사추진내용: 금일작업<br />
                           - 공사기록: 공란<br />
-                          - 기록사항: 투입인원, 투입장비<br />
+                          - 기록사항: 지급자재 반입, 점검 기록<br />
                           - 기타: 기타사항
                         </p>
                       </div>
@@ -610,6 +611,14 @@ export default function SupervisorDiaryGenerator({
                       cancelReportRef.current = false
 
                       try {
+                        // 3. 기록사항용 일자별 기록(지급자재 반입·각 점검) 조회 — 실패해도 일지 생성은 계속
+                        let recordLogsMap = new Map<string, string[]>()
+                        try {
+                          recordLogsMap = await loadDiaryRecordLogs(projectId, reportStartDate, reportEndDate)
+                        } catch (err) {
+                          console.error('기록사항 조회 실패:', err)
+                        }
+
                         await generateSupervisorDiaryExcel(
                           projectName,
                           reportStartDate,
@@ -627,7 +636,8 @@ export default function SupervisorDiaryGenerator({
                           useAI ? '' : supervisorSignature, // AI 모드면 서명 없음
                           latitude,
                           longitude,
-                          useAI // AI 사용 여부 전달
+                          useAI, // AI 사용 여부 전달
+                          recordLogsMap // 기록사항: 지급자재 반입·각 점검 라인
                         )
                       } catch (error) {
                         console.error('다운로드 오류:', error)
