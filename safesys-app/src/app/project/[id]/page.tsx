@@ -1287,7 +1287,7 @@ export default function ProjectDetailPage() {
               <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>D (실행)</div>
               <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
                 <DocumentFolder
-                  title="작업일보"
+                  title="AI 작업일보"
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
