@@ -220,27 +220,6 @@ img[width="1"][height="1"] {
   border-radius: 0.5rem;
 }
 
-/* 프로젝트 페이지 두루마리 펼침 — 진입 시 종이가 위에서 아래로 풀리며 콘텐츠가 드러난다 */
-@keyframes durumari-unroll {
-  from {
-    clip-path: inset(0 0 100% 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
-}
-
-.durumari-unroll {
-  /* fill-mode 없음 — 종료 후 clip-path가 남아 그림자·드롭다운이 잘리는 것을 방지 */
-  animation: durumari-unroll 1s ease-out;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .durumari-unroll {
-    animation: none;
-  }
-}
-
 /* 페이드 인 애니메이션 */
 @keyframes fade-in {
   from {
