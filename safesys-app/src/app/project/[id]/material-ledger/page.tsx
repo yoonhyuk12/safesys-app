@@ -3400,7 +3400,7 @@ export default function MaterialLedgerPage() {
       {isMaterialModalOpen && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setIsMaterialModalOpen(false)}>
           <div
-            className="max-w-sm md:max-w-2xl w-full rounded-lg overflow-hidden"
+            className="max-w-sm md:max-w-2xl w-full max-h-[90dvh] flex flex-col rounded-lg overflow-hidden"
             onClick={e => e.stopPropagation()}
             style={{
               background: 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 50%, #12121a 100%)',
@@ -3409,12 +3409,12 @@ export default function MaterialLedgerPage() {
             }}
           >
             {/* 상단 금속 테두리 */}
-            <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
+            <div className="h-2 shrink-0 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
               boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
             }} />
 
             {/* 헤더 */}
-            <div className="flex items-center justify-between px-5 py-3" style={{
+            <div className="flex items-center justify-between px-5 py-3 shrink-0" style={{
               background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)',
               borderBottom: '2px solid #5a4a35'
             }}>
@@ -3429,8 +3429,8 @@ export default function MaterialLedgerPage() {
               </button>
             </div>
 
-            {/* 본문 */}
-            <div className="px-5 py-4 space-y-4">
+            {/* 본문 — 화면보다 길면 본문만 스크롤 */}
+            <div className="px-5 py-4 space-y-4 flex-1 min-h-0 overflow-y-auto">
               {/* 입력 방식 선택 */}
               <div className="grid grid-cols-2 gap-2">
                 {([['manual', '직접 입력'], ['g2b', '납품요구번호']] as const).map(([mode, label]) => (
@@ -3742,7 +3742,7 @@ export default function MaterialLedgerPage() {
             </div>
 
             {/* 하단 버튼 */}
-            <div className="flex gap-3 px-5 py-4" style={{
+            <div className="flex gap-3 px-5 py-4 shrink-0" style={{
               background: 'linear-gradient(180deg, #2a2520 0%, #1a1510 100%)',
               borderTop: '2px solid #5a4a35'
             }}>
@@ -3779,7 +3779,7 @@ export default function MaterialLedgerPage() {
             </div>
 
             {/* 하단 금속 테두리 */}
-            <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
+            <div className="h-2 shrink-0 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
               boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
             }} />
           </div>
