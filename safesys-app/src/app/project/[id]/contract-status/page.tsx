@@ -883,15 +883,27 @@ export default function ContractStatusPage() {
   )
   const handleToggleRepresentative = async (g: ContractGroup) => {
     if (!project) return
-    const prev = project.representative_contract_id ?? null
+    const prevProject = project
     const nextId = isGroupRepresentative(g) ? null : g.repr.id
-    setProject({ ...project, representative_contract_id: nextId }) // 낙관적 업데이트
+    // 체크 시 편집 페이지의 나라장터 연계(g2b_*)도 대표계약 값으로 동기화 —
+    // 대표계약과 편집 폼의 연계 계약은 같은 '프로젝트 대표 1건' 개념이라 함께 움직여야
+    // 편집 페이지 연계 박스에 대표계약이 뜬다. 해제 시에는 연계를 지우지 않는다(기존 기본 대표 유지).
+    const sync = nextId
+      ? {
+          g2b_cntrct_no: g.repr.cntrct_no || null,
+          g2b_ntce_no: null, // 이전 연계 계약의 공고번호가 남으면 번호가 서로 다른 계약을 가리키므로 정리
+          g2b_corp_nm: g.repr.corp_nm || null,
+          g2b_tot_amt: g.repr.tot_cntrct_amt ?? null,
+          g2b_thtm_amt: g.repr.thtm_cntrct_amt ?? null,
+        }
+      : {}
+    setProject({ ...project, representative_contract_id: nextId, ...sync }) // 낙관적 업데이트
     const { error } = await (supabase as any)
       .from('projects')
-      .update({ representative_contract_id: nextId })
+      .update({ representative_contract_id: nextId, ...sync })
       .eq('id', projectId)
     if (error) {
-      setProject({ ...project, representative_contract_id: prev }) // 실패 시 롤백
+      setProject(prevProject) // 실패 시 롤백
       alert('대표계약 설정 실패: ' + error.message)
     }
   }

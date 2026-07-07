@@ -1,7 +1,7 @@
 'use client'
 
 // 나라장터 계약번호·공고번호로 공사 계약을 조회해 프로젝트 폼에 자동입력하는 공용 컴포넌트
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Search, FileText, Loader2 } from 'lucide-react'
 import { BRANCH_OPTIONS } from '@/lib/constants'
 
@@ -120,6 +120,17 @@ export default function G2bContractLookup({
       setLoading(false)
     }
   }
+
+  // 저장된 연계 번호(initialNo)가 있으면 열릴 때 자동 조회해 연계 계약이 바로 보이게 한다.
+  // (수정 폼에서 "연계된 계약이 안 뜬다" 피드백 — 조회 버튼을 누르기 전에도 표시)
+  const autoSearched = useRef(false)
+  useEffect(() => {
+    if (initialNo && !autoSearched.current) {
+      autoSearched.current = true // StrictMode 이중 실행에 따른 중복 호출 방지
+      handleSearch()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const handleApply = (c: G2bContract) => {
     const org = matchOrgFromDminsttNms(c.dminsttNms)
