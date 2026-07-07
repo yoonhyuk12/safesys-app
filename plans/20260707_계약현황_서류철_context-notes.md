@@ -1,5 +1,23 @@
 # 컨텍스트 노트 — 계약(공사·용역) 현황 서류철
 
+## 2026-07-07 페이지 피드백 반영 (10차) — 조달청 조회 탭 공사·용역 통합
+
+- **피드백**: 조회 서브탭의 [공사 | 용역]을 하나로 합쳐 한 번에 조회. 탭 [공사 | 용역 | 계약번호] → **[공사·용역 | 계약번호]** (`LookupDiv: 'period' | 'byno'`, 기본 `'period'`). 탭 그리드 `grid-cols-3`→`grid-cols-2`.
+- **구현**: API 오퍼레이션은 공사(`getCntrctInfoListCnstwkPPSSrch`)·용역(`getCntrctInfoListServcPPSSrch`)이 분리라 서버 라우트(`cntrct-list`)는 여전히 `div=cnstwk|servc` 단건만 받는다(변경 없음). 통합은 **클라이언트에서** `handleLookup`이 월마다 두 구분(`DIVS=['cnstwk','servc']`)을 `Promise.all`로 병렬 조회해 합치는 방식. 월 단위 동시성(CONCURRENCY 3)·진행률(`n/총 개월`)은 유지 — 한 달에 대해 공사·용역이 모두 끝나야 그 달 done +1, 둘 중 하나라도 실패하면 그 달 failCount +1.
+- **결과 합치기는 기존 그대로**: `item.key`(계약명+체결일+총액+업체) dedupe → `latestPerContract`(차수 병합) → 체결일 내림차순. 공사/용역은 계약명·계약번호가 달라 충돌 없음. 모달 결과 목록·체크박스 그룹 로직도 이미 혼합 타입(계약번호 탭)을 처리하던 것이라 무변경.
+- **`div=period`를 API로 보내지 않는다** — 초기 편집 흔적으로 프론트가 `div=period`를 보내 API가 400(`계약 구분 지정`)으로 거부하던 상태였으나, 클라이언트 팬아웃으로 전환해 해소. 서버 라우트 계약(단일 구분)은 그대로 두는 게 타임아웃·단일책임 측면에서 안전.
+
+## 2026-07-07 페이지 피드백 반영 (9차) — 대표계약 1건 지정 컬럼
+
+- **피드백**: 계약현황 목록에 "대표계약건 1건 설정을 위한 컬럼"을 넣고, 체크하면 대표 1건이 되도록. (편집 페이지 나라장터 연계의 "계약 1건 등록" 기능과 짝 — 여러 계약 중 프로젝트 대표 1건을 지정하는 용도.)
+- **저장 위치**: `projects.representative_contract_id UUID REFERENCES project_contracts(id) ON DELETE SET NULL` (마이그레이션 `20260707-1730`, 사용자 실행 필요). 프로젝트에 단일 값으로 저장 → "1건" 단일 선택이 구조적으로 보장. 계약 행 삭제 시 자동 NULL.
+- **왜 project_contracts의 boolean이 아니라 projects 컬럼인가**: ① 단일 선택을 값 하나로 강제(다른 행 clear 불필요). ② project_contracts UPDATE RLS는 `auth.uid()=created_by`라 남이 만든 행 clear가 실패할 수 있음 — projects UPDATE(편집 폼과 동일 경로)는 안전. 
+- **그룹 단위 표시**: 목록은 차수 병합 그룹(`nameGroupKey`)이라, 저장된 id가 그룹 멤버 중 하나면 대표로 표시(`isGroupRepresentative`). 체크 시 그룹 대표행(`repr`) id 저장, 다시 체크 시 NULL. 업데이트로 새 최신 차수가 들어와 repr이 바뀌어도 이전 멤버 id가 그룹에 남아 대표 표시 유지(재체크 시 새 repr로 갱신).
+- **UI**: 맨 앞 "대표" 체크박스 컬럼, 대표 행은 `bg-amber-50` 강조. 소계행 선두 `colSpan={3}→{4}`로 정렬 유지. 낙관적 업데이트+실패 롤백.
+- **기본 대표(추가 요청)**: 명시적으로 저장된 대표(`representative_contract_id`)가 없으면, 편집 페이지에서 연계한 나라장터 계약(`projects.g2b_cntrct_no`/`g2b_ntce_no`)에 매칭되는 계약을 **기본 대표로 표시**(이미 등록된 계약이므로 자동 체크). `representativeId = representative_contract_id ?? g2bLinkedRepId`. 매칭은 `cntrct_no`(결합형 base 포함)·`unty_cntrct_no`·URL의 `ctrtNo`로. **DB에 쓰지 않는 표시용 폴백**이라 열람 전용 사용자(RLS로 projects UPDATE 불가)도 체크가 보이고, 사용자의 명시적 해제와 충돌하지 않음. 다른 계약을 체크하면 그 id가 저장돼 기본값을 덮어씀. 기본(연계) 계약은 저장값 null이라 클릭해도 null 유지 → 계속 체크(대표 1건 항상 유지).
+- **merge_projects 영향 없음**: 이 FK는 `confrelid=project_contracts`(projects가 자식을 참조)라 함수의 자식 테이블 카운트(22, `confrelid=projects`)에 안 잡힘 — 갱신 불필요. 병합 시 source projects 행은 삭제되므로 target의 대표계약이 유지됨(source 선택은 폐기).
+- **엑셀 내보내기 미반영**: 요청 범위 밖이라 대표 표기는 목록에만. 필요 시 export row에 플래그 추가로 확장 가능.
+
 ## 2026-07-07 페이지 피드백 반영 (8차) — 업데이트 버튼의 신규 연차(차수) 탐색
 
 - **피드백**: "업데이트를 눌러도 과거 차수만 검색되고 금차년도(26년) 금액이 등록되지 않는다" + "계약명 링크가 25년 계약서로 간다".
@@ -73,3 +91,12 @@
 - **수기 등록·수정 폼은 이번 범위에서 제외** — 사용자 요청이 "조달청에서 불러올 수 있게"라서 조회 등록 + 삭제만. 금액 등 보정 필요 시 후속.
 - 조달청 계약현황 목록의 **같은 계약 중복 행**(untyCntrctNo 변형)은 라우트에서 dedupe.
 - DATA_GO_KR_API_KEY는 Vercel Preview/Production에 등록 확인 (2026-07-06자 등록, vercel env ls 확인).
+
+## 2026-07-07 UI 피드백 반영 (계약 등록 모달)
+
+- **등록 모달 기본 탭은 '조달청 조회'.** modalTab 초기값을 'g2b'로 변경하고, openLookup()에서 열 때마다 'g2b'로 재설정 — 직접 등록 탭에 두고 닫아도 다음 열기에는 조달청 조회가 활성화 (사용자 피드백 "매번 조달청이 활성화").
+- **구분 탭(공사/용역/계약번호)과 아래 조회 조건을 border-blue-200 테두리 박스로 묶음** — 탭 선택에 따라 바뀌는 입력 필드들이 한 묶음임이 보이도록 (사용자 피드백 "배경선"). 조회 결과·에러 표시는 박스 밖 유지.
+- **구분 탭을 '공사'·'용역' 2개 → '공사·용역' 1개로 통합** (탭은 '공사·용역', '계약번호' 2개). `LookupDiv`를 `'period' | 'byno'`로 바꾸고 기본값 `'period'`. 사용자가 공사/용역을 나눠 조회할 필요 없이 기간 조회 한 번으로 둘 다 받게 함.
+  - **탭 그리드 `grid-cols-3` → `grid-cols-2`** — 탭이 2개로 줄었는데 3열 그리드가 남아 빈 열이 생기던 것을 정리 (사용자가 중단하고 넘긴 지점).
+  - **`handleLookup`은 월마다 cnstwk·servc 두 오퍼레이션을 모두 호출해 합침** — 조달청 계약현황 API는 공사(`getCntrctInfoListCnstwkPPSSrch`)·용역(`getCntrctInfoListServcPPSSrch`) 오퍼레이션이 분리라 `div=period` 단일 호출은 라우트에서 400. `DIVS=['cnstwk','servc']`를 월 태스크 안에서 `Promise.all`로 조회. 진행률(`done/total`)은 "개월" 단위 유지 위해 월당 1회만 증가, `failCount`는 두 구분 모두 실패한 월만 카운트(`failCount===months.length` 전량 실패 판정과 정합). 결과는 기존 `key` dedupe + `latestPerContract`로 공사·용역 섞여도 합쳐짐.
+  - **업데이트/신규 차수 탐색 경로(scanPlans, line~800)의 `div`는 각 계약의 `contract_type`으로 그대로 유도** — 탭 통합과 무관(이미 등록된 계약은 구분이 정해져 있음). 변경 없음.

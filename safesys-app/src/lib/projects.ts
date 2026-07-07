@@ -53,6 +53,8 @@ export interface Project {
   g2b_corp_nm?: string | null
   g2b_tot_amt?: number | null
   g2b_thtm_amt?: number | null
+  // 계약현황에서 지정한 대표계약 1건 (project_contracts.id)
+  representative_contract_id?: string | null
   user_profiles?: {
     role?: '발주청' | '감리단' | '시공사'
     company_name?: string

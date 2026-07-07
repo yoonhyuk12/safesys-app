@@ -53,11 +53,11 @@ interface G2bCntrctItem {
   url: string
 }
 
-type LookupDiv = 'cnstwk' | 'servc' | 'byno'
+// 기간 조회는 공사·용역을 구분 없이 함께 조회한다 (API 오퍼레이션은 분리라 서버 호출은 구분별로 나감)
+type LookupDiv = 'period' | 'byno'
 
 const LOOKUP_TABS: Array<{ div: LookupDiv; label: string }> = [
-  { div: 'cnstwk', label: '공사' },
-  { div: 'servc', label: '용역' },
+  { div: 'period', label: '공사·용역' },
   { div: 'byno', label: '계약번호' },
 ]
 
@@ -257,7 +257,7 @@ export default function ContractStatusPage() {
 
   // 조달청 조회 모달
   const [isLookupOpen, setIsLookupOpen] = useState(false)
-  const [lookupDiv, setLookupDiv] = useState<LookupDiv>('cnstwk')
+  const [lookupDiv, setLookupDiv] = useState<LookupDiv>('period')
   const [lookupInst, setLookupInst] = useState('')
   const [lookupFrom, setLookupFrom] = useState('')
   const [lookupTo, setLookupTo] = useState('')
@@ -268,8 +268,8 @@ export default function ContractStatusPage() {
   const [lookupItems, setLookupItems] = useState<G2bCntrctItem[] | null>(null)
   const [lookupChecked, setLookupChecked] = useState<Set<string>>(new Set())
   const [importing, setImporting] = useState(false)
-  // 등록 방식 탭 (직접 등록 / 조달청 조회)
-  const [modalTab, setModalTab] = useState<'manual' | 'g2b'>('manual')
+  // 등록 방식 탭 (직접 등록 / 조달청 조회) — 조달청 조회가 기본
+  const [modalTab, setModalTab] = useState<'manual' | 'g2b'>('g2b')
   // 계약번호·공고번호 조회
   const [noInput, setNoInput] = useState('')
   const [noLoading, setNoLoading] = useState(false)
@@ -443,6 +443,7 @@ export default function ContractStatusPage() {
   // 조달청 조회 모달 열기 — 기관명·기간·검색어 프리필 (수불부 일괄 조회와 동일 패턴)
   const openLookup = () => {
     setIsLookupOpen(true)
+    setModalTab('g2b')  // 열 때마다 조달청 조회 탭으로 초기화
     setLookupError('')
     if (!lookupFrom || !lookupTo) {
       const now = new Date()
@@ -503,6 +504,8 @@ export default function ContractStatusPage() {
     setLookupItems(null)
     setLookupChecked(new Set())
     setLookupProgress({ done: 0, total: months.length })
+    // 공사·용역은 API 오퍼레이션(cnstwk/servc)이 분리라 월마다 두 구분을 모두 조회해 합친다
+    const DIVS = ['cnstwk', 'servc'] as const
     const collected: G2bCntrctItem[] = []
     let firstError = ''
     let failCount = 0
@@ -512,18 +515,21 @@ export default function ContractStatusPage() {
       for (let i = 0; i < months.length; i += CONCURRENCY) {
         const batch = months.slice(i, i + CONCURRENCY)
         await Promise.all(batch.map(async (m) => {
-          try {
-            const res = await fetch(`/api/g2b/cntrct-list?div=${lookupDiv}&inst=${encodeURIComponent(inst)}&bgn=${m.bgn}&end=${m.end}${nmParam}`)
-            const json = await res.json()
-            if (!res.ok || !json.success) throw new Error(json.error || '조회에 실패했습니다.')
-            collected.push(...(json.data?.items || []))
-          } catch (err: unknown) {
-            failCount += 1
-            if (!firstError) firstError = err instanceof Error ? err.message : '조회에 실패했습니다.'
-          } finally {
-            done += 1
-            setLookupProgress({ done, total: months.length })
-          }
+          let monthFailed = false
+          await Promise.all(DIVS.map(async (div) => {
+            try {
+              const res = await fetch(`/api/g2b/cntrct-list?div=${div}&inst=${encodeURIComponent(inst)}&bgn=${m.bgn}&end=${m.end}${nmParam}`)
+              const json = await res.json()
+              if (!res.ok || !json.success) throw new Error(json.error || '조회에 실패했습니다.')
+              collected.push(...(json.data?.items || []))
+            } catch (err: unknown) {
+              monthFailed = true
+              if (!firstError) firstError = err instanceof Error ? err.message : '조회에 실패했습니다.'
+            }
+          }))
+          if (monthFailed) failCount += 1
+          done += 1
+          setLookupProgress({ done, total: months.length })
         }))
       }
       // 월 경계 중복 dedupe → 같은 계약의 차수별 행은 최신 차수만 → 체결일 내림차순
@@ -853,6 +859,43 @@ export default function ContractStatusPage() {
     else alert('삭제 실패: ' + error.message)
   }
 
+  // 대표계약 지정 — 프로젝트에 대표계약 1건(계약 행 id)만 저장해 단일 선택을 보장.
+  // 목록은 차수 병합 그룹 단위라, 그룹 멤버 중 저장된 id가 있으면 대표로 표시한다.
+  // 명시적으로 저장된 대표가 없으면, 편집 페이지에서 연계한 나라장터 계약(프로젝트 기본 계약)을
+  // 기본 대표로 간주해 이미 체크된 상태로 보인다 — 이미 등록된 계약이므로.
+  const g2bLinkedRepId = useMemo<string | null>(() => {
+    if (!project) return null
+    const no = (project.g2b_cntrct_no || project.g2b_ntce_no || '').replace(/\s+/g, '')
+    if (!no) return null
+    const noBase = no.length >= 13 ? no.slice(0, -2) : no
+    const match = records.find((r) => {
+      if (r.cntrct_no && (r.cntrct_no === no || (r.cntrct_no.length >= 13 && r.cntrct_no.slice(0, -2) === noBase))) return true
+      if (r.unty_cntrct_no && r.unty_cntrct_no === no) return true
+      if (ctrtNoFromUrl(r.cntrct_info_url) === no) return true
+      return false
+    })
+    return match?.id ?? null
+  }, [project, records])
+  const representativeId = project?.representative_contract_id ?? g2bLinkedRepId
+  const isGroupRepresentative = useCallback(
+    (g: ContractGroup) => !!representativeId && g.members.some((m) => m.id === representativeId),
+    [representativeId]
+  )
+  const handleToggleRepresentative = async (g: ContractGroup) => {
+    if (!project) return
+    const prev = project.representative_contract_id ?? null
+    const nextId = isGroupRepresentative(g) ? null : g.repr.id
+    setProject({ ...project, representative_contract_id: nextId }) // 낙관적 업데이트
+    const { error } = await (supabase as any)
+      .from('projects')
+      .update({ representative_contract_id: nextId })
+      .eq('id', projectId)
+    if (error) {
+      setProject({ ...project, representative_contract_id: prev }) // 실패 시 롤백
+      alert('대표계약 설정 실패: ' + error.message)
+    }
+  }
+
   const handleExcelExport = async () => {
     if (!project) return
     const exportRows: ContractExcelRow[] = sortedGroups.map((g) => {
@@ -980,6 +1023,7 @@ export default function ContractStatusPage() {
               <table className="w-full text-sm whitespace-nowrap">
                 <thead>
                   <tr className="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
+                    <th className="px-3 py-2 text-center font-medium">대표</th>
                     <th className="px-3 py-2 text-left font-medium">구분</th>
                     <th className="px-3 py-2 text-left font-medium">계약명</th>
                     <th className="px-3 py-2 text-left font-medium">계약상대자</th>
@@ -998,7 +1042,7 @@ export default function ContractStatusPage() {
                 <tbody>
                   {/* 소계행 — 금액 합계 (총액은 계약 단위로 1회만 합산 — 차수 중복 합산 방지) */}
                   <tr className="bg-blue-50/60 border-b border-gray-200 font-semibold text-gray-700">
-                    <td className="px-3 py-2" colSpan={3}>소계 ({groups.length}건)</td>
+                    <td className="px-3 py-2" colSpan={4}>소계 ({groups.length}건)</td>
                     <td className="px-3 py-2 text-right tabular-nums">
                       {groups.reduce((s, g) => s + (g.repr.tot_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
                     </td>
@@ -1011,8 +1055,18 @@ export default function ContractStatusPage() {
                   </tr>
                   {sortedGroups.map((g) => {
                     const r = g.repr
+                    const isRep = isGroupRepresentative(g)
                     return (
-                    <tr key={g.key} className="border-b border-gray-100 hover:bg-gray-50">
+                    <tr key={g.key} className={`border-b border-gray-100 ${isRep ? 'bg-amber-50' : 'hover:bg-gray-50'}`}>
+                      <td className="px-3 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isRep}
+                          onChange={() => handleToggleRepresentative(g)}
+                          className="h-4 w-4 accent-blue-600 cursor-pointer align-middle"
+                          title={isRep ? '대표계약 해제' : '대표계약으로 지정'}
+                        />
+                      </td>
                       <td className="px-3 py-2">
                         <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
                           r.contract_type === '공사' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'
@@ -1105,8 +1159,10 @@ export default function ContractStatusPage() {
 
               {modalTab === 'g2b' && (
               <>
-              {/* 구분 탭 — 공사/용역(기간 조회), 계약번호(단건 조회) */}
-              <div className="grid grid-cols-3 gap-2">
+              {/* 구분 탭 + 조회 조건 — 탭과 아래 입력이 한 묶음임을 보이도록 테두리 박스로 감쌈 */}
+              <div className="border border-blue-200 rounded-lg p-3 space-y-3">
+              {/* 구분 탭 — 공사·용역(기간 조회), 계약번호(단건 조회) */}
+              <div className="grid grid-cols-2 gap-2">
                 {LOOKUP_TABS.map(({ div, label }) => (
                   <button
                     key={div}
@@ -1230,6 +1286,7 @@ export default function ContractStatusPage() {
                   <p className="text-[11px] text-gray-400 mt-1">나라장터 확정계약번호·공고번호·통합계약번호 모두 조회됩니다. 공사·용역 구분은 자동 판별됩니다.</p>
                 </div>
               )}
+              </div>
 
               {lookupError && <p className="text-xs text-red-600">{lookupError}</p>}
 
