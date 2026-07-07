@@ -2,7 +2,7 @@
 
 // 검측 사진 업로드 탭 — 검측건당 최소 1컷, 최대 2컷. 엑셀 사진대지 출력에 사용된다.
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Crop, ImagePlus, Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import ImageEditor from '@/components/ui/ImageEditor'
@@ -35,6 +35,20 @@ export default function InspectionPhotoTab({ projectId, formData, onChange }: In
 
   const setPhotos = (next: InspectionPhoto[]) => onChange({ ...formData, photos: next })
 
+  // 사진 설명 기본값 — 검측 사항 내용을 줄 단위로 나눠 사진1 ← 1줄, 사진2 ← 2줄
+  const captionLines = (formData.inspection_items || '')
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const defaultCaption = (index: number) => captionLines[index] || ''
+
+  // 탭 진입 시 비어있는 설명을 검측 사항으로 1회 자동 채움 (체크리스트 탭의 일자 자동 채움과 동일 패턴)
+  useEffect(() => {
+    if (!photos.some((p, i) => !p.caption && defaultCaption(i))) return
+    setPhotos(photos.map((p, i) => (p.caption ? p : { ...p, caption: defaultCaption(i) })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     e.target.value = ''
@@ -55,7 +69,7 @@ export default function InspectionPhotoTab({ projectId, formData, onChange }: In
         const { data, error } = await supabase.storage.from(BUCKET).upload(fileName, file)
         if (error) throw error
         const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(data.path)
-        uploaded.push({ url: urlData.publicUrl, caption: '' })
+        uploaded.push({ url: urlData.publicUrl, caption: defaultCaption(photos.length + uploaded.length) })
       }
       setPhotos([...photos, ...uploaded])
     } catch (err: unknown) {
@@ -106,12 +120,13 @@ export default function InspectionPhotoTab({ projectId, formData, onChange }: In
     <div className="space-y-3">
       <p className="text-xs text-gray-500">
         검측 사진을 최소 1컷, 최대 {INSPECTION_PHOTO_MAX}컷 업로드합니다. 업로드한 사진은 엑셀
-        사진대지로 출력됩니다. 사진은 저장 버튼을 눌러야 검측요청서에 반영됩니다.
+        사진대지로 출력됩니다. 사진은 저장 버튼을 눌러야 검측요청서에 반영됩니다. 설명은 검측
+        사항 내용(줄 단위)이 기본값으로 채워지며 자유롭게 수정할 수 있습니다.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {photos.map((photo, index) => (
-          <div key={photo.url} className="border border-gray-300 rounded-lg overflow-hidden">
+          <div key={`${index}-${photo.url}`} className="border border-gray-300 rounded-lg overflow-hidden">
             <div className="relative bg-gray-50">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
