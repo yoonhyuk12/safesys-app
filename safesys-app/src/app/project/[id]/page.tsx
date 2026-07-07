@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Building, Phone, MoreVertical, Copy, Check, FileText, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Building, Phone, MoreVertical, Copy, Check, FileText, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
 import { Project, deleteProject } from '@/lib/projects'
 import { computeProgressRate, ProgressAnchor } from '@/lib/work-daily-report/work-daily-report-types'
 import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
@@ -82,6 +82,8 @@ export default function ProjectDetailPage() {
   const [supervisorUnsignedCount, setSupervisorUnsignedCount] = useState<number | null>(null)
   const [contractorUnsignedCount, setContractorUnsignedCount] = useState<number | null>(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
+  // 모바일에서 프로젝트 정보 카드 접기/펼치기 (기본 접힘 — 위 2줄만 노출)
+  const [infoExpanded, setInfoExpanded] = useState(false)
   const [g2bSyncing, setG2bSyncing] = useState(false)
   const [handoverModal, setHandoverModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
@@ -987,7 +989,9 @@ export default function ProjectDetailPage() {
               )}
             </div>
 
-            <div className="space-y-2">
+            {/* 모바일에서는 위 2줄만 보이고 나머지는 두루마기처럼 접힘 (sm 이상은 항상 전체 표시) */}
+            <div className="relative">
+            <div className={`space-y-2 overflow-hidden transition-[max-height] duration-300 sm:max-h-none sm:overflow-visible ${infoExpanded ? 'max-h-[1000px]' : 'max-h-10'}`}>
               {/* 구분선 위 블록 (기본 정보·공사기간·계약 정보) — 상단 복사 버튼 대상 */}
               <div ref={upperInfoRef} className="space-y-2">
               {/* 기본 정보 */}
@@ -1136,6 +1140,22 @@ export default function ProjectDetailPage() {
                   </>
                 )}
             </div>
+            {/* 접힘 상태 하단 페이드 (모바일 전용) */}
+            {!infoExpanded && (
+              <div className="sm:hidden pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white to-transparent" />
+            )}
+            </div>
+            {/* 접기/펼치기 토글 (모바일 전용) */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setInfoExpanded(!infoExpanded)
+              }}
+              className="sm:hidden w-full flex items-center justify-center pt-1 -mb-3 text-gray-400 hover:text-gray-600 transition-colors"
+              aria-label={infoExpanded ? '프로젝트 정보 접기' : '프로젝트 정보 펼치기'}
+            >
+              {infoExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+            </button>
           </div>
 
           {/* 안내 문구 */}
