@@ -926,6 +926,9 @@ export default function ContractStatusPage() {
           g2b_corp_nm: g.repr.corp_nm || null,
           g2b_tot_amt: g.repr.tot_cntrct_amt ?? null,
           g2b_thtm_amt: g.repr.thtm_cntrct_amt ?? null,
+          // 대표계약의 계약 기간(멤버 최초 착수일~최종 준공일)을 프로젝트 착공·준공일에도 반영
+          ...(g.startDate ? { construction_start_date: g.startDate } : {}),
+          ...(g.endDate ? { construction_end_date: g.endDate } : {}),
         }
       : {}
     setProject({ ...project, representative_contract_id: nextId, ...sync }) // 낙관적 업데이트
