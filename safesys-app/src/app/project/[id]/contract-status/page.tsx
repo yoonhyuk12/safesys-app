@@ -7,7 +7,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { Project } from '@/lib/projects'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
-import { ArrowLeft, Plus, RefreshCw, X, FileText, ExternalLink, Trash2, Loader2, Search } from 'lucide-react'
+import { downloadContractStatusExcel, type ContractExcelRow } from '@/lib/excel/contract-status-export'
+import { ArrowLeft, Plus, RefreshCw, X, FileText, ExternalLink, Trash2, Loader2, Search, Download } from 'lucide-react'
 
 interface ContractRecord {
   id: string
@@ -700,6 +701,41 @@ export default function ContractStatusPage() {
     else alert('삭제 실패: ' + error.message)
   }
 
+  const handleExcelExport = async () => {
+    if (!project) return
+    const exportRows: ContractExcelRow[] = sortedGroups.map((g) => {
+      const r = g.repr
+      const yearAmtsRecord: Record<string, number> = {}
+      for (const [y, amt] of g.yearAmts.entries()) {
+        yearAmtsRecord[y] = amt
+      }
+
+      return {
+        type: r.contract_type,
+        name: r.cntrct_nm,
+        memberCount: g.members.length,
+        corp: r.corp_nm || '',
+        totAmt: r.tot_cntrct_amt,
+        yearAmts: yearAmtsRecord,
+        cntrctDate: r.cntrct_date || '',
+        period: g.startDate && g.endDate ? `${g.startDate} ~ ${g.endDate}` : (r.cntrct_prd || ''),
+        dminstt: r.dminstt_nm || '',
+      }
+    })
+
+    try {
+      await downloadContractStatusExcel(
+        project.project_name,
+        yearCols,
+        thisYear,
+        exportRows
+      )
+    } catch (err) {
+      console.error(err)
+      alert('엑셀 다운로드 중 오류가 발생했습니다.')
+    }
+  }
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -736,6 +772,13 @@ export default function ContractStatusPage() {
               )}
             </h2>
             <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleExcelExport}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-blue-700 rounded-lg hover:bg-blue-50"
+              >
+                <Download className="h-4 w-4" />
+                엑셀 다운
+              </button>
               <button
                 onClick={handleRefreshAll}
                 disabled={refreshing}
