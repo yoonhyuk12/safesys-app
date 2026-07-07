@@ -75,14 +75,34 @@ const guessInstName = (branch: string): string => {
   return ''
 }
 
-// 금차 귀속 연도 — 금차 준공일(차수분 준공)이 있으면 그 연도가 곧 차수의 귀속 연도.
-// 없으면(직접 등록·구버전 등록 건) 총준공 기준 폴백: 준공이 지난 계약은 준공 연도, 진행 중이면 올해
-const contractYear = (r: { thtm_end_date?: string | null; end_date: string | null; cntrct_date: string | null }): string => {
-  if (r.thtm_end_date) return r.thtm_end_date.slice(0, 4)
+// 금차 귀속 연도 — 장기계속계약의 차수분 계약은 총금액과 금차금액이 다르므로 금차 준공일(차수분 준공) 연도를 귀속 연도로 사용.
+// 일반 단년도 계약(총금액 = 금차금액)은 계약체결일의 연도를 귀속 연도로 사용.
+// 정보가 부족한 경우 총준공일 또는 올해 연도로 폴백.
+const contractYear = (r: {
+  thtm_end_date?: string | null
+  end_date: string | null
+  cntrct_date: string | null
+  tot_cntrct_amt?: number | null
+  thtm_cntrct_amt?: number | null
+}): string => {
+  const isThtmAmtDifferent = r.tot_cntrct_amt != null && r.thtm_cntrct_amt != null && r.tot_cntrct_amt !== r.thtm_cntrct_amt
+  if (isThtmAmtDifferent && r.thtm_end_date) {
+    return r.thtm_end_date.slice(0, 4)
+  }
+  if (r.cntrct_date) {
+    return r.cntrct_date.slice(0, 4)
+  }
+  if (r.thtm_end_date) {
+    return r.thtm_end_date.slice(0, 4)
+  }
   const today = new Date().toISOString().slice(0, 10)
-  if (r.end_date && r.end_date < today) return r.end_date.slice(0, 4)
-  if (r.end_date || r.cntrct_date) return String(new Date().getFullYear())
-  return ''
+  if (r.end_date && r.end_date < today) {
+    return r.end_date.slice(0, 4)
+  }
+  if (r.end_date) {
+    return r.end_date.slice(0, 4)
+  }
+  return String(new Date().getFullYear())
 }
 
 // g2b.go.kr 홈만 가리키는 URL은 계약 상세가 아니므로 링크로 렌더하지 않는다
