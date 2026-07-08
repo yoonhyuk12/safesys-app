@@ -115,12 +115,17 @@ function parseNumber(v: string | undefined): number | null {
 }
 
 // KMA API 단건 호출 (타임아웃) — asos-range 복사
+// 일부 망(사내 프록시·WAF)에서 기본 헤더 없는 요청이 무응답으로 버려지는 사례가 있어 브라우저형 헤더를 붙인다
 async function fetchTextOnce(url: string, timeoutMs: number): Promise<string> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const res = await fetch(url, { cache: 'no-store', signal: controller.signal });
+    const res = await fetch(url, {
+      cache: 'no-store',
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (SafeSys)', 'Accept': '*/*' }
+    });
     clearTimeout(timeoutId);
     if (!res.ok) throw new Error(`KMA API 오류: ${res.status}`);
     return res.text();
@@ -131,8 +136,8 @@ async function fetchTextOnce(url: string, timeoutMs: number): Promise<string> {
   }
 }
 
-// KMA API 호출 (타임아웃 + 재시도) — asos-range 복사
-async function fetchText(url: string, timeoutMs: number = 5000, maxRetries: number = 2): Promise<string> {
+// KMA API 호출 (타임아웃 + 재시도) — 간헐 무응답 대비 재시도 3회·타임아웃 8초
+async function fetchText(url: string, timeoutMs: number = 8000, maxRetries: number = 3): Promise<string> {
   let lastError: Error | null = null;
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     try {

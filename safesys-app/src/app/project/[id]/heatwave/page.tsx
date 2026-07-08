@@ -865,6 +865,7 @@ export default function HeatWaveCheckPage() {
       // 1. 날짜별 기상청 시간별 체감온도 조회 (순차 — Vercel 함수 타임아웃 회피)
       const feelsByDate = new Map<string, Map<number, number>>() // date -> (hour -> 체감온도)
       const missing: string[] = [] // 'M월 D일 HH시' 형태 미확보 목록
+      let lastFetchError = '' // 미확보 사유 안내용 (마지막 실패 사유)
       for (let i = 0; i < dates.length; i++) {
         const date = dates[i]
         setBulkRegisterProgress(`체감온도 조회 중 (${i + 1}/${total}) · ${date}`)
@@ -876,6 +877,9 @@ export default function HeatWaveCheckPage() {
             body: JSON.stringify({ lat: projectCoords.lat, lng: projectCoords.lng, date, hours })
           })
           const json = await res.json()
+          if (json?.error) {
+            lastFetchError = String(json.error)
+          }
           if (Array.isArray(json?.results)) {
             for (const r of json.results) {
               if (r.apparentTemperature != null) {
@@ -884,6 +888,7 @@ export default function HeatWaveCheckPage() {
             }
           }
         } catch (e) {
+          lastFetchError = e instanceof Error ? e.message : String(e)
           console.error('시간별 체감온도 조회 실패:', date, e)
         }
         feelsByDate.set(date, hourMap)
@@ -1013,6 +1018,9 @@ export default function HeatWaveCheckPage() {
       if (missing.length > 0) {
         const preview = missing.slice(0, 10).join(', ')
         summary += `\n체감온도 미확보: ${missing.length}건\n(${preview}${missing.length > 10 ? ' 외' : ''})`
+        if (lastFetchError) {
+          summary += `\n미확보 사유: ${lastFetchError}`
+        }
       }
       alert(summary)
 
