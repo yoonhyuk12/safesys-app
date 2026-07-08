@@ -1026,6 +1026,22 @@ export default function ContractStatusPage() {
     }
   }
 
+  // 합계행 렌더 — 총 합계·공사/용역 소계 공용 (총액은 계약 단위로 1회만 합산 — 차수 중복 합산 방지)
+  const renderTotalRow = (label: string, list: ContractGroup[], rowClass: string, thisYearCellClass: string) => (
+    <tr className={`border-b border-gray-200 font-semibold text-gray-700 ${rowClass}`}>
+      <td className="px-3 py-2" colSpan={4}>{label} ({list.length}건)</td>
+      <td className="px-3 py-2 text-right tabular-nums">
+        {list.reduce((s, g) => s + (g.repr.tot_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
+      </td>
+      {yearCols.map((y) => (
+        <td key={y} className={`px-3 py-2 text-right tabular-nums ${y === thisYear ? thisYearCellClass : ''}`}>
+          {list.reduce((s, g) => s + (g.yearAmts.get(y) || 0), 0).toLocaleString('ko-KR')}
+        </td>
+      ))}
+      <td colSpan={4} />
+    </tr>
+  )
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -1135,25 +1151,23 @@ export default function ContractStatusPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* 소계행 — 금액 합계 (총액은 계약 단위로 1회만 합산 — 차수 중복 합산 방지) */}
-                  <tr className="bg-blue-50/60 border-b border-gray-200 font-semibold text-gray-700">
-                    <td className="px-3 py-2" colSpan={4}>소계 ({groups.length}건)</td>
-                    <td className="px-3 py-2 text-right tabular-nums">
-                      {groups.reduce((s, g) => s + (g.repr.tot_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
-                    </td>
-                    {yearCols.map((y) => (
-                      <td key={y} className={`px-3 py-2 text-right tabular-nums ${y === thisYear ? 'bg-amber-100/60' : ''}`}>
-                        {groups.reduce((s, g) => s + (g.yearAmts.get(y) || 0), 0).toLocaleString('ko-KR')}
-                      </td>
-                    ))}
-                    <td colSpan={4} />
-                  </tr>
-                  {sortedGroups.map((g) => {
+                  {/* 총 합계행 — 제목행 바로 아래 */}
+                  {renderTotalRow('총 합계', groups, 'bg-blue-100/80', 'bg-amber-100/60')}
+                  {sortedGroups.map((g, idx) => {
                     const r = g.repr
                     const isRep = isGroupRepresentative(g)
                     const expanded = expandedKeys.has(g.key)
+                    // 구분(공사→용역)이 바뀌는 첫 행 위에 해당 구분의 소계행 삽입
+                    const prevType = idx > 0 ? sortedGroups[idx - 1].repr.contract_type : null
                     return (
                     <Fragment key={g.key}>
+                    {r.contract_type !== prevType &&
+                      renderTotalRow(
+                        `${r.contract_type} 소계`,
+                        groups.filter((x) => x.repr.contract_type === r.contract_type),
+                        r.contract_type === '공사' ? 'bg-blue-50/60' : 'bg-green-50/60',
+                        'bg-amber-100/40'
+                      )}
                     <tr className={`border-b border-gray-100 ${isRep ? 'bg-amber-50' : 'hover:bg-gray-50'}`}>
                       <td className="px-3 py-2 text-center">
                         <button
