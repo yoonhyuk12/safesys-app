@@ -145,14 +145,17 @@ const colGauge = (values: number[]): ColGauge => {
 }
 
 // 금액 게이지 셀 — 소계 대비 비중(%)만큼 셀 배경을 채우고, 표 내 최대 비중 기준으로
-// 왼쪽 파랑(hue 217)에서 행의 비중 색(높을수록 빨강 hue 0)까지 그라데이션으로 채워 금액 비중을 한눈에 보여준다
-const amountGaugeCell = (value: number, gauge: ColGauge, unit: number, key?: string) => {
+// 왼쪽 파랑(hue 217)에서 행의 비중 색(높을수록 빨강 hue 0)까지 그라데이션으로 채워 금액 비중을 한눈에 보여준다.
+// emphasized(합계 컬럼)는 배경·테두리·굵기를 달리해 유형 컬럼과 구분한다
+const amountGaugeCell = (value: number, gauge: ColGauge, unit: number, key?: string, emphasized = false) => {
   const share = gauge.sum > 0 && value > 0 ? value / gauge.sum : 0
   const t = gauge.maxShare > 0 ? Math.min(share / gauge.maxShare, 1) : 0
   return (
     <td
       key={key}
-      className="px-3 py-3 text-sm text-center text-gray-700 relative"
+      className={`px-3 py-3 text-sm text-center relative ${
+        emphasized ? 'bg-violet-50/60 border-r border-violet-200 font-semibold text-violet-900' : 'text-gray-700'
+      }`}
       title={share > 0 ? `소계 대비 ${(share * 100).toFixed(1)}%` : undefined}
     >
       {share > 0 && (
@@ -410,9 +413,10 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
     )
   }
 
-  // 유형별 금액 접근자 — 컬럼 순서(합계·공사·용역·물품)의 단일 출처. 합계는 이름 컬럼 바로 우측.
-  const AMOUNT_COLS: { key: string; label: string; value: (s: AmountStats) => number }[] = [
-    { key: 'total', label: '합계', value: (s) => s.totalAmount },
+  // 유형별 금액 접근자 — 컬럼 순서(합계·공사·용역·물품)의 단일 출처. 합계는 이름 컬럼 바로 우측,
+  // emphasis로 배경·테두리를 달리해 유형 컬럼과 구분한다.
+  const AMOUNT_COLS: { key: string; label: string; value: (s: AmountStats) => number; emphasis?: boolean }[] = [
+    { key: 'total', label: '합계', value: (s) => s.totalAmount, emphasis: true },
     { key: 'cnstwk', label: '공사', value: (s) => s.cnstwkAmount },
     { key: 'servc', label: '용역', value: (s) => s.servcAmount },
     { key: 'thng', label: '물품', value: (s) => s.thngAmount },
@@ -428,7 +432,12 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
   // 소계 행 금액 셀 (게이지 없음)
   const subtotalCells = (s: AmountStats, unit: number) =>
     AMOUNT_COLS.map((c) => (
-      <td key={c.key} className="px-3 py-2 text-sm text-center text-violet-800">
+      <td
+        key={c.key}
+        className={`px-3 py-2 text-sm text-center text-violet-800 ${
+          c.emphasis ? 'bg-violet-100/70 border-r border-violet-200' : ''
+        }`}
+      >
         {formatAmt(c.value(s), unit)}
         {c.value(s) > 0 && <span className="ml-0.5 text-[10px] text-violet-700">{unitLabel(unit)}</span>}
       </td>
@@ -436,7 +445,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
 
   // 데이터 행 금액 셀 — 컬럼별 소계 대비 비중 게이지
   const amountCells = (s: AmountStats, unit: number, gauges: ColGauge[]) =>
-    AMOUNT_COLS.map((c, i) => amountGaugeCell(c.value(s), gauges[i], unit, c.key))
+    AMOUNT_COLS.map((c, i) => amountGaugeCell(c.value(s), gauges[i], unit, c.key, c.emphasis))
 
   // 표 단위 컬럼 게이지 기준값 계산
   const gaugesOf = (list: AmountStats[]): ColGauge[] =>
@@ -448,7 +457,12 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
       <tr>
         <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{firstLabel}</th>
         {AMOUNT_COLS.map((c) => (
-          <th key={c.key} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <th
+            key={c.key}
+            className={`px-3 py-3 text-center text-xs font-medium uppercase tracking-wider ${
+              c.emphasis ? 'bg-violet-100/70 text-violet-700 border-r border-violet-200' : 'text-gray-500'
+            }`}
+          >
             {c.label}
           </th>
         ))}
