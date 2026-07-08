@@ -10,6 +10,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignaturePad from '@/components/ui/SignaturePad'
 import { downloadMaterialLedgerExcel } from '@/lib/excel/material-ledger-export'
 import { downloadMaterialContractStatusExcel, type MaterialContractRow } from '@/lib/excel/material-contract-status-export'
+import MaterialInspectionPhotoField, { materialInspectionPhotoStoragePath, MATERIAL_INSPECTION_PHOTO_BUCKET } from '@/components/project/material/MaterialInspectionPhotoField'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 // ── 타입 ──
@@ -61,6 +62,7 @@ interface MaterialRow {
   unitPrice?: string
   prdctAmt?: string
   feeAmt?: string
+  inspectionPhotos?: string[]
 }
 
 // 연계 모달 매핑에서 "새 규격 행으로 추가"를 뜻하는 값
@@ -260,10 +262,14 @@ export default function MaterialLedgerPage() {
   const [contractExporting, setContractExporting] = useState(false)
   const [contractProgress, setContractProgress] = useState(0)
 
+  // 수불부 엑셀 다운로드 (검수조서·사진대지 포함)
+  const [ledgerExporting, setLedgerExporting] = useState(false)
+
   // 내역 등록/수정 모달
   const [isRowModalOpen, setIsRowModalOpen] = useState(false)
   const [editingRowId, setEditingRowId] = useState<string | null>(null) // null=신규, string=수정
   const [rowForm, setRowForm] = useState<RowFormData>({ nameOrSpec: '', orderQty: '', dlvrCndtn: '', unitPrice: '', prdctAmt: '', feeAmt: '', receiveDate: '', receiveQty: '', passQtyCurrent: '', failQty: '', action: '', releaseDate: '', releaseQty: '' })
+  const [rowPhotos, setRowPhotos] = useState<string[]>([]) // 검수 사진 (선택 항목)
 
   // 자재명/규격 수정 모달
   const [isMaterialEditModalOpen, setIsMaterialEditModalOpen] = useState(false)
@@ -488,6 +494,9 @@ export default function MaterialLedgerPage() {
             unitPrice: e.unit_price != null ? String(e.unit_price) : '',
             prdctAmt: e.prdct_amt != null ? String(e.prdct_amt) : '',
             feeAmt: e.fee_amt != null ? String(e.fee_amt) : '',
+            inspectionPhotos: Array.isArray(e.inspection_photos)
+              ? e.inspection_photos.filter((u: unknown): u is string => typeof u === 'string')
+              : [],
           })
         }
         for (const mat of matList) {
@@ -973,6 +982,72 @@ export default function MaterialLedgerPage() {
     }
   }
 
+  // ── 수불부 엑셀 다운로드 (검수조서 + 사진대지 + 수불부 + 출고요청서) ──
+
+  const handleDownloadLedgerExcel = async () => {
+    if (!selectedMaterial || ledgerExporting) return
+    const mat = selectedMaterial
+    setLedgerExporting(true)
+    try {
+      // 계약명 = 납품요구 건명 (캐시 우선, 없으면 조회 — 실패 시 자재명으로 대체)
+      const no = mat.dlvrReqNo || mat.rows.find(r => r.dlvrReqNo)?.dlvrReqNo || ''
+      let contractTitle = (no && dlvrTitles[no]) || ''
+      if (no && !contractTitle) {
+        try {
+          const res = await fetch(`/api/g2b/dlvr-req?no=${encodeURIComponent(no)}`)
+          const json = await res.json()
+          if (res.ok && json.success && json.data?.title) {
+            contractTitle = String(json.data.title)
+            setDlvrTitles(prev => ({ ...prev, [no]: contractTitle }))
+          }
+        } catch {
+          // 건명 조회 실패는 자재명으로 대체
+        }
+      }
+      // 검수조서 내역 — 규격당 한 줄 (수량 = 유효 발주량, 금액 = 품대 합산)
+      const josaItems = getSpecList(mat).map(spec => {
+        const specRows = mat.rows.filter(r => r.nameOrSpec === spec)
+        const [firstLine, ...restLines] = spec.split('\n')
+        return {
+          name: firstLine || mat.name,
+          spec: restLines.join('\n').replace(/^\(/, '').replace(/\)$/, ''),
+          unit: mat.unit || '',
+          qty: calcEffectiveOrderQty(specRows),
+          amt: specRows.reduce((s, r) => s + (parseFloat(stripComma(r.prdctAmt || '')) || 0), 0),
+        }
+      })
+      const cndtn = [...new Set(mat.rows.map(r => r.dlvrCndtn).filter(Boolean))].join(', ')
+      // 검수 사진 — 행 순서대로, 사진설명은 품명 첫 줄 + 반입일
+      const photos = mat.rows.flatMap(r =>
+        (r.inspectionPhotos || []).map(url => ({
+          url,
+          caption: `${(r.nameOrSpec || mat.name).split('\n')[0]} 검수${r.receiveDate ? ` (반입일 ${r.receiveDate})` : ''}`,
+        }))
+      )
+      await downloadMaterialLedgerExcel(
+        mat.name,
+        mat.unit,
+        mat.rows,
+        project?.project_name,
+        project?.supervisor_name,
+        {
+          contractTitle: contractTitle || mat.name,
+          dlvrReqNo: no,
+          supplier: mat.dlvrSupplier || '',
+          deadline: mat.dlvrDeadline || '',
+          cndtn,
+          josaItems,
+          photos,
+        }
+      )
+    } catch (err: unknown) {
+      console.error('수불부 엑셀 다운로드 실패:', err)
+      alert('엑셀 다운로드에 실패했습니다.')
+    } finally {
+      setLedgerExporting(false)
+    }
+  }
+
   // ── 조달청 연계/동기화 (기존 자재 ↔ 납품요구번호) ──
 
   // 자재의 규격 목록 (첫 등장 순서 유지)
@@ -1384,6 +1459,7 @@ export default function MaterialLedgerPage() {
       receiveDate: today, receiveQty: '', passQtyCurrent: '',
       failQty: '-', action: '해당없음', releaseDate: today, releaseQty: '',
     })
+    setRowPhotos([])
     setIsRowModalOpen(true)
   }
 
@@ -1404,6 +1480,7 @@ export default function MaterialLedgerPage() {
       releaseDate: row.releaseDate,
       releaseQty: row.releaseQty,
     })
+    setRowPhotos(row.inspectionPhotos || [])
     setIsRowModalOpen(true)
   }
 
@@ -1540,6 +1617,8 @@ export default function MaterialLedgerPage() {
           remain_qty: remainQty,
           supervisor_confirm: null,
           created_by: user?.id,
+          // 마이그레이션 전에도 사진 없는 등록은 동작하도록 사진이 있을 때만 컬럼 포함
+          ...(rowPhotos.length > 0 ? { inspection_photos: rowPhotos } : {}),
         })
         .select()
         .single()
@@ -1563,6 +1642,7 @@ export default function MaterialLedgerPage() {
         releaseQty: rowForm.releaseQty,
         remainQty: remainQty != null ? String(remainQty) : '',
         supervisorConfirm: '',
+        inspectionPhotos: rowPhotos,
       }
 
       setMaterials(prev =>
@@ -1621,6 +1701,10 @@ export default function MaterialLedgerPage() {
           release_date: rowForm.releaseDate || null,
           release_qty: releaseQty || null,
           remain_qty: remainQty,
+          // 마이그레이션 전에도 사진을 안 쓰는 수정은 동작하도록 사진 변화가 있을 때만 컬럼 포함
+          ...(rowPhotos.length > 0 || (rows[editIdx].inspectionPhotos || []).length > 0
+            ? { inspection_photos: rowPhotos.length > 0 ? rowPhotos : null }
+            : {}),
         })
         .eq('id', editingRowId)
       if (updateError) throw updateError
@@ -1645,6 +1729,7 @@ export default function MaterialLedgerPage() {
         supervisorConfirm: rows[editIdx].supervisorConfirm,
         dlvrReqNo: rows[editIdx].dlvrReqNo,
         dlvrReqPrdctSno: rows[editIdx].dlvrReqPrdctSno,
+        inspectionPhotos: rowPhotos,
       }
 
       setMaterials(prev =>
@@ -1673,6 +1758,14 @@ export default function MaterialLedgerPage() {
         .delete()
         .eq('id', rowId)
       if (deleteError) throw deleteError
+      // 검수 사진 Storage 파일 정리 (실패해도 행 삭제는 유지 — 프로젝트 삭제 시 폴더째 정리됨)
+      const deletedRow = selectedMaterial?.rows.find(r => r.id === rowId)
+      const photoPaths = (deletedRow?.inspectionPhotos || [])
+        .map(materialInspectionPhotoStoragePath)
+        .filter((p): p is string => !!p)
+      if (photoPaths.length > 0) {
+        void supabase.storage.from(MATERIAL_INSPECTION_PHOTO_BUCKET).remove(photoPaths)
+      }
       setMaterials(prev =>
         prev.map(m => m.id === selectedMaterialId ? { ...m, rows: m.rows.filter(r => r.id !== rowId) } : m)
       )
@@ -2287,25 +2380,17 @@ export default function MaterialLedgerPage() {
                       <Pencil className="h-5 w-5" />
                     </button>
                     <button
-                      onClick={() => {
-                        if (!selectedMaterial) return
-                        downloadMaterialLedgerExcel(
-                          selectedMaterial.name,
-                          selectedMaterial.unit,
-                          selectedMaterial.rows,
-                          project?.project_name,
-                          project?.supervisor_name,
-                        )
-                      }}
+                      onClick={handleDownloadLedgerExcel}
+                      disabled={ledgerExporting}
                       className="p-2 rounded transition-all hover:scale-105"
                       style={{
                         background: 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
                         border: '2px solid #4a4a55',
                         color: '#a8a8b0'
                       }}
-                      title="엑셀 다운로드"
+                      title="엑셀 다운로드 (검수조서·사진대지·수불부·출고요청서)"
                     >
-                      <Printer className="h-5 w-5" />
+                      {ledgerExporting ? <Loader2 className="h-5 w-5 animate-spin" /> : <Printer className="h-5 w-5" />}
                     </button>
                     <button
                       onClick={toggleSignatureMode}
@@ -2748,6 +2833,9 @@ export default function MaterialLedgerPage() {
                     {selectedMaterial?.unit && <span className="text-sm text-amber-200/60 whitespace-nowrap">{selectedMaterial.unit}</span>}
                   </div>
                 </div>
+
+                {/* 검수 사진 (선택) — 검수조서 사진대지 출력에 사용 */}
+                <MaterialInspectionPhotoField projectId={projectId} photos={rowPhotos} onChange={setRowPhotos} />
 
                 {/* 불합격량 */}
                 <div>

@@ -1,4 +1,10 @@
 import ExcelJS from 'exceljs'
+import {
+  setCell,
+  mergeSet,
+  headerFill,
+  addPhotoImageInArea,
+} from '@/lib/excel/quality-excel-utils'
 
 interface MaterialLedgerRow {
   nameOrSpec: string
@@ -45,9 +51,314 @@ function dataUrlToBase64(dataUrl: string): string {
   return dataUrl.split(',')[1]
 }
 
+// ── 검수조서(별지 제11호 서식) 관련 타입 ──
+
+export interface MaterialJosaItem {
+  name: string // 품명 (규격 첫 줄)
+  spec: string // 규격 상세
+  unit: string
+  qty: number // 계약량 (유효 발주량)
+  amt: number // 품대 (원)
+}
+
+export interface MaterialInspectionPhotoItem {
+  url: string
+  caption: string
+}
+
+export interface MaterialJosaOpts {
+  contractTitle?: string // 계약명 (납품요구 건명, 없으면 자재명)
+  dlvrReqNo?: string
+  supplier?: string // 공급자 상호
+  deadline?: string // 납품기한 (YYYY-MM-DD)
+  cndtn?: string // 인도조건
+  josaItems?: MaterialJosaItem[]
+  photos?: MaterialInspectionPhotoItem[]
+}
+
+// ── 시트 1: 자재 검사(검수)조서 (별지 제11호 서식) ──
+// "계약 내용 그대로 검수" 개념 — 내역은 계약 품목 그대로, 금회 검수량 = 계약량, 일자 = 출력일
+function addJosaSheet(
+  wb: ExcelJS.Workbook,
+  josa: MaterialJosaOpts,
+  materialName: string,
+  projectName: string,
+  today: Date,
+) {
+  const ws = wb.addWorksheet('검수조서')
+  ws.columns = [
+    { width: 11 }, // A: 품명
+    { width: 24 }, // B: 규격
+    { width: 6 },  // C: 단위
+    { width: 9 },  // D: 계약량-수량
+    { width: 12 }, // E: 계약량-금액
+    { width: 8 },  // F: 전회-수량
+    { width: 10 }, // G: 전회-금액
+    { width: 9 },  // H: 금회-수량
+    { width: 12 }, // I: 금회-금액
+    { width: 8 },  // J: 잔량-수량
+    { width: 10 }, // K: 잔량-금액
+    { width: 9 },  // L: 비고
+  ]
+
+  const yyyy = today.getFullYear()
+  const mm = String(today.getMonth() + 1).padStart(2, '0')
+  const dd = String(today.getDate()).padStart(2, '0')
+  const dateStr = `${yyyy}-${mm}-${dd}`
+
+  setCell(ws, 'A1', '[별지 제11호 서식]', { size: 9, border: false })
+  ws.getRow(1).height = 18
+
+  mergeSet(ws, 'A3:L3', '자재 검사(검수)조서', {
+    size: 22, bold: true, border: false, align: { horizontal: 'center' },
+  })
+  ws.getRow(3).height = 34
+
+  // ── 상단 정보 표 (5~13행) ──
+  const labelOpts = { bold: true, fill: headerFill, align: { horizontal: 'center' as const } }
+  const infoRow = (row: number, label: string, value: string) => {
+    mergeSet(ws, `A${row}:B${row}`, label, labelOpts)
+    mergeSet(ws, `C${row}:L${row}`, value, { align: { horizontal: 'left' } })
+    ws.getRow(row).height = 24
+  }
+  const infoSplitRow = (row: number, label1: string, value1: string, label2: string, value2: string) => {
+    mergeSet(ws, `A${row}:B${row}`, label1, labelOpts)
+    mergeSet(ws, `C${row}:F${row}`, value1, { align: { horizontal: 'left' } })
+    mergeSet(ws, `G${row}:H${row}`, label2, labelOpts)
+    mergeSet(ws, `I${row}:L${row}`, value2, { align: { horizontal: 'left' } })
+    ws.getRow(row).height = 24
+  }
+
+  infoRow(5, '계약명', josa.contractTitle || materialName)
+  infoRow(6, '납품요구번호', josa.dlvrReqNo || '')
+  infoSplitRow(7, '납품기한', josa.deadline || '', '납품 완료일', dateStr)
+  infoSplitRow(8, '검사 요청일', dateStr, '검사 완료일', dateStr)
+  infoSplitRow(9, '인도 조건', josa.cndtn || '', '납품 장소', projectName)
+
+  // 공급자 또는 도급자 — 상호(대표자) / 주소 2단
+  mergeSet(ws, 'A10:A11', '공급자\n또는\n도급자', { ...labelOpts, size: 9 })
+  setCell(ws, 'B10', '상호(대표자)', labelOpts)
+  mergeSet(ws, 'C10:L10', josa.supplier || '', { align: { horizontal: 'left' } })
+  setCell(ws, 'B11', '주  소', labelOpts)
+  mergeSet(ws, 'C11:L11', '', { align: { horizontal: 'left' } })
+  ws.getRow(10).height = 24
+  ws.getRow(11).height = 24
+
+  infoRow(12, '완성 또는 납품정도', '납품 완료')
+  infoRow(13, '검사(검수)자 의견', '계약(납품요구) 내용과 같이 검수함')
+
+  // ── < 내 역 > 표 (15행~) ──
+  mergeSet(ws, 'A15:L15', '< 내  역 >', {
+    size: 14, bold: true, border: false, align: { horizontal: 'center' },
+  })
+  ws.getRow(15).height = 26
+  mergeSet(ws, 'A16:L16', '(단위 : 원)', { size: 9, border: false, align: { horizontal: 'right' } })
+
+  // 3단 헤더 (17~19행)
+  mergeSet(ws, 'A17:A19', '품명', labelOpts)
+  mergeSet(ws, 'B17:B19', '규격', labelOpts)
+  mergeSet(ws, 'C17:C19', '단위', labelOpts)
+  mergeSet(ws, 'D17:E18', '계약량', labelOpts)
+  mergeSet(ws, 'F17:K17', '검사(검수량)', labelOpts)
+  mergeSet(ws, 'L17:L19', '비고', labelOpts)
+  mergeSet(ws, 'F18:G18', '전회', labelOpts)
+  mergeSet(ws, 'H18:I18', '금회', labelOpts)
+  mergeSet(ws, 'J18:K18', '잔량', labelOpts)
+  for (const c of ['D', 'F', 'H', 'J']) setCell(ws, `${c}19`, '수량', labelOpts)
+  for (const c of ['E', 'G', 'I', 'K']) setCell(ws, `${c}19`, '금액', labelOpts)
+  for (let row = 17; row <= 19; row++) ws.getRow(row).height = 20
+
+  // 데이터 행 — 금회 = 계약량 (전량 검수), 전회·잔량 공란. 최소 3행으로 양식 형태 유지
+  const QTY_FMT = '#,##0.###'
+  const items = josa.josaItems || []
+  let r = 20
+  const rowCount = Math.max(items.length, 3)
+  for (let i = 0; i < rowCount; i++) {
+    const item = items[i]
+    setCell(ws, `A${r}`, item?.name || '', { size: 9, align: { horizontal: 'center' } })
+    setCell(ws, `B${r}`, item?.spec || '', { size: 8, align: { horizontal: 'left' } })
+    setCell(ws, `C${r}`, item?.unit || '', { size: 9, align: { horizontal: 'center' } })
+    const qtyVal = item && item.qty > 0 ? item.qty : ''
+    const amtVal = item && item.amt > 0 ? item.amt : ''
+    setCell(ws, `D${r}`, qtyVal, { size: 9, align: { horizontal: 'right' } })
+    setCell(ws, `E${r}`, amtVal, { size: 9, align: { horizontal: 'right' } })
+    setCell(ws, `F${r}`, '', {})
+    setCell(ws, `G${r}`, '', {})
+    setCell(ws, `H${r}`, qtyVal, { size: 9, align: { horizontal: 'right' } })
+    setCell(ws, `I${r}`, amtVal, { size: 9, align: { horizontal: 'right' } })
+    setCell(ws, `J${r}`, '', {})
+    setCell(ws, `K${r}`, '', {})
+    setCell(ws, `L${r}`, '', {})
+    for (const c of ['D', 'H']) {
+      const cell = ws.getCell(`${c}${r}`)
+      if (typeof cell.value === 'number') cell.numFmt = QTY_FMT
+    }
+    for (const c of ['E', 'I']) {
+      const cell = ws.getCell(`${c}${r}`)
+      if (typeof cell.value === 'number') cell.numFmt = NUM_FMT
+    }
+    ws.getRow(r).height = items.length > 0 && item?.spec ? 34 : 24
+    r++
+  }
+
+  // 계 행
+  const sumQty = items.reduce((s, it) => s + (it.qty || 0), 0)
+  const sumAmt = items.reduce((s, it) => s + (it.amt || 0), 0)
+  mergeSet(ws, `A${r}:C${r}`, '계', { bold: true, align: { horizontal: 'center' } })
+  setCell(ws, `D${r}`, sumQty > 0 ? sumQty : '', { size: 9, bold: true, align: { horizontal: 'right' } })
+  setCell(ws, `E${r}`, sumAmt > 0 ? sumAmt : '', { size: 9, bold: true, align: { horizontal: 'right' } })
+  setCell(ws, `F${r}`, '', {})
+  setCell(ws, `G${r}`, '', {})
+  setCell(ws, `H${r}`, sumQty > 0 ? sumQty : '', { size: 9, bold: true, align: { horizontal: 'right' } })
+  setCell(ws, `I${r}`, sumAmt > 0 ? sumAmt : '', { size: 9, bold: true, align: { horizontal: 'right' } })
+  setCell(ws, `J${r}`, '', {})
+  setCell(ws, `K${r}`, '', {})
+  setCell(ws, `L${r}`, '', {})
+  for (const c of ['D', 'H']) {
+    const cell = ws.getCell(`${c}${r}`)
+    if (typeof cell.value === 'number') cell.numFmt = QTY_FMT
+  }
+  for (const c of ['E', 'I']) {
+    const cell = ws.getCell(`${c}${r}`)
+    if (typeof cell.value === 'number') cell.numFmt = NUM_FMT
+  }
+  ws.getRow(r).height = 24
+  r += 2
+
+  // ── 하단 보고문·일자·인수자·결재란 ──
+  mergeSet(ws, `A${r}:L${r}`, '위와 같이 검사(검수)하였기 보고합니다.', {
+    size: 11, bold: true, border: false, align: { horizontal: 'left' },
+  })
+  ws.getRow(r).height = 24
+  r += 2
+
+  mergeSet(ws, `A${r}:L${r}`, `${yyyy}년 ${mm}월 ${dd}일`, {
+    size: 12, border: false, align: { horizontal: 'center' },
+  })
+  ws.getRow(r).height = 24
+  r += 2
+
+  mergeSet(ws, `E${r}:L${r}`, '인 수 자   (직급)          (성명)                    (인)', {
+    size: 10, border: false, align: { horizontal: 'left' },
+  })
+  ws.getRow(r).height = 22
+  r++
+  mergeSet(ws, `E${r}:L${r}`, '              (직급)          (성명)                    (인)', {
+    size: 10, border: false, align: { horizontal: 'left' },
+  })
+  ws.getRow(r).height = 22
+  r += 2
+
+  // 결재란 (우측)
+  mergeSet(ws, `G${r}:H${r}`, '담 당', labelOpts)
+  mergeSet(ws, `I${r}:J${r}`, '부 장', labelOpts)
+  mergeSet(ws, `K${r}:K${r + 1}`, `${mm}월\n${dd}일`, { size: 9, align: { horizontal: 'center' } })
+  mergeSet(ws, `L${r}:L${r + 1}`, '결  재', { bold: true, align: { horizontal: 'center' } })
+  ws.getRow(r).height = 20
+  r++
+  mergeSet(ws, `G${r}:H${r}`, '')
+  mergeSet(ws, `I${r}:J${r}`, '')
+  ws.getRow(r).height = 40
+  r++
+  mergeSet(ws, `A${r}:L${r}`, '※ 전자결재시 서면결재 생략가능', {
+    size: 9, border: false, align: { horizontal: 'right' },
+  })
+
+  ws.pageSetup = {
+    paperSize: 9,
+    orientation: 'portrait',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    horizontalCentered: true,
+    printArea: `A1:L${r}`,
+    margins: {
+      left: 0.5, right: 0.5,
+      top: 0.6, bottom: 0.5,
+      header: 0.3, footer: 0.3,
+    },
+  }
+}
+
+// ── 시트 2: 검사(검수) 사진대지 — 1페이지당 사진 2컷 + 사진설명 ──
+const PHOTO_COL_W = 15 // A~F 열 폭 (단위당 8px — 한국어 Excel 실측, inspection-photo-report와 동일)
+const PHOTO_COL_PX = PHOTO_COL_W * 8
+const PHOTO_ROW_H = 22 // 행 높이 (pt)
+const PHOTO_ROW_PX = PHOTO_ROW_H * (4 / 3)
+const PHOTO_AREA_ROWS = 12 // 사진 1칸이 차지하는 행 수
+
+async function addPhotoLedgerSheet(
+  wb: ExcelJS.Workbook,
+  photos: MaterialInspectionPhotoItem[],
+  projectName: string,
+  materialName: string,
+) {
+  const ws = wb.addWorksheet('사진대지', {
+    pageSetup: {
+      paperSize: 9,
+      orientation: 'portrait',
+      horizontalCentered: true,
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0, // 페이지 나눔(1페이지당 2컷)이 그대로 유지되게 세로는 자동
+      margins: { left: 0.5, right: 0.5, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 },
+    },
+  })
+  ws.columns = Array(6).fill({ width: PHOTO_COL_W })
+
+  let r = 1
+  for (let p = 0; p < photos.length; p += 2) {
+    // 제목 + 헤더 표 (페이지마다 반복)
+    mergeSet(ws, `A${r}:F${r}`, '검사(검수) 사진대지', {
+      size: 18, bold: true, border: false, align: { horizontal: 'center' },
+    })
+    ws.getRow(r).height = 34
+    r++
+
+    setCell(ws, `A${r}`, '공 사 명', { bold: true, fill: headerFill, align: { horizontal: 'center' } })
+    mergeSet(ws, `B${r}:F${r}`, projectName, { align: { horizontal: 'left' } })
+    ws.getRow(r).height = PHOTO_ROW_H
+    r++
+
+    setCell(ws, `A${r}`, '구    분', { bold: true, fill: headerFill, align: { horizontal: 'center' } })
+    mergeSet(ws, `B${r}:F${r}`, materialName, { align: { horizontal: 'left' } })
+    ws.getRow(r).height = PHOTO_ROW_H
+    r++
+
+    // 사진 칸 2개 — 항상 2칸을 그려 양식 형태 유지, 사진이 없으면 빈 칸
+    for (let i = 0; i < 2; i++) {
+      const photo = photos[p + i]
+      const areaStart = r
+      const areaEnd = r + PHOTO_AREA_ROWS - 1
+      for (let row = areaStart; row <= areaEnd; row++) ws.getRow(row).height = PHOTO_ROW_H
+      mergeSet(ws, `A${areaStart}:F${areaEnd}`, '')
+      if (photo) {
+        await addPhotoImageInArea(wb, ws, photo.url, {
+          col: 0,
+          row: areaStart,
+          colWidthsPx: Array(6).fill(PHOTO_COL_PX),
+          rowHeightPx: PHOTO_ROW_PX,
+          rowCount: PHOTO_AREA_ROWS,
+        })
+      }
+      r = areaEnd + 1
+
+      setCell(ws, `A${r}`, '사진설명', { bold: true, fill: headerFill, align: { horizontal: 'center' } })
+      mergeSet(ws, `B${r}:F${r}`, photo?.caption || '', { align: { horizontal: 'left' } })
+      ws.getRow(r).height = PHOTO_ROW_H
+      r++
+    }
+
+    if (p + 2 < photos.length) {
+      ws.getRow(r - 1).addPageBreak()
+    }
+  }
+}
+
 /**
  * 주요자재 수불부 및 검사부 Excel 다운로드
- * 컬럼: A품명/규격 B발주량 C반입일 D반입량 E합격금회 F합격누계 G불합격량 H조치사항 I출고일 J출고량 K잔량 L감독원확인
+ * 시트 구성: ①검수조서(별지 제11호) ②사진대지(검수 사진이 있을 때만) ③수불부 ④출고요청서
+ * 수불부 컬럼: A품명/규격 B발주량 C반입일 D반입량 E합격금회 F합격누계 G불합격량 H조치사항 I출고일 J출고량 K잔량 L감독원확인
  */
 export async function downloadMaterialLedgerExcel(
   materialName: string,
@@ -55,8 +366,21 @@ export async function downloadMaterialLedgerExcel(
   rows: MaterialLedgerRow[],
   projectName?: string,
   supervisorName?: string,
+  josa?: MaterialJosaOpts,
 ) {
   const wb = new ExcelJS.Workbook()
+  const today = new Date()
+
+  // ── 시트 1: 자재 검사(검수)조서 ──
+  if (josa) {
+    addJosaSheet(wb, josa, materialName, projectName || '', today)
+  }
+
+  // ── 시트 2: 검사(검수) 사진대지 (검수 사진이 있을 때만) ──
+  if (josa?.photos && josa.photos.length > 0) {
+    await addPhotoLedgerSheet(wb, josa.photos, projectName || '', materialName)
+  }
+
   const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE))
 
   for (let page = 0; page < totalPages; page++) {
@@ -496,7 +820,6 @@ export async function downloadMaterialLedgerExcel(
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  const today = new Date()
   const dateStr = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`
   a.href = url
   a.download = `${projectName ? projectName + '_' : ''}자재수불부_${materialName}_${dateStr}.xlsx`
