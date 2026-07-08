@@ -20,15 +20,19 @@ interface BusinessAllContractViewProps {
 interface ContractRecord {
   project_id: string
   contract_type: '공사' | '용역'
+  cntrct_nm: string
   tot_cntrct_amt: number | null
   thtm_cntrct_amt: number | null
+  cntrct_date: string | null
+  end_date: string | null
+  thtm_end_date: string | null
 }
 
 // material_ledger_entries + materials 임베드 결과 — 물품(지급자재) 금액 원천
 interface LedgerAmountRecord {
   prdct_amt: number | null
   fee_amt: number | null
-  materials: { project_id: string }
+  materials: { project_id: string; dlvr_deadline: string | null }
 }
 
 // 준공 프로젝트 판별 — is_active가 과거 boolean 또는 JSONB({completed}) 두 형태를 모두 지원 (lib/projects.ts 패턴과 동일)
@@ -37,6 +41,50 @@ const isCompleted = (p: Project): boolean => {
   if (typeof p.is_active === 'boolean') return !p.is_active
   if (typeof p.is_active === 'object') return p.is_active.completed === true
   return false
+}
+
+// 차수(연차) 접미어·공백 제거 정규화 (contract-status의 nameGroupKey 규칙과 동일)
+const norm = (name: string): string =>
+  name.replace(/\(\s*\d+\s*차[^)]*\)\s*$/, '').replace(/\s+/g, '')
+
+// 금차 귀속 연도 — 장기계속계약 차수분(총금액 ≠ 금차금액)은 금차 준공일(thtm_end_date) 연도,
+// 일반 단년도 계약은 계약체결일 연도를 귀속 연도로 사용. 정보 부족 시 총준공일/올해로 폴백.
+// (contract-status 페이지 contractYear()와 동일 로직)
+const contractYear = (r: {
+  thtm_end_date?: string | null
+  end_date: string | null
+  cntrct_date: string | null
+  tot_cntrct_amt?: number | null
+  thtm_cntrct_amt?: number | null
+}): string => {
+  const isThtmAmtDifferent = r.tot_cntrct_amt != null && r.thtm_cntrct_amt != null && r.tot_cntrct_amt !== r.thtm_cntrct_amt
+  if (isThtmAmtDifferent && r.thtm_end_date) {
+    return r.thtm_end_date.slice(0, 4)
+  }
+  if (r.cntrct_date) {
+    return r.cntrct_date.slice(0, 4)
+  }
+  if (r.thtm_end_date) {
+    return r.thtm_end_date.slice(0, 4)
+  }
+  const today = new Date().toISOString().slice(0, 10)
+  if (r.end_date && r.end_date < today) {
+    return r.end_date.slice(0, 4)
+  }
+  if (r.end_date) {
+    return r.end_date.slice(0, 4)
+  }
+  return String(new Date().getFullYear())
+}
+
+// 납품기한에서 연도(YYYY) 추출 — 'YYYY-…' 또는 'YY.…' 표기 지원 (지급자재 계약현황 엑셀과 동일 규칙)
+const deadlineYear = (val: string | null | undefined): string | null => {
+  if (!val) return null
+  let m = val.match(/^(\d{4})\D/)
+  if (m) return m[1]
+  m = val.match(/^(\d{2})\./)
+  if (m) return `20${m[1]}`
+  return null
 }
 
 // 본부명 표시 — '본사'/'기타'가 아니고 '본부'로 안 끝나면 접미
@@ -81,9 +129,6 @@ const formatAmt = (n: number | null | undefined, unit: number) =>
 
 // 숫자 옆에 작게 붙이는 단위 라벨
 const unitLabel = (unit: number) => (unit === 1000000 ? '백만원' : '천원')
-
-// 계약 행 1건의 금액 — 차수분은 금차금액, 금차 미기재 시 총액으로 폴백 (공사 계약현황 뷰와 동일 규칙)
-const rowAmount = (r: ContractRecord): number => r.thtm_cntrct_amt ?? r.tot_cntrct_amt ?? 0
 
 // 금액 컬럼 1개의 게이지 기준 — 소계 합과 표 내 최대 비중(색 정규화 기준)
 interface ColGauge {
@@ -148,6 +193,8 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
   )
   const [selectedHq, setSelectedHq] = useState<string | null>(hq0)
   const [selectedBranch, setSelectedBranch] = useState<string | null>(branch0)
+  // 금액 기준 — 'total'(총차: 계약 그룹당 총계약금액 1회) 또는 연도 문자열(해당 연도 귀속 금차금액)
+  const [amountMode, setAmountMode] = useState<string>('total')
   const [contracts, setContracts] = useState<ContractRecord[]>([])
   const [ledgerAmounts, setLedgerAmounts] = useState<LedgerAmountRecord[]>([])
   // 관할 내 전체 프로젝트(준공 제외) — 계약 미등록 사업도 표에 노출하기 위한 행 원천
@@ -182,12 +229,12 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
         const [contractsRes, ledgerRes] = await Promise.all([
           supabase
             .from('project_contracts')
-            .select('project_id, contract_type, tot_cntrct_amt, thtm_cntrct_amt')
+            .select('project_id, contract_type, cntrct_nm, tot_cntrct_amt, thtm_cntrct_amt, cntrct_date, end_date, thtm_end_date')
             .in('project_id', ids),
           // 물품 금액 = 지급자재 수불부 행의 품대(prdct_amt)+조달수수료(fee_amt) 합 (지급자재 계약현황 엑셀과 동일 규칙)
           supabase
             .from('material_ledger_entries')
-            .select('prdct_amt, fee_amt, materials!inner(project_id)')
+            .select('prdct_amt, fee_amt, materials!inner(project_id, dlvr_deadline)')
             .in('materials.project_id', ids),
         ])
         if (contractsRes.error || ledgerRes.error) {
@@ -205,6 +252,21 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
     load()
   }, [user, userProfile])
 
+  // 드롭다운 연도 목록 — 계약 금차 귀속연도 + 지급자재 납품기한 연도의 합집합 (최신 연도 먼저)
+  const years = useMemo(() => {
+    const s = new Set<string>()
+    for (const r of contracts) {
+      if (!r.thtm_cntrct_amt) continue
+      s.add(contractYear(r))
+    }
+    for (const r of ledgerAmounts) {
+      if (!(Number(r.prdct_amt) || 0) && !(Number(r.fee_amt) || 0)) continue
+      const y = deadlineYear(r.materials.dlvr_deadline)
+      if (y) s.add(y)
+    }
+    return [...s].sort((a, b) => b.localeCompare(a))
+  }, [contracts, ledgerAmounts])
+
   // 사업(프로젝트)별 유형 금액 집계 — 관할 내 전체 프로젝트(준공 제외)를 행으로 만들고
   // 본부·지사·display_order·사업명 순 정렬 (공사 계약현황 뷰와 동일 순서)
   const projectRows = useMemo<ProjectRow[]>(() => {
@@ -216,12 +278,36 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
       byProject.set(projectId, created)
       return created
     }
+
+    // 공사·용역 — 차수 병합 그룹 단위 집계 (계약현황 서류철과 동일 규칙)
+    // 총차: 그룹 대표(최근 체결일)의 총계약금액을 1회 합산. 연도: 해당 연도 귀속 차수의 금차금액 합.
+    const byGroup = new Map<string, ContractRecord[]>()
     for (const r of contracts) {
-      const s = statsOf(r.project_id)
-      if (r.contract_type === '공사') s.cnstwkAmount += rowAmount(r)
-      else if (r.contract_type === '용역') s.servcAmount += rowAmount(r)
+      const k = `${r.project_id}|${r.contract_type}|${norm(r.cntrct_nm)}`
+      const arr = byGroup.get(k)
+      if (arr) arr.push(r)
+      else byGroup.set(k, [r])
     }
+    for (const members of byGroup.values()) {
+      const repr = members.reduce((a, b) => ((b.cntrct_date || '') > (a.cntrct_date || '') ? b : a))
+      let amt = 0
+      if (amountMode === 'total') {
+        amt = repr.tot_cntrct_amt || 0
+      } else {
+        for (const m of members) {
+          if (!m.thtm_cntrct_amt) continue
+          if (contractYear(m) === amountMode) amt += m.thtm_cntrct_amt
+        }
+      }
+      if (amt === 0) continue
+      const s = statsOf(repr.project_id)
+      if (repr.contract_type === '공사') s.cnstwkAmount += amt
+      else if (repr.contract_type === '용역') s.servcAmount += amt
+    }
+
+    // 물품 — 총차는 전체 합, 연도 모드는 납품기한 연도가 일치하는 자재만 합산
     for (const r of ledgerAmounts) {
+      if (amountMode !== 'total' && deadlineYear(r.materials.dlvr_deadline) !== amountMode) continue
       const s = statsOf(r.materials.project_id)
       s.thngAmount += (Number(r.prdct_amt) || 0) + (Number(r.fee_amt) || 0)
     }
@@ -260,7 +346,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
     })
 
     return rows
-  }, [contracts, ledgerAmounts, projects])
+  }, [contracts, ledgerAmounts, projects, amountMode])
 
   // 본부별 집계 (정렬 순서 = Map 삽입 순서 유지)
   const hqStats = useMemo(() => {
@@ -368,6 +454,21 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
     </thead>
   )
 
+  // 금액 기준 드롭다운 — 총차(계약 그룹당 총계약금액 1회) 또는 연도(해당 연도 귀속 금차금액 합)
+  const modeSelect = (
+    <select
+      value={amountMode}
+      onChange={(e) => setAmountMode(e.target.value)}
+      title="금액 기준 선택"
+      className="px-2 py-1.5 text-sm font-medium bg-white text-violet-700 border border-violet-300 rounded-lg hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-300 cursor-pointer"
+    >
+      <option value="total">총차 (총계약금액)</option>
+      {years.map((y) => (
+        <option key={y} value={y}>{y}년</option>
+      ))}
+    </select>
+  )
+
   const hqGauges = gaugesOf(Array.from(hqStats.values()))
   const branchGauges = gaugesOf(Array.from(branchStats.values()))
   const projectGauges = gaugesOf(projectList)
@@ -404,9 +505,12 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
       {!error && viewLevel === 'hq' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-violet-50 px-4 py-3 border-b border-gray-200">
-            <div className="flex items-center gap-2">
-              <Coins className="h-4 w-4 text-violet-600" />
-              <span className="text-sm font-medium text-violet-800">본부별 공사·용역·물품 계약현황</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Coins className="h-4 w-4 text-violet-600" />
+                <span className="text-sm font-medium text-violet-800">본부별 공사·용역·물품 계약현황</span>
+              </div>
+              {modeSelect}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -437,9 +541,12 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
       {!error && viewLevel === 'branch' && selectedHq && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-violet-50 px-4 py-3 border-b border-gray-200">
-            <div className="flex items-center gap-2">
-              <Coins className="h-4 w-4 text-violet-600" />
-              <span className="text-sm font-medium text-violet-800">{hqDisplay(selectedHq)} - 지사별 공사·용역·물품 계약현황</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Coins className="h-4 w-4 text-violet-600" />
+                <span className="text-sm font-medium text-violet-800">{hqDisplay(selectedHq)} - 지사별 공사·용역·물품 계약현황</span>
+              </div>
+              {modeSelect}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -470,9 +577,12 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
       {!error && viewLevel === 'project' && selectedHq && selectedBranch && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-violet-50 px-4 py-3 border-b border-gray-200">
-            <div className="flex items-center gap-2">
-              <Coins className="h-4 w-4 text-violet-600" />
-              <span className="text-sm font-medium text-violet-800">{selectedBranch} - 사업별 공사·용역·물품 계약현황</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Coins className="h-4 w-4 text-violet-600" />
+                <span className="text-sm font-medium text-violet-800">{selectedBranch} - 사업별 공사·용역·물품 계약현황</span>
+              </div>
+              {modeSelect}
             </div>
           </div>
           <div className="overflow-x-auto">
