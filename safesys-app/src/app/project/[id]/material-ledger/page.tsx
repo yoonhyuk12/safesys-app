@@ -2591,6 +2591,9 @@ export default function MaterialLedgerPage() {
               <p className="text-xs text-amber-200/70" style={{ fontFamily: 'serif' }}>
                 ⚔ 현장 반입 후 작업장 반출시 까지는 감독원이 관리하고 매 출고시 반출량 및 잔량을 확인
               </p>
+              <p className="text-xs text-amber-200/70 mt-1" style={{ fontFamily: 'serif' }}>
+                ⚔ 조달 수수료는 자동 계산 값과 다를수 있으므로 꼭 조달청 수수료 확인 필요
+              </p>
             </div>
 
             {/* 하단 금속 테두리 */}
