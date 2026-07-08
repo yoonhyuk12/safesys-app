@@ -15,12 +15,15 @@ export interface DisasterPreventionExcelRow {
   guideAmt: number | null  // 기술지도 대가(원)
   guideStart: string    // 지도 계약 착공일 'YYYY-MM-DD' | ''
   guideEnd: string      // 지도 계약 준공일 'YYYY-MM-DD' | ''
+  hasWork: boolean      // 공사 계약 존재 여부 (소계 건수 집계용)
+  hasGuide: boolean     // 기술지도 계약 존재 여부 (소계 건수 집계용)
 }
 
 const BLACK = 'FF000000'
 // 표 디자인 — 남색 헤더 + 흰 글씨, 짝수 데이터 행 줄무늬 (contract-status-export와 동일 계열)
 const HEADER_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2F5597' } }
 const STRIPE_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F6FB' } }
+const TOTAL_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC9DCF5' } } // 소계행 (contract-status-export의 총 합계행과 동일)
 
 // 열 너비(A~S). A는 여백 열
 const COL_WIDTHS = [1.7, 9.6, 9.6, 12.9, 55, 8.5, 12.9, 12.9, 14.7, 15.3, 42, 18, 12.1, 12, 14, 14, 12.3, 12.3, 8]
@@ -119,9 +122,28 @@ export async function downloadDisasterPreventionContractExcel(rows: DisasterPrev
     }
   }
 
-  // 8행부터 데이터
+  // 8행: 소계 — 건수는 라벨에, 공사금액(I)·기술지도 대가(P) 합계는 해당 열에 (헤더 바로 아래)
+  const workCount = rows.filter((r) => r.hasWork).length
+  const guideCount = rows.filter((r) => r.hasGuide).length
+  ws.mergeCells('B8:H8')
+  const subtotalRow = ws.getRow(8)
+  subtotalRow.height = 22
+  ws.getCell('B8').value = `소계 — 공사 ${workCount.toLocaleString()}건 · 기술지도 ${guideCount.toLocaleString()}건`
+  ws.getCell('I8').value = rows.reduce((s, r) => s + (r.workAmt || 0), 0)
+  ws.getCell('P8').value = rows.reduce((s, r) => s + (r.guideAmt || 0), 0)
+  for (let c = 2; c <= 19; c++) {
+    const cell = subtotalRow.getCell(c)
+    cell.font = { name: 'Dotum', size: 9, bold: true }
+    cell.fill = TOTAL_FILL
+    cell.border = thinBorder(BLACK)
+    const isAmt = c === 9 || c === 16
+    cell.alignment = { horizontal: c === 2 ? 'left' : 'center', vertical: 'middle', ...(isAmt ? { shrinkToFit: true } : {}) }
+    if (isAmt) cell.numFmt = AMT_FMT
+  }
+
+  // 9행부터 데이터
   rows.forEach((row, i) => {
-    const r = 8 + i
+    const r = 9 + i
     const excelRow = ws.getRow(r)
     excelRow.height = 26.25
     const values: Array<string | number | null> = [
@@ -161,8 +183,8 @@ export async function downloadDisasterPreventionContractExcel(rows: DisasterPrev
     }
   })
 
-  // 헤더(7행까지) 고정 — 스크롤 시 상단 유지
-  ws.views = [{ state: 'frozen', ySplit: 7 }]
+  // 헤더·소계행(8행까지) 고정 — 스크롤 시 상단 유지
+  ws.views = [{ state: 'frozen', ySplit: 8 }]
 
   ws.pageSetup = {
     paperSize: 9,

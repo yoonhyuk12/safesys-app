@@ -394,6 +394,8 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
         guideAmt: r.guideAmt,
         guideStart: r.guideStart,
         guideEnd: r.guideEnd,
+        hasWork: r.hasWork,
+        hasGuide: r.hasGuide,
       }))
       await downloadDisasterPreventionContractExcel(excelRows)
     } catch {
