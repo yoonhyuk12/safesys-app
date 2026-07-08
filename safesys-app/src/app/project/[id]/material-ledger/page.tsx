@@ -933,6 +933,12 @@ export default function MaterialLedgerPage() {
     }
     // 팝업 차단을 피하려고 클릭 시점에 창을 먼저 열고, URL 해석 후 이동시킨다
     const win = window.open('', '_blank')
+    if (win) {
+      // 빈 창(about:blank)만 보이면 사용자가 닫아버리므로 조회 중 안내를 표시한다
+      win.document.title = '조달청 계약정보 조회 중…'
+      win.document.body.innerHTML =
+        '<div style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#555;font-size:15px">조달청 계약 페이지를 조회하는 중입니다… 잠시만 기다려 주세요.</div>'
+    }
     setG2bLinkLoading(true)
     try {
       const res = await fetch(`/api/g2b/dlvr-req-url?no=${encodeURIComponent(no)}`)
@@ -941,7 +947,7 @@ export default function MaterialLedgerPage() {
         throw new Error(json.error || '조달청 계약 페이지를 찾을 수 없습니다.')
       }
       g2bUrlCache.current.set(no, json.data.url)
-      if (win) win.location.href = json.data.url
+      if (win && !win.closed) win.location.href = json.data.url
       else window.open(json.data.url, '_blank', 'noopener,noreferrer')
     } catch (err) {
       win?.close()
