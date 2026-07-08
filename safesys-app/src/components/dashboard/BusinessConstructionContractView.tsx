@@ -112,9 +112,9 @@ const addAgg = (a: AggStats, r: AggStats): void => {
   a.thisYearAmount += r.thisYearAmount
 }
 
-// 계약현황 서류철의 formatAmt와 동일 포맷 — 0/null은 '-'
+// 금액은 천원 단위(반올림)로 표시 — 0/null은 '-'
 const formatAmt = (n: number | null | undefined) =>
-  n == null || n === 0 ? '-' : n.toLocaleString('ko-KR')
+  n == null || n === 0 ? '-' : Math.round(n / 1000).toLocaleString('ko-KR')
 
 // 계약 행 1건의 금액 — 차수분은 금차금액, 금차 미기재 시 총액으로 폴백
 const rowAmount = (r: ContractRecord): number => r.thtm_cntrct_amt ?? r.tot_cntrct_amt ?? 0
@@ -415,9 +415,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">본부</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">건수</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약건</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액(천원)</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약건({currentYear})</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액(천원)</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
                 </tr>
               </thead>
@@ -461,9 +461,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">지사</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">건수</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약건</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액(천원)</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약건({currentYear})</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액(천원)</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
                 </tr>
               </thead>
@@ -507,9 +507,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">사업명</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">건수</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약건</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액(천원)</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약건({currentYear})</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액(천원)</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
                 </tr>
               </thead>
