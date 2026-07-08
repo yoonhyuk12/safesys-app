@@ -40,6 +40,7 @@ import BusinessMaterialView from '@/components/dashboard/BusinessMaterialView'
 import BusinessInspectionView from '@/components/dashboard/BusinessInspectionView'
 import BusinessQualityReportView from '@/components/dashboard/BusinessQualityReportView'
 import BusinessQualityTestView from '@/components/dashboard/BusinessQualityTestView'
+import BusinessDisasterPreventionView from '@/components/dashboard/BusinessDisasterPreventionView'
 import TBMChatBot from '@/components/ui/TBMChatBot'
 import BulkProjectUploadModal from '@/components/project/BulkProjectUploadModal'
 import officeLocationsData from '@/lib/office-locations.json'
@@ -3892,6 +3893,12 @@ const Dashboard: React.FC = () => {
                 onBack={() => setSelectedBusinessCard(null)}
                 onRowClickProject={(projectId, branch) => router.push(`/project/${projectId}/quality-test-ledger?returnUrl=${encodeURIComponent(`/business?card=qualityTest&branch=${branch ?? ''}`)}`)}
               />
+            ) : selectedBusinessCard === 'disasterPrevention' ? (
+              <BusinessDisasterPreventionView
+                initialBranch={searchParams.get('branch')}
+                onBack={() => setSelectedBusinessCard(null)}
+                onRowClickProject={(projectId, branch) => router.push(`/project/${projectId}/contract-status?returnUrl=${encodeURIComponent(`/business?card=disasterPrevention&branch=${branch ?? ''}`)}`)}
+              />
             ) : (
               <>
                 <div className="bg-white/80 backdrop-blur rounded-lg border border-white/20 shadow-sm p-3 lg:p-4">
@@ -3976,9 +3983,9 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  {/* 재해예방기술지도 카드 — 지사별·사업별 계약 현황 페이지로 이동 */}
+                  {/* 재해예방기술지도 카드 — 지사별→사업별 계약 건수 드릴다운 뷰 */}
                   <div
-                    onClick={() => router.push('/disaster-prevention-contracts')}
+                    onClick={() => setSelectedBusinessCard('disasterPrevention')}
                     className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-emerald-300 hover:bg-emerald-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]"
                   >
                     <div className="flex flex-col items-center text-center">
