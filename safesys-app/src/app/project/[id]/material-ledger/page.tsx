@@ -2122,7 +2122,7 @@ export default function MaterialLedgerPage() {
             }} />
 
             {/* 상단 바 */}
-            <div className="flex items-center justify-between px-6 py-3" style={{
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-6 py-3" style={{
               background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)',
               borderBottom: '2px solid #5a4a35'
             }}>
@@ -2158,7 +2158,7 @@ export default function MaterialLedgerPage() {
                   </p>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-end gap-2">
                 {signatureMode ? (
                   <>
                     <span className="text-xs text-amber-300 font-medium">{selectedRowIds.size}건 선택</span>
