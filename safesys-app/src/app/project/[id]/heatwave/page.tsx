@@ -25,6 +25,20 @@ interface HeatWaveInspectionData {
   signature?: string
 }
 
+// heat_wave_checks 행 중 수정 모드에서 사용하는 최소 필드
+interface HeatWaveCheckRow {
+  id: string
+  check_time: string
+  feels_like_temp: number | null
+  water_supply: boolean
+  ventilation: boolean
+  rest_time: boolean
+  cooling_equipment: boolean
+  emergency_care: boolean
+  work_time_adjustment: boolean
+  inspector_name: string | null
+}
+
 // 'YYYY-MM-DD' → 'YYYY년 M월 D일 (요일)' 표기
 function formatKoreanDateLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
@@ -118,6 +132,7 @@ export default function HeatWaveCheckPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false)
+  const [editingCheck, setEditingCheck] = useState<HeatWaveCheckRow | null>(null) // 수정 모드로 열린 기존 점검 행
   const [heatwaveChecks, setHeatwaveChecks] = useState<any[]>([])
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedDateChecks, setSelectedDateChecks] = useState<any[]>([])
@@ -236,6 +251,7 @@ export default function HeatWaveCheckPage() {
 
       console.log('점검 기록 조회 결과:', data)
       setHeatwaveChecks(data || [])
+      return data || []
 
     } catch (error) {
       console.error('점검 기록 로드 실패:', error)
@@ -249,11 +265,13 @@ export default function HeatWaveCheckPage() {
   }
 
   const handleNewCheck = () => {
+    setEditingCheck(null)
     setIsInspectionModalOpen(true)
   }
 
   const handleCloseInspectionModal = () => {
     setIsInspectionModalOpen(false)
+    setEditingCheck(null)
   }
 
   const handleSaveInspection = async (data: HeatWaveInspectionData) => {
@@ -487,6 +505,112 @@ export default function HeatWaveCheckPage() {
       
     } catch (error) {
       console.error('점검 저장 실패:', error)
+      throw error
+    }
+  }
+
+  // 기존 점검 행 수정 - 사진·서명은 새로 제공된 경우에만 교체하고 나머지 값은 UPDATE
+  const handleUpdateInspection = async (data: HeatWaveInspectionData) => {
+    try {
+      if (!user || !project || !editingCheck) {
+        throw new Error('수정할 점검 정보가 없습니다')
+      }
+
+      // 사용자가 입력한 측정일시(YYYY-MM-DDTHH:mm)로 check_time 생성 (단건 등록과 동일)
+      const checkTime = new Date(data.measureDateTime.replace('T', ' ') + ':00')
+      const checkId = `${project.id}_${Date.now()}`
+      const possibleBuckets = ['heatwave-inspections', 'inspections', 'uploads', 'files']
+
+      // 버킷 폴백으로 파일 업로드 후 공개 URL 반환 (실패 시 null)
+      const uploadToStorage = async (fileName: string, body: File | Blob): Promise<string | null> => {
+        for (const bucketName of possibleBuckets) {
+          try {
+            const { error: uploadError } = await supabase.storage
+              .from(bucketName)
+              .upload(fileName, body, { cacheControl: '3600', upsert: false })
+            if (!uploadError) {
+              const { data: { publicUrl } } = supabase.storage.from(bucketName).getPublicUrl(fileName)
+              return publicUrl
+            }
+          } catch {
+            continue
+          }
+        }
+        return null
+      }
+
+      // 1. 새 사진이 선택된 경우에만 업로드 (미선택 시 기존 사진 유지)
+      const photoUrls: string[] = []
+      if (data.inspectionPhotos && data.inspectionPhotos.length > 0) {
+        for (let i = 0; i < data.inspectionPhotos.length; i++) {
+          const photo = data.inspectionPhotos[i]
+          const fileExt = photo.name.split('.').pop()
+          const url = await uploadToStorage(`${checkId}_photo_${i + 1}.${fileExt}`, photo)
+          if (url) {
+            photoUrls.push(url)
+          } else {
+            console.warn(`사진 ${i + 1} 업로드 실패 - 기존 사진 유지`)
+          }
+        }
+      }
+
+      // 2. 새 서명 업로드 (실패 시 기존 서명 유지)
+      let signatureUrl: string | null = null
+      if (data.signature) {
+        try {
+          const base64Data = data.signature.split(',')[1]
+          const byteCharacters = atob(base64Data)
+          const byteNumbers = new Array(byteCharacters.length)
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i)
+          }
+          const signatureBlob = new Blob([new Uint8Array(byteNumbers)], { type: 'image/png' })
+          signatureUrl = await uploadToStorage(`${checkId}_signature.png`, signatureBlob)
+        } catch (error) {
+          console.error('서명 처리 오류 - 기존 서명 유지:', error)
+        }
+      }
+
+      // 3. UPDATE (사진·서명은 새 URL이 있을 때만 교체)
+      const updatePayload: Record<string, unknown> = {
+        check_time: checkTime.toLocaleString('sv-SE'),
+        feels_like_temp: parseFloat(data.temperature),
+        water_supply: data.water === 'O',
+        ventilation: data.wind === 'O',
+        rest_time: data.rest === 'O',
+        cooling_equipment: data.cooling === 'O',
+        emergency_care: data.emergency === 'O',
+        work_time_adjustment: data.workTime === 'O',
+        inspector_name: data.inspectorName
+      }
+      if (photoUrls.length > 0) {
+        updatePayload.photos = photoUrls
+      }
+      if (signatureUrl) {
+        updatePayload.signature = signatureUrl
+      }
+
+      const { error: updateError } = await supabase
+        .from('heat_wave_checks')
+        .update(updatePayload)
+        .eq('id', editingCheck.id)
+
+      if (updateError) {
+        throw new Error(`수정 실패: ${updateError.message}`)
+      }
+
+      alert(`점검 기록이 수정되었습니다.\n\n일시: ${data.measureDateTime.replace('T', ' ')}\n온도: ${data.temperature}°C`)
+
+      // 4. 목록 재조회 후 열려 있는 날짜별 표도 갱신 (날짜가 바뀐 행은 해당 날짜 표에서 제외됨)
+      const fresh = await loadHeatwaveChecks()
+      if (selectedDate) {
+        const dayChecks = (fresh || [])
+          .filter(check => String(check.check_time).split('T')[0] === selectedDate)
+          .sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime())
+        setSelectedDateChecks(dayChecks)
+      }
+    } catch (error) {
+      console.error('점검 수정 실패:', error)
       throw error
     }
   }
@@ -1217,6 +1341,22 @@ export default function HeatWaveCheckPage() {
     return { lat: project.latitude as number, lng: project.longitude as number }
   }, [project?.latitude, project?.longitude])
 
+  // 수정 모드 초기값 - useMemo로 참조를 고정해 모달 useEffect가 렌더마다 재실행되는 것을 방지
+  const heatwaveEditData = useMemo(() => {
+    if (!editingCheck) return undefined
+    return {
+      measureDateTime: String(editingCheck.check_time).replace(' ', 'T').slice(0, 16),
+      temperature: editingCheck.feels_like_temp != null ? String(editingCheck.feels_like_temp) : '',
+      water: (editingCheck.water_supply ? 'O' : 'X') as 'O' | 'X',
+      wind: (editingCheck.ventilation ? 'O' : 'X') as 'O' | 'X',
+      rest: (editingCheck.rest_time ? 'O' : 'X') as 'O' | 'X',
+      cooling: (editingCheck.cooling_equipment ? 'O' : 'X') as 'O' | 'X',
+      emergency: (editingCheck.emergency_care ? 'O' : 'X') as 'O' | 'X',
+      workTime: (editingCheck.work_time_adjustment ? 'O' : 'X') as 'O' | 'X',
+      inspectorName: editingCheck.inspector_name || ''
+    }
+  }, [editingCheck])
+
   // PDF 보고서(hiddenReportRef) 공통 셀 스타일
   const pdfLabelCell: React.CSSProperties = {
     border: '0.5px solid rgb(17, 24, 39)',
@@ -1746,7 +1886,17 @@ export default function HeatWaveCheckPage() {
                             </thead>
                             <tbody>
                               {selectedDateChecks.map((check, index) => (
-                                <tr key={index}>
+                                <tr
+                                  key={index}
+                                  onClick={() => {
+                                    // 삭제 모드·PDF 생성 중에는 행 클릭 수정 비활성화
+                                    if (isDeleteMode || isPdfGenerating) return
+                                    setEditingCheck(check)
+                                    setIsInspectionModalOpen(true)
+                                  }}
+                                  className={!isDeleteMode && !isPdfGenerating ? 'cursor-pointer hover:bg-blue-50' : ''}
+                                  title={!isDeleteMode && !isPdfGenerating ? '클릭하여 점검 기록 수정' : undefined}
+                                >
                                   <td className={`border border-gray-800 text-center text-blue-600 font-medium ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
                                     {new Date(check.check_time).toLocaleTimeString('ko-KR', {
                                       hour: '2-digit',
@@ -2107,9 +2257,10 @@ export default function HeatWaveCheckPage() {
       <HeatWaveInspectionModal
         isOpen={isInspectionModalOpen}
         onClose={handleCloseInspectionModal}
-        onSave={handleSaveInspection}
+        onSave={editingCheck ? handleUpdateInspection : handleSaveInspection}
         projectAddress={project?.site_address}
         projectCoords={projectCoords}
+        editData={heatwaveEditData}
       />
 
       <HeatWaveBulkRegisterModal

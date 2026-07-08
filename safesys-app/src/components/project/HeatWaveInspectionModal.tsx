@@ -11,6 +11,18 @@ interface HeatWaveInspectionModalProps {
   onSave: (data: HeatWaveInspectionData) => void
   projectAddress?: string
   projectCoords?: { lat: number; lng: number }
+  // 수정 모드: 기존 점검값을 미리 채움 (사진은 새로 선택한 경우에만 교체)
+  editData?: {
+    measureDateTime: string
+    temperature: string
+    water: 'O' | 'X'
+    wind: 'O' | 'X'
+    rest: 'O' | 'X'
+    cooling: 'O' | 'X'
+    emergency: 'O' | 'X'
+    workTime: 'O' | 'X'
+    inspectorName: string
+  }
 }
 
 interface HeatWaveInspectionData {
@@ -34,12 +46,13 @@ interface StoredPhotoData {
   base64: string
 }
 
-export default function HeatWaveInspectionModal({ 
-  isOpen, 
-  onClose, 
+export default function HeatWaveInspectionModal({
+  isOpen,
+  onClose,
   onSave,
   projectAddress,
-  projectCoords 
+  projectCoords,
+  editData
 }: HeatWaveInspectionModalProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [showSignatureModal, setShowSignatureModal] = useState(false)
@@ -279,9 +292,20 @@ export default function HeatWaveInspectionModal({
     if (isOpen) {
       // 이전 조회의 출처 안내 문구 초기화
       setWeatherInfo('')
+
+      if (editData) {
+        // 수정 모드: 기존 점검값으로 폼을 채움 (신규 등록 임시저장 데이터는 사용하지 않음)
+        setFormData({ ...editData, inspectionPhotos: [] })
+
+        if (projectAddress || projectCoords) {
+          fetchWeatherDetailUrl()
+        }
+        return
+      }
+
       // 먼저 저장된 데이터가 있는지 확인
       const savedData = loadFromStorage()
-      
+
       if (savedData) {
         // 저장된 데이터가 있으면 복원하되, 측정일시·체감온도는 항상 새로 입력받음
         // (예전 임시저장 데이터의 시각·온도가 새 점검에 그대로 섞여 들어가는 것을 방지)
@@ -305,7 +329,7 @@ export default function HeatWaveInspectionModal({
         fetchWeatherDetailUrl()
       }
     }
-  }, [isOpen, projectCoords, projectAddress, fetchWeatherDetailUrl, loadFromStorage])
+  }, [isOpen, projectCoords, projectAddress, fetchWeatherDetailUrl, loadFromStorage, editData])
 
   const handleInputChange = (field: keyof HeatWaveInspectionData, value: string) => {
     const newData = {
@@ -317,8 +341,10 @@ export default function HeatWaveInspectionModal({
     if (field === 'temperature') {
       setWeatherInfo('')
     }
-    // 변경사항을 즉시 저장 (async 함수이므로 await 없이 호출)
-    saveToStorage(newData)
+    // 변경사항을 즉시 저장 (수정 모드는 신규 등록 임시저장을 오염시키지 않도록 제외)
+    if (!editData) {
+      saveToStorage(newData)
+    }
   }
 
   // 기상청에서 측정일시 기준 가까운 시간대의 체감온도를 가져와 자동 입력
@@ -386,8 +412,10 @@ export default function HeatWaveInspectionModal({
       [field]: value
     }
     setFormData(newData)
-    // 변경사항을 즉시 저장 (async 함수이므로 await 없이 호출)
-    saveToStorage(newData)
+    // 변경사항을 즉시 저장 (수정 모드는 신규 등록 임시저장을 오염시키지 않도록 제외)
+    if (!editData) {
+      saveToStorage(newData)
+    }
   }
 
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -408,7 +436,9 @@ export default function HeatWaveInspectionModal({
           inspectionPhotos: [resized]
         }
         setFormData(newData)
-        await saveToStorage(newData)
+        if (!editData) {
+          await saveToStorage(newData)
+        }
       } else {
         alert(`${file.name}은(는) 이미지 파일이 아닙니다.`)
       }
@@ -452,8 +482,8 @@ export default function HeatWaveInspectionModal({
       return
     }
 
-    // 점검 사진 필수 검증
-    if (formData.inspectionPhotos.length === 0) {
+    // 점검 사진 필수 검증 (수정 모드는 미선택 시 기존 사진을 유지하므로 선택 항목)
+    if (!editData && formData.inspectionPhotos.length === 0) {
       alert('점검 사진을 업로드해주세요.')
       return
     }
@@ -487,9 +517,11 @@ export default function HeatWaveInspectionModal({
         inspectorName: ''
       })
       
-      // localStorage에서 임시 저장 데이터 삭제
-      clearStorage()
-      
+      // localStorage에서 임시 저장 데이터 삭제 (수정 모드는 신규 등록 임시저장을 건드리지 않음)
+      if (!editData) {
+        clearStorage()
+      }
+
       onClose()
     } catch (error) {
       console.error('저장 오류:', error)
@@ -506,7 +538,7 @@ export default function HeatWaveInspectionModal({
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* 헤더 */}
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-xl font-semibold text-gray-900">폭염대비 안전보건활동 점검</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{editData ? '폭염대비 점검 수정' : '폭염대비 안전보건활동 점검'}</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -673,8 +705,8 @@ export default function HeatWaveInspectionModal({
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900">
                 <Camera className="h-5 w-5 inline mr-2" />
-                점검 사진 업로드 <span className="text-red-500">*</span>
-                <span className="text-sm text-gray-500 ml-2">(근로자 휴식 사진 권장)</span>
+                점검 사진 업로드 {!editData && <span className="text-red-500">*</span>}
+                <span className="text-sm text-gray-500 ml-2">{editData ? '(새로 선택하지 않으면 기존 사진 유지)' : '(근로자 휴식 사진 권장)'}</span>
               </h3>
               <div className="flex items-center gap-3">
                 <span className="text-xs text-gray-500">최대 20MB</span>
@@ -756,7 +788,7 @@ export default function HeatWaveInspectionModal({
             disabled={isLoading}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            제출
+            {editData ? '수정' : '제출'}
           </button>
         </div>
       </div>
