@@ -7,6 +7,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { BRANCH_OPTIONS } from '@/lib/constants'
+import { getProjectsByUserBranch, type Project } from '@/lib/projects'
 
 interface BusinessConstructionContractViewProps {
   initialHq?: string | null
@@ -33,6 +34,14 @@ interface ContractRecord {
     managing_branch: string
     display_order: number | null
   }
+}
+
+// 준공 프로젝트 판별 — is_active가 과거 boolean 또는 JSONB({completed}) 두 형태를 모두 지원 (lib/projects.ts 패턴과 동일)
+const isCompleted = (p: Project): boolean => {
+  if (p.is_active === undefined || p.is_active === null) return false
+  if (typeof p.is_active === 'boolean') return !p.is_active
+  if (typeof p.is_active === 'object') return p.is_active.completed === true
+  return false
 }
 
 // 차수(연차) 접미어·공백 제거 정규화 (contract-status의 nameGroupKey 규칙과 동일)
@@ -414,7 +423,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[760px]">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">본부</th>
@@ -460,7 +469,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[760px]">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">지사</th>
@@ -506,7 +515,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[760px]">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">사업명</th>
