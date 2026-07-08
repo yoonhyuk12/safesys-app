@@ -89,22 +89,35 @@ interface ProjectRow {
   workCount: number // 병합 그룹 수 (= 공사 건수)
   totalContracts: number // 계약 행 수 (차수 포함 전체 계약 건수)
   thisYearContracts: number // 귀속 연도가 올해인 계약 행 수
+  totalAmount: number // 전체 계약 행의 금차금액 합 (차수 없는 단년도 계약은 총액=금차)
+  thisYearAmount: number // 귀속 연도가 올해인 계약 행의 금차금액 합
 }
 
 interface AggStats {
   workCount: number
   totalContracts: number
   thisYearContracts: number
+  totalAmount: number
+  thisYearAmount: number
 }
 
-const emptyAgg = (): AggStats => ({ workCount: 0, totalContracts: 0, thisYearContracts: 0 })
+const emptyAgg = (): AggStats => ({ workCount: 0, totalContracts: 0, thisYearContracts: 0, totalAmount: 0, thisYearAmount: 0 })
 
 // ProjectRow도 구조적으로 AggStats에 할당 가능하므로 사업·본부·지사 집계에 공용
 const addAgg = (a: AggStats, r: AggStats): void => {
   a.workCount += r.workCount
   a.totalContracts += r.totalContracts
   a.thisYearContracts += r.thisYearContracts
+  a.totalAmount += r.totalAmount
+  a.thisYearAmount += r.thisYearAmount
 }
+
+// 계약현황 서류철의 formatAmt와 동일 포맷 — 0/null은 '-'
+const formatAmt = (n: number | null | undefined) =>
+  n == null || n === 0 ? '-' : n.toLocaleString('ko-KR')
+
+// 계약 행 1건의 금액 — 차수분은 금차금액, 금차 미기재 시 총액으로 폴백
+const rowAmount = (r: ContractRecord): number => r.thtm_cntrct_amt ?? r.tot_cntrct_amt ?? 0
 
 const BusinessConstructionContractView: React.FC<BusinessConstructionContractViewProps> = ({
   initialHq = null,
@@ -199,6 +212,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
         groupKeys.add(`${r.contract_type}|${norm(r.cntrct_nm)}`)
       }
 
+      const thisYearRecords = projectRecords.filter((r) => contractYear(r) === currentYearStr)
       rows.push({
         projectId: proj.id,
         projectName: proj.project_name,
@@ -207,7 +221,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
         displayOrder: proj.display_order ?? Number.MAX_SAFE_INTEGER,
         workCount: groupKeys.size,
         totalContracts: projectRecords.length,
-        thisYearContracts: projectRecords.filter((r) => contractYear(r) === currentYearStr).length,
+        thisYearContracts: thisYearRecords.length,
+        totalAmount: projectRecords.reduce((s, r) => s + rowAmount(r), 0),
+        thisYearAmount: thisYearRecords.reduce((s, r) => s + rowAmount(r), 0),
       })
     }
 
@@ -326,6 +342,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
           <span className="text-gray-400">-</span>
         )}
       </td>
+      <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
+        {formatAmt(s.totalAmount)}
+      </td>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center'}>
         {subtotal ? (
           s.thisYearContracts > 0 ? `${s.thisYearContracts.toLocaleString()}건` : '-'
@@ -336,6 +355,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
         ) : (
           <span className="text-gray-400">-</span>
         )}
+      </td>
+      <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
+        {formatAmt(s.thisYearAmount)}
       </td>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-400'}>-</td>
     </>
@@ -393,7 +415,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">본부</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">건수</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약건</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약건({currentYear})</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
                 </tr>
               </thead>
@@ -410,7 +434,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   </tr>
                 ))}
                 {hqStats.size === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500">등록된 계약이 없습니다. 각 사업의 계약현황 서류철에서 계약을 등록하면 여기에 집계됩니다.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">등록된 계약이 없습니다. 각 사업의 계약현황 서류철에서 계약을 등록하면 여기에 집계됩니다.</td></tr>
                 )}
               </tbody>
             </table>
@@ -437,7 +461,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">지사</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">건수</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약건</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약건({currentYear})</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
                 </tr>
               </thead>
@@ -454,7 +480,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   </tr>
                 ))}
                 {branchStats.size === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500">해당 본부에 등록된 계약이 없습니다.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">해당 본부에 등록된 계약이 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
@@ -481,7 +507,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">사업명</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">건수</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약건</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약건({currentYear})</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
                 </tr>
               </thead>
@@ -509,7 +537,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   </tr>
                 ))}
                 {projectList.length === 0 && (
-                  <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500">해당 지사에 등록된 계약이 없습니다.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">해당 지사에 등록된 계약이 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
