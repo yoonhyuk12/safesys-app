@@ -104,9 +104,10 @@ interface AggStats {
   projectIds: Set<string>
   workCount: number
   guideCount: number
+  guideAmt: number // 기술지도 계약금액 합
 }
 
-const emptyStats = (): AggStats => ({ projectIds: new Set(), workCount: 0, guideCount: 0 })
+const emptyStats = (): AggStats => ({ projectIds: new Set(), workCount: 0, guideCount: 0, guideAmt: 0 })
 
 const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewProps> = ({
   initialBranch = null,
@@ -324,7 +325,10 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
       const existing = stats.get(r.managingBranch) || emptyStats()
       existing.projectIds.add(r.projectId)
       if (r.hasWork) existing.workCount += 1
-      if (r.hasGuide) existing.guideCount += 1
+      if (r.hasGuide) {
+        existing.guideCount += 1
+        existing.guideAmt += r.guideAmt || 0
+      }
       stats.set(r.managingBranch, existing)
     })
     return stats
@@ -458,6 +462,7 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">사업수</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">공사 계약</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">기술지도 계약</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">기술지도 계약금액</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -468,8 +473,9 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
                       projectCount: acc.projectCount + curr.projectIds.size,
                       workCount: acc.workCount + curr.workCount,
                       guideCount: acc.guideCount + curr.guideCount,
+                      guideAmt: acc.guideAmt + curr.guideAmt,
                     }),
-                    { projectCount: 0, workCount: 0, guideCount: 0 }
+                    { projectCount: 0, workCount: 0, guideCount: 0, guideAmt: 0 }
                   )
                   return (
                     <tr className="bg-emerald-50/70 font-semibold border-b-2 border-emerald-200">
@@ -477,6 +483,16 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
                       <td className="px-3 py-2 text-sm text-center text-emerald-800">{subtotal.projectCount}개</td>
                       <td className="px-3 py-2 text-sm text-center text-emerald-800">{subtotal.workCount > 0 ? `${subtotal.workCount.toLocaleString()}건` : '-'}</td>
                       <td className="px-3 py-2 text-sm text-center text-emerald-800">{subtotal.guideCount > 0 ? `${subtotal.guideCount.toLocaleString()}건` : '-'}</td>
+                      <td className="px-3 py-2 text-sm text-center text-emerald-800">
+                        {subtotal.guideAmt > 0 ? (
+                          <>
+                            {Math.round(subtotal.guideAmt / 1000000).toLocaleString('ko-KR')}
+                            <span className="ml-0.5 text-[10px] text-gray-600">백만원</span>
+                          </>
+                        ) : (
+                          '-'
+                        )}
+                      </td>
                     </tr>
                   )
                 })()}
@@ -508,10 +524,20 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
+                      <td className="px-3 py-3 text-sm text-center text-gray-700">
+                        {stats.guideAmt > 0 ? (
+                          <>
+                            {Math.round(stats.guideAmt / 1000000).toLocaleString('ko-KR')}
+                            <span className="ml-0.5 text-[10px] text-gray-600">백만원</span>
+                          </>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 {branchStats.size === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">등록된 계약이 없습니다. 각 사업의 계약현황 서류철에서 계약을 등록하면 여기에 집계됩니다.</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500">등록된 계약이 없습니다. 각 사업의 계약현황 서류철에서 계약을 등록하면 여기에 집계됩니다.</td></tr>
                 )}
               </tbody>
             </table>
