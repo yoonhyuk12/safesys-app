@@ -1292,7 +1292,7 @@ export default function ContractStatusPage() {
       {isLookupOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setIsLookupOpen(false)}>
           <div
-            className={`bg-white rounded-lg shadow-xl w-full ${modalTab === 'g2b' && lookupItems ? 'max-w-4xl' : 'max-w-2xl'} max-h-[88vh] flex flex-col overflow-hidden`}
+            className={`bg-white rounded-lg shadow-xl w-full ${modalTab === 'g2b' && lookupItems ? 'max-w-5xl' : 'max-w-2xl'} max-h-[88vh] flex flex-col overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between shrink-0">
@@ -1323,7 +1323,7 @@ export default function ContractStatusPage() {
 
               {modalTab === 'g2b' && (
               <div className="flex flex-col sm:flex-row items-start gap-4">
-              <div className={`w-full space-y-3 ${lookupItems ? 'sm:w-80 sm:shrink-0' : ''}`}>
+              <div className={`w-full space-y-3 ${lookupItems ? 'sm:flex-1 sm:min-w-0' : ''}`}>
               {/* 구분 탭 + 조회 조건 — 탭과 아래 입력이 한 묶음임을 보이도록 테두리 박스로 감쌈 */}
               <div className="border border-blue-200 rounded-lg p-3 space-y-3">
               {/* 구분 탭 — 공사·용역(기간 조회), 계약번호(단건 조회) */}
