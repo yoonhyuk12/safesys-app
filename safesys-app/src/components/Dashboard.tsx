@@ -41,6 +41,7 @@ import BusinessInspectionView from '@/components/dashboard/BusinessInspectionVie
 import BusinessQualityReportView from '@/components/dashboard/BusinessQualityReportView'
 import BusinessQualityTestView from '@/components/dashboard/BusinessQualityTestView'
 import BusinessDisasterPreventionView from '@/components/dashboard/BusinessDisasterPreventionView'
+import BusinessConstructionContractView from '@/components/dashboard/BusinessConstructionContractView'
 import TBMChatBot from '@/components/ui/TBMChatBot'
 import BulkProjectUploadModal from '@/components/project/BulkProjectUploadModal'
 import officeLocationsData from '@/lib/office-locations.json'
@@ -3899,6 +3900,13 @@ const Dashboard: React.FC = () => {
                 onBack={() => setSelectedBusinessCard(null)}
                 onRowClickProject={(projectId, branch) => router.push(`/project/${projectId}/contract-status?returnUrl=${encodeURIComponent(`/business?card=disasterPrevention&branch=${branch ?? ''}`)}`)}
               />
+            ) : selectedBusinessCard === 'construction' ? (
+              <BusinessConstructionContractView
+                initialHq={searchParams.get('hq')}
+                initialBranch={searchParams.get('branch')}
+                onBack={() => setSelectedBusinessCard(null)}
+                onRowClickProject={(projectId, hq, branch) => router.push(`/project/${projectId}/contract-status?returnUrl=${encodeURIComponent(`/business?card=construction&hq=${hq ?? ''}&branch=${branch ?? ''}`)}`)}
+              />
             ) : (
               <>
                 <div className="bg-white/80 backdrop-blur rounded-lg border border-white/20 shadow-sm p-3 lg:p-4">
@@ -3996,6 +4004,22 @@ const Dashboard: React.FC = () => {
                       <div className="text-xs text-gray-600">
                         <div className="text-sm font-semibold text-emerald-600 mb-0.5">계약 현황</div>
                         <div className="text-xs">지사별 · 사업별</div>
+                      </div>
+                    </div>
+                  </div>
+                  {/* 공사 계약 현황 카드 — 본부별→지사별→사업별 계약 건수 드릴다운 뷰 */}
+                  <div
+                    onClick={() => setSelectedBusinessCard('construction')}
+                    className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-sky-300 hover:bg-sky-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]"
+                  >
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-8 h-8 bg-sky-100 rounded-lg flex items-center justify-center mb-2">
+                        <Building className="h-4 w-4 text-sky-600" />
+                      </div>
+                      <h4 className="text-xs font-medium text-gray-900 mb-1">공사</h4>
+                      <div className="text-xs text-gray-600">
+                        <div className="text-sm font-semibold text-sky-600 mb-0.5">계약 현황</div>
+                        <div className="text-xs">본부별 · 지사별 · 사업별</div>
                       </div>
                     </div>
                   </div>
