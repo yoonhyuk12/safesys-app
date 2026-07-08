@@ -33,6 +33,8 @@ interface ContractRecord {
     managing_hq: string
     managing_branch: string
     display_order: number | null
+    construction_start_date: string | null
+    construction_end_date: string | null
   }
 }
 
@@ -100,6 +102,8 @@ interface ProjectRow {
   thisYearContracts: number // 귀속 연도가 올해인 계약 행 수
   totalAmount: number // 전체 계약 행의 금차금액 합 (차수 없는 단년도 계약은 총액=금차)
   thisYearAmount: number // 귀속 연도가 올해인 계약 행의 금차금액 합
+  constructionStartDate: string | null // 대표계약 지정 시 동기화되는 프로젝트 착공일
+  constructionEndDate: string | null // 대표계약 지정 시 동기화되는 프로젝트 준공일
 }
 
 interface AggStats {
@@ -171,7 +175,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
         // projects와 FK 관계가 2개(project_id, 대표계약)라 임베드에 컬럼 힌트가 필수 — 없으면 모호성 오류
         let q = (supabase as any)
           .from('project_contracts')
-          .select('*, projects!project_id!inner(id, project_name, managing_hq, managing_branch, display_order)')
+          .select('*, projects!project_id!inner(id, project_name, managing_hq, managing_branch, display_order, construction_start_date, construction_end_date)')
           .eq('contract_type', '공사')
 
         // getProjectsByUserBranch와 동일한 관할 범위 규칙을 조인 컬럼 필터로 재현
@@ -239,6 +243,8 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
         thisYearContracts: thisYearRecords.length,
         totalAmount: projectRecords.reduce((s, r) => s + rowAmount(r), 0),
         thisYearAmount: thisYearRecords.reduce((s, r) => s + rowAmount(r), 0),
+        constructionStartDate: proj.construction_start_date ?? null,
+        constructionEndDate: proj.construction_end_date ?? null,
       }
     })
 
@@ -295,6 +301,12 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
 
   const totalWorkCount = useMemo(() => projectRows.reduce((s, r) => s + r.workCount, 0), [projectRows])
 
+  // 사업별 표 소계 집계
+  const projectListAgg = useMemo(
+    () => projectList.reduce((acc, p) => { addAgg(acc, p); return acc }, emptyAgg()),
+    [projectList]
+  )
+
   const handleBack = () => {
     if (viewLevel === 'project') {
       setViewLevel('branch')
@@ -332,8 +344,8 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       return acc
     }, emptyAgg())
 
-  // 집계 셀 렌더 — unit은 금액 표시 단위(본부·지사 표는 백만원, 사업 표는 천원), 소계 행은 강조 스타일
-  const statCells = (s: AggStats, unit: number, subtotal = false) => (
+  // 집계 셀 렌더(전반부) — 건수·총계약건·총계약금액. unit은 금액 표시 단위(본부·지사 표는 백만원, 사업 표는 천원)
+  const statCellsBefore = (s: AggStats, unit: number, subtotal = false) => (
     <>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center'}>
         {subtotal ? (
@@ -361,6 +373,12 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
         {formatAmt(s.totalAmount, unit)}
         {s.totalAmount > 0 && <span className="ml-0.5 text-[10px] text-gray-600">{unitLabel(unit)}</span>}
       </td>
+    </>
+  )
+
+  // 집계 셀 렌더(후반부) — 금년계약건·금년계약금액·비고
+  const statCellsAfter = (s: AggStats, unit: number, subtotal = false) => (
+    <>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center'}>
         {subtotal ? (
           s.thisYearContracts > 0 ? `${s.thisYearContracts.toLocaleString()}건` : '-'
@@ -378,6 +396,25 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       </td>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-400'}>-</td>
     </>
+  )
+
+  // 집계 셀 렌더 — 본부·지사 표는 전·후반부를 그대로 이어붙여 사용
+  const statCells = (s: AggStats, unit: number, subtotal = false) => (
+    <>
+      {statCellsBefore(s, unit, subtotal)}
+      {statCellsAfter(s, unit, subtotal)}
+    </>
+  )
+
+  // 대표계약 기간 표시 — projects.construction_start_date~end_date (대표계약 지정 시 동기화됨)
+  const periodCell = (p: { constructionStartDate: string | null; constructionEndDate: string | null }, subtotal = false) => (
+    <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
+      {p.constructionStartDate && p.constructionEndDate ? (
+        `${p.constructionStartDate} ~ ${p.constructionEndDate}`
+      ) : (
+        <span className="text-gray-400">-</span>
+      )}
+    </td>
   )
 
   return (
@@ -525,6 +562,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">건수</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약건</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">대표공사 건 계약기간</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약건({currentYear})</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
@@ -534,14 +572,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                 {/* 소계 */}
                 <tr className="bg-sky-50/70 font-semibold border-b-2 border-sky-200">
                   <td className="px-3 py-2 text-sm text-center text-sky-800">소계</td>
-                  {statCells(
-                    projectList.reduce((acc, p) => {
-                      addAgg(acc, p)
-                      return acc
-                    }, emptyAgg()),
-                    1000,
-                    true
-                  )}
+                  {statCellsBefore(projectListAgg, 1000, true)}
+                  {periodCell({ constructionStartDate: null, constructionEndDate: null }, true)}
+                  {statCellsAfter(projectListAgg, 1000, true)}
                 </tr>
                 {projectList.map((p) => (
                   <tr key={p.projectId} onClick={() => onRowClickProject(p.projectId, selectedHq, selectedBranch)} className="hover:bg-sky-50/50 cursor-pointer transition-colors">
@@ -551,11 +584,13 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                       </span>
                       <span className="hidden sm:inline">{p.projectName}</span>
                     </td>
-                    {statCells(p, 1000)}
+                    {statCellsBefore(p, 1000)}
+                    {periodCell(p)}
+                    {statCellsAfter(p, 1000)}
                   </tr>
                 ))}
                 {projectList.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">해당 지사에 등록된 사업이 없습니다.</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">해당 지사에 등록된 사업이 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
