@@ -1025,13 +1025,14 @@ export default function MaterialLedgerPage() {
         }
       })
       const cndtn = [...new Set(mat.rows.map(r => r.dlvrCndtn).filter(Boolean))].join(', ')
-      // 검수 사진 — 행 순서대로, 사진설명은 품명 첫 줄 + 반입일
-      const photos = mat.rows.flatMap(r =>
-        (r.inspectionPhotos || []).map(url => ({
+      // 검수 사진 — 행 순서대로, 사진설명은 해당 행의 규격 + 반입일 (자재명은 구분란에 이미 표기)
+      const photos = mat.rows.flatMap(r => {
+        const spec = stripDupItemName(r.nameOrSpec || '', mat.name).replace(/\n/g, ' ')
+        return (r.inspectionPhotos || []).map(url => ({
           url,
-          caption: `${(r.nameOrSpec || mat.name).split('\n')[0]} 검수${r.receiveDate ? ` (반입일 ${r.receiveDate})` : ''}`,
+          caption: `${spec ? `${spec} ` : ''}검수${r.receiveDate ? ` (반입일 ${r.receiveDate})` : ''}`,
         }))
-      )
+      })
       await downloadMaterialLedgerExcel(
         mat.name,
         mat.unit,
