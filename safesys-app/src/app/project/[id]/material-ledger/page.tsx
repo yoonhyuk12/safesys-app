@@ -2953,13 +2953,13 @@ export default function MaterialLedgerPage() {
   const totalPrdctAmt = contractRows.reduce((s, r) => s + r.prdctAmt, 0)
   const totalFeeAmt = contractRows.reduce((s, r) => s + r.feeAmt, 0)
   // 납품기한 연도(년차)별 그룹 — 소계 행을 해당 연도 계약들 바로 위에 표시.
-  // 연도 오름차순(과거년도 먼저), 납품기한 없는 계약은 마지막에 소계 없이 배치.
+  // 최근년도가 맨 위(내림차순), 납품기한 없는 계약은 마지막에 소계 없이 배치.
   const yearOfRow = (r: { mat: Material }) => {
     const y = (r.mat.dlvrDeadline || '').slice(0, 4)
     return /^\d{4}$/.test(y) ? y : ''
   }
   let contractSeq = 0
-  const yearGroups = [...[...new Set(contractRows.map(yearOfRow).filter(Boolean))].sort(), '']
+  const yearGroups = [...[...new Set(contractRows.map(yearOfRow).filter(Boolean))].sort().reverse(), '']
     .map(year => {
       const rows = contractRows.filter(r => yearOfRow(r) === year).map(r => ({ ...r, no: ++contractSeq }))
       return {
