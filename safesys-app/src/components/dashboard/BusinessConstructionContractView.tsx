@@ -307,8 +307,6 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
     return projectRows.filter((r) => r.managingHq === selectedHq && r.managingBranch === selectedBranch)
   }, [projectRows, selectedHq, selectedBranch])
 
-  const totalWorkCount = useMemo(() => projectRows.reduce((s, r) => s + r.workCount, 0), [projectRows])
-
   // 사업별 표 소계 집계
   const projectListAgg = useMemo(
     () => projectList.reduce((acc, p) => { addAgg(acc, p); return acc }, emptyAgg()),
@@ -477,6 +475,18 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
     </>
   )
 
+  // 엑셀 다운 버튼 — 본부·지사·사업 카드 헤더 우측 공용 (어느 레벨에서든 관할 전체 엑셀 다운로드)
+  const excelButton = (
+    <button
+      onClick={handleExcelExport}
+      title="엑셀 다운"
+      className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-sky-700 border border-sky-300 rounded-lg hover:bg-sky-100"
+    >
+      <Download className="h-4 w-4" />
+      <span className="hidden sm:inline">엑셀 다운</span>
+    </button>
+  )
+
   // 대표계약 기간 표시 — projects.construction_start_date~end_date (대표계약 지정 시 동기화됨)
   const periodCell = (p: { constructionStartDate: string | null; constructionEndDate: string | null }, subtotal = false) => (
     <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
@@ -493,27 +503,22 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       <div className="flex items-center gap-3 mb-4">
         <button
           onClick={handleBack}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           aria-label="뒤로가기"
         >
-          <ArrowLeft className="h-5 w-5 text-gray-600" />
+          <ArrowLeft className="h-5 w-5 text-gray-300" />
         </button>
         <div className="flex items-center gap-2">
-          <Building className="h-5 w-5 text-sky-600" />
-          <h2 className="text-lg font-semibold text-gray-900">
+          <Building className="h-5 w-5 text-sky-400" />
+          <h2 className="text-lg font-semibold text-white">
             공사 계약현황
             {viewLevel !== 'hq' && selectedHq && (
-              <span className="text-sm font-normal text-gray-500 ml-2">- {hqDisplay(selectedHq)}</span>
+              <span className="text-sm font-normal text-gray-300 ml-2">- {hqDisplay(selectedHq)}</span>
             )}
             {viewLevel === 'project' && selectedBranch && (
-              <span className="text-sm font-normal text-gray-500 ml-1">{selectedBranch}</span>
+              <span className="text-sm font-normal text-gray-300 ml-1">{selectedBranch}</span>
             )}
           </h2>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="hidden sm:inline text-sm text-gray-500">
-            공사 {totalWorkCount.toLocaleString()}건
-          </span>
         </div>
       </div>
 
@@ -530,17 +535,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                 <Building className="h-4 w-4 text-sky-600" />
                 <span className="text-sm font-medium text-sky-800">본부별 공사 계약현황</span>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-sky-600 font-semibold">공사 {totalWorkCount.toLocaleString()}건</span>
-                <button
-                  onClick={handleExcelExport}
-                  title="엑셀 다운"
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-sky-700 border border-sky-300 rounded-lg hover:bg-sky-100"
-                >
-                  <Download className="h-4 w-4" />
-                  <span className="hidden sm:inline">엑셀 다운</span>
-                </button>
-              </div>
+              {excelButton}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -586,7 +581,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                 <Building className="h-4 w-4 text-sky-600" />
                 <span className="text-sm font-medium text-sky-800">{hqDisplay(selectedHq)} - 지사별 공사 계약현황</span>
               </div>
-              <span className="text-sm text-sky-600 font-semibold">공사 {sumStats(branchStats).workCount.toLocaleString()}건</span>
+              {excelButton}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -632,7 +627,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                 <Building className="h-4 w-4 text-sky-600" />
                 <span className="text-sm font-medium text-sky-800">{selectedBranch} - 사업별 공사 계약현황</span>
               </div>
-              <span className="text-sm text-sky-600 font-semibold">공사 {projectList.reduce((s, p) => s + p.workCount, 0).toLocaleString()}건</span>
+              {excelButton}
             </div>
           </div>
           <div className="overflow-x-auto">
