@@ -193,8 +193,9 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
   )
   const [selectedHq, setSelectedHq] = useState<string | null>(hq0)
   const [selectedBranch, setSelectedBranch] = useState<string | null>(branch0)
-  // 금액 기준 — 'total'(총차: 계약 그룹당 총계약금액 1회) 또는 연도 문자열(해당 연도 귀속 금차금액)
-  const [amountMode, setAmountMode] = useState<string>('total')
+  // 금액 기준 — 'total'(총차: 계약 그룹당 총계약금액 1회) 또는 연도 문자열(해당 연도 귀속 금차금액). 기본값은 당해년도.
+  const currentYearStr = String(new Date().getFullYear())
+  const [amountMode, setAmountMode] = useState<string>(currentYearStr)
   const [contracts, setContracts] = useState<ContractRecord[]>([])
   const [ledgerAmounts, setLedgerAmounts] = useState<LedgerAmountRecord[]>([])
   // 관할 내 전체 프로젝트(준공 제외) — 계약 미등록 사업도 표에 노출하기 위한 행 원천
@@ -252,9 +253,10 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
     load()
   }, [user, userProfile])
 
-  // 드롭다운 연도 목록 — 계약 금차 귀속연도 + 지급자재 납품기한 연도의 합집합 (최신 연도 먼저)
+  // 드롭다운 연도 목록 — 계약 금차 귀속연도 + 지급자재 납품기한 연도의 합집합 (최신 연도 먼저).
+  // 당해년도는 데이터가 없어도 항상 포함 (기본값이므로 select 옵션에 존재해야 한다)
   const years = useMemo(() => {
-    const s = new Set<string>()
+    const s = new Set<string>([currentYearStr])
     for (const r of contracts) {
       if (!r.thtm_cntrct_amt) continue
       s.add(contractYear(r))
@@ -265,7 +267,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
       if (y) s.add(y)
     }
     return [...s].sort((a, b) => b.localeCompare(a))
-  }, [contracts, ledgerAmounts])
+  }, [contracts, ledgerAmounts, currentYearStr])
 
   // 사업(프로젝트)별 유형 금액 집계 — 관할 내 전체 프로젝트(준공 제외)를 행으로 만들고
   // 본부·지사·display_order·사업명 순 정렬 (공사 계약현황 뷰와 동일 순서)
