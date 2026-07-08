@@ -51,6 +51,14 @@ function dataUrlToBase64(dataUrl: string): string {
   return dataUrl.split(',')[1]
 }
 
+// 품명/규격("품명\n(규격)")에서 자재명과 중복되는 품명(첫 줄)을 제거하고 규격만 남긴다.
+// 수불부는 상단에 "품명 및 규격 : 자재명", 출고요청서는 품명 컬럼이 따로 있어 중복 표기 방지
+function stripDupName(nameOrSpec: string, materialName: string): string {
+  const [first, ...rest] = nameOrSpec.split('\n')
+  if (first.trim() !== materialName.trim()) return nameOrSpec
+  return rest.join('\n').replace(/^\(/, '').replace(/\)$/, '').trim()
+}
+
 // ── 검수조서(별지 제11호 서식) 관련 타입 ──
 
 export interface MaterialJosaItem {
@@ -549,7 +557,7 @@ export async function downloadMaterialLedgerExcel(
       const hasSignature = dataRow?.supervisorConfirm && dataRow.supervisorConfirm.startsWith('data:image')
 
       const excelRow = ws.addRow([
-        dataRow ? (dataRow.nameOrSpec || '') : '',           // A: 품명/규격
+        dataRow ? stripDupName(dataRow.nameOrSpec || '', materialName) : '', // A: 품명/규격 (자재명과 같은 품명은 제외)
         dataRow ? numOrDash(dataRow.orderQty) : '',          // B: 발주량
         dataRow ? formatDate(dataRow.receiveDate) : '',      // C: 반입일
         dataRow ? numOrDash(dataRow.receiveQty) : '',        // D: 반입량
@@ -689,10 +697,10 @@ export async function downloadMaterialLedgerExcel(
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } }
     })
 
-    // Row 6: 실제 데이터 (1행)
+    // Row 6: 실제 데이터 (1행) — 품명 컬럼이 따로 있으므로 규격에는 품명 제외한 내용만
     const dataExcelRow = ws.addRow([
       materialName || '',
-      row.nameOrSpec || '',
+      stripDupName(row.nameOrSpec || '', materialName),
       materialUnit || '',
       numOrDash(row.releaseQty),
       projectName || '',
