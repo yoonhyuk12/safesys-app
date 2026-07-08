@@ -366,24 +366,14 @@ export default function ContractStatusPage() {
     })
   }, [records])
 
-  // 표 정렬: 공사 먼저 → 용역, 그다음 연도(그룹 최소 귀속 연도) → 최초 체결일 오름차순 (사용자 지정 순서)
+  // 표 정렬: 공사 먼저 → 용역(소계행이 구분 연속 그룹핑에 의존), 그다음 총계약금액 내림차순 (사용자 지정 순서)
   const sortedGroups = useMemo(() => {
     const typeOrder = (t: string) => (t === '공사' ? 0 : 1)
-    const groupYear = (g: ContractGroup) => {
-      const ys = [...g.yearAmts.keys()].filter((y) => y !== '기타').sort()
-      return ys[0] || contractYear(g.repr) || '9999'
-    }
-    const firstDate = (g: ContractGroup) =>
-      g.members.reduce((min, m) => ((m.cntrct_date || '9999-12-31') < min ? (m.cntrct_date || '9999-12-31') : min), '9999-12-31')
     return [...groups].sort((a, b) => {
       const t = typeOrder(a.repr.contract_type) - typeOrder(b.repr.contract_type)
       if (t !== 0) return t
-      const ya = groupYear(a)
-      const yb = groupYear(b)
-      if (ya !== yb) return ya < yb ? -1 : 1
-      const da = firstDate(a)
-      const db = firstDate(b)
-      if (da !== db) return da < db ? -1 : 1
+      const amt = (b.repr.tot_cntrct_amt || 0) - (a.repr.tot_cntrct_amt || 0)
+      if (amt !== 0) return amt
       return (a.repr.created_at || '').localeCompare(b.repr.created_at || '')
     })
   }, [groups])
