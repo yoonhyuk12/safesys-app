@@ -1403,19 +1403,6 @@ export default function ProjectDetailPage() {
                 />
               </div>
             </div>
-            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
-              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>D (실행)</div>
-              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
-                <DocumentFolder
-                  title="올바로
-시스템"
-                  year={new Date().getFullYear().toString()}
-                  isActive={false}
-                  externalUrl="https://www.allbaro.or.kr"
-                  bottomLabel="환경"
-                />
-              </div>
-            </div>
           </div>
           </CabinetDrawer>
 
@@ -1586,16 +1573,6 @@ export default function ProjectDetailPage() {
               <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>A (조치)</div>
               <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
                 <DocumentFolder
-                  title="관리자 TBM
-활동 점검"
-                  year={new Date().getFullYear().toString()}
-                  isActive={false}
-                  projectId={projectId}
-                  docCount={cardCounts.tbmSafetyInspection}
-                  onClick={() => router.push(`/project/${projectId}/tbm-safety-inspection`)}
-                  pdcaCategory="A"
-                />
-                <DocumentFolder
                   title="휴일작업
 관리대장"
                   year={new Date().getFullYear().toString()}
@@ -1610,9 +1587,66 @@ export default function ProjectDetailPage() {
           </div>
           </CabinetDrawer>
 
-          {/* 문서철 그리드 - 발주청 캐비넷 */}
+          {/* 문서철 그리드 - 발주청 캐비넷 (안전·품질·기타 캐비넷과 공유하는 서류철은 같은 라우트로 연결) */}
           <CabinetDrawer open={openCabinet === '발주청'} instantClose={openCabinet !== null}>
           <div className="flex flex-wrap justify-center gap-3">
+            {/* 감독 일괄서명 만년필 펜통 — 서랍 맨 좌측 */}
+            <PenHolderButton
+              label="감독 일괄서명"
+              theme="purple"
+              size="sm"
+              className="self-end"
+              badgeCount={supervisorUnsignedCount ?? undefined}
+              onClick={() => setBulkSignSigner('supervisor')}
+            />
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>P (계획)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title={'계약 현황\n︵공사·용역︶'}
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  docCount={contractCount ?? undefined}
+                  onClick={() => router.push(`/project/${projectId}/contract-status`)}
+                  pdcaCategory="P"
+                  bottomLabel="계약"
+                />
+              </div>
+            </div>
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>D (실행)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="위험공종
+작업허가제
+︵PTW︶"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  docCount={ptwCount ?? undefined}
+                  onClick={() => router.push(`/project/${projectId}/ptw`)}
+                />
+                <DocumentFolder
+                  title="자재
+수불부"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  docCount={cardCounts.materials}
+                  onClick={() => router.push(`/project/${projectId}/material-ledger`)}
+                  bottomLabel="사업"
+                />
+                <DocumentFolder
+                  title="올바로
+시스템"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  externalUrl="https://www.allbaro.or.kr"
+                  bottomLabel="환경"
+                />
+              </div>
+            </div>
             <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
               <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>C (점검)</div>
               <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
@@ -1626,13 +1660,30 @@ export default function ProjectDetailPage() {
                   pdcaCategory="C"
                   bottomLabel="감독"
                 />
-                <PenHolderButton
-                  label="감독 일괄서명"
-                  theme="purple"
-                  size="sm"
-                  className="self-end"
-                  badgeCount={supervisorUnsignedCount ?? undefined}
-                  onClick={() => setBulkSignSigner('supervisor')}
+                <DocumentFolder
+                  title="지적사항
+관리대장"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/issue-management`)}
+                  docCount={issueLedgerCount ?? undefined}
+                  pdcaCategory="C"
+                />
+              </div>
+            </div>
+            <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
+              <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 px-2 text-white/80 text-xs font-semibold whitespace-nowrap" style={{ backgroundColor: 'rgb(23, 37, 84)' }}>A (조치)</div>
+              <div className="flex flex-wrap gap-2 sm:gap-3 md:gap-4">
+                <DocumentFolder
+                  title="관리자 TBM
+활동 점검"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  docCount={cardCounts.tbmSafetyInspection}
+                  onClick={() => router.push(`/project/${projectId}/tbm-safety-inspection`)}
+                  pdcaCategory="A"
                 />
               </div>
             </div>
