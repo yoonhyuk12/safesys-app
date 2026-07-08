@@ -112,9 +112,9 @@ const addAgg = (a: AggStats, r: AggStats): void => {
   a.thisYearAmount += r.thisYearAmount
 }
 
-// 금액은 천원 단위(반올림)로 표시 — 0/null은 '-'
-const formatAmt = (n: number | null | undefined) =>
-  n == null || n === 0 ? '-' : Math.round(n / 1000).toLocaleString('ko-KR')
+// 금액 표시 — 단위(천원=1000, 백만원=1000000)로 나눠 반올림, 0/null은 '-'
+const formatAmt = (n: number | null | undefined, unit: number) =>
+  n == null || n === 0 ? '-' : Math.round(n / unit).toLocaleString('ko-KR')
 
 // 계약 행 1건의 금액 — 차수분은 금차금액, 금차 미기재 시 총액으로 폴백
 const rowAmount = (r: ContractRecord): number => r.thtm_cntrct_amt ?? r.tot_cntrct_amt ?? 0
@@ -317,8 +317,8 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       return acc
     }, emptyAgg())
 
-  // 집계 셀 3종(건수·총계약건·금년계약건) 렌더 — 소계 행은 강조 스타일
-  const statCells = (s: AggStats, subtotal = false) => (
+  // 집계 셀 렌더 — unit은 금액 표시 단위(본부·지사 표는 백만원, 사업 표는 천원), 소계 행은 강조 스타일
+  const statCells = (s: AggStats, unit: number, subtotal = false) => (
     <>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center'}>
         {subtotal ? (
@@ -343,7 +343,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
         )}
       </td>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
-        {formatAmt(s.totalAmount)}
+        {formatAmt(s.totalAmount, unit)}
       </td>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center'}>
         {subtotal ? (
@@ -357,7 +357,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
         )}
       </td>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
-        {formatAmt(s.thisYearAmount)}
+        {formatAmt(s.thisYearAmount, unit)}
       </td>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-400'}>-</td>
     </>
@@ -415,9 +415,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">본부</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">건수</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약건</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액(천원)</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액(백만원)</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약건({currentYear})</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액(천원)</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액(백만원)</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
                 </tr>
               </thead>
@@ -425,12 +425,12 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                 {/* 소계 */}
                 <tr className="bg-sky-50/70 font-semibold border-b-2 border-sky-200">
                   <td className="px-3 py-2 text-sm text-center text-sky-800">소계</td>
-                  {statCells(sumStats(hqStats), true)}
+                  {statCells(sumStats(hqStats), 1000000, true)}
                 </tr>
                 {Array.from(hqStats.entries()).map(([hq, stats]) => (
                   <tr key={hq} onClick={() => handleHqClick(hq)} className="hover:bg-sky-50/50 cursor-pointer transition-colors">
                     <td className="px-3 py-3 text-sm font-medium text-gray-900 text-center">{hqDisplay(hq)}</td>
-                    {statCells(stats)}
+                    {statCells(stats, 1000000)}
                   </tr>
                 ))}
                 {hqStats.size === 0 && (
@@ -461,9 +461,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">지사</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">건수</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약건</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액(천원)</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총계약금액(백만원)</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약건({currentYear})</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액(천원)</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">금년계약금액(백만원)</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">비고</th>
                 </tr>
               </thead>
@@ -471,12 +471,12 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                 {/* 소계 */}
                 <tr className="bg-sky-50/70 font-semibold border-b-2 border-sky-200">
                   <td className="px-3 py-2 text-sm text-center text-sky-800">소계</td>
-                  {statCells(sumStats(branchStats), true)}
+                  {statCells(sumStats(branchStats), 1000000, true)}
                 </tr>
                 {Array.from(branchStats.entries()).map(([branch, stats]) => (
                   <tr key={branch} onClick={() => handleBranchClick(branch)} className="hover:bg-sky-50/50 cursor-pointer transition-colors">
                     <td className="px-3 py-3 text-sm font-medium text-gray-900 text-center">{branch}</td>
-                    {statCells(stats)}
+                    {statCells(stats, 1000000)}
                   </tr>
                 ))}
                 {branchStats.size === 0 && (
@@ -522,6 +522,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                       addAgg(acc, p)
                       return acc
                     }, emptyAgg()),
+                    1000,
                     true
                   )}
                 </tr>
@@ -533,7 +534,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                       </span>
                       <span className="hidden sm:inline">{p.projectName}</span>
                     </td>
-                    {statCells(p)}
+                    {statCells(p, 1000)}
                   </tr>
                 ))}
                 {projectList.length === 0 && (
