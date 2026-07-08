@@ -10,6 +10,7 @@ export interface DisasterPreventionExcelRow {
   workStart: string     // 공사 착공일 'YYYY-MM-DD' | ''
   workEnd: string       // 공사 준공일 'YYYY-MM-DD' | ''
   workAmt: number | null   // 공사금액(원)
+  guideName: string     // 기술지도 계약건명 ('' 가능)
   guideOrgName: string  // 지도기관명 ('' 가능)
   guideAmt: number | null  // 기술지도 대가(원)
   guideStart: string    // 지도 계약 착공일 'YYYY-MM-DD' | ''
@@ -17,11 +18,12 @@ export interface DisasterPreventionExcelRow {
 }
 
 const BLACK = 'FF000000'
-// 깔끔한 표 스타일 — 밝은 회색 헤더 + 검정 글씨 (contract-status-export와 동일 계열)
-const HEADER_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } }
+// 표 디자인 — 남색 헤더 + 흰 글씨, 짝수 데이터 행 줄무늬 (contract-status-export와 동일 계열)
+const HEADER_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2F5597' } }
+const STRIPE_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F6FB' } }
 
-// 열 너비(A~R). A는 여백 열
-const COL_WIDTHS = [1.7, 9.6, 9.6, 12.9, 55, 8.5, 12.9, 12.9, 14.7, 15.3, 18, 12.1, 12, 14, 14, 12.3, 12.3, 8]
+// 열 너비(A~S). A는 여백 열
+const COL_WIDTHS = [1.7, 9.6, 9.6, 12.9, 55, 8.5, 12.9, 12.9, 14.7, 15.3, 42, 18, 12.1, 12, 14, 14, 12.3, 12.3, 8]
 
 const AMT_FMT = '_-* #,##0_-;-* #,##0_-;_-* "-"_-;_-@_-'
 
@@ -65,30 +67,31 @@ export async function downloadDisasterPreventionContractExcel(rows: DisasterPrev
   ws.getCell('C5').value = '지사명'
   ws.getCell('D5').value = '기술지도 대상 사업'
   ws.getCell('J5').value = '재해예방 지도기관'
-  ws.getCell('R5').value = '비고'
+  ws.getCell('S5').value = '비고'
   ws.getCell('D6').value = '건설업체명'
   ws.getCell('E6').value = '공사명'
   ws.getCell('F6').value = '소재지'
   ws.getCell('G6').value = '공사기간'
   ws.getCell('I6').value = '공사금액(원)'
   ws.getCell('J6').value = '지방고용노동청'
-  ws.getCell('K6').value = '지도기관명'
-  ws.getCell('L6').value = '사업장구분'
-  ws.getCell('M6').value = '소재지'
-  ws.getCell('N6').value = '기술지도 구분'
-  ws.getCell('O6').value = '기술지도 대가(원)'
-  ws.getCell('P6').value = '계약기간'
+  ws.getCell('K6').value = '계약건명'
+  ws.getCell('L6').value = '지도기관명'
+  ws.getCell('M6').value = '사업장구분'
+  ws.getCell('N6').value = '소재지'
+  ws.getCell('O6').value = '기술지도 구분'
+  ws.getCell('P6').value = '기술지도 대가(원)'
+  ws.getCell('Q6').value = '계약기간'
   ws.getCell('G7').value = '착공일'
   ws.getCell('H7').value = '준공일'
-  ws.getCell('P7').value = '착공일'
-  ws.getCell('Q7').value = '준공일'
+  ws.getCell('Q7').value = '착공일'
+  ws.getCell('R7').value = '준공일'
 
   // 헤더 병합
   ws.mergeCells('B5:B7')
   ws.mergeCells('C5:C7')
   ws.mergeCells('D5:I5')
-  ws.mergeCells('J5:Q5')
-  ws.mergeCells('R5:R7')
+  ws.mergeCells('J5:R5')
+  ws.mergeCells('S5:S7')
   ws.mergeCells('D6:D7')
   ws.mergeCells('E6:E7')
   ws.mergeCells('F6:F7')
@@ -100,18 +103,19 @@ export async function downloadDisasterPreventionContractExcel(rows: DisasterPrev
   ws.mergeCells('M6:M7')
   ws.mergeCells('N6:N7')
   ws.mergeCells('O6:O7')
-  ws.mergeCells('P6:Q6')
+  ws.mergeCells('P6:P7')
+  ws.mergeCells('Q6:R6')
 
-  // 헤더 공통 스타일 (B~R, 5~7행 전부) — 밝은 회색 배경 + 검정 글씨 + 가는 테두리
+  // 헤더 공통 스타일 (B~S, 5~7행 전부) — 남색 배경 + 흰 글씨 + 가는 테두리
   for (let r = 5; r <= 7; r++) {
     const row = ws.getRow(r)
     row.height = 18
-    for (let c = 2; c <= 18; c++) {
+    for (let c = 2; c <= 19; c++) {
       const cell = row.getCell(c)
-      cell.font = { name: 'Dotum', size: 9, bold: true }
+      cell.font = { name: 'Dotum', size: 9, bold: true, color: { argb: 'FFFFFFFF' } }
       cell.fill = HEADER_FILL
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
-      cell.border = thinBorder(BLACK)
+      cell.border = r === 7 ? { ...thinBorder(BLACK), bottom: { style: 'medium', color: { argb: BLACK } } } : thinBorder(BLACK)
     }
   }
 
@@ -130,24 +134,26 @@ export async function downloadDisasterPreventionContractExcel(rows: DisasterPrev
       fmtYmd(row.workEnd),   // H
       row.workAmt,         // I
       '',                  // J
-      row.guideOrgName,    // K
-      '',                  // L
+      row.guideName,       // K
+      row.guideOrgName,    // L
       '',                  // M
       '',                  // N
-      row.guideAmt,        // O
-      fmtYy(row.guideStart), // P
-      fmtYy(row.guideEnd),   // Q
-      '',                  // R
+      '',                  // O
+      row.guideAmt,        // P
+      fmtYy(row.guideStart), // Q
+      fmtYy(row.guideEnd),   // R
+      '',                  // S
     ]
-    for (let c = 2; c <= 18; c++) {
+    for (let c = 2; c <= 19; c++) {
       const cell = excelRow.getCell(c)
       const v = values[c - 2]
       cell.value = v == null ? null : v
       cell.font = { name: 'Dotum', size: 9 }
       cell.border = thinBorder(BLACK)
-      const isAmt = c === 9 || c === 15
+      if (i % 2 === 1) cell.fill = STRIPE_FILL
+      const isAmt = c === 9 || c === 16
       cell.alignment = {
-        horizontal: c === 5 ? 'left' : 'center',
+        horizontal: c === 5 || c === 11 ? 'left' : 'center',
         vertical: 'middle',
         ...(isAmt ? { shrinkToFit: true } : { wrapText: true }),
       }
@@ -155,12 +161,17 @@ export async function downloadDisasterPreventionContractExcel(rows: DisasterPrev
     }
   })
 
+  // 헤더(7행까지) 고정 — 스크롤 시 상단 유지
+  ws.views = [{ state: 'frozen', ySplit: 7 }]
+
   ws.pageSetup = {
     paperSize: 9,
     orientation: 'landscape',
     fitToPage: true,
     fitToWidth: 1,
     fitToHeight: 0,
+    horizontalCentered: true,
+    margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.4, header: 0.3, footer: 0.3 },
   }
 
   const buffer = await wb.xlsx.writeBuffer()

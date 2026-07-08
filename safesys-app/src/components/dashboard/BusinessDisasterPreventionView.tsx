@@ -67,6 +67,7 @@ interface DetailRow {
   workEnd: string
   workAmt: number | null
   hasWork: boolean
+  guideName: string
   guideOrgName: string
   guideAmt: number | null
   guideStart: string
@@ -256,6 +257,7 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
           workEnd: cnst.end,
           workAmt: cnst.totAmt,
           hasWork: true,
+          guideName: guide ? guide.reprName : '',
           guideOrgName: guide ? guide.corp : '',
           guideAmt: guide ? guide.totAmt : null,
           guideStart: guide ? guide.start : '',
@@ -281,6 +283,7 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
           workEnd: '',
           workAmt: null,
           hasWork: false,
+          guideName: g.reprName,
           guideOrgName: g.corp,
           guideAmt: g.totAmt,
           guideStart: g.start,
@@ -386,6 +389,7 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
         workStart: r.workStart,
         workEnd: r.workEnd,
         workAmt: r.workAmt,
+        guideName: r.guideName,
         guideOrgName: r.guideOrgName,
         guideAmt: r.guideAmt,
         guideStart: r.guideStart,
