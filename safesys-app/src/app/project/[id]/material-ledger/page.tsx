@@ -171,6 +171,14 @@ function formatDate(value: string): string {
   return `${m[1].slice(2)}-${m[2]}-${m[3]}`
 }
 
+// 상세 표의 품명/규격 표시 — 품명(첫 줄)이 상단 자재명과 같으면 중복이므로 규격만 남긴다.
+// 저장값("품명\n(규격)")은 그대로 두고 화면 표기만 바꾼다 (규격 그룹 매칭·엑셀 출력에 영향 없음)
+function stripDupItemName(nameOrSpec: string, materialName: string): string {
+  const [first, ...rest] = nameOrSpec.split('\n')
+  if (first.trim() !== materialName.trim()) return nameOrSpec
+  return rest.join('\n').replace(/^\(/, '').replace(/\)$/, '').trim()
+}
+
 // 조달청 품목 → 원장 품명/규격 문자열. 규격 전문이 "품명, 제조사, 모델…"로 길어서
 // 품명 뒤 나머지를 줄바꿈 + 괄호로 묶는다. 예: "배수로관\n(토암콘크리트, TAS-06, …)"
 function formatG2bSpec(item: G2bItem): string {
@@ -2520,7 +2528,7 @@ export default function MaterialLedgerPage() {
                             idx + 1
                           )}
                         </td>
-                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-pre-line" style={{ border: '1px solid #3a3a45' }}>{row.nameOrSpec || '-'}</td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-pre-line" style={{ border: '1px solid #3a3a45' }}>{stripDupItemName(row.nameOrSpec || '', selectedMaterial.name) || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.orderQty) || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{row.dlvrCndtn || '-'}</td>
                         <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatNumber(row.unitPrice || '') || '-'}</td>
