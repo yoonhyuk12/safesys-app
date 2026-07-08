@@ -42,6 +42,8 @@ export default function TBMSubmissionPage() {
   const [submissions, setSubmissions] = useState<TBMSubmission[]>([])
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [selectedDateSubmissions, setSelectedDateSubmissions] = useState<TBMSubmission[]>([])
+  // 제출 건별 근로자 교육 확인 서명 수 (제출 id → 인원)
+  const [signatureCounts, setSignatureCounts] = useState<Record<string, number>>({})
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
@@ -72,6 +74,34 @@ export default function TBMSubmissionPage() {
       loadSubmissions()
     }
   }, [project, currentMonth])
+
+  // 선택 날짜의 제출 건별 근로자 서명 인원 조회
+  useEffect(() => {
+    const loadSignatureCounts = async () => {
+      const ids = selectedDateSubmissions.filter(s => s.status !== 'draft').map(s => s.id)
+      if (ids.length === 0) {
+        setSignatureCounts({})
+        return
+      }
+      try {
+        const { data, error } = await supabase
+          .from('tbm_worker_signatures')
+          .select('tbm_submission_id')
+          .in('tbm_submission_id', ids)
+        if (error) throw new Error(error.message)
+
+        const counts: Record<string, number> = {}
+        for (const row of data || []) {
+          counts[row.tbm_submission_id] = (counts[row.tbm_submission_id] || 0) + 1
+        }
+        setSignatureCounts(counts)
+      } catch (err) {
+        console.error('서명 인원 조회 실패:', err)
+        setSignatureCounts({})
+      }
+    }
+    loadSignatureCounts()
+  }, [selectedDateSubmissions])
 
   const loadProject = async () => {
     try {
@@ -817,6 +847,11 @@ export default function TBMSubmissionPage() {
                                       {submission.submitted_at && (
                                         <div className="text-xs text-gray-500 mt-1">
                                           제출: {formatSubmittedAt(submission.submitted_at)}
+                                        </div>
+                                      )}
+                                      {submission.status !== 'draft' && (
+                                        <div className="text-xs font-medium text-blue-600 mt-0.5">
+                                          서명 {signatureCounts[submission.id] ?? 0}명 완료
                                         </div>
                                       )}
                                     </div>
