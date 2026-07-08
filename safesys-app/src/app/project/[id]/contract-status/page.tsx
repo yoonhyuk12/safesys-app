@@ -1133,13 +1133,18 @@ export default function ContractStatusPage() {
                     return (
                     <tr key={g.key} className={`border-b border-gray-100 ${isRep ? 'bg-amber-50' : 'hover:bg-gray-50'}`}>
                       <td className="px-3 py-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isRep}
-                          onChange={() => handleToggleRepresentative(g)}
-                          className="h-4 w-4 accent-blue-600 cursor-pointer align-middle"
+                        <button
+                          type="button"
+                          onClick={() => handleToggleRepresentative(g)}
+                          className={`px-2 py-0.5 rounded-full text-xs font-semibold cursor-pointer transition-colors ${
+                            isRep
+                              ? 'bg-amber-500 text-white'
+                              : 'text-gray-300 border border-dashed border-gray-300 hover:text-amber-500 hover:border-amber-400'
+                          }`}
                           title={isRep ? '대표계약 해제' : '대표계약으로 지정'}
-                        />
+                        >
+                          대표
+                        </button>
                       </td>
                       <td className="px-3 py-2">
                         <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
