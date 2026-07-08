@@ -2952,6 +2952,18 @@ export default function MaterialLedgerPage() {
   }))
   const totalPrdctAmt = contractRows.reduce((s, r) => s + r.prdctAmt, 0)
   const totalFeeAmt = contractRows.reduce((s, r) => s + r.feeAmt, 0)
+  // 납품기한 연도별 소계 — 엑셀 양식의 연도 그룹처럼 년차별 합계를 행으로 구성
+  const deadlineYears = [...new Set(
+    contractRows.map(r => (r.mat.dlvrDeadline || '').slice(0, 4)).filter(y => /^\d{4}$/.test(y))
+  )].sort()
+  const yearSubtotals = deadlineYears.map(year => {
+    const inYear = contractRows.filter(r => (r.mat.dlvrDeadline || '').startsWith(year))
+    return {
+      year,
+      prdctAmt: inYear.reduce((s, r) => s + r.prdctAmt, 0),
+      feeAmt: inYear.reduce((s, r) => s + r.feeAmt, 0),
+    }
+  })
   // 금액 표시 — 0은 '-'로
   const fmtAmt = (n: number) => (n ? formatNumber(String(Math.round(n))) : '-')
 
@@ -3158,6 +3170,16 @@ export default function MaterialLedgerPage() {
                     <td className="px-3 py-2 text-right text-xs font-bold whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#f5d78e' }}>{fmtAmt(totalPrdctAmt + totalFeeAmt)}</td>
                     <td style={{ border: '1px solid #5a4a55' }} />
                   </tr>
+                  {/* 소계(년차별) 행 — 납품기한 연도 기준 */}
+                  {yearSubtotals.map(sub => (
+                    <tr key={`subtotal-${sub.year}`} style={{ background: '#2a2820' }}>
+                      <td colSpan={7} className="px-3 py-1.5 text-center text-xs font-medium" style={{ border: '1px solid #5a4a55', color: '#d9c9a0' }}>소계 ({sub.year}년)</td>
+                      <td className="px-3 py-1.5 text-right text-xs font-medium whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#d9c9a0' }}>{fmtAmt(sub.prdctAmt)}</td>
+                      <td className="px-3 py-1.5 text-right text-xs font-medium whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#d9c9a0' }}>{fmtAmt(sub.feeAmt)}</td>
+                      <td className="px-3 py-1.5 text-right text-xs font-medium whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#d9c9a0' }}>{fmtAmt(sub.prdctAmt + sub.feeAmt)}</td>
+                      <td style={{ border: '1px solid #5a4a55' }} />
+                    </tr>
+                  ))}
                   {contractRows.map((row, idx) => {
                     const mat = row.mat
                     const gemStyle = getMaterialGemStyle(mat.name, idx, mat.colorIndex)
