@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil, Link2, Loader2, Download } from 'lucide-react'
+import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil, Link2, Loader2, Download, ExternalLink } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { guessInstName } from '@/lib/g2b-inst'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -918,6 +918,37 @@ export default function MaterialLedgerPage() {
       if (r.nameOrSpec && !list.includes(r.nameOrSpec)) list.push(r.nameOrSpec)
     }
     return list
+  }
+
+  // 자재명 클릭 — 연계 납품요구의 조달청 계약 상세를 새 탭으로 (URL은 클릭 시 해석, 자재별 캐시)
+  const g2bUrlCache = useRef<Map<string, string>>(new Map())
+  const [g2bLinkLoading, setG2bLinkLoading] = useState(false)
+  const openG2bContractPage = async () => {
+    const no = selectedMaterial?.dlvrReqNo
+    if (!no || g2bLinkLoading) return
+    const cached = g2bUrlCache.current.get(no)
+    if (cached) {
+      window.open(cached, '_blank', 'noopener,noreferrer')
+      return
+    }
+    // 팝업 차단을 피하려고 클릭 시점에 창을 먼저 열고, URL 해석 후 이동시킨다
+    const win = window.open('', '_blank')
+    setG2bLinkLoading(true)
+    try {
+      const res = await fetch(`/api/g2b/dlvr-req-url?no=${encodeURIComponent(no)}`)
+      const json = await res.json()
+      if (!res.ok || !json.success || !json.data?.url) {
+        throw new Error(json.error || '조달청 계약 페이지를 찾을 수 없습니다.')
+      }
+      g2bUrlCache.current.set(no, json.data.url)
+      if (win) win.location.href = json.data.url
+      else window.open(json.data.url, '_blank', 'noopener,noreferrer')
+    } catch (err) {
+      win?.close()
+      alert(err instanceof Error ? err.message : '조달청 계약 페이지 조회에 실패했습니다.')
+    } finally {
+      setG2bLinkLoading(false)
+    }
   }
 
   const openLinkModal = () => {
@@ -2097,7 +2128,24 @@ export default function MaterialLedgerPage() {
             }}>
               <div className="min-w-0">
                 <span className="text-sm font-medium text-amber-100" style={{ fontFamily: 'serif' }}>
-                  ⚔ {selectedMaterial.name}{selectedMaterial.unit && <span className="text-amber-200/60 font-normal ml-1">({selectedMaterial.unit})</span>}
+                  {'⚔ '}
+                  {selectedMaterial.dlvrReqNo ? (
+                    <button
+                      onClick={openG2bContractPage}
+                      disabled={g2bLinkLoading}
+                      className="inline-flex items-center gap-1 align-baseline hover:underline disabled:opacity-60 disabled:cursor-wait"
+                      style={{ color: '#7ec8ff' }}
+                      title={`조달청 계약정보 보기 (${selectedMaterial.dlvrReqNo})`}
+                    >
+                      {selectedMaterial.name}
+                      {selectedMaterial.unit && <span className="font-normal opacity-70">({selectedMaterial.unit})</span>}
+                      {g2bLinkLoading
+                        ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                        : <ExternalLink className="h-3 w-3 shrink-0" />}
+                    </button>
+                  ) : (
+                    <>{selectedMaterial.name}{selectedMaterial.unit && <span className="text-amber-200/60 font-normal ml-1">({selectedMaterial.unit})</span>}</>
+                  )}
                   <span className="text-amber-200/40 font-normal ml-2">{selectedMaterial.rows.length}건</span>
                 </span>
                 {(selectedMaterial.dlvrSupplier || selectedMaterial.dlvrSupplierTel || selectedMaterial.dlvrDeadline) && (
