@@ -638,6 +638,13 @@ class PDFGenerator {
   }
 }
 
+// 임의 HTML 1페이지를 A4 PDF로 다운로드 (상시 QR 포스터 등 부속 서식용)
+export async function generateHTMLPagePDF(html: string, filename: string): Promise<void> {
+  const generator = new PDFGenerator()
+  await generator.appendHTMLPage(html)
+  generator.downloadPDF(filename)
+}
+
 // TBM 보고서 PDF 생성 함수 — 근로자 서명이 있으면 다음 페이지에 서명부를 붙인다
 export async function generateTBMSubmissionReport(
   formData: TBMSubmissionFormData,

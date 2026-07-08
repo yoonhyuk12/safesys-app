@@ -8,8 +8,9 @@ import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import TBMSubmissionModal from '@/components/project/TBMSubmissionModal'
-import { QRCodeSVG } from 'qrcode.react'
-import { generateTBMSubmissionReport, generateTBMSubmissionBulkReport, TBMSubmissionFormData } from '@/lib/reports/tbm-submission-report'
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
+import { generateTBMSubmissionReport, generateTBMSubmissionBulkReport, generateHTMLPagePDF, TBMSubmissionFormData } from '@/lib/reports/tbm-submission-report'
+import { createTBMTodayQRPosterHTML } from '@/lib/reports/tbm-today-qr-poster'
 import { downloadTBMSubmissionExcel, downloadTBMSubmissionBulkExcel } from '@/lib/excel/tbm-submission-export'
 import type { TBMWorkerSignatureEntry } from '@/lib/excel/tbm-worker-signature-export'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
@@ -56,6 +57,8 @@ export default function TBMSubmissionPage() {
   const [editingSubmission, setEditingSubmission] = useState<TBMSubmission | null>(null)
   const [qrSubmission, setQrSubmission] = useState<TBMSubmission | null>(null)
   const [showTodayQr, setShowTodayQr] = useState(false)
+  const [todayQrPdfLoading, setTodayQrPdfLoading] = useState(false)
+  const todayQrCanvasRef = React.useRef<HTMLDivElement>(null)
   const [showUpdateNotice, setShowUpdateNotice] = useState(true)
 
   const handleCloseUpdateNotice = () => {
@@ -378,6 +381,27 @@ export default function TBMSubmissionPage() {
       alert(`보고서 생성 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`)
     } finally {
       setDownloadingId(null)
+    }
+  }
+
+  // 상시 TBM QR A4 포스터 PDF 다운로드
+  const handleDownloadTodayQrPdf = async () => {
+    if (todayQrPdfLoading) return
+    try {
+      setTodayQrPdfLoading(true)
+      const canvas = todayQrCanvasRef.current?.querySelector('canvas')
+      if (!canvas) throw new Error('QR 코드 생성에 실패했습니다.')
+
+      const qrDataUrl = canvas.toDataURL('image/png')
+      const projectName = project?.project_name || '사업명'
+      const html = createTBMTodayQRPosterHTML(qrDataUrl, projectName)
+      await generateHTMLPagePDF(html, `${projectName}_상시TBM_QR.pdf`)
+    } catch (error) {
+      console.error('상시 QR PDF 생성 오류:', error)
+      const message = error instanceof Error ? error.message : '알 수 없는 오류'
+      alert(`PDF 생성 중 오류가 발생했습니다: ${message}`)
+    } finally {
+      setTodayQrPdfLoading(false)
     }
   }
 
@@ -1043,6 +1067,19 @@ export default function TBMSubmissionPage() {
             className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 relative"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* A4 출력 PDF 다운로드 버튼 */}
+            <button
+              onClick={handleDownloadTodayQrPdf}
+              disabled={todayQrPdfLoading}
+              className="absolute top-3 right-12 p-1.5 hover:bg-purple-50 rounded-full disabled:opacity-50"
+              title="A4 출력용 PDF 다운로드"
+            >
+              {todayQrPdfLoading ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-purple-600 border-t-transparent" />
+              ) : (
+                <Printer className="h-5 w-5 text-purple-600" />
+              )}
+            </button>
             {/* 닫기 버튼 */}
             <button
               onClick={() => setShowTodayQr(false)}
@@ -1050,6 +1087,15 @@ export default function TBMSubmissionPage() {
             >
               <X className="h-5 w-5 text-gray-500" />
             </button>
+
+            {/* A4 포스터용 고해상도 QR (숨김 캔버스) */}
+            <div ref={todayQrCanvasRef} className="hidden">
+              <QRCodeCanvas
+                value={`${window.location.origin}/tbm-today/${projectId}`}
+                size={880}
+                level="M"
+              />
+            </div>
 
             {/* QR 코드 */}
             <div className="flex flex-col items-center gap-4">

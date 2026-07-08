@@ -30,4 +30,5 @@
 - [x] tbm-submission 헤더 유튜브 버튼 옆 상시 QR 버튼·모달 추가
 - [x] tsc·eslint — 신규·수정분 오류 0
 - [x] 커밋
+- [x] 상시 QR 모달에 A4 출력용 PDF 다운로드 버튼 (포스터 HTML + generateHTMLPagePDF)
 - [ ] 로컬 확인 후 main 푸시(=운영 배포)
