@@ -1292,7 +1292,7 @@ export default function ContractStatusPage() {
       {isLookupOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setIsLookupOpen(false)}>
           <div
-            className={`bg-white rounded-lg shadow-xl w-full ${modalTab === 'g2b' && lookupItems ? 'max-w-5xl' : 'max-w-2xl'} max-h-[88vh] flex flex-col overflow-hidden`}
+            className={`bg-white rounded-lg shadow-xl w-full ${modalTab === 'g2b' && lookupItems ? 'max-w-4xl' : 'max-w-2xl'} max-h-[88vh] flex flex-col overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between shrink-0">
@@ -1487,13 +1487,13 @@ export default function ContractStatusPage() {
                         : '조회된 계약이 없습니다. 수요기관명·기간을 확인해주세요.'}
                     </p>
                   ) : (
-                    <div className="max-h-72 sm:max-h-[26rem] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 sm:gap-x-3">
+                    <div className="max-h-72 sm:max-h-[26rem] overflow-y-auto divide-y divide-gray-100">
                       {visibleItems.map((item) => {
                         const registered = isRegistered(item)
                         return (
                           <label
                             key={item.key}
-                            className={`flex items-start gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0 ${registered ? 'opacity-50' : 'cursor-pointer hover:bg-blue-50/50'}`}
+                            className={`flex items-start gap-2 px-3 py-2 ${registered ? 'opacity-50' : 'cursor-pointer hover:bg-blue-50/50'}`}
                           >
                             <input
                               type="checkbox"
