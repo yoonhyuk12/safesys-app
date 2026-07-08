@@ -153,7 +153,7 @@ const amountGaugeCell = (value: number, gauge: ColGauge, unit: number, key?: str
   return (
     <td
       key={key}
-      className={`px-3 py-3 text-sm text-center relative ${
+      className={`px-3 py-3 text-sm text-right tabular-nums relative ${
         emphasized ? 'bg-violet-50/60 border-r border-violet-200 font-semibold text-violet-900' : 'text-gray-700'
       }`}
       title={share > 0 ? `소계 대비 ${(share * 100).toFixed(1)}%` : undefined}
@@ -434,7 +434,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
     AMOUNT_COLS.map((c) => (
       <td
         key={c.key}
-        className={`px-3 py-2 text-sm text-center text-violet-800 ${
+        className={`px-3 py-2 text-sm text-right tabular-nums text-violet-800 ${
           c.emphasis ? 'bg-violet-100/70 border-r border-violet-200' : ''
         }`}
       >
