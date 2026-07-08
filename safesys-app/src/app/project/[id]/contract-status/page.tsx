@@ -1292,7 +1292,7 @@ export default function ContractStatusPage() {
       {isLookupOpen && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setIsLookupOpen(false)}>
           <div
-            className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[88vh] flex flex-col overflow-hidden"
+            className={`bg-white rounded-lg shadow-xl w-full ${modalTab === 'g2b' && lookupItems ? 'max-w-5xl' : 'max-w-2xl'} max-h-[88vh] flex flex-col overflow-hidden`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between shrink-0">
@@ -1322,7 +1322,8 @@ export default function ContractStatusPage() {
               </div>
 
               {modalTab === 'g2b' && (
-              <>
+              <div className="flex flex-col sm:flex-row items-start gap-4">
+              <div className={`w-full space-y-3 ${lookupItems ? 'sm:w-80 sm:shrink-0' : ''}`}>
               {/* 구분 탭 + 조회 조건 — 탭과 아래 입력이 한 묶음임을 보이도록 테두리 박스로 감쌈 */}
               <div className="border border-blue-200 rounded-lg p-3 space-y-3">
               {/* 구분 탭 — 공사·용역(기간 조회), 계약번호(단건 조회) */}
@@ -1457,10 +1458,11 @@ export default function ContractStatusPage() {
               </div>
 
               {lookupError && <p className="text-xs text-red-600">{lookupError}</p>}
+              </div>
 
-              {/* 조회 결과 */}
+              {/* 조회 결과 — 검색 조건 옆에 2열로 표시 */}
               {lookupItems && (
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <div className="flex-1 min-w-0 w-full border border-gray-200 rounded-lg overflow-hidden">
                   <div className="bg-gray-50 px-3 py-2 flex items-center justify-between gap-2 border-b border-gray-200">
                     <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
                       <input
@@ -1485,13 +1487,13 @@ export default function ContractStatusPage() {
                         : '조회된 계약이 없습니다. 수요기관명·기간을 확인해주세요.'}
                     </p>
                   ) : (
-                    <div className="max-h-72 overflow-y-auto divide-y divide-gray-100">
+                    <div className="max-h-72 sm:max-h-[26rem] overflow-y-auto grid grid-cols-1 sm:grid-cols-2 sm:gap-x-3">
                       {visibleItems.map((item) => {
                         const registered = isRegistered(item)
                         return (
                           <label
                             key={item.key}
-                            className={`flex items-start gap-2 px-3 py-2 ${registered ? 'opacity-50' : 'cursor-pointer hover:bg-blue-50/50'}`}
+                            className={`flex items-start gap-2 px-3 py-2 border-b border-gray-100 last:border-b-0 ${registered ? 'opacity-50' : 'cursor-pointer hover:bg-blue-50/50'}`}
                           >
                             <input
                               type="checkbox"
@@ -1549,7 +1551,7 @@ export default function ContractStatusPage() {
                   )}
                 </div>
               )}
-              </>
+              </div>
               )}
 
               {/* 직접 등록 폼 */}
