@@ -179,7 +179,12 @@ const amountGaugeCell = (value: number, sum: number, maxShare: number, unit: num
             width: `${(share * 100).toFixed(1)}%`,
             background: `linear-gradient(to right, hsla(217, 85%, 50%, 0.3), hsla(${Math.round(217 * (1 - t))}, 85%, 50%, 0.3))`,
           }}
-        />
+        >
+          {/* 소계 대비 % 라벨 — 게이지가 좁아도 잘리지 않게 왼쪽 기준 배치, 모바일에서는 숨김 */}
+          <span className="hidden sm:flex items-center h-full pl-1 text-[9px] text-gray-500 whitespace-nowrap">
+            {(share * 100).toFixed(1)}%
+          </span>
+        </span>
       )}
       <span className="relative">
         {formatAmt(value, unit)}
