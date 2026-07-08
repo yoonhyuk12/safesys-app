@@ -67,6 +67,10 @@ const PERIOD_PRESETS = [6, 12, 18, 24, 30, 36]
 const formatAmt = (n: number | null | undefined) =>
   n == null || n === 0 ? '-' : n.toLocaleString('ko-KR')
 
+// 일자 연도 축약 — '2026-01-15' → '26-01-15' (기간 문자열 속 여러 일자도 일괄 축약)
+const shortDate = (s: string | null | undefined) =>
+  s ? s.replace(/(?:19|20)(\d{2})([-./]\d{2}[-./]\d{2})/g, '$1$2') : '-'
+
 
 // 금차 귀속 연도 — 장기계속계약의 차수분 계약은 총금액과 금차금액이 다르므로 금차 준공일(차수분 준공) 연도를 귀속 연도로 사용.
 // 일반 단년도 계약(총금액 = 금차금액)은 계약체결일의 연도를 귀속 연도로 사용.
@@ -1135,18 +1139,18 @@ export default function ContractStatusPage() {
                 <thead>
                   <tr className="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
                     <th className="px-3 py-2 text-center font-medium">대표</th>
-                    <th className="px-3 py-2 text-left font-medium">구분</th>
-                    <th className="px-3 py-2 text-left font-medium">계약명</th>
-                    <th className="px-3 py-2 text-left font-medium">계약상대자</th>
-                    <th className="px-3 py-2 text-right font-medium">총계약금액(원)</th>
+                    <th className="px-3 py-2 text-center font-medium">구분</th>
+                    <th className="px-3 py-2 text-center font-medium">계약명</th>
+                    <th className="px-3 py-2 text-center font-medium">계약상대자</th>
+                    <th className="px-3 py-2 text-center font-medium">총계약금액(원)</th>
                     {yearCols.map((y) => (
-                      <th key={y} className={`px-3 py-2 text-right font-medium ${y === thisYear ? 'bg-amber-100/70 text-amber-800' : ''}`}>
-                        {y === '기타' ? '연도미상' : `${y.slice(2)}년`}
+                      <th key={y} className={`px-3 py-2 text-center font-medium ${y === thisYear ? 'bg-amber-100/70 text-amber-800' : ''}`}>
+                        {y === '기타' ? '연도미상(원)' : `${y.slice(2)}년(원)`}
                       </th>
                     ))}
-                    <th className="px-3 py-2 text-left font-medium">계약체결일</th>
-                    <th className="px-3 py-2 text-left font-medium">계약기간</th>
-                    <th className="px-3 py-2 text-left font-medium">수요기관</th>
+                    <th className="px-3 py-2 text-center font-medium">계약체결일</th>
+                    <th className="px-3 py-2 text-center font-medium">계약기간</th>
+                    <th className="px-3 py-2 text-center font-medium">수요기관</th>
                     <th className="px-3 py-2 text-center font-medium">관리</th>
                   </tr>
                 </thead>
@@ -1226,9 +1230,9 @@ export default function ContractStatusPage() {
                           {g.yearAmts.has(y) ? formatAmt(g.yearAmts.get(y)) : '-'}
                         </td>
                       ))}
-                      <td className="px-3 py-2">{r.cntrct_date || '-'}</td>
+                      <td className="px-3 py-2">{shortDate(r.cntrct_date)}</td>
                       <td className="px-3 py-2 max-w-[200px] xl:max-w-none truncate" title={r.cntrct_prd || ''}>
-                        {g.startDate && g.endDate ? `${g.startDate} ~ ${g.endDate}` : (r.cntrct_prd || '-')}
+                        {g.startDate && g.endDate ? `${shortDate(g.startDate)} ~ ${shortDate(g.endDate)}` : shortDate(r.cntrct_prd)}
                       </td>
                       <td className="px-3 py-2 max-w-[200px] xl:max-w-none truncate" title={r.dminstt_nm || ''}>{r.dminstt_nm || '-'}</td>
                       <td className="px-3 py-2 text-center">
@@ -1276,9 +1280,9 @@ export default function ContractStatusPage() {
                                   {y === my ? formatAmt(m.thtm_cntrct_amt) : '-'}
                                 </td>
                               ))}
-                              <td className="px-3 py-1.5">{m.cntrct_date || '-'}</td>
+                              <td className="px-3 py-1.5">{shortDate(m.cntrct_date)}</td>
                               <td className="px-3 py-1.5 max-w-[200px] xl:max-w-none truncate" title={m.cntrct_prd || ''}>
-                                {m.start_date && m.thtm_end_date ? `${m.start_date} ~ ${m.thtm_end_date}` : (m.cntrct_prd || '-')}
+                                {m.start_date && m.thtm_end_date ? `${shortDate(m.start_date)} ~ ${shortDate(m.thtm_end_date)}` : shortDate(m.cntrct_prd)}
                               </td>
                               <td className="px-3 py-1.5" />
                               <td className="px-3 py-1.5 text-center">
