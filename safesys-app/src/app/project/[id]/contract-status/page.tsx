@@ -927,6 +927,17 @@ export default function ContractStatusPage() {
     else alert('삭제 실패: ' + error.message)
   }
 
+  // 펼쳐본 차수 행 개별 삭제 — 그룹 전체가 아닌 해당 차수 등록 행 1건만 삭제
+  const handleDeleteMember = async (m: ContractRecord) => {
+    if (!confirm(`"${m.cntrct_nm}" 차수 계약 1건을 삭제하시겠습니까?`)) return
+    const { error } = await (supabase as any)
+      .from('project_contracts')
+      .delete()
+      .eq('id', m.id)
+    if (!error) loadRecords()
+    else alert('삭제 실패: ' + error.message)
+  }
+
   // 대표계약 지정 — 프로젝트에 대표계약 1건(계약 행 id)만 저장해 단일 선택을 보장.
   // 목록은 차수 병합 그룹 단위라, 그룹 멤버 중 저장된 id가 있으면 대표로 표시한다.
   // 명시적으로 저장된 대표가 없으면, 편집 페이지에서 연계한 나라장터 계약(프로젝트 기본 계약)을
@@ -1254,7 +1265,16 @@ export default function ContractStatusPage() {
                               <td className="px-3 py-1.5 max-w-[200px] xl:max-w-none truncate" title={m.cntrct_prd || ''}>
                                 {m.start_date && m.thtm_end_date ? `${m.start_date} ~ ${m.thtm_end_date}` : (m.cntrct_prd || '-')}
                               </td>
-                              <td colSpan={2} />
+                              <td className="px-3 py-1.5" />
+                              <td className="px-3 py-1.5 text-center">
+                                <button
+                                  onClick={() => handleDeleteMember(m)}
+                                  className="p-1 text-gray-400 hover:text-red-600"
+                                  title="이 차수만 삭제"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
                             </tr>
                           )
                         })}
