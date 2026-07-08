@@ -11,6 +11,7 @@ import TBMSubmissionModal from '@/components/project/TBMSubmissionModal'
 import { QRCodeSVG } from 'qrcode.react'
 import { generateTBMSubmissionReport, generateTBMSubmissionBulkReport, TBMSubmissionFormData } from '@/lib/reports/tbm-submission-report'
 import { downloadTBMSubmissionExcel, downloadTBMSubmissionBulkExcel } from '@/lib/excel/tbm-submission-export'
+import { downloadTBMWorkerSignatureExcel } from '@/lib/excel/tbm-worker-signature-export'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 interface TBMSubmission {
@@ -340,6 +341,38 @@ export default function TBMSubmissionPage() {
     } catch (error: any) {
       console.error(`${format === 'pdf' ? 'PDF' : '엑셀'} 생성 오류:`, error)
       alert(`보고서 생성 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`)
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
+  // 근로자 교육 확인 서명부(일일안전교육 서명부) 엑셀 다운로드
+  const handleDownloadSignatureSheet = async (submission: TBMSubmission) => {
+    if (!project) return
+
+    try {
+      setDownloadingId(submission.id)
+      setDownloadMenuId(null)
+
+      const { data, error } = await supabase
+        .from('tbm_worker_signatures')
+        .select('*')
+        .eq('tbm_submission_id', submission.id)
+        .order('created_at', { ascending: true })
+
+      if (error) throw new Error(error.message)
+      if (!data || data.length === 0) {
+        alert('등록된 근로자 교육 확인 서명이 없습니다.\nQR 코드로 접속한 근로자가 서명하면 다운로드할 수 있습니다.')
+        return
+      }
+
+      const dateStr = submission.meeting_date || new Date().toISOString().split('T')[0]
+      const projectName = submission.project_name || project.project_name || '사업명'
+      await downloadTBMWorkerSignatureExcel(data, dateStr, `${projectName}_일일안전교육서명부_${dateStr}.xlsx`)
+    } catch (error) {
+      console.error('서명부 생성 오류:', error)
+      const message = error instanceof Error ? error.message : '알 수 없는 오류'
+      alert(`서명부 생성 중 오류가 발생했습니다: ${message}`)
     } finally {
       setDownloadingId(null)
     }
@@ -844,10 +877,17 @@ export default function TBMSubmissionPage() {
                                               </button>
                                               <button
                                                 onClick={(e) => { e.stopPropagation(); handleDownloadReport(submission, 'excel') }}
-                                                className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 rounded-b-lg flex items-center gap-2 text-gray-700 border-t border-gray-100"
+                                                className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 flex items-center gap-2 text-gray-700 border-t border-gray-100"
                                               >
                                                 <span className="text-green-600 font-bold text-xs">XLS</span>
                                                 엑셀 다운로드
+                                              </button>
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); handleDownloadSignatureSheet(submission) }}
+                                                className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 rounded-b-lg flex items-center gap-2 text-gray-700 border-t border-gray-100"
+                                              >
+                                                <span className="text-blue-600 font-bold text-xs">✍</span>
+                                                서명부 다운로드
                                               </button>
                                             </div>
                                           </>

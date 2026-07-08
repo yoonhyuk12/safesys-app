@@ -7,6 +7,7 @@ import {
   Shield, AlertTriangle, Wrench, FileText,
   Clock, Users, Truck, AlertOctagon, Loader2, X, Download, Globe, ChevronDown, Copy, Check
 } from 'lucide-react'
+import WorkerEducationSignModal from '@/components/tbm-view/WorkerEducationSignModal'
 
 interface TBMViewData {
   id: string
@@ -77,6 +78,9 @@ export default function TBMViewPage() {
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [floatingRight, setFloatingRight] = useState<number | null>(null)
+  // 근로자 교육 확인 서명 상태
+  const [showSignModal, setShowSignModal] = useState(false)
+  const [signedWorkers, setSignedWorkers] = useState<{ id: string; worker_name: string }[]>([])
 
   // 내용 영역(max-w-lg) 우측 끝 위치 추적
   useEffect(() => {
@@ -194,6 +198,22 @@ export default function TBMViewPage() {
     }
     if (id) fetchData()
   }, [id])
+
+  // 근로자 교육 확인 서명 목록 조회 (이름·건수 표시용)
+  const loadSignatures = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/tbm-view/${id}/signatures`)
+      if (!res.ok) return
+      const json = await res.json()
+      setSignedWorkers(json.signatures || [])
+    } catch {
+      // 서명 목록 조회 실패는 페이지 표시에 치명적이지 않으므로 무시
+    }
+  }, [id])
+
+  useEffect(() => {
+    if (id) loadSignatures()
+  }, [id, loadSignatures])
 
   const collectReadingContent = (d: TBMViewData) => {
     const contents: string[] = []
@@ -336,6 +356,23 @@ export default function TBMViewPage() {
         hazardFactors: '유해위험요소',
         otherRemarks: '기타 주의사항',
         foreignSupport: '외국인 근로자 지원 (음성 읽기)',
+        signSection: '근로자 교육 확인 서명',
+        signSectionDesc: '작업장 출입 전, 아래 버튼을 눌러 작업가능상태 점검 항목을 확인하고 서명해주세요.',
+        signOpenButton: '교육 확인 서명',
+        signedCountLabel: '서명 완료',
+        checkTbm: 'TBM·위험성평가 교육 내용을 확인했습니다',
+        checkAlcohol: '음주를 하지 않았습니다',
+        checkBp: '혈압이 정상입니다 (수축기 150 미만)',
+        checkPpe: '보호구를 착용했습니다',
+        checkCctv: '안전관리 CCTV 촬영에 동의합니다',
+        checkBody: '몸(부상)에 이상이 없습니다',
+        signNameLabel: '성명',
+        signNamePlaceholder: '본인 이름을 입력하세요',
+        signButton: '서명하기',
+        signCancel: '취소',
+        signBpNote: '※ 작업가능 혈압: 수축기 150미만, 단 의사 소견서 첨부 시 작업 가능(심혈관질환자 포함)',
+        signCctvNote: '※ CCTV 촬영: 근로자 재해예방 목적의 안전관리 모니터링 CCTV 촬영(개인정보 보호법 제15조 1항)',
+        signSuccess: '교육 확인 서명이 제출되었습니다.',
         saveImage: '이미지로 저장하기',
         riskReport: '안전보건 위험신고',
         reportCenter: '안전일터 신고센터',
@@ -696,6 +733,30 @@ export default function TBMViewPage() {
           </div>
         )}
 
+        {/* 근로자 교육 확인 서명 */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden" data-html2canvas-ignore>
+          <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border-b border-blue-100">
+            <h2 className="text-sm font-semibold text-blue-700">✍️ {t('signSection', '근로자 교육 확인 서명')}</h2>
+            {signedWorkers.length > 0 && (
+              <span className="text-xs font-medium text-blue-600">
+                {t('signedCountLabel', '서명 완료')} {signedWorkers.length}
+              </span>
+            )}
+          </div>
+          <div className="px-4 py-4">
+            <p className="mb-3 text-xs text-gray-500">
+              {t('signSectionDesc', '작업장 출입 전, 아래 버튼을 눌러 작업가능상태 점검 항목을 확인하고 서명해주세요.')}
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowSignModal(true)}
+              className="w-full px-4 py-3 text-sm font-bold text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors"
+            >
+              ✍️ {t('signOpenButton', '교육 확인 서명')}
+            </button>
+          </div>
+        </div>
+
         {/* 푸터 */}
         <div className="flex gap-2" data-html2canvas-ignore>
           <button
@@ -728,6 +789,16 @@ export default function TBMViewPage() {
           </a>
         </div>
       </div>
+
+      {/* 근로자 교육 확인 서명 모달 */}
+      {showSignModal && (
+        <WorkerEducationSignModal
+          tbmId={id}
+          t={t}
+          onClose={() => setShowSignModal(false)}
+          onSubmitted={loadSignatures}
+        />
+      )}
 
       {/* TTS 음성 읽기 모달 */}
       {showTtsModal && (
