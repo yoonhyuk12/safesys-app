@@ -148,6 +148,8 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
   const [selectedHq, setSelectedHq] = useState<string | null>(hq0)
   const [selectedBranch, setSelectedBranch] = useState<string | null>(branch0)
   const [records, setRecords] = useState<ContractRecord[]>([])
+  // 관할 내 전체 프로젝트(준공 제외) — 계약 미등록 사업도 표에 노출하기 위한 행 원천
+  const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const loadedRef = useRef(false)
@@ -189,12 +191,14 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
         }
         // hq 없음: 필터 없음 (관리자급)
 
-        const { data, error: qErr } = await q
-        if (qErr) {
+        // 계약 미등록 사업도 표에 포함하기 위해 관할 프로젝트 전체를 병렬 조회 (준공은 클라이언트에서 제외)
+        const [{ data, error: qErr }, projectsRes] = await Promise.all([q, getProjectsByUserBranch(userProfile)])
+        if (qErr || !projectsRes.success) {
           setError('계약 현황을 불러오지 못했습니다.')
           return
         }
         setRecords((data || []) as ContractRecord[])
+        setProjects((projectsRes.projects || []).filter((p) => !isCompleted(p)))
       } catch {
         setError('계약 현황을 불러오는 중 오류가 발생했습니다.')
       } finally {
@@ -204,7 +208,8 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
     load()
   }, [user, userProfile])
 
-  // 사업(프로젝트)별 집계 — 차수 병합 그룹 수·전체 계약 행 수·올해 귀속 행 수 계산 후 본부·지사·display_order·사업명 순 정렬
+  // 사업(프로젝트)별 집계 — 관할 내 전체 프로젝트(준공 제외)를 행으로 만들고 계약이 있으면
+  // 차수 병합 그룹 수·전체 계약 행 수·올해 귀속 행 수를 얹은 뒤 본부·지사·display_order·사업명 순 정렬
   const projectRows = useMemo<ProjectRow[]>(() => {
     const byProject = new Map<string, ContractRecord[]>()
     for (const r of records) {
@@ -213,10 +218,8 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       else byProject.set(r.project_id, [r])
     }
 
-    const rows: ProjectRow[] = []
-    for (const projectRecords of byProject.values()) {
-      const proj = projectRecords[0].projects
-      if (!proj) continue
+    const rows: ProjectRow[] = projects.map((proj) => {
+      const projectRecords = byProject.get(proj.id) || []
 
       // 차수 병합 그룹 (contract_type + '|' + norm(cntrct_nm)) — 그룹 수 = 공사 건수
       const groupKeys = new Set<string>()
@@ -225,7 +228,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       }
 
       const thisYearRecords = projectRecords.filter((r) => contractYear(r) === currentYearStr)
-      rows.push({
+      return {
         projectId: proj.id,
         projectName: proj.project_name,
         managingHq: proj.managing_hq,
@@ -236,8 +239,8 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
         thisYearContracts: thisYearRecords.length,
         totalAmount: projectRecords.reduce((s, r) => s + rowAmount(r), 0),
         thisYearAmount: thisYearRecords.reduce((s, r) => s + rowAmount(r), 0),
-      })
-    }
+      }
+    })
 
     // 정렬: 본부 → 지사 → display_order → 사업명 (이 순서가 곧 Map 삽입 순서 = 표 순서)
     rows.sort((a, b) => {
@@ -258,7 +261,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
     })
 
     return rows
-  }, [records, currentYearStr])
+  }, [records, projects, currentYearStr])
 
   // 본부별 집계 (정렬 순서 = Map 삽입 순서 유지)
   const hqStats = useMemo(() => {
@@ -448,7 +451,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   </tr>
                 ))}
                 {hqStats.size === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">등록된 계약이 없습니다. 각 사업의 계약현황 서류철에서 계약을 등록하면 여기에 집계됩니다.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">등록된 사업이 없습니다. (준공 사업은 표시되지 않습니다)</td></tr>
                 )}
               </tbody>
             </table>
@@ -494,7 +497,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   </tr>
                 ))}
                 {branchStats.size === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">해당 본부에 등록된 계약이 없습니다.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">해당 본부에 등록된 사업이 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
@@ -552,7 +555,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                   </tr>
                 ))}
                 {projectList.length === 0 && (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">해당 지사에 등록된 계약이 없습니다.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">해당 지사에 등록된 사업이 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
