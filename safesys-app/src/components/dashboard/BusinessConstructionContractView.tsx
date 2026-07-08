@@ -347,7 +347,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       </td>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
         {formatAmt(s.totalAmount, unit)}
-        {s.totalAmount > 0 && <span className="ml-0.5 text-[10px] text-gray-400">{unitLabel(unit)}</span>}
+        {s.totalAmount > 0 && <span className="ml-0.5 text-[10px] text-gray-600">{unitLabel(unit)}</span>}
       </td>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center'}>
         {subtotal ? (
@@ -362,7 +362,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       </td>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
         {formatAmt(s.thisYearAmount, unit)}
-        {s.thisYearAmount > 0 && <span className="ml-0.5 text-[10px] text-gray-400">{unitLabel(unit)}</span>}
+        {s.thisYearAmount > 0 && <span className="ml-0.5 text-[10px] text-gray-600">{unitLabel(unit)}</span>}
       </td>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-400'}>-</td>
     </>
