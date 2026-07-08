@@ -1,7 +1,7 @@
 // 계약(공사·용역) 현황 서류철 — 조달청 계약현황 조회로 등록하는 프로젝트 계약 목록 페이지
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
@@ -287,6 +287,15 @@ export default function ContractStatusPage() {
   // 등록 건 일괄 갱신 (조달청 최신 계약정보 반영)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshProgress, setRefreshProgress] = useState({ done: 0, total: 0 })
+  // 차수 병합 행 펼쳐보기 — 펼쳐진 그룹 key 집합
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
+  const toggleExpanded = (key: string) =>
+    setExpandedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
 
   const handleBack = () => {
     const returnUrl = searchParams.get('returnUrl')
@@ -1130,8 +1139,10 @@ export default function ContractStatusPage() {
                   {sortedGroups.map((g) => {
                     const r = g.repr
                     const isRep = isGroupRepresentative(g)
+                    const expanded = expandedKeys.has(g.key)
                     return (
-                    <tr key={g.key} className={`border-b border-gray-100 ${isRep ? 'bg-amber-50' : 'hover:bg-gray-50'}`}>
+                    <Fragment key={g.key}>
+                    <tr className={`border-b border-gray-100 ${isRep ? 'bg-amber-50' : 'hover:bg-gray-50'}`}>
                       <td className="px-3 py-2 text-center">
                         <button
                           type="button"
@@ -1169,7 +1180,17 @@ export default function ContractStatusPage() {
                           <span className="block truncate" title={r.cntrct_nm}>{r.cntrct_nm}</span>
                         )}
                         {g.members.length > 1 && (
-                          <span className="block text-[11px] text-gray-400">장기계속 · 차수 {g.members.length}건 병합</span>
+                          <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                            장기계속 · 차수 {g.members.length}건 병합
+                            <button
+                              type="button"
+                              onClick={() => toggleExpanded(g.key)}
+                              className="w-4 h-4 flex items-center justify-center rounded border border-gray-300 text-gray-500 leading-none hover:bg-gray-100 hover:text-gray-700"
+                              title={expanded ? '병합된 차수 접기' : '병합된 차수 펼쳐보기'}
+                            >
+                              {expanded ? '−' : '+'}
+                            </button>
+                          </span>
                         )}
                       </td>
                       <td className="px-3 py-2 max-w-[180px] xl:max-w-none truncate" title={r.corp_nm || ''}>{r.corp_nm || '-'}</td>
@@ -1194,6 +1215,50 @@ export default function ContractStatusPage() {
                         </button>
                       </td>
                     </tr>
+                    {/* 펼쳐보기 — 병합된 차수별 등록 행 (체결일·차수 순) */}
+                    {expanded && g.members.length > 1 &&
+                      [...g.members]
+                        .sort((a, b) =>
+                          (a.cntrct_date || '').localeCompare(b.cntrct_date || '') ||
+                          iterOrdFromName(a.cntrct_nm) - iterOrdFromName(b.cntrct_nm)
+                        )
+                        .map((m) => {
+                          const my = contractYear(m) || '기타'
+                          return (
+                            <tr key={m.id} className="border-b border-gray-100 bg-gray-50/70 text-xs text-gray-500">
+                              <td colSpan={2} />
+                              <td className="px-3 py-1.5 pl-7 max-w-[320px] xl:max-w-none">
+                                {isDetailUrl(m.cntrct_info_url) ? (
+                                  <a
+                                    href={m.cntrct_info_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-500 hover:underline inline-flex items-center gap-1 max-w-full"
+                                    title={m.cntrct_nm}
+                                  >
+                                    <span className="truncate">{m.cntrct_nm}</span>
+                                    <ExternalLink className="h-3 w-3 shrink-0" />
+                                  </a>
+                                ) : (
+                                  <span className="block truncate" title={m.cntrct_nm}>{m.cntrct_nm}</span>
+                                )}
+                              </td>
+                              <td className="px-3 py-1.5 max-w-[180px] xl:max-w-none truncate" title={m.corp_nm || ''}>{m.corp_nm || '-'}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums">{formatAmt(m.tot_cntrct_amt)}</td>
+                              {yearCols.map((y) => (
+                                <td key={y} className={`px-3 py-1.5 text-right tabular-nums ${y === thisYear ? 'bg-amber-50/70' : ''}`}>
+                                  {y === my ? formatAmt(m.thtm_cntrct_amt) : '-'}
+                                </td>
+                              ))}
+                              <td className="px-3 py-1.5">{m.cntrct_date || '-'}</td>
+                              <td className="px-3 py-1.5 max-w-[200px] xl:max-w-none truncate" title={m.cntrct_prd || ''}>
+                                {m.start_date && m.thtm_end_date ? `${m.start_date} ~ ${m.thtm_end_date}` : (m.cntrct_prd || '-')}
+                              </td>
+                              <td colSpan={2} />
+                            </tr>
+                          )
+                        })}
+                    </Fragment>
                     )
                   })}
                 </tbody>
