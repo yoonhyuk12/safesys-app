@@ -368,7 +368,7 @@ export default function DisasterPreventionContractsPage() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 text-center">
         <p className="text-sm text-gray-600 mb-4">발주청 전용 메뉴입니다.</p>
         <button
-          onClick={() => router.push('/list')}
+          onClick={() => router.push('/business')}
           className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -383,7 +383,7 @@ export default function DisasterPreventionContractsPage() {
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="px-4">
           <div className="flex items-center h-16 gap-3">
-            <button onClick={() => router.push('/list')} className="text-gray-400 hover:text-gray-600 shrink-0">
+            <button onClick={() => router.push('/business')} className="text-gray-400 hover:text-gray-600 shrink-0">
               <ArrowLeft className="h-5 w-5" />
             </button>
             <div className="min-w-0 flex-1">
