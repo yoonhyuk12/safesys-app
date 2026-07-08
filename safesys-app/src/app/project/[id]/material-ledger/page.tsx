@@ -423,10 +423,10 @@ export default function MaterialLedgerPage() {
       setLoading(true)
       setError('')
 
-      // 프로젝트 조회
+      // 프로젝트 조회 (소유자 이름 포함 — 검수조서 인수자 기본값)
       const { data: projectData, error: projectError } = await supabase
         .from('projects')
-        .select('*')
+        .select('*, user_profiles!projects_created_by_fkey(full_name)')
         .eq('id', projectId)
         .single()
       if (projectError) throw new Error(projectError.message)
@@ -1044,6 +1044,7 @@ export default function MaterialLedgerPage() {
           supplier: mat.dlvrSupplier || '',
           deadline: mat.dlvrDeadline || '',
           cndtn,
+          receiverName: project?.user_profiles?.full_name || '',
           josaItems,
           photos,
         }

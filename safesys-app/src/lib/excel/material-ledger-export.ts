@@ -72,6 +72,7 @@ export interface MaterialJosaOpts {
   supplier?: string // 공급자 상호
   deadline?: string // 납품기한 (YYYY-MM-DD)
   cndtn?: string // 인도조건
+  receiverName?: string // 인수자 성명 기본값 (프로젝트 소유자 = 현장소장)
   josaItems?: MaterialJosaItem[]
   photos?: MaterialInspectionPhotoItem[]
 }
@@ -238,12 +239,14 @@ function addJosaSheet(
   ws.getRow(r).height = 24
   r += 2
 
-  mergeSet(ws, `E${r}:L${r}`, '인 수 자   (직급)          (성명)                    (인)', {
+  // 인수자 1행 기본값 — 직급 현장소장, 성명 프로젝트 소유자
+  const receiver = josa.receiverName || ''
+  mergeSet(ws, `E${r}:L${r}`, `인 수 자   (직급) 현장소장   (성명) ${receiver || '          '}          (인)`, {
     size: 10, border: false, align: { horizontal: 'left' },
   })
   ws.getRow(r).height = 22
   r++
-  mergeSet(ws, `E${r}:L${r}`, '              (직급)          (성명)                    (인)', {
+  mergeSet(ws, `E${r}:L${r}`, '              (직급)              (성명)                    (인)', {
     size: 10, border: false, align: { horizontal: 'left' },
   })
   ws.getRow(r).height = 22
