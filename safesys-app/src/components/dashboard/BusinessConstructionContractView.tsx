@@ -163,7 +163,7 @@ const gaugeTotals = (list: AggStats[]): GaugeTotals => {
 }
 
 // 금액 게이지 셀 — 소계 대비 비중(%)만큼 셀 배경을 채우고, 표 내 최대 비중 기준으로
-// 비중이 낮으면 파랑(hue 217)→높으면 빨강(hue 0)으로 색을 입혀 금액 비중을 한눈에 보여준다
+// 왼쪽 파랑(hue 217)에서 행의 비중 색(높을수록 빨강 hue 0)까지 그라데이션으로 채워 금액 비중을 한눈에 보여준다
 const amountGaugeCell = (value: number, sum: number, maxShare: number, unit: number) => {
   const share = sum > 0 && value > 0 ? value / sum : 0
   const t = maxShare > 0 ? Math.min(share / maxShare, 1) : 0
@@ -177,7 +177,7 @@ const amountGaugeCell = (value: number, sum: number, maxShare: number, unit: num
           className="absolute inset-y-1 left-0 rounded-r-sm"
           style={{
             width: `${(share * 100).toFixed(1)}%`,
-            backgroundColor: `hsla(${Math.round(217 * (1 - t))}, 85%, 50%, 0.3)`,
+            background: `linear-gradient(to right, hsla(217, 85%, 50%, 0.3), hsla(${Math.round(217 * (1 - t))}, 85%, 50%, 0.3))`,
           }}
         />
       )}
