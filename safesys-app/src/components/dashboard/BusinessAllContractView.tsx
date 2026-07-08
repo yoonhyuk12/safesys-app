@@ -6,7 +6,7 @@ import { ArrowLeft, Coins } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
-import { BRANCH_OPTIONS } from '@/lib/constants'
+import { BRANCH_OPTIONS, PROJECT_CATEGORY_OPTIONS } from '@/lib/constants'
 import { getProjectsByUserBranch, type Project } from '@/lib/projects'
 
 interface BusinessAllContractViewProps {
@@ -95,6 +95,12 @@ const HQ_KEYS = Object.keys(BRANCH_OPTIONS)
 const hqIndex = (hq: string): number => {
   const i = HQ_KEYS.indexOf(hq)
   return i === -1 ? HQ_KEYS.length : i
+}
+
+// 소관사업(사업분류) 정렬 — 등록 폼 옵션 순서를 따르고 미등재 값은 뒤에
+const categoryOrder = (c: string): number => {
+  const i = (PROJECT_CATEGORY_OPTIONS as readonly string[]).indexOf(c)
+  return i === -1 ? PROJECT_CATEGORY_OPTIONS.length : i
 }
 
 // 유형별 금액 집계 — 사업·지사·본부 공용
@@ -199,6 +205,8 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
   // 금액 기준 — 'total'(총차: 계약 그룹당 총계약금액 1회) 또는 연도 문자열(해당 연도 귀속 금차금액). 기본값은 당해년도.
   const currentYearStr = String(new Date().getFullYear())
   const [amountMode, setAmountMode] = useState<string>(currentYearStr)
+  // 소관사업(사업분류) 필터 — 'all'이면 전체
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
   const [contracts, setContracts] = useState<ContractRecord[]>([])
   const [ledgerAmounts, setLedgerAmounts] = useState<LedgerAmountRecord[]>([])
   // 관할 내 전체 프로젝트(준공 제외) — 계약 미등록 사업도 표에 노출하기 위한 행 원천
@@ -272,6 +280,15 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
     return [...s].sort((a, b) => b.localeCompare(a))
   }, [contracts, ledgerAmounts, currentYearStr])
 
+  // 소관사업 드롭다운 목록 — 관할 프로젝트에 실제 존재하는 사업분류만
+  const categories = useMemo(() => {
+    const s = new Set<string>()
+    for (const p of projects) {
+      if (p.project_category) s.add(p.project_category)
+    }
+    return [...s].sort((a, b) => categoryOrder(a) - categoryOrder(b) || a.localeCompare(b, 'ko'))
+  }, [projects])
+
   // 사업(프로젝트)별 유형 금액 집계 — 관할 내 전체 프로젝트(준공 제외)를 행으로 만들고
   // 본부·지사·display_order·사업명 순 정렬 (공사 계약현황 뷰와 동일 순서)
   const projectRows = useMemo<ProjectRow[]>(() => {
@@ -317,7 +334,11 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
       s.thngAmount += (Number(r.prdct_amt) || 0) + (Number(r.fee_amt) || 0)
     }
 
-    const rows: ProjectRow[] = projects.map((proj) => {
+    // 소관사업 필터 — 선택 시 해당 사업분류 프로젝트만 표·집계에 포함
+    const visibleProjects =
+      categoryFilter === 'all' ? projects : projects.filter((p) => (p.project_category || '') === categoryFilter)
+
+    const rows: ProjectRow[] = visibleProjects.map((proj) => {
       const s = byProject.get(proj.id) || emptyStats()
       return {
         projectId: proj.id,
@@ -351,7 +372,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
     })
 
     return rows
-  }, [contracts, ledgerAmounts, projects, amountMode])
+  }, [contracts, ledgerAmounts, projects, amountMode, categoryFilter])
 
   // 본부별 집계 (정렬 순서 = Map 삽입 순서 유지)
   const hqStats = useMemo(() => {
@@ -493,6 +514,29 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
     </select>
   )
 
+  // 소관사업별 보기 드롭다운 — 사업분류(project_category)로 표·집계 필터
+  const categorySelect = (
+    <select
+      value={categoryFilter}
+      onChange={(e) => setCategoryFilter(e.target.value)}
+      title="소관사업별 보기"
+      className="px-2 py-1.5 text-sm font-medium bg-white text-violet-700 border border-violet-300 rounded-lg hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-300 cursor-pointer max-w-[180px]"
+    >
+      <option value="all">소관사업 전체</option>
+      {categories.map((c) => (
+        <option key={c} value={c}>{c}</option>
+      ))}
+    </select>
+  )
+
+  // 헤더 우측 컨트롤 묶음 — 소관사업 필터(좌) + 금액 기준(우)
+  const headerControls = (
+    <div className="flex items-center gap-2">
+      {categorySelect}
+      {modeSelect}
+    </div>
+  )
+
   const hqGauges = gaugesOf(Array.from(hqStats.values()))
   const branchGauges = gaugesOf(Array.from(branchStats.values()))
   const projectGauges = gaugesOf(projectList)
@@ -534,7 +578,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
                 <Coins className="h-4 w-4 text-violet-600" />
                 <span className="text-sm font-medium text-violet-800">본부별 공사·용역·물품 계약현황</span>
               </div>
-              {modeSelect}
+              {headerControls}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -570,7 +614,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
                 <Coins className="h-4 w-4 text-violet-600" />
                 <span className="text-sm font-medium text-violet-800">{hqDisplay(selectedHq)} - 지사별 공사·용역·물품 계약현황</span>
               </div>
-              {modeSelect}
+              {headerControls}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -606,7 +650,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
                 <Coins className="h-4 w-4 text-violet-600" />
                 <span className="text-sm font-medium text-violet-800">{selectedBranch} - 사업별 공사·용역·물품 계약현황</span>
               </div>
-              {modeSelect}
+              {headerControls}
             </div>
           </div>
           <div className="overflow-x-auto">

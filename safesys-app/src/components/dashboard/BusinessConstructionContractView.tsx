@@ -6,7 +6,7 @@ import { ArrowLeft, Building, Download } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
-import { BRANCH_OPTIONS } from '@/lib/constants'
+import { BRANCH_OPTIONS, PROJECT_CATEGORY_OPTIONS } from '@/lib/constants'
 import { getProjectsByUserBranch, type Project } from '@/lib/projects'
 import {
   downloadBusinessConstructionContractExcel,
@@ -96,6 +96,12 @@ const HQ_KEYS = Object.keys(BRANCH_OPTIONS)
 const hqIndex = (hq: string): number => {
   const i = HQ_KEYS.indexOf(hq)
   return i === -1 ? HQ_KEYS.length : i
+}
+
+// 소관사업(사업분류) 정렬 — 등록 폼 옵션 순서를 따르고 미등재 값은 뒤에
+const categoryOrder = (c: string): number => {
+  const i = (PROJECT_CATEGORY_OPTIONS as readonly string[]).indexOf(c)
+  return i === -1 ? PROJECT_CATEGORY_OPTIONS.length : i
 }
 
 // 사업(프로젝트) 단위 집계 행 — 본부/지사 집계와 사업 테이블의 공통 원천
@@ -211,6 +217,8 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
   const [selectedHq, setSelectedHq] = useState<string | null>(hq0)
   const [selectedBranch, setSelectedBranch] = useState<string | null>(branch0)
   const [records, setRecords] = useState<ContractRecord[]>([])
+  // 소관사업(사업분류) 필터 — 'all'이면 전체
+  const [categoryFilter, setCategoryFilter] = useState<string>('all')
   // 관할 내 전체 프로젝트(준공 제외) — 계약 미등록 사업도 표에 노출하기 위한 행 원천
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
@@ -271,6 +279,15 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
     load()
   }, [user, userProfile])
 
+  // 소관사업 드롭다운 목록 — 관할 프로젝트에 실제 존재하는 사업분류만
+  const categories = useMemo(() => {
+    const s = new Set<string>()
+    for (const p of projects) {
+      if (p.project_category) s.add(p.project_category)
+    }
+    return [...s].sort((a, b) => categoryOrder(a) - categoryOrder(b) || a.localeCompare(b, 'ko'))
+  }, [projects])
+
   // 사업(프로젝트)별 집계 — 관할 내 전체 프로젝트(준공 제외)를 행으로 만들고 계약이 있으면
   // 차수 병합 그룹 수·전체 계약 행 수·올해 귀속 행 수를 얹은 뒤 본부·지사·display_order·사업명 순 정렬
   const projectRows = useMemo<ProjectRow[]>(() => {
@@ -281,7 +298,11 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       else byProject.set(r.project_id, [r])
     }
 
-    const rows: ProjectRow[] = projects.map((proj) => {
+    // 소관사업 필터 — 선택 시 해당 사업분류 프로젝트만 표·집계·엑셀에 포함
+    const visibleProjects =
+      categoryFilter === 'all' ? projects : projects.filter((p) => (p.project_category || '') === categoryFilter)
+
+    const rows: ProjectRow[] = visibleProjects.map((proj) => {
       const projectRecords = byProject.get(proj.id) || []
 
       // 차수 병합 그룹 (contract_type + '|' + norm(cntrct_nm)) — 그룹 수 = 공사 건수
@@ -326,7 +347,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
     })
 
     return rows
-  }, [records, projects, currentYearStr])
+  }, [records, projects, currentYearStr, categoryFilter])
 
   // 본부별 집계 (정렬 순서 = Map 삽입 순서 유지)
   const hqStats = useMemo(() => {
@@ -551,6 +572,29 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
     </button>
   )
 
+  // 소관사업별 보기 드롭다운 — 사업분류(project_category)로 표·집계·엑셀 필터
+  const categorySelect = (
+    <select
+      value={categoryFilter}
+      onChange={(e) => setCategoryFilter(e.target.value)}
+      title="소관사업별 보기"
+      className="px-2 py-1.5 text-sm font-medium bg-white text-sky-700 border border-sky-300 rounded-lg hover:bg-sky-100 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer max-w-[180px]"
+    >
+      <option value="all">소관사업 전체</option>
+      {categories.map((c) => (
+        <option key={c} value={c}>{c}</option>
+      ))}
+    </select>
+  )
+
+  // 헤더 우측 컨트롤 묶음 — 소관사업 필터(좌) + 엑셀 다운(우)
+  const headerControls = (
+    <div className="flex items-center gap-2">
+      {categorySelect}
+      {excelButton}
+    </div>
+  )
+
   // 대표계약 기간 표시 — projects.construction_start_date~end_date (대표계약 지정 시 동기화됨)
   const periodCell = (p: { constructionStartDate: string | null; constructionEndDate: string | null }, subtotal = false) => (
     <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
@@ -599,7 +643,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                 <Building className="h-4 w-4 text-sky-600" />
                 <span className="text-sm font-medium text-sky-800">본부별 공사 계약현황</span>
               </div>
-              {excelButton}
+              {headerControls}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -645,7 +689,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                 <Building className="h-4 w-4 text-sky-600" />
                 <span className="text-sm font-medium text-sky-800">{hqDisplay(selectedHq)} - 지사별 공사 계약현황</span>
               </div>
-              {excelButton}
+              {headerControls}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -691,7 +735,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                 <Building className="h-4 w-4 text-sky-600" />
                 <span className="text-sm font-medium text-sky-800">{selectedBranch} - 사업별 공사 계약현황</span>
               </div>
-              {excelButton}
+              {headerControls}
             </div>
           </div>
           <div className="overflow-x-auto">
