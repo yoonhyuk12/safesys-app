@@ -337,7 +337,7 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
   // 사업별 통계 (지사 선택 시)
   const projectList = useMemo(() => {
     if (!selectedBranchForDetail) return []
-    const byProject = new Map<string, { project_id: string; project_name: string; workCount: number; guideCount: number }>()
+    const byProject = new Map<string, { project_id: string; project_name: string; workCount: number; guideCount: number; guideAmt: number }>()
     detailRows
       .filter((r) => r.managingBranch === selectedBranchForDetail)
       .forEach((r) => {
@@ -346,9 +346,13 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
           project_name: r.projectName,
           workCount: 0,
           guideCount: 0,
+          guideAmt: 0,
         }
         if (r.hasWork) existing.workCount += 1
-        if (r.hasGuide) existing.guideCount += 1
+        if (r.hasGuide) {
+          existing.guideCount += 1
+          existing.guideAmt += r.guideAmt || 0
+        }
         byProject.set(r.projectId, existing)
       })
     return [...byProject.values()].sort((a, b) => b.workCount - a.workCount || a.project_name.localeCompare(b.project_name, 'ko'))
@@ -564,6 +568,7 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">사업명</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">공사 계약</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">기술지도 계약</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">기술지도 계약금액</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -575,6 +580,16 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
                   </td>
                   <td className="px-3 py-2 text-sm text-center text-emerald-800">
                     {projectList.reduce((s, p) => s + p.guideCount, 0) > 0 ? `${projectList.reduce((s, p) => s + p.guideCount, 0).toLocaleString()}건` : '-'}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-center text-emerald-800">
+                    {projectList.reduce((s, p) => s + p.guideAmt, 0) > 0 ? (
+                      <>
+                        {Math.round(projectList.reduce((s, p) => s + p.guideAmt, 0) / 1000).toLocaleString('ko-KR')}
+                        <span className="ml-0.5 text-[10px] text-gray-600">천원</span>
+                      </>
+                    ) : (
+                      '-'
+                    )}
                   </td>
                 </tr>
                 {projectList.map((p) => (
@@ -603,10 +618,20 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
                         <span className="text-gray-400">-</span>
                       )}
                     </td>
+                    <td className="px-3 py-3 text-sm text-center text-gray-700">
+                      {p.guideAmt > 0 ? (
+                        <>
+                          {Math.round(p.guideAmt / 1000).toLocaleString('ko-KR')}
+                          <span className="ml-0.5 text-[10px] text-gray-600">천원</span>
+                        </>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {projectList.length === 0 && (
-                  <tr><td colSpan={3} className="px-4 py-8 text-center text-sm text-gray-500">해당 지사에 등록된 계약이 없습니다.</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">해당 지사에 등록된 계약이 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
