@@ -8,4 +8,7 @@
 - **서명부 다운로드는 제출 건 단위.** tbm-submission 페이지의 건별 다운로드 메뉴(PDF/엑셀)에 3번째 항목으로 추가. 벌크 다운로드 통합은 이번 범위 제외.
 - **서명 카드에 `data-html2canvas-ignore`.** tbm-view "이미지로 저장하기" 캡처에서 액션 카드는 제외 (푸터 버튼과 동일 처리).
 - **GET 목록은 이미지 제외.** 공개 GET은 id·worker_name·created_at만 반환해 서명 이미지 노출을 막는다. 관리자용 서명부 생성은 인증된 tbm-submission 페이지에서 supabase 클라이언트 SELECT(RLS `USING (true)`, 기존 테이블들과 동일 패턴)로 조회한다.
-- **마이그레이션 사용자 실행 필요.** Supabase MCP 읽기 전용 — 콘솔에서 실행. 실행 확인 전 main 푸시(=운영 배포) 보류.
+- **마이그레이션 사용자 실행 완료** (2026-07-09 사용자 확인).
+- **(2차) 서명부는 별도 다운로드가 아니라 TBM일지에 동봉.** 사용자 피드백 — PDF는 TBM일지 다음 페이지, 엑셀은 같은 워크북의 별도 시트로 포함. 별도 "서명부 다운로드" 메뉴는 제거. 일괄 다운로드도 각 제출 건 뒤에 서명부가 끼워진다(서명 없는 날은 서명부 생략).
+- **(2차) PDF 서명부는 HTML 템플릿 방식.** `PDFGenerator`에 범용 `appendHTMLPage(html)`을 추가하고 `tbm-worker-signature-report.ts`가 서명부 HTML을 생성한다. 근로자 성명은 익명 입력값이므로 innerHTML 삽입 전 반드시 HTML 이스케이프(escapeHtml) — XSS 방지.
+- **(2차) 엑셀 서명부는 `appendTBMWorkerSignatureSheet(workbook, entries, meetingDate, sheetName?)`.** 시트명 31자 제한·금지문자 정리·중복 회피 내장. 일괄 다운로드에서는 `서명부_{TBM시트명}`으로 명명.

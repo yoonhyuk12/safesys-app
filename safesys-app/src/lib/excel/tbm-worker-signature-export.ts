@@ -33,15 +33,25 @@ function getDayOfWeek(dateStr: string): string {
 }
 
 /**
- * 일일안전교육 서명부(작업장 출입 전 근로자 작업가능상태 점검)를 엑셀 파일로 다운로드
+ * 워크북에 일일안전교육 서명부(작업장 출입 전 근로자 작업가능상태 점검) 시트를 추가
+ * — TBM 회의록 엑셀에 동봉하는 용도. 시트명이 겹치면 " (2)" 형식 접미사로 회피한다.
  */
-export async function downloadTBMWorkerSignatureExcel(
+export function appendTBMWorkerSignatureSheet(
+  workbook: ExcelJS.Workbook,
   entries: TBMWorkerSignatureEntry[],
   meetingDate: string,   // 'YYYY-MM-DD'
-  filename?: string
-): Promise<void> {
-  const workbook = new ExcelJS.Workbook()
-  const ws = workbook.addWorksheet('일일안전교육 서명부', {
+  sheetName = '근로자 서명부'
+): void {
+  const sanitized = (sheetName.replace(/[\\/*?:[\]]/g, '_') || '근로자 서명부').slice(0, 31)
+  let finalName = sanitized
+  let nameIndex = 2
+  while (workbook.getWorksheet(finalName)) {
+    const suffix = ` (${nameIndex})`
+    finalName = `${sanitized.slice(0, Math.max(0, 31 - suffix.length))}${suffix}`
+    nameIndex += 1
+  }
+
+  const ws = workbook.addWorksheet(finalName, {
     pageSetup: {
       paperSize: 9, // A4
       orientation: 'portrait',
@@ -202,17 +212,4 @@ export async function downloadTBMWorkerSignatureExcel(
     }
   }
 
-  // ===== 파일 다운로드 =====
-  const finalFilename = filename || `일일안전교육서명부_${meetingDate}.xlsx`
-
-  const buffer = await workbook.xlsx.writeBuffer()
-  const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  })
-  const url = window.URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = finalFilename
-  link.click()
-  window.URL.revokeObjectURL(url)
 }

@@ -1,4 +1,6 @@
 // TBM 보고서 PDF 생성 모듈 (원본 pdf-generator-v2.js 기반)
+import type { TBMWorkerSignatureEntry } from '@/lib/excel/tbm-worker-signature-export'
+import { createWorkerSignatureSheetHTML } from './tbm-worker-signature-report'
 
 interface TBMSubmissionFormData {
   educationDate: string
@@ -61,6 +63,24 @@ class PDFGenerator {
     return this.doc
   }
 
+  // 기존 문서에 임의 HTML 1페이지를 추가 (서명부 등 부속 서식용)
+  async appendHTMLPage(html: string) {
+    if (typeof window === 'undefined') {
+      throw new Error('PDF 생성은 브라우저 환경에서만 가능합니다.')
+    }
+
+    const canvas = await this.renderHTMLCanvas(html)
+    await this.ensureDocument()
+
+    if (this.appendedPages > 0) {
+      this.doc.addPage('a4', 'portrait')
+    }
+
+    this.addCanvasToDocument(canvas)
+    this.appendedPages += 1
+    return this.doc
+  }
+
   private async ensureDocument() {
     if (this.doc) return
     const { jsPDF } = await import('jspdf')
@@ -94,9 +114,12 @@ class PDFGenerator {
   }
 
   private async renderTBMCanvas(formData: TBMSubmissionFormData): Promise<HTMLCanvasElement> {
+    return this.renderHTMLCanvas(this.createReportHTML(formData))
+  }
+
+  private async renderHTMLCanvas(reportHTML: string): Promise<HTMLCanvasElement> {
     const html2canvas = (await import('html2canvas')).default
 
-    const reportHTML = this.createReportHTML(formData)
     const tempContainer = document.createElement('div')
     tempContainer.style.position = 'fixed'
     tempContainer.style.left = '-9999px'
@@ -615,13 +638,19 @@ class PDFGenerator {
   }
 }
 
-// TBM 보고서 PDF 생성 함수
+// TBM 보고서 PDF 생성 함수 — 근로자 서명이 있으면 다음 페이지에 서명부를 붙인다
 export async function generateTBMSubmissionReport(
   formData: TBMSubmissionFormData,
-  filename?: string
+  filename?: string,
+  options?: {
+    signatures?: TBMWorkerSignatureEntry[]
+  }
 ): Promise<void> {
   const generator = new PDFGenerator()
   await generator.generateTBMReport(formData)
+  if (options?.signatures && options.signatures.length > 0) {
+    await generator.appendHTMLPage(createWorkerSignatureSheetHTML(options.signatures, formData.educationDate || ''))
+  }
   // 파일명 형식: 사업명_TBM_일자.pdf
   const defaultFilename = `${formData.projectName || '사업명'}_TBM_${formData.educationDate || new Date().toISOString().split('T')[0]}.pdf`
   generator.downloadPDF(filename || defaultFilename)
@@ -633,6 +662,8 @@ export async function generateTBMSubmissionBulkReport(
   filename?: string,
   options?: {
     onProgress?: (current: number, total: number) => void
+    // formDataList와 같은 인덱스의 근로자 서명 목록 — 있으면 해당 TBM 페이지 뒤에 서명부 페이지 추가
+    signaturesList?: (TBMWorkerSignatureEntry[] | undefined)[]
   }
 ): Promise<void> {
   if (formDataList.length === 0) {
@@ -643,6 +674,10 @@ export async function generateTBMSubmissionBulkReport(
   for (let i = 0; i < formDataList.length; i++) {
     const formData = formDataList[i]
     await generator.appendTBMReportPage(formData)
+    const signatures = options?.signaturesList?.[i]
+    if (signatures && signatures.length > 0) {
+      await generator.appendHTMLPage(createWorkerSignatureSheetHTML(signatures, formData.educationDate || ''))
+    }
     options?.onProgress?.(i + 1, formDataList.length)
   }
 

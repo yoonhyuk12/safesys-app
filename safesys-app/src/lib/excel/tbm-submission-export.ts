@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs'
 import type { TBMSubmissionFormData } from '@/lib/reports/tbm-submission-report'
+import { appendTBMWorkerSignatureSheet, type TBMWorkerSignatureEntry } from '@/lib/excel/tbm-worker-signature-export'
 
 // A4 인쇄 가능 높이 (points)
 // A4 = 297mm = 11.693in, 마진(top 0.4 + bottom 0.2 + header 0.1 + footer 0.1 = 0.8in)
@@ -95,6 +96,8 @@ export async function downloadTBMSubmissionExcel(
     workbook?: ExcelJS.Workbook
     sheetName?: string
     skipDownload?: boolean
+    // 근로자 교육 확인 서명 — 있으면 '근로자 서명부' 시트를 함께 동봉
+    signatures?: TBMWorkerSignatureEntry[]
   }
 ) {
   const workbook = options?.workbook || new ExcelJS.Workbook()
@@ -387,6 +390,11 @@ export async function downloadTBMSubmissionExcel(
     })
   }
 
+  // 근로자 서명부 시트 동봉
+  if (options?.signatures && options.signatures.length > 0) {
+    appendTBMWorkerSignatureSheet(workbook, options.signatures, formData.educationDate || '')
+  }
+
   // 파일 다운로드
   const defaultFilename = `${formData.projectName || '사업명'}_TBM_${formData.educationDate || new Date().toISOString().split('T')[0]}.xlsx`
   const finalFilename = filename || defaultFilename
@@ -400,7 +408,7 @@ export async function downloadTBMSubmissionExcel(
 }
 
 export async function downloadTBMSubmissionBulkExcel(
-  items: Array<{ formData: TBMSubmissionFormData; sheetName?: string }>,
+  items: Array<{ formData: TBMSubmissionFormData; sheetName?: string; signatures?: TBMWorkerSignatureEntry[] }>,
   filename?: string,
   options?: {
     onProgress?: (current: number, total: number) => void
@@ -424,6 +432,12 @@ export async function downloadTBMSubmissionBulkExcel(
       sheetName: uniqueSheetName,
       skipDownload: true
     })
+
+    // 해당 제출 건의 근로자 서명부 시트를 바로 뒤에 동봉
+    if (item.signatures && item.signatures.length > 0) {
+      const sigSheetName = buildUniqueSheetName(`서명부_${defaultSheetName}`, usedSheetNames)
+      appendTBMWorkerSignatureSheet(workbook, item.signatures, item.formData.educationDate || '', sigSheetName)
+    }
 
     options?.onProgress?.(i + 1, items.length)
   }
