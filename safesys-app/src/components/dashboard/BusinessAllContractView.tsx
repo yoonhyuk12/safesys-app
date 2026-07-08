@@ -410,12 +410,12 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
     )
   }
 
-  // 유형별 금액 접근자 — 컬럼 순서(공사·용역·물품·합계)의 단일 출처
+  // 유형별 금액 접근자 — 컬럼 순서(합계·공사·용역·물품)의 단일 출처. 합계는 이름 컬럼 바로 우측.
   const AMOUNT_COLS: { key: string; label: string; value: (s: AmountStats) => number }[] = [
+    { key: 'total', label: '합계', value: (s) => s.totalAmount },
     { key: 'cnstwk', label: '공사', value: (s) => s.cnstwkAmount },
     { key: 'servc', label: '용역', value: (s) => s.servcAmount },
     { key: 'thng', label: '물품', value: (s) => s.thngAmount },
-    { key: 'total', label: '합계', value: (s) => s.totalAmount },
   ]
 
   // 소계 행 — 표시 중인 집계 목록을 합산
