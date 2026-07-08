@@ -480,8 +480,8 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
                     </tr>
                   )
                 })()}
+                {/* detailRows가 지사 목록(BRANCH_OPTIONS) 순으로 정렬돼 있어 Map 삽입 순서가 곧 지사 순서 */}
                 {Array.from(branchStats.entries())
-                  .sort((a, b) => b[1].workCount - a[1].workCount || a[0].localeCompare(b[0], 'ko'))
                   .map(([branch, stats]) => (
                     <tr key={branch} onClick={() => handleBranchClick(branch)} className="hover:bg-emerald-50/50 cursor-pointer transition-colors">
                       <td className="px-3 py-3 text-sm font-medium text-gray-900 text-center">{branch}</td>
