@@ -2,12 +2,16 @@
 
 // 사업현황 '공사 계약 현황' 카드 뷰 — 본부별→지사별→사업별 계약 건수 드릴다운 테이블
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { ArrowLeft, Building } from 'lucide-react'
+import { ArrowLeft, Building, Download } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { BRANCH_OPTIONS } from '@/lib/constants'
 import { getProjectsByUserBranch, type Project } from '@/lib/projects'
+import {
+  downloadBusinessConstructionContractExcel,
+  type BusinessContractExcelRow,
+} from '@/lib/excel/business-construction-contract-export'
 
 interface BusinessConstructionContractViewProps {
   initialHq?: string | null
@@ -22,11 +26,15 @@ interface ContractRecord {
   project_id: string
   contract_type: '공사' | '용역'
   cntrct_nm: string
+  corp_nm: string | null
   tot_cntrct_amt: number | null
   thtm_cntrct_amt: number | null
   cntrct_date: string | null
+  cntrct_prd: string | null
+  start_date: string | null
   end_date: string | null
   thtm_end_date: string | null
+  dminstt_nm: string | null
   projects: {
     id: string
     project_name: string
@@ -324,6 +332,69 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
     setViewLevel('branch')
   }
 
+  // 엑셀 다운 — projectRows 순서(본부→지사→사업)를 유지하며 사업별 계약을
+  // 차수 병합 그룹(계약현황 페이지와 동일 규칙) 단위 행으로 변환해 내보낸다
+  const handleExcelExport = async () => {
+    const byProject = new Map<string, ContractRecord[]>()
+    for (const r of records) {
+      const arr = byProject.get(r.project_id)
+      if (arr) arr.push(r)
+      else byProject.set(r.project_id, [r])
+    }
+
+    const yearSet = new Set<string>()
+    const exportRows: BusinessContractExcelRow[] = []
+    for (const p of projectRows) {
+      const byKey = new Map<string, ContractRecord[]>()
+      for (const r of byProject.get(p.projectId) || []) {
+        const k = norm(r.cntrct_nm)
+        const arr = byKey.get(k)
+        if (arr) arr.push(r)
+        else byKey.set(k, [r])
+      }
+      // 사업 내 계약 그룹은 최초 체결일 오름차순
+      const firstDate = (ms: ContractRecord[]) =>
+        ms.reduce((min, m) => ((m.cntrct_date || '9999-12-31') < min ? (m.cntrct_date || '9999-12-31') : min), '9999-12-31')
+      const groups = [...byKey.values()].sort((a, b) => firstDate(a).localeCompare(firstDate(b)))
+
+      for (const members of groups) {
+        const repr = members.reduce((a, b) => ((b.cntrct_date || '') > (a.cntrct_date || '') ? b : a))
+        const yearAmts: Record<string, number> = {}
+        for (const m of members) {
+          if (!m.thtm_cntrct_amt) continue
+          const y = contractYear(m) || '기타'
+          yearAmts[y] = (yearAmts[y] || 0) + m.thtm_cntrct_amt
+          yearSet.add(y)
+        }
+        const starts = members.map((m) => m.start_date).filter((d): d is string => !!d)
+        const ends = members.map((m) => m.end_date).filter((d): d is string => !!d)
+        const startDate = starts.length ? starts.reduce((a, b) => (a < b ? a : b)) : null
+        const endDate = ends.length ? ends.reduce((a, b) => (a > b ? a : b)) : null
+        exportRows.push({
+          hq: hqDisplay(p.managingHq),
+          branch: p.managingBranch,
+          projectName: p.projectName,
+          name: repr.cntrct_nm,
+          memberCount: members.length,
+          totAmt: repr.tot_cntrct_amt,
+          yearAmts,
+          corp: repr.corp_nm || '',
+          cntrctDate: repr.cntrct_date || '',
+          period: startDate && endDate ? `${startDate} ~ ${endDate}` : (repr.cntrct_prd || ''),
+          dminstt: repr.dminstt_nm || '',
+        })
+      }
+    }
+
+    const yearCols = [...yearSet].sort((a, b) => (a === '기타' ? 1 : b === '기타' ? -1 : a.localeCompare(b)))
+    try {
+      await downloadBusinessConstructionContractExcel(yearCols, currentYearStr, exportRows)
+    } catch (err) {
+      console.error(err)
+      alert('엑셀 다운로드 중 오류가 발생했습니다.')
+    }
+  }
+
   const handleBranchClick = (branch: string) => {
     setSelectedBranch(branch)
     setViewLevel('project')
@@ -459,7 +530,17 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                 <Building className="h-4 w-4 text-sky-600" />
                 <span className="text-sm font-medium text-sky-800">본부별 공사 계약현황</span>
               </div>
-              <span className="text-sm text-sky-600 font-semibold">공사 {totalWorkCount.toLocaleString()}건</span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-sky-600 font-semibold">공사 {totalWorkCount.toLocaleString()}건</span>
+                <button
+                  onClick={handleExcelExport}
+                  title="엑셀 다운"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-sky-700 border border-sky-300 rounded-lg hover:bg-sky-100"
+                >
+                  <Download className="h-4 w-4" />
+                  <span className="hidden sm:inline">엑셀 다운</span>
+                </button>
+              </div>
             </div>
           </div>
           <div className="overflow-x-auto">
