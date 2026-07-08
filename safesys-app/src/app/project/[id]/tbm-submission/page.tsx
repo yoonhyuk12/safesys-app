@@ -55,6 +55,7 @@ export default function TBMSubmissionPage() {
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null)
   const [editingSubmission, setEditingSubmission] = useState<TBMSubmission | null>(null)
   const [qrSubmission, setQrSubmission] = useState<TBMSubmission | null>(null)
+  const [showTodayQr, setShowTodayQr] = useState(false)
   const [showUpdateNotice, setShowUpdateNotice] = useState(true)
 
   const handleCloseUpdateNotice = () => {
@@ -596,6 +597,13 @@ export default function TBMSubmissionPage() {
                   </button>
                 </div>
                 <div className="flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => setShowTodayQr(true)}
+                    className="p-2 rounded-lg transition-colors hover:bg-purple-50 text-purple-600 inline-flex items-center"
+                    title="상시 TBM QR (스캔한 날의 교육 내용 열람)"
+                  >
+                    <QrCode className="h-5 w-5" />
+                  </button>
                   <a
                     href="https://youtu.be/8_UIFQ-m860?si=jY36VtMwvw6Ps_9h"
                     target="_blank"
@@ -1019,6 +1027,55 @@ export default function TBMSubmissionPage() {
               </div>
               <p className="text-xs text-gray-400 text-center">
                 QR을 스캔하거나 클릭하면 작업내용을 확인할 수 있습니다
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 상시 TBM QR 모달 — 스캔한 날의 당일 TBM으로 연결되는 고정 QR */}
+      {showTodayQr && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowTodayQr(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setShowTodayQr(false)}
+              className="absolute top-3 right-3 p-1.5 hover:bg-gray-100 rounded-full"
+            >
+              <X className="h-5 w-5 text-gray-500" />
+            </button>
+
+            {/* QR 코드 */}
+            <div className="flex flex-col items-center gap-4">
+              <h3 className="text-lg font-bold text-gray-900">상시 TBM QR 코드</h3>
+              <a
+                href={`/tbm-today/${projectId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block bg-white p-4 rounded-xl border-2 border-gray-100 hover:border-purple-400 hover:shadow-md transition-all cursor-pointer group"
+                title="클릭하여 당일 TBM 보기"
+              >
+                <QRCodeSVG
+                  value={`${window.location.origin}/tbm-today/${projectId}`}
+                  size={280}
+                  level="M"
+                />
+                <p className="text-xs text-purple-500 text-center mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  클릭하여 당일 TBM 보기
+                </p>
+              </a>
+              <div className="text-center space-y-1">
+                <p className="text-sm font-medium text-gray-900">{project?.project_name}</p>
+                <p className="text-xs text-gray-500">현장에 부착해두면 스캔한 날(한국시간)의 TBM 교육 내용이 열립니다.</p>
+              </div>
+              <p className="text-xs text-gray-400 text-center">
+                당일 제출건이 없으면 &quot;금일 TBM 제출건이 없습니다.&quot;가 표시됩니다
               </p>
             </div>
           </div>

@@ -21,4 +21,13 @@
 - [x] `tbm-submission/page.tsx` — 서명 일괄 조회(`in` 쿼리) 후 PDF/엑셀에 전달, "서명부 다운로드" 메뉴 제거
 - [x] tsc·eslint — 신규·수정분 오류 0 (기존 오류만 잔존)
 - [x] 커밋
+
+## 3차 — 제출 목록 서명 인원 표시 + 상시 TBM QR
+
+- [x] 제출 건별 "서명 N명 완료" 표시 (선택 날짜 in 쿼리 집계, 임시저장 제외)
+- [x] API `/api/tbm-today/[projectId]` — 당일(KST) TBM 제출건 조회 (project_id + 레거시 명칭 매칭, draft 제외, 최신 제출 우선)
+- [x] 공개 페이지 `/tbm-today/[projectId]` — 당일 건으로 리다이렉트, 없으면 "금일 TBM 제출건이 없습니다." 안내
+- [x] tbm-submission 헤더 유튜브 버튼 옆 상시 QR 버튼·모달 추가
+- [x] tsc·eslint — 신규·수정분 오류 0
+- [x] 커밋
 - [ ] 로컬 확인 후 main 푸시(=운영 배포)

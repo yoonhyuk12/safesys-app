@@ -12,3 +12,5 @@
 - **(2차) 서명부는 별도 다운로드가 아니라 TBM일지에 동봉.** 사용자 피드백 — PDF는 TBM일지 다음 페이지, 엑셀은 같은 워크북의 별도 시트로 포함. 별도 "서명부 다운로드" 메뉴는 제거. 일괄 다운로드도 각 제출 건 뒤에 서명부가 끼워진다(서명 없는 날은 서명부 생략).
 - **(2차) PDF 서명부는 HTML 템플릿 방식.** `PDFGenerator`에 범용 `appendHTMLPage(html)`을 추가하고 `tbm-worker-signature-report.ts`가 서명부 HTML을 생성한다. 근로자 성명은 익명 입력값이므로 innerHTML 삽입 전 반드시 HTML 이스케이프(escapeHtml) — XSS 방지.
 - **(2차) 엑셀 서명부는 `appendTBMWorkerSignatureSheet(workbook, entries, meetingDate, sheetName?)`.** 시트명 31자 제한·금지문자 정리·중복 회피 내장. 일괄 다운로드에서는 `서명부_{TBM시트명}`으로 명명.
+- **(3차) 상시 TBM QR은 프로젝트 고정 URL `/tbm-today/{projectId}`.** 제출건별 QR과 달리 현장에 한 번 부착하면 스캔한 날(Asia/Seoul 기준)의 TBM으로 연결된다. 당일 건 조회는 tbm-submission 페이지와 동일한 이중 매칭(project_id + 레거시 프로젝트명·본부·지사) 후 draft 제외, `submitted_at` 최신 건 선택. 없으면 "금일 TBM 제출건이 없습니다." 안내 페이지.
+- **(3차) 날짜는 서버(KST) 기준.** `/api/tbm-today`가 `Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' })`로 오늘을 계산 — Vercel(UTC)에서도 한국일자 보장.
