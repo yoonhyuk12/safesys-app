@@ -16,8 +16,9 @@ export interface DisasterPreventionExcelRow {
   guideEnd: string      // 지도 계약 준공일 'YYYY-MM-DD' | ''
 }
 
-const WHITE = 'FFFFFFFF'
 const BLACK = 'FF000000'
+// 깔끔한 표 스타일 — 밝은 회색 헤더 + 검정 글씨 (contract-status-export와 동일 계열)
+const HEADER_FILL: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F2' } }
 
 // 열 너비(A~R). A는 여백 열
 const COL_WIDTHS = [1.7, 9.6, 9.6, 12.9, 55, 8.5, 12.9, 12.9, 14.7, 15.3, 18, 12.1, 12, 14, 14, 12.3, 12.3, 8]
@@ -101,30 +102,17 @@ export async function downloadDisasterPreventionContractExcel(rows: DisasterPrev
   ws.mergeCells('O6:O7')
   ws.mergeCells('P6:Q6')
 
-  // 헤더 공통 스타일 (B~R, 5~7행 전부) — 흰색 thin 테두리 기본
+  // 헤더 공통 스타일 (B~R, 5~7행 전부) — 밝은 회색 배경 + 검정 글씨 + 가는 테두리
   for (let r = 5; r <= 7; r++) {
     const row = ws.getRow(r)
     row.height = 18
     for (let c = 2; c <= 18; c++) {
       const cell = row.getCell(c)
-      cell.font = { name: 'Dotum', size: 9, bold: true, color: { argb: WHITE } }
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BLACK } }
+      cell.font = { name: 'Dotum', size: 9, bold: true }
+      cell.fill = HEADER_FILL
       cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
-      cell.border = thinBorder(WHITE)
+      cell.border = thinBorder(BLACK)
     }
-  }
-  // 헤더 블록 최외곽만 medium 검정으로 덮어쓰기
-  for (let c = 2; c <= 18; c++) {
-    const topCell = ws.getRow(5).getCell(c)
-    topCell.border = { ...topCell.border, top: { style: 'medium', color: { argb: BLACK } } }
-    const bottomCell = ws.getRow(7).getCell(c)
-    bottomCell.border = { ...bottomCell.border, bottom: { style: 'medium', color: { argb: BLACK } } }
-  }
-  for (let r = 5; r <= 7; r++) {
-    const leftCell = ws.getRow(r).getCell(2)
-    leftCell.border = { ...leftCell.border, left: { style: 'medium', color: { argb: BLACK } } }
-    const rightCell = ws.getRow(r).getCell(18)
-    rightCell.border = { ...rightCell.border, right: { style: 'medium', color: { argb: BLACK } } }
   }
 
   // 8행부터 데이터
