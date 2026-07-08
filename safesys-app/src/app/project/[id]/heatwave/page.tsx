@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Calendar, FileText, ChevronLeft, ChevronRight, X, Download, Trash2, FolderDown } from 'lucide-react'
+import { ArrowLeft, Plus, Calendar, FileText, ChevronLeft, ChevronRight, X, Download, Trash2, FolderDown, CalendarPlus } from 'lucide-react'
 import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import HeatWaveInspectionModal from '@/components/project/HeatWaveInspectionModal'
+import HeatWaveBulkRegisterModal from '@/components/project/HeatWaveBulkRegisterModal'
 import { applyHtml2canvasTextFix } from '@/lib/reports/html2canvas-text-fix'
 
 interface HeatWaveInspectionData {
@@ -127,6 +128,11 @@ export default function HeatWaveCheckPage() {
   const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set())
   const [isBulkDownloadMode, setIsBulkDownloadMode] = useState(false)
   const [isBulkDownloading, setIsBulkDownloading] = useState(false)
+  const [isBulkRegisterMode, setIsBulkRegisterMode] = useState(false)
+  const [selectedRegisterDates, setSelectedRegisterDates] = useState<Set<string>>(new Set())
+  const [isBulkRegisterModalOpen, setIsBulkRegisterModalOpen] = useState(false)
+  const [isBulkRegistering, setIsBulkRegistering] = useState(false)
+  const [bulkRegisterProgress, setBulkRegisterProgress] = useState('')
   const reportRef = useRef<HTMLDivElement>(null)
   const hiddenReportRef = useRef<HTMLDivElement>(null)
 
@@ -841,6 +847,186 @@ export default function HeatWaveCheckPage() {
     }
   }
 
+  // 일괄 등록 함수 - 선택된 날짜들에 기상청 시간별 체감온도로 점검 기록을 일괄 생성
+  const handleBulkRegister = async (data: { hours: number[]; inspectorName: string; signature: string }) => {
+    if (!user || !project) {
+      throw new Error('사용자 또는 프로젝트 정보가 없습니다')
+    }
+    if (!projectCoords) {
+      throw new Error('현장 좌표(위도·경도)가 등록되어 있지 않아 기상청 체감온도를 조회할 수 없습니다.')
+    }
+
+    const dates = Array.from(selectedRegisterDates).sort()
+    const hours = data.hours
+    const total = dates.length
+
+    setIsBulkRegistering(true)
+    try {
+      // 1. 날짜별 기상청 시간별 체감온도 조회 (순차 — Vercel 함수 타임아웃 회피)
+      const feelsByDate = new Map<string, Map<number, number>>() // date -> (hour -> 체감온도)
+      const missing: string[] = [] // 'M월 D일 HH시' 형태 미확보 목록
+      for (let i = 0; i < dates.length; i++) {
+        const date = dates[i]
+        setBulkRegisterProgress(`체감온도 조회 중 (${i + 1}/${total}) · ${date}`)
+        const hourMap = new Map<number, number>()
+        try {
+          const res = await fetch('/api/weather/hourly-feels-like', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat: projectCoords.lat, lng: projectCoords.lng, date, hours })
+          })
+          const json = await res.json()
+          if (Array.isArray(json?.results)) {
+            for (const r of json.results) {
+              if (r.apparentTemperature != null) {
+                hourMap.set(r.hour, r.apparentTemperature)
+              }
+            }
+          }
+        } catch (e) {
+          console.error('시간별 체감온도 조회 실패:', date, e)
+        }
+        feelsByDate.set(date, hourMap)
+        // 체감온도를 얻지 못한 시각은 미확보로 집계
+        const [, mm, dd] = date.split('-')
+        for (const h of hours) {
+          if (!hourMap.has(h)) {
+            missing.push(`${Number(mm)}월 ${Number(dd)}일 ${String(h).padStart(2, '0')}시`)
+          }
+        }
+      }
+
+      // 2. 기존 기록 조회 (선택 날짜 최소~최대 범위) — 같은 날짜·같은 시(hour)는 건너뜀
+      setBulkRegisterProgress('기존 기록 확인 중...')
+      const minDate = dates[0]
+      const maxDate = dates[dates.length - 1]
+      const existing = new Set<string>() // `${date} ${hour}` 키
+      const { data: existingRows, error: existingErr } = await supabase
+        .from('heat_wave_checks')
+        .select('check_time')
+        .eq('project_id', project.id)
+        .gte('check_time', `${minDate} 00:00:00`)
+        .lte('check_time', `${maxDate} 23:59:59`)
+      if (existingErr) {
+        throw new Error(`기존 기록 조회 실패: ${existingErr.message}`)
+      }
+      for (const row of existingRows || []) {
+        // check_time은 로컬 벽시계 문자열(타임존 없음) — 재파싱 없이 문자열에서 날짜·시 추출
+        const ct = String(row.check_time).replace('T', ' ')
+        const dStr = ct.slice(0, 10)
+        const hour = Number(ct.slice(11, 13))
+        existing.add(`${dStr} ${hour}`)
+      }
+
+      // 3. 서명 1회 업로드 (모든 행이 같은 URL 공유) — 단건 등록의 버킷 폴백 목록 재사용
+      setBulkRegisterProgress('서명 저장 중...')
+      let signatureUrl: string | null = null
+      try {
+        const base64Data = data.signature.split(',')[1]
+        const byteCharacters = atob(base64Data)
+        const byteNumbers = new Array(byteCharacters.length)
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i)
+        }
+        const byteArray = new Uint8Array(byteNumbers)
+        const signatureBlob = new Blob([byteArray], { type: 'image/png' })
+        const signatureFileName = `${project.id}_${Date.now()}_bulk_signature.png`
+        const possibleBuckets = ['heatwave-inspections', 'inspections', 'uploads', 'files']
+        for (const bucketName of possibleBuckets) {
+          try {
+            const { error: sigErr } = await supabase.storage
+              .from(bucketName)
+              .upload(signatureFileName, signatureBlob, { cacheControl: '3600', upsert: false })
+            if (!sigErr) {
+              const { data: { publicUrl } } = supabase.storage.from(bucketName).getPublicUrl(signatureFileName)
+              signatureUrl = publicUrl
+              break
+            }
+          } catch {
+            continue
+          }
+        }
+      } catch (e) {
+        // 서명 업로드 실패는 관대 처리 (단건 등록과 동일) — signatureUrl null로 진행
+        console.error('서명 업로드 오류:', e)
+      }
+
+      // 4. 등록 행 구성 — 체감온도가 있고, 기존 기록과 겹치지 않는 (날짜,시각)만
+      type BulkRow = {
+        project_id: string
+        created_by: string
+        check_time: string
+        feels_like_temp: number
+        water_supply: boolean
+        ventilation: boolean
+        rest_time: boolean
+        cooling_equipment: boolean
+        emergency_care: boolean
+        work_time_adjustment: boolean
+        photos: null
+        signature: string | null
+        inspector_name: string
+      }
+      const rows: BulkRow[] = []
+      let duplicateCount = 0
+      for (const date of dates) {
+        const hourMap = feelsByDate.get(date) || new Map<number, number>()
+        for (const hour of hours) {
+          const temp = hourMap.get(hour)
+          if (temp == null) continue // 체감온도 미확보 (missing에 이미 집계)
+          if (existing.has(`${date} ${hour}`)) {
+            duplicateCount++
+            continue
+          }
+          rows.push({
+            project_id: project.id,
+            created_by: user.id,
+            check_time: `${date} ${String(hour).padStart(2, '0')}:00:00`,
+            feels_like_temp: temp,
+            water_supply: true,
+            ventilation: true,
+            rest_time: true,
+            cooling_equipment: true,
+            emergency_care: true,
+            work_time_adjustment: true,
+            photos: null,
+            signature: signatureUrl,
+            inspector_name: data.inspectorName
+          })
+        }
+      }
+
+      // 5. 일괄 insert
+      let insertedCount = 0
+      if (rows.length > 0) {
+        setBulkRegisterProgress(`등록 중... (${rows.length}건)`)
+        const { error: insertError } = await supabase.from('heat_wave_checks').insert(rows)
+        if (insertError) {
+          throw new Error(`일괄 등록 실패: ${insertError.message}`)
+        }
+        insertedCount = rows.length
+      }
+
+      // 6. 결과 요약 (텔레그램 알림은 발송하지 않음)
+      let summary = `일괄 등록 완료\n\n등록: ${insertedCount}건`
+      if (duplicateCount > 0) summary += `\n기존 기록과 겹쳐 건너뜀: ${duplicateCount}건`
+      if (missing.length > 0) {
+        const preview = missing.slice(0, 10).join(', ')
+        summary += `\n체감온도 미확보: ${missing.length}건\n(${preview}${missing.length > 10 ? ' 외' : ''})`
+      }
+      alert(summary)
+
+      // 7. 목록 재조회 및 모드·선택 초기화
+      await loadHeatwaveChecks()
+      setIsBulkRegisterMode(false)
+      setSelectedRegisterDates(new Set())
+      setIsBulkRegisterModalOpen(false)
+    } finally {
+      setIsBulkRegistering(false)
+      setBulkRegisterProgress('')
+    }
+  }
+
   // PDF 저장 함수
   const handleSavePDF = async () => {
     if (!hiddenReportRef.current || !selectedDate || !project) return
@@ -1196,18 +1382,53 @@ export default function HeatWaveCheckPage() {
                       <h2 className="text-xl font-semibold text-gray-900">점검 캘린더</h2>
                     </div>
                     
-                    {/* 일괄 다운로드 버튼 */}
+                    {/* 일괄 등록·다운로드 버튼 */}
                     <div className="flex items-center space-x-2">
+                      {/* 일괄 등록 토글 (일괄 다운로드와 상호 배타) */}
+                      <button
+                        onClick={() => {
+                          const next = !isBulkRegisterMode
+                          setIsBulkRegisterMode(next)
+                          setSelectedRegisterDates(new Set())
+                          if (next) {
+                            setIsBulkDownloadMode(false)
+                            setSelectedDates(new Set())
+                          }
+                        }}
+                        className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isBulkRegisterMode
+                            ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                            : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                        }`}
+                        title={isBulkRegisterMode ? "일괄 등록 모드 종료" : "여러 날짜를 선택해 기상청 체감온도로 일괄 등록"}
+                      >
+                        <CalendarPlus className="h-4 w-4 mr-1" />
+                        {isBulkRegisterMode ? '취소' : '일괄 등록'}
+                      </button>
+
+                      {isBulkRegisterMode && selectedRegisterDates.size > 0 && (
+                        <button
+                          onClick={() => setIsBulkRegisterModalOpen(true)}
+                          className="flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-600 text-white hover:bg-blue-700"
+                          title={`선택된 ${selectedRegisterDates.size}개 날짜 일괄 등록`}
+                        >
+                          <Plus className="h-4 w-4 mr-1" />
+                          등록({selectedRegisterDates.size})
+                        </button>
+                      )}
+
                       <button
                         onClick={() => {
                           setIsBulkDownloadMode(!isBulkDownloadMode)
                           if (!isBulkDownloadMode) {
                             setSelectedDates(new Set())
+                            setIsBulkRegisterMode(false)
+                            setSelectedRegisterDates(new Set())
                           }
                         }}
                         className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          isBulkDownloadMode 
-                            ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+                          isBulkDownloadMode
+                            ? 'bg-red-100 text-red-700 hover:bg-red-200'
                             : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
                         }`}
                         title={isBulkDownloadMode ? "선택 모드 종료" : "여러 날짜 선택하여 일괄 다운로드"}
@@ -1215,7 +1436,7 @@ export default function HeatWaveCheckPage() {
                         <FolderDown className="h-4 w-4 mr-1" />
                         {isBulkDownloadMode ? '취소' : '일괄'}
                       </button>
-                      
+
                       {isBulkDownloadMode && (
                         <button
                           onClick={handleBulkDownload}
@@ -1286,6 +1507,7 @@ export default function HeatWaveCheckPage() {
                         const firstDay = new Date(year, month, 1).getDay()
                         const daysInMonth = new Date(year, month + 1, 0).getDate()
                         const today = new Date()
+                        const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
                         const isCurrentMonth = year === today.getFullYear() && month === today.getMonth()
                         
                         const days = []
@@ -1308,7 +1530,17 @@ export default function HeatWaveCheckPage() {
                             <div
                               key={day}
                               onClick={() => {
-                                if (isBulkDownloadMode) {
+                                if (isBulkRegisterMode) {
+                                  // 일괄 등록 모드(최우선): 오늘 이하 날짜만 다중 선택 (미래는 관측값 없음)
+                                  if (dateStr > todayStr) return
+                                  const next = new Set(selectedRegisterDates)
+                                  if (next.has(dateStr)) {
+                                    next.delete(dateStr)
+                                  } else {
+                                    next.add(dateStr)
+                                  }
+                                  setSelectedRegisterDates(next)
+                                } else if (isBulkDownloadMode) {
                                   // 일괄 다운로드 모드: 날짜 다중 선택
                                   if (hasChecks) {  // 점검 기록이 있는 날짜만 선택 가능
                                     const newSelectedDates = new Set(selectedDates)
@@ -1331,22 +1563,34 @@ export default function HeatWaveCheckPage() {
                                 }
                               }}
                               className={`p-2 rounded cursor-pointer transition-colors relative ${
-                                isToday 
-                                  ? 'bg-blue-500 text-white font-bold' 
-                                  : isBulkDownloadMode && selectedDates.has(dateStr)
-                                    ? 'bg-purple-200 text-purple-800 font-bold ring-2 ring-purple-500'
-                                    : hasChecks
-                                      ? 'bg-green-100 text-green-800 font-medium hover:bg-green-200'
-                                      : isBulkDownloadMode && !hasChecks
+                                isBulkRegisterMode
+                                  ? (selectedRegisterDates.has(dateStr)
+                                      ? 'bg-amber-200 text-amber-900 font-bold ring-2 ring-amber-500'
+                                      : dateStr > todayStr
                                         ? 'opacity-50 cursor-not-allowed'
-                                        : 'hover:bg-blue-100'
+                                        : hasChecks
+                                          ? 'bg-green-100 text-green-800 font-medium hover:bg-amber-100'
+                                          : 'hover:bg-amber-100')
+                                  : isToday
+                                    ? 'bg-blue-500 text-white font-bold'
+                                    : isBulkDownloadMode && selectedDates.has(dateStr)
+                                      ? 'bg-purple-200 text-purple-800 font-bold ring-2 ring-purple-500'
+                                      : hasChecks
+                                        ? 'bg-green-100 text-green-800 font-medium hover:bg-green-200'
+                                        : isBulkDownloadMode && !hasChecks
+                                          ? 'opacity-50 cursor-not-allowed'
+                                          : 'hover:bg-blue-100'
                               }`}
                               title={
-                                isBulkDownloadMode 
-                                  ? (hasChecks 
-                                      ? (selectedDates.has(dateStr) ? '선택 해제' : '선택하여 다운로드에 포함')
-                                      : '점검 기록이 없는 날짜')
-                                  : (hasChecks ? '점검 기록 보기' : '')
+                                isBulkRegisterMode
+                                  ? (dateStr > todayStr
+                                      ? '미래 날짜는 등록할 수 없습니다'
+                                      : (selectedRegisterDates.has(dateStr) ? '선택 해제' : '선택하여 일괄 등록에 포함'))
+                                  : isBulkDownloadMode
+                                    ? (hasChecks
+                                        ? (selectedDates.has(dateStr) ? '선택 해제' : '선택하여 다운로드에 포함')
+                                        : '점검 기록이 없는 날짜')
+                                    : (hasChecks ? '점검 기록 보기' : '')
                               }
                             >
                               {day}
@@ -1355,6 +1599,11 @@ export default function HeatWaveCheckPage() {
                               )}
                               {isBulkDownloadMode && selectedDates.has(dateStr) && (
                                 <div className="absolute top-0 right-0 w-4 h-4 bg-purple-600 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs">✓</span>
+                                </div>
+                              )}
+                              {isBulkRegisterMode && selectedRegisterDates.has(dateStr) && (
+                                <div className="absolute top-0 right-0 w-4 h-4 bg-amber-600 rounded-full flex items-center justify-center">
                                   <span className="text-white text-xs">✓</span>
                                 </div>
                               )}
@@ -1829,12 +2078,37 @@ export default function HeatWaveCheckPage() {
         </div>
       )}
 
+      {/* 일괄 등록 진행 오버레이 (서명 모달보다 위) */}
+      {isBulkRegistering && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[70]">
+          <div className="bg-white rounded-lg p-8 flex flex-col items-center space-y-4 shadow-xl">
+            <div className="animate-spin h-12 w-12 text-amber-600">
+              <svg className="h-12 w-12" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            </div>
+            <div className="text-center">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">일괄 등록 진행 중</h3>
+              <p className="text-sm text-gray-600">{bulkRegisterProgress || '잠시만 기다려 주세요...'}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <HeatWaveInspectionModal
         isOpen={isInspectionModalOpen}
         onClose={handleCloseInspectionModal}
         onSave={handleSaveInspection}
         projectAddress={project?.site_address}
         projectCoords={projectCoords}
+      />
+
+      <HeatWaveBulkRegisterModal
+        isOpen={isBulkRegisterModalOpen}
+        onClose={() => setIsBulkRegisterModalOpen(false)}
+        dates={Array.from(selectedRegisterDates).sort()}
+        onSave={handleBulkRegister}
       />
 
       {/* PDF 전용 숨김 보고서 컴포넌트 */}
