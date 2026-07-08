@@ -143,6 +143,52 @@ const unitLabel = (unit: number) => (unit === 1000000 ? '백만원' : '천원')
 // 계약 행 1건의 금액 — 차수분은 금차금액, 금차 미기재 시 총액으로 폴백
 const rowAmount = (r: ContractRecord): number => r.thtm_cntrct_amt ?? r.tot_cntrct_amt ?? 0
 
+// 표 단위 금액 게이지 정보 — 소계 합과 표 내 최대 비중(색 정규화 기준)
+interface GaugeTotals {
+  totalSum: number
+  yearSum: number
+  maxTotalShare: number
+  maxYearShare: number
+}
+
+const gaugeTotals = (list: AggStats[]): GaugeTotals => {
+  const totalSum = list.reduce((s, v) => s + v.totalAmount, 0)
+  const yearSum = list.reduce((s, v) => s + v.thisYearAmount, 0)
+  return {
+    totalSum,
+    yearSum,
+    maxTotalShare: totalSum > 0 ? Math.max(...list.map((v) => v.totalAmount)) / totalSum : 0,
+    maxYearShare: yearSum > 0 ? Math.max(...list.map((v) => v.thisYearAmount)) / yearSum : 0,
+  }
+}
+
+// 금액 게이지 셀 — 소계 대비 비중(%)만큼 셀 배경을 채우고, 표 내 최대 비중 기준으로
+// 비중이 낮으면 파랑(hue 217)→높으면 빨강(hue 0)으로 색을 입혀 금액 비중을 한눈에 보여준다
+const amountGaugeCell = (value: number, sum: number, maxShare: number, unit: number) => {
+  const share = sum > 0 && value > 0 ? value / sum : 0
+  const t = maxShare > 0 ? Math.min(share / maxShare, 1) : 0
+  return (
+    <td
+      className="px-3 py-3 text-sm text-center text-gray-700 relative"
+      title={share > 0 ? `소계 대비 ${(share * 100).toFixed(1)}%` : undefined}
+    >
+      {share > 0 && (
+        <span
+          className="absolute inset-y-1 left-0 rounded-r-sm"
+          style={{
+            width: `${(share * 100).toFixed(1)}%`,
+            backgroundColor: `hsla(${Math.round(217 * (1 - t))}, 85%, 50%, 0.3)`,
+          }}
+        />
+      )}
+      <span className="relative">
+        {formatAmt(value, unit)}
+        {value > 0 && <span className="ml-0.5 text-[10px] text-gray-600">{unitLabel(unit)}</span>}
+      </span>
+    </td>
+  )
+}
+
 const BusinessConstructionContractView: React.FC<BusinessConstructionContractViewProps> = ({
   initialHq = null,
   initialBranch = null,
@@ -414,7 +460,8 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
     }, emptyAgg())
 
   // 집계 셀 렌더(전반부) — 건수·총계약건·총계약금액. unit은 금액 표시 단위(본부·지사 표는 백만원, 사업 표는 천원)
-  const statCellsBefore = (s: AggStats, unit: number, subtotal = false) => (
+  // gauge 전달 시 금액 셀을 소계 대비 비중 게이지로 렌더 (소계 행 제외)
+  const statCellsBefore = (s: AggStats, unit: number, subtotal = false, gauge?: GaugeTotals) => (
     <>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center'}>
         {subtotal ? (
@@ -438,15 +485,19 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
           <span className="text-gray-400">-</span>
         )}
       </td>
-      <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
-        {formatAmt(s.totalAmount, unit)}
-        {s.totalAmount > 0 && <span className="ml-0.5 text-[10px] text-gray-600">{unitLabel(unit)}</span>}
-      </td>
+      {!subtotal && gauge ? (
+        amountGaugeCell(s.totalAmount, gauge.totalSum, gauge.maxTotalShare, unit)
+      ) : (
+        <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
+          {formatAmt(s.totalAmount, unit)}
+          {s.totalAmount > 0 && <span className="ml-0.5 text-[10px] text-gray-600">{unitLabel(unit)}</span>}
+        </td>
+      )}
     </>
   )
 
   // 집계 셀 렌더(후반부) — 금년계약건·금년계약금액·비고
-  const statCellsAfter = (s: AggStats, unit: number, subtotal = false) => (
+  const statCellsAfter = (s: AggStats, unit: number, subtotal = false, gauge?: GaugeTotals) => (
     <>
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center'}>
         {subtotal ? (
@@ -459,21 +510,29 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
           <span className="text-gray-400">-</span>
         )}
       </td>
-      <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
-        {formatAmt(s.thisYearAmount, unit)}
-        {s.thisYearAmount > 0 && <span className="ml-0.5 text-[10px] text-gray-600">{unitLabel(unit)}</span>}
-      </td>
+      {!subtotal && gauge ? (
+        amountGaugeCell(s.thisYearAmount, gauge.yearSum, gauge.maxYearShare, unit)
+      ) : (
+        <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-700'}>
+          {formatAmt(s.thisYearAmount, unit)}
+          {s.thisYearAmount > 0 && <span className="ml-0.5 text-[10px] text-gray-600">{unitLabel(unit)}</span>}
+        </td>
+      )}
       <td className={subtotal ? 'px-3 py-2 text-sm text-center text-sky-800' : 'px-3 py-3 text-sm text-center text-gray-400'}>-</td>
     </>
   )
 
   // 집계 셀 렌더 — 본부·지사 표는 전·후반부를 그대로 이어붙여 사용
-  const statCells = (s: AggStats, unit: number, subtotal = false) => (
+  const statCells = (s: AggStats, unit: number, subtotal = false, gauge?: GaugeTotals) => (
     <>
-      {statCellsBefore(s, unit, subtotal)}
-      {statCellsAfter(s, unit, subtotal)}
+      {statCellsBefore(s, unit, subtotal, gauge)}
+      {statCellsAfter(s, unit, subtotal, gauge)}
     </>
   )
+
+  // 지사·사업 표 금액 게이지 — 각 행이 소계에서 차지하는 비중 계산의 기준값
+  const branchGauge = gaugeTotals(Array.from(branchStats.values()))
+  const projectGauge = gaugeTotals(projectList)
 
   // 엑셀 다운 버튼 — 본부·지사·사업 카드 헤더 우측 공용 (어느 레벨에서든 관할 전체 엑셀 다운로드)
   const excelButton = (
@@ -606,7 +665,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                 {Array.from(branchStats.entries()).map(([branch, stats]) => (
                   <tr key={branch} onClick={() => handleBranchClick(branch)} className="hover:bg-sky-50/50 cursor-pointer transition-colors">
                     <td className="px-3 py-3 text-sm font-medium text-gray-900 text-center">{branch}</td>
-                    {statCells(stats, 1000000)}
+                    {statCells(stats, 1000000, false, branchGauge)}
                   </tr>
                 ))}
                 {branchStats.size === 0 && (
@@ -660,9 +719,9 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
                       </span>
                       <span className="hidden sm:inline">{p.projectName}</span>
                     </td>
-                    {statCellsBefore(p, 1000)}
+                    {statCellsBefore(p, 1000, false, projectGauge)}
                     {periodCell(p)}
-                    {statCellsAfter(p, 1000)}
+                    {statCellsAfter(p, 1000, false, projectGauge)}
                   </tr>
                 ))}
                 {projectList.length === 0 && (
