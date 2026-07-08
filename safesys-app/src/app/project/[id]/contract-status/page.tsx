@@ -2,6 +2,7 @@
 'use client'
 
 import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
+import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
@@ -1290,6 +1291,18 @@ export default function ContractStatusPage() {
                     </Fragment>
                     )
                   })}
+                  {/* 물품 소계 — 지급자재는 수불부에서 관리하므로 링크로 안내 */}
+                  <tr className="border-b border-gray-200 font-semibold text-gray-700 bg-purple-50/60">
+                    <td className="px-3 py-2" colSpan={9 + yearCols.length}>
+                      물품 소계{' '}
+                      <Link
+                        href={`/project/${projectId}/material-ledger`}
+                        className="text-blue-600 hover:underline font-normal"
+                      >
+                        (지급자재 수불부 확인 바랍니다)
+                      </Link>
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
