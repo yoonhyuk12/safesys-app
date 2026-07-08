@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil, Link2, Loader2, Download, ExternalLink } from 'lucide-react'
@@ -275,17 +275,6 @@ export default function MaterialLedgerPage() {
   const [isSignaturePadOpen, setIsSignaturePadOpen] = useState(false)
   const [isSavingSignature, setIsSavingSignature] = useState(false)
 
-  // 드래그 삭제 & 자리이동 상태
-  const [draggingMaterialId, setDraggingMaterialId] = useState<string | null>(null)
-  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null)
-  const [isOverTrash, setIsOverTrash] = useState(false)
-  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null)
-  const longPressTimer = useRef<NodeJS.Timeout | null>(null)
-  const dragStartPos = useRef<{ x: number; y: number } | null>(null)
-  const trashZoneRef = useRef<HTMLDivElement>(null)
-  const materialRefs = useRef<Map<string, HTMLDivElement>>(new Map())
-  const wasDragging = useRef(false)
-
   const selectedMaterial = materials.find(m => m.id === selectedMaterialId) || null
 
   useEffect(() => {
@@ -339,6 +328,60 @@ export default function MaterialLedgerPage() {
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMaterialId, materials])
+
+  // ── 계약 목록 건명 (조달청 납품요구 건명) ──
+
+  // 건명 조회가 건당 수 초 걸리므로 localStorage에 캐시해 재방문 시 즉시 표시한다.
+  // 값 의미: undefined = 조회 전/조회 중, '' = 조회 실패(자재명으로 대체 표시)
+  const [dlvrTitles, setDlvrTitles] = useState<Record<string, string>>(() => {
+    if (typeof window === 'undefined') return {}
+    try {
+      const saved = JSON.parse(localStorage.getItem('g2bDlvrReqTitles') || '{}')
+      return saved && typeof saved === 'object' ? saved : {}
+    } catch {
+      return {}
+    }
+  })
+  const titleFetchStarted = useRef<Set<string>>(new Set())
+
+  // 연계된 납품요구번호의 건명을 백그라운드로 채운다 (동시 3건, 실패는 자재명으로 대체)
+  useEffect(() => {
+    const nos = [...new Set(
+      materials.map(m => m.dlvrReqNo || m.rows.find(r => r.dlvrReqNo)?.dlvrReqNo).filter((v): v is string => !!v)
+    )].filter(no => dlvrTitles[no] === undefined && !titleFetchStarted.current.has(no))
+    if (nos.length === 0) return
+    nos.forEach(no => titleFetchStarted.current.add(no))
+    const queue = [...nos]
+    ;(async () => {
+      await Promise.all(Array.from({ length: 3 }, async () => {
+        while (queue.length > 0) {
+          const no = queue.shift()
+          if (!no) break
+          let title = ''
+          try {
+            const res = await fetch(`/api/g2b/dlvr-req?no=${encodeURIComponent(no)}`)
+            const json = await res.json()
+            if (res.ok && json.success && json.data?.title) title = String(json.data.title)
+          } catch {
+            // 건명은 부가 정보 — 실패하면 자재명으로 표시
+          }
+          setDlvrTitles(prev => ({ ...prev, [no]: title }))
+        }
+      }))
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [materials])
+
+  // 조회 성공한 건명만 저장 — 실패(빈 값)는 저장하지 않아 다음 방문에 재시도된다
+  useEffect(() => {
+    const toSave = Object.fromEntries(Object.entries(dlvrTitles).filter(([, v]) => v))
+    if (Object.keys(toSave).length === 0) return
+    try {
+      localStorage.setItem('g2bDlvrReqTitles', JSON.stringify(toSave))
+    } catch {
+      // 저장 실패는 무시 (다음 방문에 재조회)
+    }
+  }, [dlvrTitles])
 
   const loadData = async () => {
     try {
@@ -1671,170 +1714,6 @@ export default function MaterialLedgerPage() {
     }
   }
 
-  // ── 드래그 삭제 핸들러 ──
-
-  const handleDragStart = useCallback((materialId: string, clientX: number, clientY: number) => {
-    wasDragging.current = true
-    setDraggingMaterialId(materialId)
-    setDragPosition({ x: clientX, y: clientY })
-    dragStartPos.current = { x: clientX, y: clientY }
-  }, [])
-
-  const handleDragMove = useCallback((clientX: number, clientY: number) => {
-    if (!draggingMaterialId) return
-    setDragPosition({ x: clientX, y: clientY })
-
-    // 쓰레기통 영역 위에 있는지 확인
-    if (trashZoneRef.current) {
-      const rect = trashZoneRef.current.getBoundingClientRect()
-      const isOver = clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom
-      setIsOverTrash(isOver)
-
-      if (isOver) {
-        setDropTargetIndex(null)
-        return
-      }
-    }
-
-    // 자재 박스 위에 있는지 확인 (자리이동 대상)
-    let foundTarget = false
-    materialRefs.current.forEach((el, matId) => {
-      if (matId === draggingMaterialId) return
-      const rect = el.getBoundingClientRect()
-      if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
-        const targetIdx = materials.findIndex(m => m.id === matId)
-        if (targetIdx !== -1) {
-          setDropTargetIndex(targetIdx)
-          foundTarget = true
-        }
-      }
-    })
-    if (!foundTarget) {
-      setDropTargetIndex(null)
-    }
-  }, [draggingMaterialId, materials])
-
-  const handleReorder = useCallback(async (fromIndex: number, toIndex: number) => {
-    // 로컬 상태 즉시 업데이트 (optimistic)
-    const newMaterials = [...materials]
-    const [moved] = newMaterials.splice(fromIndex, 1)
-    newMaterials.splice(toIndex, 0, moved)
-    
-    // 로컬의 realOrder, sortOrder 도 업데이트해준다.
-    const updatedMaterials = newMaterials.map((m, i) => {
-      const realOrder = i + 1
-      const colorIndex = (m as any).colorIndex ?? 0
-      const sortOrder = (colorIndex + 1) * 1000 + realOrder
-      return {
-        ...m,
-        realOrder,
-        sortOrder,
-      } as Material
-    })
-    setMaterials(updatedMaterials)
-
-    // DB 순서 업데이트
-    try {
-      for (const m of updatedMaterials) {
-        await supabase
-          .from('materials')
-          .update({ sort_order: m.sortOrder })
-          .eq('id', m.id)
-      }
-    } catch (err) {
-      console.error('순서 저장 실패:', err)
-      // 실패 시 원래 순서로 복원
-      loadData()
-    }
-  }, [materials])
-
-  const handleDragEnd = useCallback(() => {
-    if (draggingMaterialId) {
-      if (isOverTrash) {
-        // 쓰레기통에 드롭 - 삭제 실행
-        handleDeleteMaterial(draggingMaterialId)
-      } else if (dropTargetIndex !== null) {
-        // 다른 위치에 드롭 - 자리 이동
-        const fromIndex = materials.findIndex(m => m.id === draggingMaterialId)
-        if (fromIndex !== -1 && fromIndex !== dropTargetIndex) {
-          handleReorder(fromIndex, dropTargetIndex)
-        }
-      }
-    }
-    // 상태 초기화
-    setDraggingMaterialId(null)
-    setDragPosition(null)
-    setIsOverTrash(false)
-    setDropTargetIndex(null)
-    dragStartPos.current = null
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-    // 클릭 방지를 위해 잠시 후 wasDragging 초기화
-    setTimeout(() => {
-      wasDragging.current = false
-    }, 100)
-  }, [draggingMaterialId, isOverTrash, dropTargetIndex, materials, handleReorder])
-
-  const handleLongPressStart = useCallback((materialId: string, clientX: number, clientY: number) => {
-    longPressTimer.current = setTimeout(() => {
-      handleDragStart(materialId, clientX, clientY)
-    }, 500) // 500ms 길게 누르기
-  }, [handleDragStart])
-
-  const handleLongPressCancel = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current)
-      longPressTimer.current = null
-    }
-  }, [])
-
-  // 드래그 중 마우스/터치 이벤트
-  useEffect(() => {
-    if (!draggingMaterialId) return
-
-    // 드래그 중 body 스크롤 완전 잠금
-    const scrollY = window.scrollY
-    document.body.style.position = 'fixed'
-    document.body.style.top = `-${scrollY}px`
-    document.body.style.left = '0'
-    document.body.style.right = '0'
-    document.body.style.overflow = 'hidden'
-
-    const handleMouseMove = (e: MouseEvent) => handleDragMove(e.clientX, e.clientY)
-    const handleTouchMove = (e: TouchEvent) => {
-      // 드래그 중 스크롤 방지
-      e.preventDefault()
-      if (e.touches.length > 0) {
-        handleDragMove(e.touches[0].clientX, e.touches[0].clientY)
-      }
-    }
-    const handleMouseUp = () => handleDragEnd()
-    const handleTouchEnd = () => handleDragEnd()
-
-    window.addEventListener('mousemove', handleMouseMove)
-    // passive: false 옵션으로 preventDefault() 호출 가능하게 설정
-    document.addEventListener('touchmove', handleTouchMove, { passive: false })
-    window.addEventListener('mouseup', handleMouseUp)
-    window.addEventListener('touchend', handleTouchEnd)
-
-    return () => {
-      // body 스크롤 잠금 해제 및 원래 위치 복원
-      document.body.style.position = ''
-      document.body.style.top = ''
-      document.body.style.left = ''
-      document.body.style.right = ''
-      document.body.style.overflow = ''
-      window.scrollTo(0, scrollY)
-
-      window.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('touchmove', handleTouchMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-      window.removeEventListener('touchend', handleTouchEnd)
-    }
-  }, [draggingMaterialId, handleDragMove, handleDragEnd])
-
   // ── 렌더 가드 ──
 
   if (authLoading || loading) {
@@ -3063,13 +2942,18 @@ export default function MaterialLedgerPage() {
     return gemStyles[finalIndex % gemStyles.length]
   }
 
-  // 빈 슬롯 생성: 자재 + 추가 버튼이 한 행을 꽉 채워도 항상 다음 행에 여분 칸이 보이도록
-  // 열 수(모바일 4 / md 8)로 나누어 떨어지게 올림하여 마지막 행이 깔끔하게 채워지고
-  // 최소 1칸 이상의 여분이 남도록 한다.
-  const SLOT_COLS = 8
-  const usedSlots = materials.length + 1 // 자재 + 추가 버튼
-  const totalSlots = Math.max(32, Math.ceil((usedSlots + 1) / SLOT_COLS) * SLOT_COLS)
-  const emptySlots = totalSlots - usedSlots
+  // 계약(자재) 단위 목록 행 — 엑셀 계약 현황 양식처럼 계약별로 집계하고, 세부 규격은 상세에서 확인
+  const contractRows = materials.map(m => ({
+    mat: m,
+    dlvrReqNo: m.dlvrReqNo || m.rows.find(r => r.dlvrReqNo)?.dlvrReqNo || '',
+    prdctAmt: m.rows.reduce((s, r) => s + (parseFloat(stripComma(r.prdctAmt || '')) || 0), 0),
+    feeAmt: m.rows.reduce((s, r) => s + (parseFloat(stripComma(r.feeAmt || '')) || 0), 0),
+    cndtn: [...new Set(m.rows.map(r => r.dlvrCndtn).filter(Boolean))].join(', '),
+  }))
+  const totalPrdctAmt = contractRows.reduce((s, r) => s + r.prdctAmt, 0)
+  const totalFeeAmt = contractRows.reduce((s, r) => s + r.feeAmt, 0)
+  // 금액 표시 — 0은 '-'로
+  const fmtAmt = (n: number) => (n ? formatNumber(String(Math.round(n))) : '-')
 
   return (
     <div className="min-h-screen flex flex-col" style={{
@@ -3088,74 +2972,6 @@ export default function MaterialLedgerPage() {
           transform: 'scale(1.03)'
         }}
       />
-      {/* 드래그 중 흔들림 애니메이션 */}
-      {draggingMaterialId && (
-        <style>{`
-          @keyframes wobble {
-            0%, 100% { transform: rotate(0deg); }
-            25% { transform: rotate(-1.5deg); }
-            75% { transform: rotate(1.5deg); }
-          }
-        `}</style>
-      )}
-      {/* 드래그 중 쓰레기통 영역 */}
-      {draggingMaterialId && (
-        <div
-          ref={trashZoneRef}
-          className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-center py-6 transition-all duration-200 ${isOverTrash ? 'bg-red-900/90' : 'bg-black/80'
-            }`}
-          style={{
-            boxShadow: isOverTrash ? '0 0 40px rgba(220,38,38,0.6)' : '0 4px 20px rgba(0,0,0,0.8)'
-          }}
-        >
-          <div className={`flex flex-col items-center gap-2 transition-transform duration-200 ${isOverTrash ? 'scale-125' : ''}`}>
-            <div className={`w-16 h-16 rounded-lg flex items-center justify-center ${isOverTrash ? 'bg-red-600' : 'bg-gray-700'
-              }`} style={{
-                border: isOverTrash ? '2px solid #ef4444' : '2px solid #6b7280',
-                boxShadow: isOverTrash ? '0 0 20px rgba(239,68,68,0.5)' : 'none'
-              }}>
-              <Trash2 className={`h-8 w-8 ${isOverTrash ? 'text-white' : 'text-gray-400'}`} />
-            </div>
-            <span className={`text-sm font-medium ${isOverTrash ? 'text-red-300' : 'text-gray-400'}`}>
-              {isOverTrash ? '놓아서 삭제' : '여기에 놓아서 삭제'}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* 드래그 중인 아이템 (플로팅) */}
-      {draggingMaterialId && dragPosition && (() => {
-        const mat = materials.find(m => m.id === draggingMaterialId)
-        if (!mat) return null
-        const idx = materials.findIndex(m => m.id === draggingMaterialId)
-        const gemStyle = getMaterialGemStyle(mat.name, idx, mat.colorIndex)
-        return (
-          <div
-            className="fixed z-50 pointer-events-none"
-            style={{
-              left: dragPosition.x - 40,
-              top: dragPosition.y - 40,
-              width: 80,
-              height: 80,
-            }}
-          >
-            <div className="w-full h-full rounded animate-pulse" style={{
-              background: 'linear-gradient(180deg, #3a3a45 0%, #25252d 50%, #1a1a22 100%)',
-              border: '2px solid #4a4a55',
-              boxShadow: '0 10px 40px rgba(0,0,0,0.8), 0 0 20px rgba(255,215,0,0.3)'
-            }}>
-              <div className={`absolute inset-1 rounded bg-gradient-to-br ${gemStyle.bg} ${gemStyle.border} border flex flex-col items-center justify-center`}
-                style={{ boxShadow: `0 0 15px rgba(0,0,0,0.5), 0 0 30px currentColor` }}
-              >
-                <Package className="h-8 w-8 text-white drop-shadow-lg" />
-                <span className="text-white text-xs font-bold text-center leading-tight drop-shadow-lg px-1 mt-1" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
-                  {mat.name}
-                </span>
-              </div>
-            </div>
-          </div>
-        )
-      })()}
       {/* 헤더 - 고딕 스타일 */}
       <header className="relative" style={{
         background: 'linear-gradient(180deg, #2a2a3a 0%, #1a1a25 100%)',
@@ -3256,190 +3072,161 @@ export default function MaterialLedgerPage() {
         </div>
       )}
 
-      <main className="flex-1 w-full max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-4">
-        {/* 호라드릭 큐브 프레임 */}
-        <div className="relative">
-          {/* 외곽 장식 프레임 */}
-          <div className="absolute -inset-4 rounded-lg opacity-60" style={{
-            background: 'linear-gradient(135deg, #3d3020 0%, #2a2015 50%, #1a150d 100%)',
-            border: '2px solid #5a4a35',
-            boxShadow: 'inset 0 0 30px rgba(0,0,0,0.8), 0 0 40px rgba(0,0,0,0.5)'
+      <main className="flex-1 w-full max-w-[1400px] mx-auto py-8 px-4 sm:px-6 lg:px-4">
+        {/* 계약 목록 — 엑셀 계약 현황 양식처럼 계약 단위로 보여주고, 행을 누르면 세부 수불부로 이동 */}
+        <div className="rounded-lg overflow-hidden" style={{
+          background: 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 50%, #12121a 100%)',
+          border: '3px solid #4a3a28',
+          boxShadow: 'inset 0 0 40px rgba(0,0,0,0.8), 0 10px 40px rgba(0,0,0,0.9)'
+        }}>
+          {/* 상단 금속 테두리 */}
+          <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
+            boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
           }} />
 
-          {/* 코너 장식 */}
-          <div className="absolute -top-6 -left-6 w-12 h-12 bg-gradient-to-br from-amber-700 to-amber-900 rounded-full border-2 border-amber-500/50 shadow-lg" style={{ boxShadow: '0 0 20px rgba(180,130,50,0.3)' }} />
-          <div className="absolute -top-6 -right-6 w-12 h-12 bg-gradient-to-br from-amber-700 to-amber-900 rounded-full border-2 border-amber-500/50 shadow-lg" style={{ boxShadow: '0 0 20px rgba(180,130,50,0.3)' }} />
-          <div className="absolute -bottom-6 -left-6 w-12 h-12 bg-gradient-to-br from-amber-700 to-amber-900 rounded-full border-2 border-amber-500/50 shadow-lg" style={{ boxShadow: '0 0 20px rgba(180,130,50,0.3)' }} />
-          <div className="absolute -bottom-6 -right-6 w-12 h-12 bg-gradient-to-br from-amber-700 to-amber-900 rounded-full border-2 border-amber-500/50 shadow-lg" style={{ boxShadow: '0 0 20px rgba(180,130,50,0.3)' }} />
-
-          {/* 메인 인벤토리 컨테이너 */}
-          <div className="relative rounded-lg overflow-hidden" style={{
-            background: 'linear-gradient(180deg, #252530 0%, #1a1a22 50%, #12121a 100%)',
-            border: '3px solid #4a3a28',
-            boxShadow: 'inset 0 0 60px rgba(0,0,0,0.9), 0 10px 40px rgba(0,0,0,0.8)'
+          {/* 상단 바 */}
+          <div className="flex items-center justify-between gap-2 px-6 py-3" style={{
+            background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)',
+            borderBottom: '2px solid #5a4a35'
           }}>
-            {/* 상단 금속 테두리 */}
-            <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
-              boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
-            }} />
+            <span className="text-sm font-medium text-amber-100" style={{ fontFamily: 'serif' }}>
+              ⚔ 계약 목록
+              <span className="text-amber-200/40 font-normal ml-2">{materials.length}건</span>
+            </span>
+            <button
+              onClick={openMaterialModal}
+              className="p-2 rounded transition-all hover:scale-105"
+              style={{
+                background: 'linear-gradient(180deg, #8b0000 0%, #5a0000 100%)',
+                border: '2px solid #aa2020',
+                color: '#fca5a5'
+              }}
+              title="계약(자재) 등록"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
+          </div>
 
-            {/* 인벤토리 그리드 */}
-            <div className="p-4">
-              {materials.length === 0 ? (
-                /* 빈 상태 */
-                <div className="py-16 text-center">
-                  <div className="w-20 h-20 mx-auto mb-6 rounded-lg bg-gradient-to-br from-gray-700 to-gray-900 border-2 border-gray-600 flex items-center justify-center" style={{
-                    boxShadow: 'inset 0 4px 8px rgba(0,0,0,0.6)'
-                  }}>
-                    <Package className="h-10 w-10 text-gray-500" />
-                  </div>
-                  <p className="text-amber-200/50 mb-6" style={{ fontFamily: 'serif' }}>보관창이 비어있습니다</p>
-                  <button
-                    onClick={openMaterialModal}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-amber-100 font-medium transition-all hover:scale-105"
-                    style={{
-                      background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
-                      border: '2px solid #6a5a40',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)',
-                      fontFamily: 'serif'
-                    }}
-                  >
-                    <Plus className="h-5 w-5" />
-                    자재 추가
-                  </button>
-                </div>
-              ) : (
-                /* 자재 인벤토리 그리드 (호라드릭 큐브 스타일) */
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-1">
-                  {materials.map((mat, idx) => {
+          {materials.length === 0 ? (
+            /* 빈 상태 */
+            <div className="py-16 text-center">
+              <div className="w-20 h-20 mx-auto mb-6 rounded-lg bg-gradient-to-br from-gray-700 to-gray-900 border-2 border-gray-600 flex items-center justify-center" style={{
+                boxShadow: 'inset 0 4px 8px rgba(0,0,0,0.6)'
+              }}>
+                <Package className="h-10 w-10 text-gray-500" />
+              </div>
+              <p className="text-amber-200/50 mb-6" style={{ fontFamily: 'serif' }}>등록된 계약(자재)이 없습니다</p>
+              <button
+                onClick={openMaterialModal}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-amber-100 font-medium transition-all hover:scale-105"
+                style={{
+                  background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
+                  border: '2px solid #6a5a40',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)',
+                  fontFamily: 'serif'
+                }}
+              >
+                <Plus className="h-5 w-5" />
+                자재 추가
+              </button>
+            </div>
+          ) : (
+            /* 계약 목록 테이블 (계약 현황 엑셀 양식 기반, 계약 단위) */
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                <thead style={{ background: 'linear-gradient(180deg, #3a3040 0%, #2a2030 100%)' }}>
+                  <tr>
+                    <th className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>번호</th>
+                    <th className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>계약명</th>
+                    <th className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>품목</th>
+                    <th className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>납품요구(계약)<br />번호</th>
+                    <th className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>계약자</th>
+                    <th className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>인도조건</th>
+                    <th className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>납품기한</th>
+                    <th className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>품대계<br />(원)</th>
+                    <th className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>수수료<br />(원)</th>
+                    <th className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>합계<br />(원)</th>
+                    <th className="px-2 py-2 text-center text-xs font-medium text-amber-100 whitespace-nowrap" style={{ border: '1px solid #5a4a55' }}>삭제</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* 합계 행 — 엑셀 양식과 동일하게 데이터 위에 표시 */}
+                  <tr style={{ background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)' }}>
+                    <td colSpan={7} className="px-3 py-2 text-center text-xs font-bold" style={{ border: '1px solid #5a4a55', color: '#f5d78e' }}>합계</td>
+                    <td className="px-3 py-2 text-right text-xs font-bold whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#f5d78e' }}>{fmtAmt(totalPrdctAmt)}</td>
+                    <td className="px-3 py-2 text-right text-xs font-bold whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#f5d78e' }}>{fmtAmt(totalFeeAmt)}</td>
+                    <td className="px-3 py-2 text-right text-xs font-bold whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#f5d78e' }}>{fmtAmt(totalPrdctAmt + totalFeeAmt)}</td>
+                    <td style={{ border: '1px solid #5a4a55' }} />
+                  </tr>
+                  {contractRows.map((row, idx) => {
+                    const mat = row.mat
                     const gemStyle = getMaterialGemStyle(mat.name, idx, mat.colorIndex)
-                    const isDragging = draggingMaterialId === mat.id
-                    const isDropTarget = dropTargetIndex === idx && !isDragging
+                    const title = row.dlvrReqNo ? dlvrTitles[row.dlvrReqNo] : ''
                     return (
-                      <div
+                      <tr
                         key={mat.id}
-                        ref={(el) => {
-                          if (el) materialRefs.current.set(mat.id, el)
-                          else materialRefs.current.delete(mat.id)
-                        }}
-                        className={`relative group select-none transition-all duration-200 ${isDragging ? 'opacity-30 scale-90' : ''} ${isDropTarget ? 'scale-110 z-10' : ''}`}
-                        style={{
-                          WebkitTouchCallout: 'none', WebkitUserSelect: 'none', touchAction: 'none',
-                          ...(draggingMaterialId && !isDragging ? { animation: 'wobble 0.8s ease-in-out infinite' } : {}),
-                        }}
-                        onMouseDown={(e) => {
-                          if (e.button === 0) {
-                            handleLongPressStart(mat.id, e.clientX, e.clientY)
-                          }
-                        }}
-                        onMouseUp={handleLongPressCancel}
-                        onMouseLeave={handleLongPressCancel}
-                        onTouchStart={(e) => {
-                          if (e.touches.length === 1) {
-                            // 모바일에서 롱프레스 시 텍스트 선택 팝업 방지
-                            e.preventDefault()
-                            handleLongPressStart(mat.id, e.touches[0].clientX, e.touches[0].clientY)
-                          }
-                        }}
-                        onTouchEnd={handleLongPressCancel}
-                        onTouchCancel={handleLongPressCancel}
+                        className="cursor-pointer transition-colors"
+                        style={{ background: idx % 2 === 0 ? '#1a1a22' : '#22222a' }}
+                        onClick={() => setSelectedMaterialId(mat.id)}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 100%)' }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = idx % 2 === 0 ? '#1a1a22' : '#22222a' }}
                       >
-                        {/* 드롭 대상 표시 - 빛나는 테두리 */}
-                        {isDropTarget && (
-                          <div className="absolute -inset-1 rounded-lg z-0 animate-pulse" style={{
-                            border: '2px solid #fbbf24',
-                            boxShadow: '0 0 12px rgba(251,191,36,0.6), inset 0 0 12px rgba(251,191,36,0.2)',
-                          }} />
-                        )}
-                        <button
-                          onClick={() => !draggingMaterialId && !wasDragging.current && setSelectedMaterialId(mat.id)}
-                          className="w-full aspect-square rounded transition-all duration-200 hover:scale-110 hover:z-10 relative"
-                          style={{
-                            background: 'linear-gradient(180deg, #3a3a45 0%, #25252d 50%, #1a1a22 100%)',
-                            border: '2px solid #4a4a55',
-                            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.6), inset 0 -2px 4px rgba(255,255,255,0.02)'
-                          }}
-                        >
-                          {/* 자재명이 들어있는 도형 */}
-                          <div className={`absolute inset-1 rounded bg-gradient-to-br ${gemStyle.bg} ${gemStyle.border} border flex flex-col items-center justify-center`}
-                            style={{
-                              boxShadow: `0 0 15px rgba(0,0,0,0.5), 0 0 30px currentColor`,
-                            }}
-                          >
-                            {/* 광택 효과 */}
-                            <div className="absolute top-1 left-1 w-2 h-2 bg-white/40 rounded-full blur-sm" />
-                            <div className="absolute top-2 left-2 w-1 h-1 bg-white/60 rounded-full" />
-
-                            {/* 상자 아이콘 */}
-                            <Package className="h-8 w-8 text-white drop-shadow-lg" />
-
-                            {/* 자재명 */}
-                            <span className="text-white text-xs font-bold text-center leading-tight drop-shadow-lg px-1 mt-1" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
-                              {mat.name}
-                            </span>
-                          </div>
-
-                          {/* 나라장터(납품요구) 연계 마크 — 우측 상단 */}
-                          {mat.dlvrReqNo && (
-                            <img
-                              src="/g2b.png"
-                              alt="나라장터 연계"
-                              title={`나라장터 연계 (${mat.dlvrReqNo})`}
-                              className="absolute top-1 right-1 h-4 w-4 z-10 rounded-full bg-white/90 p-[1px] object-contain shadow"
-                            />
+                        <td className="px-2 py-2 text-center text-xs text-amber-100/70" style={{ border: '1px solid #3a3a45' }}>{idx + 1}</td>
+                        <td className="px-3 py-2 text-left text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45', minWidth: '200px' }}>
+                          {title || mat.name}
+                          {row.dlvrReqNo && title === undefined && (
+                            <Loader2 className="inline-block h-3 w-3 ml-1.5 animate-spin text-amber-200/40 align-middle" />
                           )}
-                        </button>
-                      </div>
+                        </td>
+                        <td className="px-3 py-2 text-left text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>
+                          <span className={`inline-block w-2.5 h-2.5 rounded-sm mr-1.5 align-middle bg-gradient-to-br ${gemStyle.bg} border ${gemStyle.border}`} />
+                          {mat.name}
+                          {mat.unit && <span className="text-amber-200/50 ml-1">({mat.unit})</span>}
+                        </td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>
+                          {row.dlvrReqNo ? (
+                            <span className="inline-flex items-center gap-1">
+                              <img src="/g2b.png" alt="나라장터 연계" className="h-3.5 w-3.5 rounded-full bg-white/90 p-[1px] object-contain" />
+                              {row.dlvrReqNo}
+                            </span>
+                          ) : '-'}
+                        </td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>
+                          {mat.dlvrSupplier || '-'}
+                          {mat.dlvrSupplierTel && <span className="block text-[10px] text-amber-200/50">☎ {mat.dlvrSupplierTel}</span>}
+                        </td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{row.cndtn || '-'}</td>
+                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatDate(mat.dlvrDeadline || '') || '-'}</td>
+                        <td className="px-3 py-2 text-right text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{fmtAmt(row.prdctAmt)}</td>
+                        <td className="px-3 py-2 text-right text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{fmtAmt(row.feeAmt)}</td>
+                        <td className="px-3 py-2 text-right text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{fmtAmt(row.prdctAmt + row.feeAmt)}</td>
+                        <td className="px-2 py-2 text-center" style={{ border: '1px solid #3a3a45' }}>
+                          <button onClick={(e) => { e.stopPropagation(); handleDeleteMaterial(mat.id) }} className="p-1 text-amber-200/40 hover:text-red-400 transition-colors" title="계약(자재) 삭제">
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
+                      </tr>
                     )
                   })}
-
-                  {/* 자재 추가 슬롯 */}
-                  <button
-                    onClick={openMaterialModal}
-                    className="w-full aspect-square rounded transition-all duration-200 hover:scale-105 group"
-                    style={{
-                      background: 'linear-gradient(180deg, #2a2a32 0%, #1a1a22 100%)',
-                      border: '2px dashed #4a4a55',
-                      boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.4)'
-                    }}
-                  >
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Plus className="h-6 w-6 text-amber-200/30 group-hover:text-amber-200/60 transition-colors" />
-                    </div>
-                  </button>
-
-                  {/* 빈 슬롯들 */}
-                  {Array.from({ length: emptySlots }).map((_, idx) => (
-                    <div
-                      key={`empty-${idx}`}
-                      className="w-full aspect-square rounded"
-                      style={{
-                        background: 'linear-gradient(180deg, #252530 0%, #1a1a22 100%)',
-                        border: '2px solid #35353d',
-                        boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.5)'
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
+                </tbody>
+              </table>
             </div>
+          )}
 
-            {/* 하단 금속 테두리 */}
-            <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
-              boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
-            }} />
+          {/* 하단 안내 */}
+          <div className="px-6 py-4" style={{
+            background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)',
+            borderTop: '2px solid #5a4a35'
+          }}>
+            <p className="text-xs text-amber-200/70" style={{ fontFamily: 'serif' }}>
+              ⚔ 계약을 누르면 세부 수불 내역으로 이동합니다 · 현장 반입 후 작업장 반출시 까지는 감독원이 관리하고 매 출고시 반출량 및 잔량을 확인
+            </p>
           </div>
-        </div>
 
-        {/* 하단 안내 - 고딕 스크롤 스타일 */}
-        <div className="mt-10 px-5 py-3 rounded-lg" style={{
-          background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)',
-          border: '2px solid #5a4a30',
-          boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.5)'
-        }}>
-          <p className="text-xs text-amber-200/70" style={{ fontFamily: 'serif' }}>
-            ⚔ 현장 반입 후 작업장 반출시 까지는 감독원이 관리하고 매 출고시 반출량 및 잔량을 확인
-          </p>
+          {/* 하단 금속 테두리 */}
+          <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900" style={{
+            boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
+          }} />
         </div>
       </main>
 
