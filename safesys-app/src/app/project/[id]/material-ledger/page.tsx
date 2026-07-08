@@ -2952,18 +2952,24 @@ export default function MaterialLedgerPage() {
   }))
   const totalPrdctAmt = contractRows.reduce((s, r) => s + r.prdctAmt, 0)
   const totalFeeAmt = contractRows.reduce((s, r) => s + r.feeAmt, 0)
-  // 납품기한 연도별 소계 — 엑셀 양식의 연도 그룹처럼 년차별 합계를 행으로 구성
-  const deadlineYears = [...new Set(
-    contractRows.map(r => (r.mat.dlvrDeadline || '').slice(0, 4)).filter(y => /^\d{4}$/.test(y))
-  )].sort()
-  const yearSubtotals = deadlineYears.map(year => {
-    const inYear = contractRows.filter(r => (r.mat.dlvrDeadline || '').startsWith(year))
-    return {
-      year,
-      prdctAmt: inYear.reduce((s, r) => s + r.prdctAmt, 0),
-      feeAmt: inYear.reduce((s, r) => s + r.feeAmt, 0),
-    }
-  })
+  // 납품기한 연도(년차)별 그룹 — 소계 행을 해당 연도 계약들 바로 위에 표시.
+  // 연도 오름차순(과거년도 먼저), 납품기한 없는 계약은 마지막에 소계 없이 배치.
+  const yearOfRow = (r: { mat: Material }) => {
+    const y = (r.mat.dlvrDeadline || '').slice(0, 4)
+    return /^\d{4}$/.test(y) ? y : ''
+  }
+  let contractSeq = 0
+  const yearGroups = [...[...new Set(contractRows.map(yearOfRow).filter(Boolean))].sort(), '']
+    .map(year => {
+      const rows = contractRows.filter(r => yearOfRow(r) === year).map(r => ({ ...r, no: ++contractSeq }))
+      return {
+        year,
+        rows,
+        prdctAmt: rows.reduce((s, r) => s + r.prdctAmt, 0),
+        feeAmt: rows.reduce((s, r) => s + r.feeAmt, 0),
+      }
+    })
+    .filter(g => g.rows.length > 0)
   // 금액 표시 — 0은 '-'로
   const fmtAmt = (n: number) => (n ? formatNumber(String(Math.round(n))) : '-')
 
@@ -3170,66 +3176,70 @@ export default function MaterialLedgerPage() {
                     <td className="px-3 py-2 text-right text-xs font-bold whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#f5d78e' }}>{fmtAmt(totalPrdctAmt + totalFeeAmt)}</td>
                     <td style={{ border: '1px solid #5a4a55' }} />
                   </tr>
-                  {/* 소계(년차별) 행 — 납품기한 연도 기준 */}
-                  {yearSubtotals.map(sub => (
-                    <tr key={`subtotal-${sub.year}`} style={{ background: '#2a2820' }}>
-                      <td colSpan={7} className="px-3 py-1.5 text-center text-xs font-medium" style={{ border: '1px solid #5a4a55', color: '#d9c9a0' }}>소계 ({sub.year}년)</td>
-                      <td className="px-3 py-1.5 text-right text-xs font-medium whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#d9c9a0' }}>{fmtAmt(sub.prdctAmt)}</td>
-                      <td className="px-3 py-1.5 text-right text-xs font-medium whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#d9c9a0' }}>{fmtAmt(sub.feeAmt)}</td>
-                      <td className="px-3 py-1.5 text-right text-xs font-medium whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#d9c9a0' }}>{fmtAmt(sub.prdctAmt + sub.feeAmt)}</td>
-                      <td style={{ border: '1px solid #5a4a55' }} />
-                    </tr>
+                  {/* 년차별 그룹 — 소계(년차) 행을 해당 연도 계약들 바로 위에 표시 */}
+                  {yearGroups.map(g => (
+                    <React.Fragment key={g.year || 'no-year'}>
+                      {g.year && (
+                        <tr style={{ background: '#2a2820' }}>
+                          <td colSpan={7} className="px-3 py-1.5 text-center text-xs font-medium" style={{ border: '1px solid #5a4a55', color: '#d9c9a0' }}>소계 ({g.year}년)</td>
+                          <td className="px-3 py-1.5 text-right text-xs font-medium whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#d9c9a0' }}>{fmtAmt(g.prdctAmt)}</td>
+                          <td className="px-3 py-1.5 text-right text-xs font-medium whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#d9c9a0' }}>{fmtAmt(g.feeAmt)}</td>
+                          <td className="px-3 py-1.5 text-right text-xs font-medium whitespace-nowrap" style={{ border: '1px solid #5a4a55', color: '#d9c9a0' }}>{fmtAmt(g.prdctAmt + g.feeAmt)}</td>
+                          <td style={{ border: '1px solid #5a4a55' }} />
+                        </tr>
+                      )}
+                      {g.rows.map(row => {
+                        const mat = row.mat
+                        const gemStyle = getMaterialGemStyle(mat.name, row.no - 1, mat.colorIndex)
+                        const title = row.dlvrReqNo ? dlvrTitles[row.dlvrReqNo] : ''
+                        return (
+                          <tr
+                            key={mat.id}
+                            className="cursor-pointer transition-colors"
+                            style={{ background: (row.no - 1) % 2 === 0 ? '#1a1a22' : '#22222a' }}
+                            onClick={() => setSelectedMaterialId(mat.id)}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 100%)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = (row.no - 1) % 2 === 0 ? '#1a1a22' : '#22222a' }}
+                          >
+                            <td className="px-2 py-2 text-center text-xs text-amber-100/70" style={{ border: '1px solid #3a3a45' }}>{row.no}</td>
+                            <td className="px-3 py-2 text-left text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45', minWidth: '200px' }}>
+                              {title || mat.name}
+                              {row.dlvrReqNo && title === undefined && (
+                                <Loader2 className="inline-block h-3 w-3 ml-1.5 animate-spin text-amber-200/40 align-middle" />
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-left text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>
+                              <span className={`inline-block w-2.5 h-2.5 rounded-sm mr-1.5 align-middle bg-gradient-to-br ${gemStyle.bg} border ${gemStyle.border}`} />
+                              {mat.name}
+                              {mat.unit && <span className="text-amber-200/50 ml-1">({mat.unit})</span>}
+                            </td>
+                            <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>
+                              {row.dlvrReqNo ? (
+                                <span className="inline-flex items-center gap-1">
+                                  <img src="/g2b.png" alt="나라장터 연계" className="h-3.5 w-3.5 rounded-full bg-white/90 p-[1px] object-contain" />
+                                  {row.dlvrReqNo}
+                                </span>
+                              ) : '-'}
+                            </td>
+                            <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>
+                              {mat.dlvrSupplier || '-'}
+                              {mat.dlvrSupplierTel && <span className="block text-[10px] text-amber-200/50">☎ {mat.dlvrSupplierTel}</span>}
+                            </td>
+                            <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{row.cndtn || '-'}</td>
+                            <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatDate(mat.dlvrDeadline || '') || '-'}</td>
+                            <td className="px-3 py-2 text-right text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{fmtAmt(row.prdctAmt)}</td>
+                            <td className="px-3 py-2 text-right text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{fmtAmt(row.feeAmt)}</td>
+                            <td className="px-3 py-2 text-right text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{fmtAmt(row.prdctAmt + row.feeAmt)}</td>
+                            <td className="px-2 py-2 text-center" style={{ border: '1px solid #3a3a45' }}>
+                              <button onClick={(e) => { e.stopPropagation(); handleDeleteMaterial(mat.id) }} className="p-1 text-amber-200/40 hover:text-red-400 transition-colors" title="계약(자재) 삭제">
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </React.Fragment>
                   ))}
-                  {contractRows.map((row, idx) => {
-                    const mat = row.mat
-                    const gemStyle = getMaterialGemStyle(mat.name, idx, mat.colorIndex)
-                    const title = row.dlvrReqNo ? dlvrTitles[row.dlvrReqNo] : ''
-                    return (
-                      <tr
-                        key={mat.id}
-                        className="cursor-pointer transition-colors"
-                        style={{ background: idx % 2 === 0 ? '#1a1a22' : '#22222a' }}
-                        onClick={() => setSelectedMaterialId(mat.id)}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 100%)' }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = idx % 2 === 0 ? '#1a1a22' : '#22222a' }}
-                      >
-                        <td className="px-2 py-2 text-center text-xs text-amber-100/70" style={{ border: '1px solid #3a3a45' }}>{idx + 1}</td>
-                        <td className="px-3 py-2 text-left text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45', minWidth: '200px' }}>
-                          {title || mat.name}
-                          {row.dlvrReqNo && title === undefined && (
-                            <Loader2 className="inline-block h-3 w-3 ml-1.5 animate-spin text-amber-200/40 align-middle" />
-                          )}
-                        </td>
-                        <td className="px-3 py-2 text-left text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>
-                          <span className={`inline-block w-2.5 h-2.5 rounded-sm mr-1.5 align-middle bg-gradient-to-br ${gemStyle.bg} border ${gemStyle.border}`} />
-                          {mat.name}
-                          {mat.unit && <span className="text-amber-200/50 ml-1">({mat.unit})</span>}
-                        </td>
-                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>
-                          {row.dlvrReqNo ? (
-                            <span className="inline-flex items-center gap-1">
-                              <img src="/g2b.png" alt="나라장터 연계" className="h-3.5 w-3.5 rounded-full bg-white/90 p-[1px] object-contain" />
-                              {row.dlvrReqNo}
-                            </span>
-                          ) : '-'}
-                        </td>
-                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>
-                          {mat.dlvrSupplier || '-'}
-                          {mat.dlvrSupplierTel && <span className="block text-[10px] text-amber-200/50">☎ {mat.dlvrSupplierTel}</span>}
-                        </td>
-                        <td className="px-3 py-2 text-center text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45' }}>{row.cndtn || '-'}</td>
-                        <td className="px-3 py-2 text-center text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{formatDate(mat.dlvrDeadline || '') || '-'}</td>
-                        <td className="px-3 py-2 text-right text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{fmtAmt(row.prdctAmt)}</td>
-                        <td className="px-3 py-2 text-right text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{fmtAmt(row.feeAmt)}</td>
-                        <td className="px-3 py-2 text-right text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>{fmtAmt(row.prdctAmt + row.feeAmt)}</td>
-                        <td className="px-2 py-2 text-center" style={{ border: '1px solid #3a3a45' }}>
-                          <button onClick={(e) => { e.stopPropagation(); handleDeleteMaterial(mat.id) }} className="p-1 text-amber-200/40 hover:text-red-400 transition-colors" title="계약(자재) 삭제">
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
                 </tbody>
               </table>
             </div>
