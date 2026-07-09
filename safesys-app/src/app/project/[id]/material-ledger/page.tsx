@@ -11,6 +11,7 @@ import SignaturePad from '@/components/ui/SignaturePad'
 import { downloadMaterialLedgerExcel } from '@/lib/excel/material-ledger-export'
 import { downloadMaterialContractStatusExcel, type MaterialContractRow } from '@/lib/excel/material-contract-status-export'
 import MaterialInspectionPhotoField, { materialInspectionPhotoStoragePath, MATERIAL_INSPECTION_PHOTO_BUCKET } from '@/components/project/material/MaterialInspectionPhotoField'
+import BulkInspectionAssign from '@/components/project/material/BulkInspectionAssign'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
 
 // ── 타입 ──
@@ -211,6 +212,11 @@ function calcG2bItemFee(items: G2bItem[], item: G2bItem): number {
   return Math.round(calcG2bFee(total) * (item.amt / total))
 }
 
+// 검수기록 이관 대상 판별 — 반입일·반입량·합격량·불출량 중 하나라도 값이 있는 "실적 행"
+function isActivityRow(r: MaterialRow): boolean {
+  return !!(r.receiveDate || r.receiveQty || r.passQtyCurrent || r.releaseQty)
+}
+
 // ── 컴포넌트 ──
 
 export default function MaterialLedgerPage() {
@@ -265,6 +271,10 @@ export default function MaterialLedgerPage() {
   const [bulkItems, setBulkItems] = useState<BulkDlvrItem[] | null>(null)
   const [bulkChecked, setBulkChecked] = useState<Set<string>>(new Set())
   const [bulkImporting, setBulkImporting] = useState(false)
+  // 일괄 조회 2단계 — 검수기록 이관 매핑 화면
+  const [bulkStep, setBulkStep] = useState<'list' | 'assign'>('list')
+  const [bulkDetails, setBulkDetails] = useState<G2bDlvrReq[]>([])
+  const [bulkDetailLoading, setBulkDetailLoading] = useState(false)
 
   // 지급자재 계약 현황 엑셀 다운로드
   const [contractExporting, setContractExporting] = useState(false)
@@ -728,6 +738,8 @@ export default function MaterialLedgerPage() {
     setBulkError('')
     setBulkItems(null)
     setBulkChecked(new Set())
+    setBulkStep('list')
+    setBulkDetails([])
     // 검색어 기본값 = 프로젝트명 (말미의 용역/공사 표기는 조달청 건명에 잘 안 붙어 제거)
     setBulkKeyword((project?.project_name || '').trim().replace(/(용역|공사)$/, ''))
     const today = new Date().toISOString().split('T')[0]
@@ -801,7 +813,7 @@ export default function MaterialLedgerPage() {
   }
 
   const handleBulkSearch = async (instParam?: string, range?: { from: string; to: string }) => {
-    if (bulkLoading || bulkImporting) return
+    if (bulkLoading || bulkImporting || bulkDetailLoading) return
     const inst = (instParam ?? bulkInst).trim()
     if (!inst) {
       setBulkError('수요기관명을 입력해주세요.')
@@ -872,7 +884,7 @@ export default function MaterialLedgerPage() {
       b.rcptDate.localeCompare(a.rcptDate))
 
   const handleBulkImport = async () => {
-    if (!bulkItems || bulkImporting || bulkLoading) return
+    if (!bulkItems || bulkImporting || bulkLoading || bulkDetailLoading) return
     const targets = bulkItems.filter(i => bulkChecked.has(i.dlvrReqNo) && !registeredDlvrNos.has(i.dlvrReqNo))
     if (targets.length === 0) return
     setBulkImporting(true)
@@ -913,6 +925,252 @@ export default function MaterialLedgerPage() {
       if (added.length > 0) alert(`조달청 납품요구 ${added.length}건을 자재로 등록했습니다.`)
     }
   }
+
+  // ── 조달청 일괄 조회 2단계 — 검수기록 이관 ──
+
+  // 선택 건들의 납품요구 상세를 동시 3개씩 조회한 뒤 매핑 화면으로 전환 (이 시점까지 DB 쓰기 없음)
+  const handleBulkDetailsFetch = async () => {
+    if (!bulkItems || bulkImporting || bulkLoading || bulkDetailLoading) return
+    const targets = bulkItems.filter(i => bulkChecked.has(i.dlvrReqNo) && !registeredDlvrNos.has(i.dlvrReqNo))
+    if (targets.length === 0) return
+    setBulkDetailLoading(true)
+    setBulkError('')
+    setBulkProgress({ done: 0, total: targets.length })
+    const collected: G2bDlvrReq[] = []
+    const failed: string[] = []
+    const queue = [...targets]
+    await Promise.all(Array.from({ length: 3 }, async () => {
+      while (queue.length > 0) {
+        const t = queue.shift()
+        if (!t) break
+        try {
+          const res = await fetch(`/api/g2b/dlvr-req?no=${encodeURIComponent(t.dlvrReqNo)}`)
+          const json = await res.json()
+          if (!res.ok || !json.success) throw new Error(json.error || '조회에 실패했습니다.')
+          collected.push(json.data as G2bDlvrReq)
+        } catch (err: unknown) {
+          console.error('납품요구 상세 조회 실패:', t.dlvrReqNo, err)
+          failed.push(t.dlvrReqNo)
+        } finally {
+          setBulkProgress(p => ({ ...p, done: p.done + 1 }))
+        }
+      }
+    }))
+    setBulkDetailLoading(false)
+    if (collected.length === 0) {
+      setBulkError(`상세 조회 실패 ${failed.length}건: ${failed.join(', ')}`)
+      return
+    }
+    // 조회 완료 순서가 선택 순서와 무관하므로 목록 표시 순서로 정렬
+    const orderMap = new Map(targets.map((t, i) => [t.dlvrReqNo, i]))
+    collected.sort((a, b) => (orderMap.get(a.dlvrReqNo) ?? 0) - (orderMap.get(b.dlvrReqNo) ?? 0))
+    setBulkDetails(collected)
+    setBulkError(failed.length > 0 ? `일부 상세 조회 실패 ${failed.length}건: ${failed.join(', ')}` : '')
+    setBulkStep('assign')
+  }
+
+  // 한 자재의 규격 그룹별 합격량 누계(pass_qty_total)를 created_at 순 pass_qty_current 누계로 재계산해 갱신.
+  // 수불부 표(2554행)가 저장값을 그대로 표시하므로 이관·재배치 후 필수.
+  const recalcPassTotalsForMaterial = async (materialId: string) => {
+    const { data, error: qErr } = await supabase
+      .from('material_ledger_entries')
+      .select('id, name_or_spec, pass_qty_current, pass_qty_total, created_at')
+      .eq('material_id', materialId)
+      .order('created_at', { ascending: true })
+    if (qErr) throw qErr
+    const runningBySpec = new Map<string, number>()
+    for (const r of data || []) {
+      const spec = r.name_or_spec || ''
+      const cur = r.pass_qty_current != null ? Number(r.pass_qty_current) : 0
+      const running = (runningBySpec.get(spec) || 0) + cur
+      runningBySpec.set(spec, running)
+      const desired = running > 0 ? running : null
+      const stored = r.pass_qty_total != null ? Number(r.pass_qty_total) : null
+      const same = (stored == null && desired == null) || (stored != null && desired != null && stored === desired)
+      if (!same) {
+        const { error: upErr } = await supabase
+          .from('material_ledger_entries')
+          .update({ pass_qty_total: desired })
+          .eq('id', r.id)
+        if (upErr) throw upErr
+      }
+    }
+  }
+
+  // 이관 적용 — 건별 자재+발주 행 신규 생성 후 배정된 기존 행을 새 자재로 UPDATE 재배치 (INSERT/DELETE 아님)
+  const handleBulkAssignApply = async (
+    assignments: { rowId: string; dlvrReqNo: string; sno: number }[],
+    deleteEmptied: boolean
+  ) => {
+    if (bulkImporting) return
+    setBulkImporting(true)
+    setBulkError('')
+    setBulkProgress({ done: 0, total: bulkDetails.length })
+
+    // 좌측 표시(평면) 순서 — 이관 행 created_at을 이 순서대로 부여
+    const eligible = materials.filter(m => !m.dlvrReqNo && m.rows.every(r => !r.dlvrReqNo))
+    const leftFlatOrder = new Map<string, number>()
+    let flatIdx = 0
+    for (const m of eligible) {
+      for (const r of m.rows) {
+        if (isActivityRow(r)) leftFlatOrder.set(r.id, flatIdx++)
+      }
+    }
+    // rowId → 원본 자재
+    const rowOwner = new Map<string, string>()
+    for (const m of materials) {
+      for (const r of m.rows) rowOwner.set(r.id, m.id)
+    }
+
+    // 배정을 납품요구번호별로 묶기
+    const byReq = new Map<string, { rowId: string; sno: number }[]>()
+    for (const a of assignments) {
+      const arr = byReq.get(a.dlvrReqNo) || []
+      arr.push({ rowId: a.rowId, sno: a.sno })
+      byReq.set(a.dlvrReqNo, arr)
+    }
+
+    const failed: string[] = []
+    const affectedOrigIds = new Set<string>()
+    const newMatIds: string[] = []
+    let registeredCount = 0
+    let movedCount = 0
+    let deletedCount = 0
+    let order = materials.length
+
+    for (const result of bulkDetails) {
+      try {
+        const items = result.items.filter(i => i.qty > 0)
+        if (items.length === 0) {
+          failed.push(`${result.dlvrReqNo} (유효 품목 없음)`)
+          continue
+        }
+        order += 1
+        const newMat = await insertMaterialFromDlvrReq(result, items, Math.floor(Math.random() * gemPalette.length), order)
+        registeredCount += 1
+        newMatIds.push(newMat.id)
+
+        const groupAssigns = byReq.get(result.dlvrReqNo) || []
+        if (groupAssigns.length > 0) {
+          // 새 자재 발주 행의 created_at 최댓값을 기준으로 이관 행을 그 뒤에 배치 (서버 시각 기준이라 시계 오차 무관)
+          const { data: baseRows } = await supabase
+            .from('material_ledger_entries')
+            .select('created_at')
+            .eq('material_id', newMat.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+          const baseTs = baseRows?.[0]?.created_at ? new Date(baseRows[0].created_at).getTime() : Date.now()
+          const ordered = [...groupAssigns].sort((a, b) => (leftFlatOrder.get(a.rowId) ?? 0) - (leftFlatOrder.get(b.rowId) ?? 0))
+          let k = 0
+          for (const asg of ordered) {
+            const item = result.items.find(i => i.sno === asg.sno)
+            if (!item) {
+              failed.push(`${result.dlvrReqNo} 품목#${asg.sno} (품목 없음)`)
+              continue
+            }
+            const origId = rowOwner.get(asg.rowId)
+            if (origId) affectedOrigIds.add(origId)
+            k += 1
+            const createdAt = new Date(baseTs + k * 1000).toISOString()
+            const { error: upErr } = await supabase
+              .from('material_ledger_entries')
+              .update({
+                material_id: newMat.id,
+                name_or_spec: formatG2bSpec(item),
+                order_qty: null,
+                dlvr_req_no: result.dlvrReqNo,
+                dlvr_req_prdct_sno: item.sno,
+                created_at: createdAt,
+              })
+              .eq('id', asg.rowId)
+            if (upErr) {
+              console.error('행 이관 실패:', asg.rowId, upErr)
+              failed.push(`${result.dlvrReqNo} 행 이관 실패`)
+              continue
+            }
+            movedCount += 1
+          }
+        }
+      } catch (err: unknown) {
+        console.error('이관 등록 실패:', result.dlvrReqNo, err)
+        failed.push(result.dlvrReqNo)
+      } finally {
+        setBulkProgress(p => ({ ...p, done: p.done + 1 }))
+      }
+    }
+
+    // 합격량 누계 재계산 — 새 자재 + 부분 이관/삭제 해제로 남는 원본 자재
+    for (const mid of new Set<string>([...newMatIds, ...affectedOrigIds])) {
+      try {
+        await recalcPassTotalsForMaterial(mid)
+      } catch (err: unknown) {
+        console.error('합격 누계 재계산 실패:', mid, err)
+      }
+    }
+
+    // 빈 수기 자재 삭제 — 삭제 직전 남은 행 수를 재확인해 0건일 때만 (CASCADE 오삭제 방지)
+    if (deleteEmptied) {
+      for (const origId of affectedOrigIds) {
+        try {
+          const { count, error: cErr } = await supabase
+            .from('material_ledger_entries')
+            .select('id', { count: 'exact', head: true })
+            .eq('material_id', origId)
+          if (cErr) throw cErr
+          if ((count ?? 0) === 0) {
+            const { error: delErr } = await supabase.from('materials').delete().eq('id', origId)
+            if (delErr) throw delErr
+            deletedCount += 1
+          }
+        } catch (err: unknown) {
+          console.error('빈 자재 삭제 실패:', origId, err)
+        }
+      }
+    }
+
+    await loadData()
+    setBulkImporting(false)
+    setIsBulkModalOpen(false)
+    const summary = `등록 ${registeredCount}건 · 이관 ${movedCount}행` + (deletedCount > 0 ? ` · 삭제 ${deletedCount}자재` : '')
+    if (failed.length > 0) {
+      setBulkError(`일부 실패 ${failed.length}건: ${failed.join(', ')}`)
+      alert(`${summary}\n실패 ${failed.length}건: ${failed.join(', ')}`)
+    } else {
+      alert(summary)
+    }
+  }
+
+  // 이관 매핑 화면 좌측 — 미연계 수기 자재의 실적 행만 평면화
+  const assignLeftRows = materials
+    .filter(m => !m.dlvrReqNo && m.rows.every(r => !r.dlvrReqNo))
+    .flatMap(m => m.rows.filter(isActivityRow).map(r => ({
+      rowId: r.id,
+      materialId: m.id,
+      materialName: m.name,
+      unit: m.unit || '',
+      spec: stripDupItemName(r.nameOrSpec || '', m.name) || (r.nameOrSpec || ''),
+      orderQty: r.orderQty || '',
+      receiveDate: r.receiveDate || '',
+      receiveQty: r.receiveQty || '',
+      passQty: r.passQtyCurrent || '',
+      releaseQty: r.releaseQty || '',
+    })))
+
+  // 이관 매핑 화면 우측 — 선택 건의 품목 (qty 0 품목 제외)
+  const assignRightItems = bulkDetails.flatMap(req => {
+    const maxDeadline = req.items.reduce((mx, i) => (i.deadline > mx ? i.deadline : mx), '')
+    return req.items.filter(i => i.qty > 0).map(i => ({
+      dlvrReqNo: req.dlvrReqNo,
+      title: req.title,
+      deadline: maxDeadline,
+      sno: i.sno,
+      name: i.name,
+      spec: formatG2bSpec(i),
+      unit: i.unit || '',
+      qty: i.qty,
+      unitPrice: i.unitPrice,
+    }))
+  })
 
   // ── 지급자재 계약 현황 엑셀 다운로드 ──
 
@@ -4408,9 +4666,9 @@ export default function MaterialLedgerPage() {
 
       {/* 조달청 일괄 조회 모달 - 디아블로 스타일 */}
       {isBulkModalOpen && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => { if (!bulkImporting && !bulkLoading) setIsBulkModalOpen(false) }}>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => { if (!bulkImporting && !bulkLoading && !bulkDetailLoading && bulkStep === 'list') setIsBulkModalOpen(false) }}>
           <div
-            className="max-w-2xl w-full rounded-lg overflow-hidden max-h-[90vh] flex flex-col"
+            className={`${bulkStep === 'assign' ? 'max-w-5xl' : 'max-w-2xl'} w-full rounded-lg overflow-hidden max-h-[90vh] flex flex-col`}
             onClick={e => e.stopPropagation()}
             style={{
               background: 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 50%, #12121a 100%)',
@@ -4428,16 +4686,18 @@ export default function MaterialLedgerPage() {
               borderBottom: '2px solid #5a4a35'
             }}>
               <h3 className="text-base font-bold text-amber-100" style={{ fontFamily: 'serif', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-                ⚔ 조달청 지급자재 일괄 조회
+                {bulkStep === 'assign' ? '⚒ 검수기록 이관 — 납품요구 품목 배정' : '⚔ 조달청 지급자재 일괄 조회'}
               </h3>
               <button
-                onClick={() => { if (!bulkImporting && !bulkLoading) setIsBulkModalOpen(false) }}
+                onClick={() => { if (!bulkImporting && !bulkLoading && !bulkDetailLoading) setIsBulkModalOpen(false) }}
                 className="p-1 text-amber-200/50 hover:text-amber-200 transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
+            {bulkStep === 'list' ? (
+            <>
             {/* 본문 */}
             <div className="px-5 py-4 space-y-3 overflow-y-auto">
               <div>
@@ -4509,7 +4769,7 @@ export default function MaterialLedgerPage() {
                 <button
                   type="button"
                   onClick={() => handleBulkSearch()}
-                  disabled={bulkLoading || bulkImporting}
+                  disabled={bulkLoading || bulkImporting || bulkDetailLoading}
                   className="h-10 px-5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100 shrink-0 w-full sm:w-auto"
                   style={{
                     background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
@@ -4648,13 +4908,13 @@ export default function MaterialLedgerPage() {
             </div>
 
             {/* 하단 버튼 */}
-            <div className="flex gap-3 px-5 py-4 flex-shrink-0" style={{
+            <div className="flex flex-wrap gap-3 px-5 py-4 flex-shrink-0" style={{
               background: 'linear-gradient(180deg, #2a2520 0%, #1a1510 100%)',
               borderTop: '2px solid #5a4a35'
             }}>
               <button
-                onClick={() => { if (!bulkImporting && !bulkLoading) setIsBulkModalOpen(false) }}
-                disabled={bulkImporting || bulkLoading}
+                onClick={() => { if (!bulkImporting && !bulkLoading && !bulkDetailLoading) setIsBulkModalOpen(false) }}
+                disabled={bulkImporting || bulkLoading || bulkDetailLoading}
                 className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
                 style={{
                   background: 'linear-gradient(180deg, #3a3a45 0%, #25252d 100%)',
@@ -4668,30 +4928,62 @@ export default function MaterialLedgerPage() {
               </button>
               {(() => {
                 const selectedCount = [...bulkChecked].filter(no => !registeredDlvrNos.has(no)).length
-                const canImport = selectedCount > 0 && !bulkImporting && !bulkLoading
+                const canAct = selectedCount > 0 && !bulkImporting && !bulkLoading && !bulkDetailLoading
                 return (
-                  <button
-                    onClick={handleBulkImport}
-                    disabled={!canImport}
-                    className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
-                    style={{
-                      background: canImport
-                        ? 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)'
-                        : 'linear-gradient(180deg, #3a3a40 0%, #25252a 100%)',
-                      border: '2px solid #6a5a40',
-                      borderRadius: '6px',
-                      color: '#f5d78e',
-                      boxShadow: canImport ? '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)' : 'none',
-                      fontFamily: 'serif'
-                    }}
-                  >
-                    {bulkImporting
-                      ? <span className="inline-flex items-center justify-center gap-1.5"><Loader2 className="h-4 w-4 animate-spin" />{bulkProgress.done}/{bulkProgress.total}건 등록 중</span>
-                      : `⚔ 선택 건 등록${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
-                  </button>
+                  <>
+                    <button
+                      onClick={handleBulkImport}
+                      disabled={!canAct}
+                      className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                      style={{
+                        background: canAct
+                          ? 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)'
+                          : 'linear-gradient(180deg, #3a3a40 0%, #25252a 100%)',
+                        border: '2px solid #6a5a40',
+                        borderRadius: '6px',
+                        color: '#f5d78e',
+                        boxShadow: canAct ? '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)' : 'none',
+                        fontFamily: 'serif'
+                      }}
+                    >
+                      {bulkImporting
+                        ? <span className="inline-flex items-center justify-center gap-1.5"><Loader2 className="h-4 w-4 animate-spin" />{bulkProgress.done}/{bulkProgress.total}건 등록 중</span>
+                        : `⚔ 선택 건 등록${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
+                    </button>
+                    <button
+                      onClick={handleBulkDetailsFetch}
+                      disabled={!canAct}
+                      className="flex-1 px-4 py-2.5 text-sm font-medium transition-all hover:scale-105 disabled:opacity-50 disabled:hover:scale-100"
+                      style={{
+                        background: canAct
+                          ? 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)'
+                          : 'linear-gradient(180deg, #3a3a40 0%, #25252a 100%)',
+                        border: '2px solid #6a5a40',
+                        borderRadius: '6px',
+                        color: '#f5d78e',
+                        boxShadow: canAct ? '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)' : 'none',
+                        fontFamily: 'serif'
+                      }}
+                      title="선택 건을 등록하고, 미연계 수기 자재의 검수 기록을 드래그앤드랍으로 이관합니다."
+                    >
+                      {bulkDetailLoading
+                        ? <span className="inline-flex items-center justify-center gap-1.5"><Loader2 className="h-4 w-4 animate-spin" />{bulkProgress.done}/{bulkProgress.total} 조회 중</span>
+                        : `⚒ 등록 + 검수기록 이관${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
+                    </button>
+                  </>
                 )
               })()}
             </div>
+            </>
+            ) : (
+              <BulkInspectionAssign
+                leftRows={assignLeftRows}
+                rightItems={assignRightItems}
+                applying={bulkImporting}
+                onBack={() => setBulkStep('list')}
+                onApply={handleBulkAssignApply}
+              />
+            )}
 
             <div className="h-2 bg-gradient-to-r from-amber-900 via-amber-600 to-amber-900 flex-shrink-0" style={{
               boxShadow: 'inset 0 1px 0 rgba(255,215,0,0.3), inset 0 -1px 0 rgba(0,0,0,0.5)'
