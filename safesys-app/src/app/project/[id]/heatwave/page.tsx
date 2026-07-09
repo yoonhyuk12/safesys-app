@@ -145,6 +145,9 @@ export default function HeatWaveCheckPage() {
   const [isBulkDownloading, setIsBulkDownloading] = useState(false)
   const [isBulkRegisterMode, setIsBulkRegisterMode] = useState(false)
   const [selectedRegisterDates, setSelectedRegisterDates] = useState<Set<string>>(new Set())
+  const [isBulkDeleteMode, setIsBulkDeleteMode] = useState(false)
+  const [selectedDeleteDates, setSelectedDeleteDates] = useState<Set<string>>(new Set())
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
   const [isBulkRegisterModalOpen, setIsBulkRegisterModalOpen] = useState(false)
   const [isBulkRegistering, setIsBulkRegistering] = useState(false)
   const [bulkRegisterProgress, setBulkRegisterProgress] = useState('')
@@ -660,6 +663,48 @@ export default function HeatWaveCheckPage() {
       alert('삭제 중 오류가 발생했습니다.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  // 캘린더 삭제 모드: 선택된 날짜들의 폭염 점검 기록을 일괄 삭제
+  const handleBulkDeleteByDates = async () => {
+    if (selectedDeleteDates.size === 0) return
+
+    const targetIds = heatwaveChecks
+      .filter(check => selectedDeleteDates.has(String(check.check_time).split('T')[0]))
+      .map(check => check.id)
+
+    if (targetIds.length === 0) {
+      alert('선택한 날짜에 삭제할 점검 기록이 없습니다.')
+      return
+    }
+
+    if (!confirm(`선택한 ${selectedDeleteDates.size}개 날짜의 점검 기록 ${targetIds.length}건을 삭제하시겠습니까?`)) {
+      return
+    }
+
+    try {
+      setIsBulkDeleting(true)
+      const { error } = await supabase
+        .from('heat_wave_checks')
+        .delete()
+        .in('id', targetIds)
+
+      if (error) {
+        console.error('일괄 삭제 오류:', error)
+        alert('삭제 중 오류가 발생했습니다.')
+        return
+      }
+
+      setSelectedDeleteDates(new Set())
+      setIsBulkDeleteMode(false)
+      await loadHeatwaveChecks()
+      alert(`${targetIds.length}건의 점검 기록이 삭제되었습니다.`)
+    } catch (error) {
+      console.error('일괄 삭제 중 오류:', error)
+      alert('삭제 중 오류가 발생했습니다.')
+    } finally {
+      setIsBulkDeleting(false)
     }
   }
 
@@ -1532,6 +1577,52 @@ export default function HeatWaveCheckPage() {
                     
                     {/* 일괄 등록·다운로드 버튼 */}
                     <div className="flex items-center space-x-2">
+                      {/* 삭제 모드 토글 (활성 시 일괄 등록·다운로드 버튼 숨김) */}
+                      <button
+                        onClick={() => {
+                          const next = !isBulkDeleteMode
+                          setIsBulkDeleteMode(next)
+                          setSelectedDeleteDates(new Set())
+                          if (next) {
+                            setIsBulkRegisterMode(false)
+                            setSelectedRegisterDates(new Set())
+                            setIsBulkDownloadMode(false)
+                            setSelectedDates(new Set())
+                          }
+                        }}
+                        className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isBulkDeleteMode
+                            ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                            : 'bg-gray-100 text-gray-600 hover:bg-red-100 hover:text-red-600'
+                        }`}
+                        title={isBulkDeleteMode ? '삭제 모드 종료' : '삭제할 날짜를 선택해 점검 기록 일괄 삭제'}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {isBulkDeleteMode && <span className="ml-1">취소</span>}
+                      </button>
+
+                      {isBulkDeleteMode && selectedDeleteDates.size > 0 && (
+                        <button
+                          onClick={handleBulkDeleteByDates}
+                          disabled={isBulkDeleting}
+                          className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                            isBulkDeleting
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-red-600 text-white hover:bg-red-700'
+                          }`}
+                          title={`선택된 ${selectedDeleteDates.size}개 날짜 삭제`}
+                        >
+                          {isBulkDeleting ? (
+                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-1" />
+                          ) : (
+                            <Trash2 className="h-4 w-4 mr-1" />
+                          )}
+                          {isBulkDeleting ? '삭제중' : `삭제(${selectedDeleteDates.size})`}
+                        </button>
+                      )}
+
+                      {!isBulkDeleteMode && (
+                      <>
                       {/* 일괄 등록 토글 (일괄 다운로드와 상호 배타) */}
                       <button
                         onClick={() => {
@@ -1604,9 +1695,11 @@ export default function HeatWaveCheckPage() {
                           {isBulkDownloading ? '생성중' : `다운로드(${selectedDates.size})`}
                         </button>
                       )}
+                      </>
+                      )}
                     </div>
                   </div>
-                  
+
                   {/* 달력 */}
                   <div className="bg-gray-50 rounded-lg p-4 flex-1">
                     {/* 달력 헤더 */}
@@ -1678,8 +1771,18 @@ export default function HeatWaveCheckPage() {
                             <div
                               key={day}
                               onClick={() => {
-                                if (isBulkRegisterMode) {
-                                  // 일괄 등록 모드(최우선): 오늘 이하 날짜만 다중 선택 (미래는 관측값 없음)
+                                if (isBulkDeleteMode) {
+                                  // 삭제 모드(최우선): 점검 기록이 있는 날짜만 다중 선택
+                                  if (!hasChecks) return
+                                  const next = new Set(selectedDeleteDates)
+                                  if (next.has(dateStr)) {
+                                    next.delete(dateStr)
+                                  } else {
+                                    next.add(dateStr)
+                                  }
+                                  setSelectedDeleteDates(next)
+                                } else if (isBulkRegisterMode) {
+                                  // 일괄 등록 모드: 오늘 이하 날짜만 다중 선택 (미래는 관측값 없음)
                                   if (dateStr > todayStr) return
                                   const next = new Set(selectedRegisterDates)
                                   if (next.has(dateStr)) {
@@ -1711,7 +1814,13 @@ export default function HeatWaveCheckPage() {
                                 }
                               }}
                               className={`p-2 rounded cursor-pointer transition-colors relative ${
-                                isBulkRegisterMode
+                                isBulkDeleteMode
+                                  ? (selectedDeleteDates.has(dateStr)
+                                      ? 'bg-red-200 text-red-900 font-bold ring-2 ring-red-500'
+                                      : hasChecks
+                                        ? 'bg-green-100 text-green-800 font-medium hover:bg-red-100'
+                                        : 'opacity-50 cursor-not-allowed')
+                                  : isBulkRegisterMode
                                   ? (selectedRegisterDates.has(dateStr)
                                       ? 'bg-amber-200 text-amber-900 font-bold ring-2 ring-amber-500'
                                       : dateStr > todayStr
@@ -1730,7 +1839,11 @@ export default function HeatWaveCheckPage() {
                                           : 'hover:bg-blue-100'
                               }`}
                               title={
-                                isBulkRegisterMode
+                                isBulkDeleteMode
+                                  ? (hasChecks
+                                      ? (selectedDeleteDates.has(dateStr) ? '선택 해제' : '선택하여 삭제에 포함')
+                                      : '점검 기록이 없는 날짜')
+                                  : isBulkRegisterMode
                                   ? (dateStr > todayStr
                                       ? '미래 날짜는 등록할 수 없습니다'
                                       : (selectedRegisterDates.has(dateStr) ? '선택 해제' : '선택하여 일괄 등록에 포함'))
@@ -1752,6 +1865,11 @@ export default function HeatWaveCheckPage() {
                               )}
                               {isBulkRegisterMode && selectedRegisterDates.has(dateStr) && (
                                 <div className="absolute top-0 right-0 w-4 h-4 bg-amber-600 rounded-full flex items-center justify-center">
+                                  <span className="text-white text-xs">✓</span>
+                                </div>
+                              )}
+                              {isBulkDeleteMode && selectedDeleteDates.has(dateStr) && (
+                                <div className="absolute top-0 right-0 w-4 h-4 bg-red-600 rounded-full flex items-center justify-center">
                                   <span className="text-white text-xs">✓</span>
                                 </div>
                               )}
