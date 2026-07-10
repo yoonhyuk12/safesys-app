@@ -58,7 +58,12 @@ function buildEmptyRowHtml(): string {
   return `<tr>${Array(20).fill(0).map(() => `<td style="${CELL} height: 30px;">&nbsp;</td>`).join('')}</tr>`
 }
 
-function buildPageHtml(record: QualityMonthlyReportRecord, rowsForPage: QualityMonthlyReportRow[]): string {
+function buildPageHtml(
+  record: QualityMonthlyReportRecord,
+  rowsForPage: QualityMonthlyReportRow[],
+  pageIndex: number,
+  totalPages: number
+): string {
   const nextMonth = record.report_month === 12 ? 1 : record.report_month + 1
   const dataRows = rowsForPage.map(buildDataRowHtml).join('')
   const emptyRows = Array(Math.max(0, ROWS_PER_PAGE - rowsForPage.length))
@@ -66,21 +71,34 @@ function buildPageHtml(record: QualityMonthlyReportRecord, rowsForPage: QualityM
     .map(buildEmptyRowHtml)
     .join('')
 
-  return `
-    <div style="width: 100%; font-family: 'Malgun Gothic', '맑은 고딕', Arial, sans-serif; color: #000;">
-      <div style="font-size: 11px;">(公社시험업무지침 별지 제3호서식)</div>
-      <div style="text-align: center; margin: 4px 0 2px;">
-        <span style="display: inline-block; font-size: 26px; font-weight: 900; border-bottom: 3px double #000; padding: 0 10px 2px;">
-          이번 월 품질시험 실적 및 다음월 시공계획
-        </span>
-      </div>
-      <div style="text-align: center; font-size: 12px;">(지침 제15조 관련)</div>
+  // 서명란(작성자/확인자)은 첫 페이지에만 표시
+  const signatureBlock =
+    pageIndex === 0
+      ? `
       <div style="display: flex; justify-content: flex-end; margin-top: 2px;">
         <div style="font-size: 13px; text-align: left; line-height: 1.5;">
           <div>작성자 : ${escapeHtml(record.author_name) || '&nbsp;'} &nbsp;(인)</div>
           <div>확인자 : ${escapeHtml(record.confirmer_name) || '&nbsp;'} &nbsp;(인)</div>
         </div>
+      </div>`
+      : ''
+
+  // 2페이지 이상일 때만 페이지 하단 가운데에 페이지 번호 표시
+  const pageIndicator =
+    totalPages > 1
+      ? `<div style="position: absolute; bottom: 0; left: 0; right: 0; text-align: center; font-size: 11px;">- ${pageIndex + 1} / ${totalPages} -</div>`
+      : ''
+
+  return `
+    <div style="width: 100%; position: relative; min-height: 190mm; font-family: 'Malgun Gothic', '맑은 고딕', Arial, sans-serif; color: #000;">
+      <div style="font-size: 11px;">(公社시험업무지침 별지 제3호서식)</div>
+      <div style="text-align: center; margin: 4px 0 2px;">
+        <span style="display: inline-block; font-size: 26px; font-weight: 900; border-bottom: 3px double #000; padding: 0 10px 2px;">
+          ${record.report_year}년 ${record.report_month}월 품질시험 실적 및 다음월 시공계획
+        </span>
       </div>
+      <div style="text-align: center; font-size: 12px;">(지침 제15조 관련)</div>
+      ${signatureBlock}
       <div style="font-size: 14px; font-weight: bold; margin: 0 0 4px;">지구명 : ${escapeHtml(record.district_name)}</div>
 
       <table style="width: 100%; border-collapse: collapse; border: 2px solid #000; table-layout: fixed;">
@@ -135,8 +153,35 @@ function buildPageHtml(record: QualityMonthlyReportRecord, rowsForPage: QualityM
         <div>&nbsp;② 지침 제17조 내지 제21조에 의한 확인시험 회수로서 제17조에 의한 시험은 전문기관 확인란에 기입하고, 제18조 내지 제21조에 의한 시험은 기타확인란에 기입할 것.</div>
         <div>&nbsp;③ 시공잔량 = 년시공계획 - 이번 월까지 시공누계</div>
       </div>
+      ${pageIndicator}
     </div>
   `
+}
+
+// 셀 폭 때문에 자동 줄바꿈되는 텍스트를 한 줄로 맞춤 — 글자 크기를 줄이고, 그래도 넘치면 장평(가로 스케일)을 줄인다.
+// 명시적 <br/> 줄바꿈(시험항목 등)은 그대로 유지되고, 각 줄의 최대 폭 기준으로 맞춘다.
+function fitCellTextToOneLine(container: HTMLElement): void {
+  const MIN_FONT_PX = 7
+  container.querySelectorAll<HTMLElement>('th, td').forEach((cell) => {
+    cell.style.whiteSpace = 'nowrap'
+    const style = window.getComputedStyle(cell)
+    const available = cell.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+    if (available <= 0) return
+    // 내용 폭을 정확히 재기 위해 자식들을 인라인 블록 span으로 감싼다
+    const inner = document.createElement('span')
+    inner.style.display = 'inline-block'
+    while (cell.firstChild) inner.appendChild(cell.firstChild)
+    cell.appendChild(inner)
+    let size = parseFloat(style.fontSize) || 12
+    while (inner.offsetWidth > available && size > MIN_FONT_PX) {
+      size -= 0.5
+      cell.style.fontSize = `${size}px`
+    }
+    if (inner.offsetWidth > available) {
+      inner.style.transform = `scaleX(${available / inner.offsetWidth})`
+      inner.style.transformOrigin = 'left center'
+    }
+  })
 }
 
 // 월례보고서 1건을 A4 가로 PDF로 다운로드. 행이 많으면 페이지 자동 분할.
@@ -167,8 +212,9 @@ export async function downloadQualityMonthlyReportPdf(
       container.style.boxSizing = 'border-box'
       container.style.position = 'absolute'
       container.style.left = '-9999px'
-      container.innerHTML = buildPageHtml(record, pages[pageIndex])
+      container.innerHTML = buildPageHtml(record, pages[pageIndex], pageIndex, pages.length)
       document.body.appendChild(container)
+      fitCellTextToOneLine(container)
 
       try {
         const canvas = await html2canvas(container, {
