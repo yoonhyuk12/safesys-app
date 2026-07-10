@@ -33,18 +33,20 @@ const CONCRETE_VOLUME_PER_TEST = 120
 const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm text-gray-900'
 const TH_CLASS = 'border border-gray-300 bg-gray-100 px-1.5 py-1.5 text-xs font-semibold text-gray-700 whitespace-nowrap'
 const TD_CLASS = 'border border-gray-300 px-1 py-1'
-const CALC_TD_CLASS = 'border border-gray-300 px-1.5 py-1 bg-blue-50 text-sm text-blue-900 text-center whitespace-nowrap'
+const CALC_TD_CLASS = 'border border-gray-300 px-1.5 py-1 bg-blue-50 text-sm text-blue-900 text-right whitespace-nowrap'
 
 // 입력값 폭에 맞춰 늘어나는 인풋 — 같은 서체의 투명 사이저를 겹쳐 컬럼 폭이 데이터 최대폭을 따라가게 함
 function SizedInput({
   value,
   minWidthClass,
+  alignRight,
   onChange,
   onFocus,
   onBlur,
 }: {
   value: string
   minWidthClass: string
+  alignRight?: boolean // 숫자 컬럼은 우측 정렬
   onChange: (value: string) => void
   onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void
   onBlur?: () => void
@@ -61,7 +63,7 @@ function SizedInput({
         onChange={(e) => onChange(e.target.value)}
         onFocus={onFocus}
         onBlur={onBlur}
-        className={`${INPUT_CLASS} col-start-1 row-start-1`}
+        className={`${INPUT_CLASS} col-start-1 row-start-1${alignRight ? ' text-right' : ''}`}
       />
     </div>
   )
@@ -232,9 +234,9 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
               <th rowSpan={2} className={`${TH_CLASS} bg-amber-50`}>품질시험①</th>
               <th colSpan={3} className={`${TH_CLASS} bg-amber-50`}>확인시험②</th>
               <th rowSpan={2} className={TH_CLASS}>시공물량</th>
-              <th rowSpan={2} className={TH_CLASS}>품질시험</th>
-              <th rowSpan={2} className={TH_CLASS}>전문기관</th>
-              <th rowSpan={2} className={TH_CLASS}>기타확인</th>
+              <th rowSpan={2} className={TH_CLASS}>계(①+②)</th>
+              <th rowSpan={2} className={TH_CLASS}>품질시험①</th>
+              <th colSpan={3} className={TH_CLASS}>확인시험②</th>
               <th rowSpan={2} className={`${TH_CLASS} bg-blue-100`}>누계물량</th>
               <th rowSpan={2} className={`${TH_CLASS} bg-blue-100`}>시험 계</th>
               <th rowSpan={2} className={`${TH_CLASS} bg-blue-100`}>시공잔량</th>
@@ -243,12 +245,15 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
               <th className={`${TH_CLASS} bg-amber-50`}>소계</th>
               <th className={`${TH_CLASS} bg-amber-50`}>전문기관</th>
               <th className={`${TH_CLASS} bg-amber-50`}>기타확인</th>
+              <th className={TH_CLASS}>소계</th>
+              <th className={TH_CLASS}>전문기관</th>
+              <th className={TH_CLASS}>기타확인</th>
             </tr>
           </thead>
           <tbody>
             {formData.report_rows.length === 0 && (
               <tr>
-                <td colSpan={19} className="border border-gray-300 px-3 py-6 text-center text-sm text-gray-400">
+                <td colSpan={21} className="border border-gray-300 px-3 py-6 text-center text-sm text-gray-400">
                   행 추가 버튼으로 공종/시험항목을 등록해주세요.
                 </td>
               </tr>
@@ -293,39 +298,41 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                     </button>
                   </td>
                   <td className={TD_CLASS}>
-                    <SizedInput value={row.yearlyPlan} minWidthClass="min-w-20" onChange={(v) => updateRow(index, 'yearlyPlan', v)} />
+                    <SizedInput value={row.yearlyPlan} minWidthClass="min-w-20" alignRight onChange={(v) => updateRow(index, 'yearlyPlan', v)} />
                   </td>
                   <td className={TD_CLASS}>
-                    <SizedInput value={row.yearlyPlanCount} minWidthClass="min-w-16" onChange={(v) => updateRow(index, 'yearlyPlanCount', v)} />
+                    <SizedInput value={row.yearlyPlanCount} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'yearlyPlanCount', v)} />
                   </td>
                   <td className={`${TD_CLASS} bg-amber-50/50`}>
-                    <SizedInput value={row.monthVolume} minWidthClass="min-w-20" onChange={(v) => updateRow(index, 'monthVolume', v)} />
+                    <SizedInput value={row.monthVolume} minWidthClass="min-w-20" alignRight onChange={(v) => updateRow(index, 'monthVolume', v)} />
                   </td>
                   <td className={CALC_TD_CLASS}>{formatNum(d.monthTotal) || '-'}</td>
                   <td className={`${TD_CLASS} bg-amber-50/50`}>
-                    <SizedInput value={row.monthQualityTest} minWidthClass="min-w-16" onChange={(v) => updateRow(index, 'monthQualityTest', v)} />
+                    <SizedInput value={row.monthQualityTest} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'monthQualityTest', v)} />
                   </td>
                   <td className={CALC_TD_CLASS}>{formatNum(d.monthConfirmSubtotal) || '-'}</td>
                   <td className={`${TD_CLASS} bg-amber-50/50`}>
-                    <SizedInput value={row.monthExpertConfirm} minWidthClass="min-w-16" onChange={(v) => updateRow(index, 'monthExpertConfirm', v)} />
+                    <SizedInput value={row.monthExpertConfirm} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'monthExpertConfirm', v)} />
                   </td>
                   <td className={`${TD_CLASS} bg-amber-50/50`}>
-                    <SizedInput value={row.monthOtherConfirm} minWidthClass="min-w-16" onChange={(v) => updateRow(index, 'monthOtherConfirm', v)} />
+                    <SizedInput value={row.monthOtherConfirm} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'monthOtherConfirm', v)} />
                   </td>
                   <td className={TD_CLASS}>
-                    <SizedInput value={row.prevCumulVolume} minWidthClass="min-w-20" onChange={(v) => updateRow(index, 'prevCumulVolume', v)} />
+                    <SizedInput value={row.prevCumulVolume} minWidthClass="min-w-20" alignRight onChange={(v) => updateRow(index, 'prevCumulVolume', v)} />
+                  </td>
+                  <td className={CALC_TD_CLASS}>{formatNum(d.prevTotal) || '-'}</td>
+                  <td className={TD_CLASS}>
+                    <SizedInput value={row.prevCumulQualityTest} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'prevCumulQualityTest', v)} />
+                  </td>
+                  <td className={CALC_TD_CLASS}>{formatNum(d.prevConfirmSubtotal) || '-'}</td>
+                  <td className={TD_CLASS}>
+                    <SizedInput value={row.prevCumulExpertConfirm} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'prevCumulExpertConfirm', v)} />
                   </td>
                   <td className={TD_CLASS}>
-                    <SizedInput value={row.prevCumulQualityTest} minWidthClass="min-w-16" onChange={(v) => updateRow(index, 'prevCumulQualityTest', v)} />
+                    <SizedInput value={row.prevCumulOtherConfirm} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'prevCumulOtherConfirm', v)} />
                   </td>
                   <td className={TD_CLASS}>
-                    <SizedInput value={row.prevCumulExpertConfirm} minWidthClass="min-w-16" onChange={(v) => updateRow(index, 'prevCumulExpertConfirm', v)} />
-                  </td>
-                  <td className={TD_CLASS}>
-                    <SizedInput value={row.prevCumulOtherConfirm} minWidthClass="min-w-16" onChange={(v) => updateRow(index, 'prevCumulOtherConfirm', v)} />
-                  </td>
-                  <td className={TD_CLASS}>
-                    <SizedInput value={row.nextMonthPlan} minWidthClass="min-w-20" onChange={(v) => updateRow(index, 'nextMonthPlan', v)} />
+                    <SizedInput value={row.nextMonthPlan} minWidthClass="min-w-20" alignRight onChange={(v) => updateRow(index, 'nextMonthPlan', v)} />
                   </td>
                   <td className={CALC_TD_CLASS}>{formatNum(d.cumulVolume) || '-'}</td>
                   <td className={CALC_TD_CLASS}>{formatNum(d.cumulTotal) || '-'}</td>

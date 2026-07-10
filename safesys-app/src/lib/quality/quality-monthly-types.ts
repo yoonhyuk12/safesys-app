@@ -77,6 +77,8 @@ export function formatNum(value: number | null): string {
 export interface QualityMonthlyRowDerived {
   monthConfirmSubtotal: number | null
   monthTotal: number | null
+  prevConfirmSubtotal: number | null
+  prevTotal: number | null
   cumulVolume: number | null
   cumulQualityTest: number | null
   cumulExpertConfirm: number | null
@@ -89,6 +91,8 @@ export interface QualityMonthlyRowDerived {
 export function deriveRow(row: QualityMonthlyReportRow): QualityMonthlyRowDerived {
   const monthConfirmSubtotal = sumNums(parseNum(row.monthExpertConfirm), parseNum(row.monthOtherConfirm))
   const monthTotal = sumNums(parseNum(row.monthQualityTest), monthConfirmSubtotal)
+  const prevConfirmSubtotal = sumNums(parseNum(row.prevCumulExpertConfirm), parseNum(row.prevCumulOtherConfirm))
+  const prevTotal = sumNums(parseNum(row.prevCumulQualityTest), prevConfirmSubtotal)
   const cumulVolume = sumNums(parseNum(row.prevCumulVolume), parseNum(row.monthVolume))
   const cumulQualityTest = sumNums(parseNum(row.prevCumulQualityTest), parseNum(row.monthQualityTest))
   const cumulExpertConfirm = sumNums(parseNum(row.prevCumulExpertConfirm), parseNum(row.monthExpertConfirm))
@@ -100,6 +104,8 @@ export function deriveRow(row: QualityMonthlyReportRow): QualityMonthlyRowDerive
   return {
     monthConfirmSubtotal,
     monthTotal,
+    prevConfirmSubtotal,
+    prevTotal,
     cumulVolume,
     cumulQualityTest,
     cumulExpertConfirm,
