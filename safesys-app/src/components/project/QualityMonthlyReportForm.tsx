@@ -45,13 +45,15 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
 
   const updateRow = (index: number, field: keyof QualityMonthlyReportRow, value: string) => {
     const edited = formData.report_rows[index]
-    // 콘크리트 슬럼프 행에 물량 입력 시 나머지 콘크리트 시험항목 행에도 동일 물량 전파
+    // 콘크리트 슬럼프 행에 물량(시공계획·월 실적) 입력 시 나머지 콘크리트 시험항목 행에도 동일 값 전파
     const propagateVolume =
-      field === 'yearlyPlan' && edited.workType === '콘크리트' && edited.testItem.trim() === '슬럼프'
+      (field === 'yearlyPlan' || field === 'monthVolume') &&
+      edited.workType === '콘크리트' &&
+      edited.testItem.trim() === '슬럼프'
     const rows = formData.report_rows.map((row, i) => {
       const isTarget = i === index || (propagateVolume && row.workType === '콘크리트')
       if (!isTarget) return row
-      const updated = i === index ? { ...row, [field]: value } : { ...row, yearlyPlan: value }
+      const updated = { ...row, [field]: value }
       // 콘크리트 물량 입력 시 횟수 자동 계산 (120㎥당 1회, 올림)
       if (field === 'yearlyPlan' && updated.workType === '콘크리트') {
         const volume = parseNum(value)
