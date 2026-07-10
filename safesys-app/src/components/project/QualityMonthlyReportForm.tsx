@@ -239,6 +239,8 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
               <th colSpan={3} className={`${TH_CLASS} bg-blue-100`}>확인시험②</th>
               <th rowSpan={2} className={TH_CLASS}>물량</th>
               <th rowSpan={2} className={TH_CLASS}>횟수</th>
+              <th rowSpan={2} className={`${TH_CLASS} bg-blue-100`}>물량</th>
+              <th rowSpan={2} className={`${TH_CLASS} bg-blue-100`}>횟수</th>
             </tr>
             <tr>
               <th className={`${TH_CLASS} bg-amber-50`}>소계</th>
@@ -252,7 +254,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
           <tbody>
             {formData.report_rows.length === 0 && (
               <tr>
-                <td colSpan={20} className="border border-gray-300 px-3 py-6 text-center text-sm text-gray-400">
+                <td colSpan={21} className="border border-gray-300 px-3 py-6 text-center text-sm text-gray-400">
                   행 추가 버튼으로 공종/시험항목을 등록해주세요.
                 </td>
               </tr>
@@ -330,6 +332,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                     <SizedInput value={row.nextMonthPlanCount} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'nextMonthPlanCount', v)} />
                   </td>
                   <td className={CALC_TD_CLASS}>{formatNum(d.remaining) || '-'}</td>
+                  <td className={CALC_TD_CLASS}>{formatNum(d.remainingCount) || '-'}</td>
                 </tr>
               )
             })}
