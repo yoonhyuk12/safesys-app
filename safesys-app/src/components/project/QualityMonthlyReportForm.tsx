@@ -44,11 +44,9 @@ const SLUMP_PROPAGATE_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
   'yearlyPlan', 'monthVolume', 'monthQualityTest', 'monthExpertConfirm', 'monthOtherConfirm', 'nextMonthPlan',
 ]
 
-// 토공 현장밀도·함수비 행은 시공계획·월 실적·다음월 물량을 서로 동일하게 유지
+// 토공 현장밀도·함수비 행은 물량·횟수 등 모든 숫자 입력을 서로 동일하게 유지
 const EARTHWORK_SYNC_ITEMS = ['현장밀도', '함수비']
-const EARTHWORK_SYNC_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
-  'yearlyPlan', 'monthVolume', 'nextMonthPlan',
-]
+const EARTHWORK_SYNC_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = NUMERIC_FIELDS
 
 const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm text-gray-900'
 const TH_CLASS = 'border border-gray-300 bg-gray-100 px-1.5 py-1.5 text-xs font-semibold text-gray-700 whitespace-nowrap'
