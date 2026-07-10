@@ -52,8 +52,8 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
     onChange({ ...formData, report_rows: formData.report_rows.filter((_, i) => i !== index) })
   }
 
-  // 공종 입력 포커스 시 퀵입력 버튼을 보여줄 행 인덱스
-  const [quickRowIndex, setQuickRowIndex] = useState<number | null>(null)
+  // 공종 입력 포커스 시 입력칸 옆에 띄울 퀵입력 플로팅 패널 (행 인덱스 + fixed 좌표)
+  const [quickInput, setQuickInput] = useState<{ index: number; top: number; left: number } | null>(null)
 
   // 퀵입력 적용 — 현재 행에 공종+첫 시험항목을 채우고, 나머지 시험항목은 아래에 행으로 추가. 물량 기본값도 함께 채움
   const applyPreset = (index: number, preset: { label: string; items: string[]; volume: string }) => {
@@ -72,7 +72,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
     }))
     rows.splice(index + 1, 0, ...extraRows)
     onChange({ ...formData, report_rows: rows })
-    setQuickRowIndex(null)
+    setQuickInput(null)
   }
 
   return (
@@ -131,16 +131,18 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
         </div>
       </div>
 
-      {/* 공종 퀵입력 — 공종 입력 포커스 시 표 바로 위에 표시 */}
-      {quickRowIndex !== null && (
-        <div className="flex items-center gap-1 flex-wrap">
-          <span className="text-xs text-gray-500 mr-1">{quickRowIndex + 1}행 공종 퀵입력</span>
+      {/* 공종 퀵입력 플로팅 패널 — 포커스된 공종 입력칸 바로 옆에 표시 (fixed라 표 스크롤 영역에 안 갇힘) */}
+      {quickInput !== null && (
+        <div
+          className="fixed z-50 grid grid-cols-2 gap-1 w-max bg-white border border-gray-200 rounded-md shadow-lg p-1"
+          style={{ top: quickInput.top, left: quickInput.left }}
+        >
           {WORK_TYPE_PRESETS.map((preset) => (
             <button
               key={preset.label}
               onMouseDown={(e) => {
                 e.preventDefault()
-                applyPreset(quickRowIndex, preset)
+                applyPreset(quickInput.index, preset)
               }}
               className="px-2 py-0.5 text-xs text-blue-700 bg-blue-50 border border-blue-300 rounded hover:bg-blue-100 whitespace-nowrap"
             >
@@ -203,8 +205,11 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                         size={1}
                         value={row.workType}
                         onChange={(e) => updateRow(index, 'workType', e.target.value)}
-                        onFocus={() => setQuickRowIndex(index)}
-                        onBlur={() => setQuickRowIndex(null)}
+                        onFocus={(e) => {
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          setQuickInput({ index, top: rect.top, left: rect.right + 6 })
+                        }}
+                        onBlur={() => setQuickInput(null)}
                         className={`${INPUT_CLASS} col-start-1 row-start-1`}
                       />
                     </div>
