@@ -51,7 +51,8 @@ function buildDataRowHtml(row: QualityMonthlyReportRow, showWorkType: boolean): 
     d.remaining !== null ? formatNum(d.remaining) + volumeUnit : '',
     d.remainingCount !== null ? formatNum(d.remainingCount) + countUnit : '',
   ]
-  return `<tr>${cells.map((c) => `<td style="${CELL} height: 30px;">${c || '&nbsp;'}</td>`).join('')}</tr>`
+  // 공종·시험항목(앞 2개 열)은 가운데 정렬 유지, 숫자 열은 모두 우측 정렬
+  return `<tr>${cells.map((c, i) => `<td style="${CELL} height: 30px;${i >= 2 ? ' text-align: right;' : ''}">${c || '&nbsp;'}</td>`).join('')}</tr>`
 }
 
 function buildEmptyRowHtml(): string {
