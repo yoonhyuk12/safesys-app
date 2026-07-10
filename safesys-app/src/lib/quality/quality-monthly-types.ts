@@ -14,7 +14,8 @@ export interface QualityMonthlyReportRow {
   prevCumulQualityTest: string // 전월까지 누계 품질시험 회수
   prevCumulExpertConfirm: string // 전월까지 누계 전문기관확인 회수
   prevCumulOtherConfirm: string // 전월까지 누계 기타확인 회수
-  nextMonthPlan: string // 다음월 시공계획
+  nextMonthPlan: string // 다음월 시공계획 물량
+  nextMonthPlanCount: string // 다음월 시공계획 횟수
 }
 
 export interface QualityMonthlyReportFormData {
@@ -49,6 +50,7 @@ export function createEmptyRow(): QualityMonthlyReportRow {
     prevCumulExpertConfirm: '',
     prevCumulOtherConfirm: '',
     nextMonthPlan: '',
+    nextMonthPlanCount: '',
   }
 }
 
@@ -86,6 +88,7 @@ export interface QualityMonthlyRowDerived {
   cumulConfirmSubtotal: number | null
   cumulTotal: number | null
   remaining: number | null
+  remainingCount: number | null
 }
 
 export function deriveRow(row: QualityMonthlyReportRow): QualityMonthlyRowDerived {
@@ -101,6 +104,9 @@ export function deriveRow(row: QualityMonthlyReportRow): QualityMonthlyRowDerive
   const cumulTotal = sumNums(cumulQualityTest, cumulConfirmSubtotal)
   const yearlyPlan = parseNum(row.yearlyPlan)
   const remaining = yearlyPlan !== null && cumulVolume !== null ? yearlyPlan - cumulVolume : null
+  // 시공잔량 횟수 = 년시공계획 횟수 - 금월까지 시험 계(①+②) 누계
+  const yearlyPlanCount = parseNum(row.yearlyPlanCount)
+  const remainingCount = yearlyPlanCount !== null && cumulTotal !== null ? yearlyPlanCount - cumulTotal : null
   return {
     monthConfirmSubtotal,
     monthTotal,
@@ -113,6 +119,7 @@ export function deriveRow(row: QualityMonthlyReportRow): QualityMonthlyRowDerive
     cumulConfirmSubtotal,
     cumulTotal,
     remaining,
+    remainingCount,
   }
 }
 
