@@ -32,7 +32,7 @@ const WORK_TYPE_PRESETS: { label: string; items: string[]; volume: string }[] = 
 
 // 시험 빈도 — 물량 N당 1회 (횟수 자동 계산, 소수점은 올림)
 const CONCRETE_VOLUME_PER_TEST = 120 // 콘크리트 전 항목
-const EARTHWORK_VOLUME_PER_TEST = 1000 // 토공 현장밀도·함수비
+const EARTHWORK_VOLUME_PER_TEST = 10000 // 토공 현장밀도·함수비
 
 // 1,000단위 콤마를 자동 적용할 숫자 입력 필드
 const NUMERIC_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
