@@ -24,13 +24,13 @@ function escapeHtml(value: string): string {
     .replace(/"/g, '&quot;')
 }
 
-function buildDataRowHtml(row: QualityMonthlyReportRow): string {
+function buildDataRowHtml(row: QualityMonthlyReportRow, showWorkType: boolean): string {
   const d = deriveRow(row)
   // 누계 시공물량·시공잔량에는 년 시공계획 물량의 단위(㎥ 등), 횟수 계산 셀에는 년 시공계획 횟수의 단위를 붙여 출력
   const volumeUnit = escapeHtml(extractUnit(row.yearlyPlan))
   const countUnit = escapeHtml(extractUnit(row.yearlyPlanCount))
   const cells = [
-    escapeHtml(row.workType),
+    showWorkType ? escapeHtml(row.workType) : '',
     escapeHtml(row.testItem).replace(/\n/g, '<br/>'),
     escapeHtml(row.yearlyPlan),
     escapeHtml(row.yearlyPlanCount),
@@ -65,7 +65,12 @@ function buildPageHtml(
   totalPages: number
 ): string {
   const nextMonth = record.report_month === 12 ? 1 : record.report_month + 1
-  const dataRows = rowsForPage.map(buildDataRowHtml).join('')
+  // 같은 공종이 연속되면 페이지 내 첫 행에만 공종명 표시, 나머지는 공란
+  const dataRows = rowsForPage
+    .map((row, i) =>
+      buildDataRowHtml(row, i === 0 || row.workType.trim() !== rowsForPage[i - 1].workType.trim())
+    )
+    .join('')
   const emptyRows = Array(Math.max(0, ROWS_PER_PAGE - rowsForPage.length))
     .fill(0)
     .map(buildEmptyRowHtml)
