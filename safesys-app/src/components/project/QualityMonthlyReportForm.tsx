@@ -44,6 +44,12 @@ const SLUMP_PROPAGATE_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
   'yearlyPlan', 'monthVolume', 'monthQualityTest', 'monthExpertConfirm', 'monthOtherConfirm', 'nextMonthPlan',
 ]
 
+// 토공 현장밀도·함수비 행은 시공계획·월 실적·다음월 물량을 서로 동일하게 유지
+const EARTHWORK_SYNC_ITEMS = ['현장밀도', '함수비']
+const EARTHWORK_SYNC_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
+  'yearlyPlan', 'monthVolume', 'nextMonthPlan',
+]
+
 const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm text-gray-900'
 const TH_CLASS = 'border border-gray-300 bg-gray-100 px-1.5 py-1.5 text-xs font-semibold text-gray-700 whitespace-nowrap'
 const TD_CLASS = 'border border-gray-300 px-1 py-1'
@@ -99,8 +105,16 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
       SLUMP_PROPAGATE_FIELDS.includes(field) &&
       edited.workType === '콘크리트' &&
       edited.testItem.trim() === '슬럼프'
+    // 토공 현장밀도·함수비 행끼리는 물량·계획 입력을 서로 동기화
+    const propagateEarthwork =
+      EARTHWORK_SYNC_FIELDS.includes(field) &&
+      edited.workType === '토공' &&
+      EARTHWORK_SYNC_ITEMS.includes(edited.testItem.trim())
     const rows = formData.report_rows.map((row, i) => {
-      const isTarget = i === index || (propagateFromSlump && row.workType === '콘크리트')
+      const isTarget =
+        i === index ||
+        (propagateFromSlump && row.workType === '콘크리트') ||
+        (propagateEarthwork && row.workType === '토공' && EARTHWORK_SYNC_ITEMS.includes(row.testItem.trim()))
       if (!isTarget) return row
       const updated = { ...row, [field]: value }
       // 콘크리트 물량 입력 시 횟수 자동 계산 (120㎥당 1회, 올림)
