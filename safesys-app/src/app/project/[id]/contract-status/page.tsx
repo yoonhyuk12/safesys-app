@@ -1,7 +1,7 @@
 // 계약(공사·용역) 현황 서류철 — 조달청 계약현황 조회로 등록하는 프로젝트 계약 목록 페이지
 'use client'
 
-import { Fragment, useState, useEffect, useCallback, useMemo } from 'react'
+import { Fragment, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
@@ -103,6 +103,16 @@ const contractYear = (r: {
   return String(new Date().getFullYear())
 }
 
+// 납품기한에서 연도(YYYY) 추출 — 'YYYY-…' 또는 'YY.…' 표기 지원 (지급자재 계약현황 엑셀·대시보드와 동일 규칙)
+const deadlineYear = (val: string | null | undefined): string | null => {
+  if (!val) return null
+  let m = val.match(/^(\d{4})\D/)
+  if (m) return m[1]
+  m = val.match(/^(\d{2})\./)
+  if (m) return `20${m[1]}`
+  return null
+}
+
 // g2b.go.kr 홈만 가리키는 URL은 계약 상세가 아니므로 링크로 렌더하지 않는다
 const isDetailUrl = (u: string | null): u is string =>
   !!u && !/^https?:\/\/(www\.)?g2b\.go\.kr\/?$/.test(u)
@@ -158,6 +168,37 @@ const contractRespToItem = (c: G2bContractResp): G2bCntrctItem => ({
 
 // 나라장터 연계 계약 자동 등록의 세션 내 재시도 방지 (StrictMode 이중 실행·재방문 중복 insert 방지)
 const linkSyncTried = new Set<string>()
+
+// 조달청 연계 지급자재를 납품요구 건 단위로 묶은 물품 계약 표시 행 — 수불부가 원천(읽기 전용, 등록·수정은 수불부에서)
+interface MaterialContractGroup {
+  dlvrReqNo: string
+  materialNames: string[] // 소속 자재명 (건명 조회 실패 시 계약명 폴백)
+  supplier: string | null // 수불부 저장 계약업체명 (조달청 배경 조회 값이 있으면 그 값 우선)
+  deadline: string | null // 자재별 납품기한 최댓값
+  totAmt: number // 품대+조달수수료 합
+  yearAmts: Map<string, number> // 납품기한 연도 → 금액 합
+}
+
+// /api/g2b/dlvr-req-info 응답 — 납품요구 요약(건명·업체·수요기관·접수일)
+interface DlvrReqInfo {
+  title: string
+  corpNm: string
+  dminsttNm: string
+  rcptDate: string
+  deadline: string
+}
+
+// 납품요구 요약·계약 딥링크의 세션 캐시 — 재방문·리렌더 시 조달청 재조회 방지 (요약 실패는 null로 기록해 재시도 억제)
+const dlvrInfoCache = new Map<string, DlvrReqInfo | null>()
+const dlvrUrlCache = new Map<string, string>()
+
+// 합계행 공용 입력 — 공사·용역 그룹과 물품 그룹을 같은 형태로 합산하기 위한 (총액, 연도별 금액) 튜플
+interface TotalRowItem {
+  tot: number
+  yearAmts: Map<string, number>
+}
+const toTotalItem = (g: ContractGroup): TotalRowItem => ({ tot: g.repr.tot_cntrct_amt || 0, yearAmts: g.yearAmts })
+const matToTotalItem = (g: MaterialContractGroup): TotalRowItem => ({ tot: g.totAmt, yearAmts: g.yearAmts })
 
 // 딥링크의 ctrtChgOrd(차수) — 같은 계약의 원계약/변경계약 중 최신 판별용
 const chgOrdFromUrl = (u: string | null | undefined): number => {
@@ -261,6 +302,11 @@ export default function ContractStatusPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [records, setRecords] = useState<ContractRecord[]>([])
   const [loading, setLoading] = useState(true)
+  // 물품(지급자재) — 조달청 연계 수불부 집계 행
+  const [materialGroups, setMaterialGroups] = useState<MaterialContractGroup[]>([])
+  const [matLoading, setMatLoading] = useState(true)
+  const [dlvrInfos, setDlvrInfos] = useState<Map<string, DlvrReqInfo | null>>(() => new Map(dlvrInfoCache))
+  const [matLinkLoading, setMatLinkLoading] = useState<string | null>(null)
 
   // 조달청 조회 모달
   const [isLookupOpen, setIsLookupOpen] = useState(false)
@@ -337,6 +383,109 @@ export default function ContractStatusPage() {
 
   useEffect(() => { if (user && projectId) loadRecords() }, [user, projectId, loadRecords])
 
+  // 조달청 연계 지급자재 로드 — 납품요구번호 단위로 품대+조달수수료를 합산해 물품 계약 행 구성.
+  // 이관 행은 자재의 납품요구와 다른 건에서 올 수 있어 행의 dlvr_req_no를 우선, 없으면 자재의 값으로 귀속.
+  // 연도 귀속은 자재 납품기한 연도 — 지급자재 계약현황 엑셀·사업현황 대시보드와 동일 규칙
+  const loadMaterials = useCallback(async () => {
+    if (!projectId) return
+    setMatLoading(true)
+    try {
+      const { data: mats } = await supabase
+        .from('materials')
+        .select('id, name, dlvr_req_no, dlvr_supplier, dlvr_deadline')
+        .eq('project_id', projectId)
+        .order('sort_order', { ascending: true })
+      type MatRow = { id: string; name: string; dlvr_req_no: string | null; dlvr_supplier: string | null; dlvr_deadline: string | null }
+      const matList: MatRow[] = mats || []
+      if (matList.length === 0) { setMaterialGroups([]); return }
+      const { data: entries } = await supabase
+        .from('material_ledger_entries')
+        .select('material_id, dlvr_req_no, prdct_amt, fee_amt')
+        .in('material_id', matList.map((m) => m.id))
+
+      const matById = new Map(matList.map((m) => [m.id, m]))
+      const byNo = new Map<string, MaterialContractGroup>()
+      const ensure = (no: string): MaterialContractGroup => {
+        let g = byNo.get(no)
+        if (!g) {
+          g = { dlvrReqNo: no, materialNames: [], supplier: null, deadline: null, totAmt: 0, yearAmts: new Map() }
+          byNo.set(no, g)
+        }
+        return g
+      }
+      const addMaterialMeta = (g: MaterialContractGroup, m: MatRow) => {
+        if (!g.materialNames.includes(m.name)) g.materialNames.push(m.name)
+        if (!g.supplier && m.dlvr_supplier) g.supplier = m.dlvr_supplier
+        if (m.dlvr_deadline && (!g.deadline || m.dlvr_deadline > g.deadline)) g.deadline = m.dlvr_deadline
+      }
+      for (const m of matList) if (m.dlvr_req_no) addMaterialMeta(ensure(m.dlvr_req_no), m)
+      type EntryRow = { material_id: string; dlvr_req_no: string | null; prdct_amt: number | null; fee_amt: number | null }
+      for (const r of (entries || []) as EntryRow[]) {
+        const m = matById.get(r.material_id)
+        const no = r.dlvr_req_no || m?.dlvr_req_no
+        if (!no || !m) continue
+        const g = ensure(no)
+        addMaterialMeta(g, m)
+        const amt = (r.prdct_amt || 0) + (r.fee_amt || 0)
+        if (amt === 0) continue
+        g.totAmt += amt
+        const y = deadlineYear(m.dlvr_deadline) || '기타'
+        g.yearAmts.set(y, (g.yearAmts.get(y) || 0) + amt)
+      }
+      setMaterialGroups([...byNo.values()].sort((a, b) => b.totAmt - a.totAmt))
+    } finally {
+      setMatLoading(false)
+    }
+  }, [projectId])
+
+  useEffect(() => { if (user && projectId) loadMaterials() }, [user, projectId, loadMaterials])
+
+  // 납품요구 요약(건명·업체·접수일·수요기관) 배경 보강 — DB에 없는 표시 항목만 조달청에서 채운다.
+  // 캐시에 없는 번호만 4건씩 병렬 조회하고, 실패 건은 자재명 폴백으로 표시한다
+  useEffect(() => {
+    const nos = materialGroups.map((g) => g.dlvrReqNo).filter((no) => !dlvrInfoCache.has(no))
+    if (nos.length === 0) return
+    let cancelled = false
+    const run = async () => {
+      const CONCURRENCY = 4
+      for (let i = 0; i < nos.length; i += CONCURRENCY) {
+        await Promise.all(nos.slice(i, i + CONCURRENCY).map(async (no) => {
+          try {
+            const res = await fetch(`/api/g2b/dlvr-req-info?no=${encodeURIComponent(no)}`)
+            const json = await res.json()
+            dlvrInfoCache.set(no, res.ok && json.success ? (json.data as DlvrReqInfo) : null)
+          } catch {
+            dlvrInfoCache.set(no, null)
+          }
+        }))
+        if (!cancelled) setDlvrInfos(new Map(dlvrInfoCache))
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [materialGroups])
+
+  // 물품 행 계약명 클릭 — 납품요구의 연계 단가계약 딥링크를 해석해 새 탭으로 연다 (수불부 자재명 링크와 동일 경로)
+  const handleMaterialLink = async (no: string) => {
+    if (matLinkLoading) return
+    const cached = dlvrUrlCache.get(no)
+    if (cached) { window.open(cached, '_blank', 'noopener,noreferrer'); return }
+    setMatLinkLoading(no)
+    try {
+      const res = await fetch(`/api/g2b/dlvr-req-url?no=${encodeURIComponent(no)}`)
+      const json = await res.json()
+      if (!res.ok || !json.success || !json.data?.url) {
+        throw new Error(json.error || '조달청 계약 페이지를 찾을 수 없습니다.')
+      }
+      dlvrUrlCache.set(no, json.data.url)
+      window.open(json.data.url, '_blank', 'noopener,noreferrer')
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : '조달청 계약 페이지를 찾을 수 없습니다.')
+    } finally {
+      setMatLinkLoading(null)
+    }
+  }
+
   // 차수별 등록 행을 계약 단위로 병합 — 한 계약 한 행, 차수 금차는 연도별 컬럼에 분산
   const groups = useMemo<ContractGroup[]>(() => {
     const byKey = new Map<string, ContractRecord[]>()
@@ -382,12 +531,13 @@ export default function ContractStatusPage() {
   const cnstwkCount = groups.filter((g) => g.repr.contract_type === '공사').length
   const servcCount = groups.length - cnstwkCount
 
-  // 금차계약금액의 연도별 컬럼 — 그룹에 금차 금액이 있는 귀속 연도만 컬럼으로 생성
+  // 금차계약금액의 연도별 컬럼 — 그룹에 금차 금액이 있는 귀속 연도만 컬럼으로 생성 (물품의 납품기한 연도 포함)
   const yearCols = useMemo(() => {
     const s = new Set<string>()
     for (const g of groups) for (const y of g.yearAmts.keys()) s.add(y)
+    for (const g of materialGroups) for (const y of g.yearAmts.keys()) s.add(y)
     return [...s].sort((a, b) => (a === '기타' ? 1 : b === '기타' ? -1 : a.localeCompare(b)))
-  }, [groups])
+  }, [groups, materialGroups])
   // 올해 연도 컬럼은 배경색으로 강조 (사용자 지정)
   const thisYear = String(new Date().getFullYear())
 
@@ -1021,12 +1171,12 @@ export default function ContractStatusPage() {
     }
   }
 
-  // 합계행 렌더 — 총 합계·공사/용역 소계 공용 (총액은 계약 단위로 1회만 합산 — 차수 중복 합산 방지)
-  const renderTotalRow = (label: string, list: ContractGroup[], rowClass: string, thisYearCellClass: string) => (
+  // 합계행 렌더 — 총 합계·공사/용역/물품 소계 공용 (총액은 계약 단위로 1회만 합산 — 차수 중복 합산 방지)
+  const renderTotalRow = (label: string, list: TotalRowItem[], rowClass: string, thisYearCellClass: string, suffix?: ReactNode) => (
     <tr className={`border-b border-gray-200 font-semibold text-gray-700 ${rowClass}`}>
-      <td className="px-3 py-2" colSpan={4}>{label} ({list.length}건)</td>
+      <td className="px-3 py-2" colSpan={4}>{label} ({list.length}건){suffix}</td>
       <td className="px-3 py-2 text-right tabular-nums">
-        {list.reduce((s, g) => s + (g.repr.tot_cntrct_amt || 0), 0).toLocaleString('ko-KR')}
+        {list.reduce((s, g) => s + g.tot, 0).toLocaleString('ko-KR')}
       </td>
       {yearCols.map((y) => (
         <td key={y} className={`px-3 py-2 text-right tabular-nums ${y === thisYear ? thisYearCellClass : ''}`}>
@@ -1068,8 +1218,10 @@ export default function ContractStatusPage() {
           <div className="bg-blue-600 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-y-2 gap-x-2">
             <h2 className="font-semibold text-sm sm:text-base w-full sm:w-auto">
               계약 현황
-              {records.length > 0 && (
-                <span className="ml-2 text-xs font-normal text-blue-100">공사 {cnstwkCount}건 · 용역 {servcCount}건</span>
+              {(records.length > 0 || materialGroups.length > 0) && (
+                <span className="ml-2 text-xs font-normal text-blue-100">
+                  공사 {cnstwkCount}건 · 용역 {servcCount}건 · 물품 {materialGroups.length}건
+                </span>
               )}
             </h2>
             <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
@@ -1110,9 +1262,9 @@ export default function ContractStatusPage() {
             </div>
           </div>
 
-          {loading ? (
+          {loading || matLoading ? (
             <div className="flex justify-center py-20"><LoadingSpinner /></div>
-          ) : sortedGroups.length === 0 ? (
+          ) : sortedGroups.length === 0 && materialGroups.length === 0 ? (
             <div className="text-center py-16 px-4">
               <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
               <p className="text-sm text-gray-500 mb-4">등록된 계약이 없습니다. 조달청 조회 또는 직접 등록으로 공사·용역 계약을 추가하세요.</p>
@@ -1146,8 +1298,8 @@ export default function ContractStatusPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {/* 총 합계행 — 제목행 바로 아래 */}
-                  {renderTotalRow('총 합계', groups, 'bg-blue-100/80', 'bg-amber-100/60')}
+                  {/* 총 합계행 — 제목행 바로 아래 (공사·용역 계약 + 물품 지급자재 합산) */}
+                  {renderTotalRow('총 합계', [...groups.map(toTotalItem), ...materialGroups.map(matToTotalItem)], 'bg-blue-100/80', 'bg-amber-100/60')}
                   {sortedGroups.map((g, idx) => {
                     const r = g.repr
                     const isRep = isGroupRepresentative(g)
@@ -1159,7 +1311,7 @@ export default function ContractStatusPage() {
                     {r.contract_type !== prevType &&
                       renderTotalRow(
                         `${r.contract_type} 소계`,
-                        groups.filter((x) => x.repr.contract_type === r.contract_type),
+                        groups.filter((x) => x.repr.contract_type === r.contract_type).map(toTotalItem),
                         r.contract_type === '공사' ? 'bg-blue-50/60' : 'bg-green-50/60',
                         'bg-amber-100/40'
                       )}
@@ -1291,18 +1443,91 @@ export default function ContractStatusPage() {
                     </Fragment>
                     )
                   })}
-                  {/* 물품 소계 — 지급자재는 수불부에서 관리하므로 링크로 안내 */}
-                  <tr className="border-b border-gray-200 font-semibold text-gray-700 bg-purple-50/60">
-                    <td className="px-3 py-2" colSpan={9 + yearCols.length}>
-                      물품 소계{' '}
-                      <Link
-                        href={`/project/${projectId}/material-ledger`}
-                        className="text-blue-600 hover:underline font-normal"
-                      >
-                        (지급자재 수불부 확인 바랍니다)
-                      </Link>
-                    </td>
-                  </tr>
+                  {/* 물품 — 조달청 연계 지급자재를 납품요구 건 단위로 집계한 읽기 전용 행 (등록·수정은 수불부에서) */}
+                  {materialGroups.length > 0 ? (
+                    <>
+                      {renderTotalRow(
+                        '물품 소계',
+                        materialGroups.map(matToTotalItem),
+                        'bg-purple-50/60',
+                        'bg-amber-100/40',
+                        <>
+                          {' '}
+                          <Link
+                            href={`/project/${projectId}/material-ledger`}
+                            className="text-blue-600 hover:underline font-normal"
+                          >
+                            (지급자재 수불부에서 관리)
+                          </Link>
+                        </>
+                      )}
+                      {materialGroups.map((g) => {
+                        const info = dlvrInfos.get(g.dlvrReqNo)
+                        const title =
+                          info?.title ||
+                          (g.materialNames.length > 1
+                            ? `${g.materialNames[0]} 외 ${g.materialNames.length - 1}종`
+                            : g.materialNames[0] || g.dlvrReqNo)
+                        const deadline = info?.deadline || g.deadline
+                        return (
+                          <tr key={g.dlvrReqNo} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="px-3 py-2" />
+                            <td className="px-3 py-2">
+                              <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                                물품
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 max-w-[320px] xl:max-w-none">
+                              <button
+                                type="button"
+                                onClick={() => handleMaterialLink(g.dlvrReqNo)}
+                                className="text-blue-600 hover:underline inline-flex items-center gap-1 max-w-full"
+                                title={`${title} — 조달청 계약 상세 열기`}
+                              >
+                                <span className="truncate">{title}</span>
+                                {matLinkLoading === g.dlvrReqNo ? (
+                                  <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                                ) : (
+                                  <ExternalLink className="h-3 w-3 shrink-0" />
+                                )}
+                              </button>
+                              <span className="block text-[11px] text-gray-400 truncate" title={g.materialNames.join(', ')}>
+                                납품요구 {g.dlvrReqNo} · {g.materialNames.join(', ')}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 max-w-[180px] xl:max-w-none truncate" title={info?.corpNm || g.supplier || ''}>
+                              {info?.corpNm || g.supplier || '-'}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums">{formatAmt(g.totAmt)}</td>
+                            {yearCols.map((y) => (
+                              <td key={y} className={`px-3 py-2 text-right tabular-nums ${y === thisYear ? 'bg-amber-50/70' : ''}`}>
+                                {g.yearAmts.has(y) ? formatAmt(g.yearAmts.get(y)) : '-'}
+                              </td>
+                            ))}
+                            <td className="px-3 py-2">{shortDate(info?.rcptDate)}</td>
+                            <td className="px-3 py-2">{deadline ? `~ ${shortDate(deadline)}` : '-'}</td>
+                            <td className="px-3 py-2 max-w-[200px] xl:max-w-none truncate" title={info?.dminsttNm || ''}>
+                              {info?.dminsttNm || '-'}
+                            </td>
+                            <td className="px-3 py-2" />
+                          </tr>
+                        )
+                      })}
+                    </>
+                  ) : (
+                    /* 조달청 연계 지급자재가 없으면 기존 안내 링크 행 유지 */
+                    <tr className="border-b border-gray-200 font-semibold text-gray-700 bg-purple-50/60">
+                      <td className="px-3 py-2" colSpan={9 + yearCols.length}>
+                        물품 소계{' '}
+                        <Link
+                          href={`/project/${projectId}/material-ledger`}
+                          className="text-blue-600 hover:underline font-normal"
+                        >
+                          (지급자재 수불부 확인 바랍니다)
+                        </Link>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
