@@ -10,7 +10,7 @@ import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
 import { BRANCH_OPTIONS } from '@/lib/constants'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import type { TBMSafetyInspection } from '@/lib/projects'
 import { generateSupervisorDiaryExcel } from '@/lib/excel/supervisor-diary-export'
 import { downloadTBMStatusExcel } from '@/lib/excel/tbm-status-export'
@@ -42,6 +42,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
 }) => {
   const { userProfile } = useAuth()
   const pathname = usePathname()
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const loadingRef = useRef(false)
   const lastLoadedParams = useRef<{ date: string; hq?: string; branch?: string } | null>(null)
@@ -1944,7 +1945,15 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                         <td className={`sticky left-0 lg:static z-10 px-1 py-2 text-sm font-medium text-gray-900 bg-white transition-all duration-200 ${isProjectTableScrolled ? 'border-r-2 border-r-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]' : 'border-r border-r-gray-100'} lg:border-r lg:border-r-gray-100 lg:shadow-none`}>
                           <div
                             className="max-w-[80px] lg:max-w-none lg:w-full cursor-pointer hover:bg-gray-100 rounded p-0.5 -m-0.5"
-                            onClick={(e) => handleCellClick('사업명', record.project_name, record.project_name, e)}
+                            onClick={(e) => {
+                              // 일반 모드에선 해당 프로젝트 TBM 제출 페이지로 이동 (레거시 기록은 project_id가 없어 기존 인포창 유지)
+                              if (!reportModeActive && record.project_id) {
+                                e.stopPropagation()
+                                router.push(`/project/${record.project_id}/tbm-submission`)
+                                return
+                              }
+                              handleCellClick('사업명', record.project_name, record.project_name, e)
+                            }}
                           >
                             <div className="lg:hidden">
                               <div className="truncate">
