@@ -217,7 +217,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">확인자 (공사사무소장)</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">확인자 (공사감독)</label>
           <input
             type="text"
             value={formData.confirmer_name}
