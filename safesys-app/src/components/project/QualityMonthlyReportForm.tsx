@@ -9,6 +9,7 @@ import {
   QualityMonthlyReportRow,
   createEmptyRow,
   deriveRow,
+  extractUnit,
   formatNum,
   parseNum,
 } from '@/lib/quality/quality-monthly-types'
@@ -136,7 +137,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 lg:w-fit">
       {/* 헤더 정보 */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div>
@@ -261,6 +262,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
             )}
             {formData.report_rows.map((row, index) => {
               const d = deriveRow(row)
+              const volumeUnit = extractUnit(row.yearlyPlan) || extractUnit(row.monthVolume)
               return (
                 <tr key={index}>
                   <td className={TD_CLASS}>
@@ -319,7 +321,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                     <SizedInput value={row.monthOtherConfirm} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'monthOtherConfirm', v)} />
                   </td>
                   {/* 금월까지 누계 — 직전 보고서 이월 누계 + 금월 실적 자동 합산 (읽기 전용) */}
-                  <td className={CALC_TD_CLASS}>{formatNum(d.cumulVolume) || '-'}</td>
+                  <td className={CALC_TD_CLASS}>{d.cumulVolume !== null ? formatNum(d.cumulVolume) + volumeUnit : '-'}</td>
                   <td className={CALC_TD_CLASS}>{formatNum(d.cumulTotal) || '-'}</td>
                   <td className={CALC_TD_CLASS}>{formatNum(d.cumulQualityTest) || '-'}</td>
                   <td className={CALC_TD_CLASS}>{formatNum(d.cumulConfirmSubtotal) || '-'}</td>
@@ -331,7 +333,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                   <td className={TD_CLASS}>
                     <SizedInput value={row.nextMonthPlanCount} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'nextMonthPlanCount', v)} />
                   </td>
-                  <td className={CALC_TD_CLASS}>{formatNum(d.remaining) || '-'}</td>
+                  <td className={CALC_TD_CLASS}>{d.remaining !== null ? formatNum(d.remaining) + volumeUnit : '-'}</td>
                   <td className={CALC_TD_CLASS}>{formatNum(d.remainingCount) || '-'}</td>
                 </tr>
               )

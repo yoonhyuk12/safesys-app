@@ -63,6 +63,13 @@ export function parseNum(value: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+// "684㎥" 같은 값에서 숫자 뒤에 붙은 단위 문자열 추출 ("㎥"). 앞자리 숫자가 없으면 ''.
+export function extractUnit(value: string): string {
+  const cleaned = (value || '').replace(/,/g, '').trim()
+  const match = cleaned.match(/^-?\d+(?:\.\d+)?\s*(.*)$/)
+  return match ? match[1] : ''
+}
+
 // null 허용 합계 — 전부 null이면 null (빈 칸 유지용)
 export function sumNums(...values: Array<number | null>): number | null {
   const nums = values.filter((v): v is number => v !== null)

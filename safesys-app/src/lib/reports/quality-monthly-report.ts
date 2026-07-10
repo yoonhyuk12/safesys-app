@@ -7,6 +7,7 @@ import {
   QualityMonthlyReportRecord,
   QualityMonthlyReportRow,
   deriveRow,
+  extractUnit,
   formatNum,
 } from '../quality/quality-monthly-types'
 
@@ -25,6 +26,8 @@ function escapeHtml(value: string): string {
 
 function buildDataRowHtml(row: QualityMonthlyReportRow): string {
   const d = deriveRow(row)
+  // 누계 시공물량·시공잔량에는 물량 입력값의 단위(㎥ 등)를 그대로 붙여 출력
+  const volumeUnit = escapeHtml(extractUnit(row.yearlyPlan) || extractUnit(row.monthVolume))
   const cells = [
     escapeHtml(row.workType),
     escapeHtml(row.testItem).replace(/\n/g, '<br/>'),
@@ -36,7 +39,7 @@ function buildDataRowHtml(row: QualityMonthlyReportRow): string {
     formatNum(d.monthConfirmSubtotal),
     escapeHtml(row.monthExpertConfirm),
     escapeHtml(row.monthOtherConfirm),
-    formatNum(d.cumulVolume),
+    d.cumulVolume !== null ? formatNum(d.cumulVolume) + volumeUnit : '',
     formatNum(d.cumulTotal),
     formatNum(d.cumulQualityTest),
     formatNum(d.cumulConfirmSubtotal),
@@ -44,7 +47,7 @@ function buildDataRowHtml(row: QualityMonthlyReportRow): string {
     formatNum(d.cumulOtherConfirm),
     escapeHtml(row.nextMonthPlan),
     escapeHtml(row.nextMonthPlanCount),
-    formatNum(d.remaining),
+    d.remaining !== null ? formatNum(d.remaining) + volumeUnit : '',
   ]
   return `<tr>${cells.map((c) => `<td style="${CELL} height: 30px;">${c || '&nbsp;'}</td>`).join('')}</tr>`
 }
