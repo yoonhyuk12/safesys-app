@@ -148,13 +148,19 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
       EARTHWORK_SYNC_FIELDS.includes(field) &&
       edited.workType === '토공' &&
       EARTHWORK_SYNC_ITEMS.includes(edited.testItem.trim())
+    // 강관동바리는 첫 행에 입력한 물량·횟수를 아래 시험항목 행 전체에 전파
+    const propagateSteelPipe =
+      NUMERIC_FIELDS.includes(field) &&
+      edited.workType === '강관동바리' &&
+      formData.report_rows.findIndex((r) => r.workType === '강관동바리') === index
     const rows = formData.report_rows.map((row, i) => {
       const isTarget =
         i === index ||
         (propagateFromSlump && row.workType === '콘크리트') ||
         (propagateEarthwork &&
           row.workType === '토공' &&
-          (EARTHWORK_SYNC_ITEMS.includes(row.testItem.trim()) || VOLUME_FIELDS.includes(field)))
+          (EARTHWORK_SYNC_ITEMS.includes(row.testItem.trim()) || VOLUME_FIELDS.includes(field))) ||
+        (propagateSteelPipe && row.workType === '강관동바리')
       if (!isTarget) return row
       const updated = { ...row, [field]: value }
       // 물량 입력 시 횟수 자동 계산 (콘크리트 120㎥당 1회, 토공 현장밀도·함수비 1,000㎥당 1회, 올림)
