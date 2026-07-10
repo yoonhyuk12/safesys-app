@@ -81,12 +81,14 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
       workType: preset.label,
       testItem: preset.items[0],
       yearlyPlan: rows[index].yearlyPlan || preset.volume,
+      monthVolume: rows[index].monthVolume || preset.volume,
     }
     const extraRows = preset.items.slice(1).map((item) => ({
       ...createEmptyRow(),
       workType: preset.label,
       testItem: item,
       yearlyPlan: preset.volume,
+      monthVolume: preset.volume,
     }))
     rows.splice(index + 1, 0, ...extraRows)
     onChange({ ...formData, report_rows: rows })
