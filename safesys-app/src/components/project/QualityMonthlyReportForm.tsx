@@ -224,7 +224,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
               <th colSpan={6} className={`${TH_CLASS} bg-amber-50`}>{formData.report_month}월 실적</th>
               <th colSpan={6} className={TH_CLASS}>전월까지 누계</th>
               <th rowSpan={3} className={TH_CLASS}>다음월<br />시공계획</th>
-              <th colSpan={3} className={`${TH_CLASS} bg-blue-100`}>자동 계산</th>
+              <th rowSpan={3} className={`${TH_CLASS} bg-blue-100`}>시공잔량</th>
             </tr>
             <tr>
               <th rowSpan={2} className={TH_CLASS}>물량</th>
@@ -237,9 +237,6 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
               <th rowSpan={2} className={TH_CLASS}>계(①+②)</th>
               <th rowSpan={2} className={TH_CLASS}>품질시험①</th>
               <th colSpan={3} className={TH_CLASS}>확인시험②</th>
-              <th rowSpan={2} className={`${TH_CLASS} bg-blue-100`}>누계물량</th>
-              <th rowSpan={2} className={`${TH_CLASS} bg-blue-100`}>시험 계</th>
-              <th rowSpan={2} className={`${TH_CLASS} bg-blue-100`}>시공잔량</th>
             </tr>
             <tr>
               <th className={`${TH_CLASS} bg-amber-50`}>소계</th>
@@ -253,7 +250,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
           <tbody>
             {formData.report_rows.length === 0 && (
               <tr>
-                <td colSpan={21} className="border border-gray-300 px-3 py-6 text-center text-sm text-gray-400">
+                <td colSpan={19} className="border border-gray-300 px-3 py-6 text-center text-sm text-gray-400">
                   행 추가 버튼으로 공종/시험항목을 등록해주세요.
                 </td>
               </tr>
@@ -334,8 +331,6 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                   <td className={TD_CLASS}>
                     <SizedInput value={row.nextMonthPlan} minWidthClass="min-w-20" alignRight onChange={(v) => updateRow(index, 'nextMonthPlan', v)} />
                   </td>
-                  <td className={CALC_TD_CLASS}>{formatNum(d.cumulVolume) || '-'}</td>
-                  <td className={CALC_TD_CLASS}>{formatNum(d.cumulTotal) || '-'}</td>
                   <td className={CALC_TD_CLASS}>{formatNum(d.remaining) || '-'}</td>
                 </tr>
               )
