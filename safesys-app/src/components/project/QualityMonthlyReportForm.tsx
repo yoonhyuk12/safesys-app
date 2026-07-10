@@ -12,6 +12,7 @@ import {
   extractUnit,
   formatNum,
   parseNum,
+  replaceUnit,
 } from '@/lib/quality/quality-monthly-types'
 
 interface QualityMonthlyReportFormProps {
@@ -95,6 +96,12 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
         const count = volume !== null && volume > 0 ? String(Math.ceil(volume / CONCRETE_VOLUME_PER_TEST)) : ''
         if (field === 'yearlyPlan') updated.yearlyPlanCount = count
         else updated.nextMonthPlanCount = count
+      }
+      // 시공계획 물량의 단위를 수정하면 월 실적·다음월 물량의 단위도 동일하게 맞춤
+      if (field === 'yearlyPlan') {
+        const unit = extractUnit(value)
+        updated.monthVolume = replaceUnit(updated.monthVolume, unit)
+        updated.nextMonthPlan = replaceUnit(updated.nextMonthPlan, unit)
       }
       return updated
     })
@@ -262,7 +269,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
             )}
             {formData.report_rows.map((row, index) => {
               const d = deriveRow(row)
-              const volumeUnit = extractUnit(row.yearlyPlan) || extractUnit(row.monthVolume)
+              const volumeUnit = extractUnit(row.yearlyPlan)
               return (
                 <tr key={index}>
                   <td className={TD_CLASS}>

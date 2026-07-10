@@ -26,8 +26,8 @@ function escapeHtml(value: string): string {
 
 function buildDataRowHtml(row: QualityMonthlyReportRow): string {
   const d = deriveRow(row)
-  // 누계 시공물량·시공잔량에는 물량 입력값의 단위(㎥ 등)를 그대로 붙여 출력
-  const volumeUnit = escapeHtml(extractUnit(row.yearlyPlan) || extractUnit(row.monthVolume))
+  // 누계 시공물량·시공잔량에는 년 시공계획 물량의 단위(㎥ 등)를 그대로 붙여 출력
+  const volumeUnit = escapeHtml(extractUnit(row.yearlyPlan))
   const cells = [
     escapeHtml(row.workType),
     escapeHtml(row.testItem).replace(/\n/g, '<br/>'),
