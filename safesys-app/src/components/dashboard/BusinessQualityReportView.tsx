@@ -157,24 +157,24 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
       <div className="flex items-center gap-3 mb-4">
         <button
           onClick={handleBack}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           aria-label="뒤로가기"
         >
-          <ArrowLeft className="h-5 w-5 text-gray-600" />
+          <ArrowLeft className="h-5 w-5 text-gray-300" />
         </button>
         <div className="flex items-center gap-2">
-          <FlaskConical className="h-5 w-5 text-emerald-600" />
-          <h2 className="text-lg font-semibold text-gray-900">
+          <FlaskConical className="h-5 w-5 text-emerald-400" />
+          <h2 className="text-lg font-semibold text-white">
             품질시험 월례보고서 제출현황
             {viewLevel === 'branch' && selectedHqForDetail && (
-              <span className="text-sm font-normal text-gray-500 ml-2">- {selectedHqForDetail}</span>
+              <span className="text-sm font-normal text-gray-300 ml-2">- {selectedHqForDetail}</span>
             )}
             {viewLevel === 'project' && selectedBranchForDetail && (
-              <span className="text-sm font-normal text-gray-500 ml-2">- {selectedBranchForDetail}</span>
+              <span className="text-sm font-normal text-gray-300 ml-2">- {selectedBranchForDetail}</span>
             )}
           </h2>
         </div>
-        <div className="ml-auto text-sm text-gray-500">
+        <div className="ml-auto text-sm text-gray-300">
           {currentMonthLabel} 제출 {totalStats.submittedCount}/{totalStats.projectCount}개
         </div>
       </div>

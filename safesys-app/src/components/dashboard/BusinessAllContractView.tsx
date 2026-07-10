@@ -505,7 +505,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
       value={amountMode}
       onChange={(e) => setAmountMode(e.target.value)}
       title="금액 기준 선택"
-      className="px-2 py-1.5 text-sm font-medium bg-white text-violet-700 border border-violet-300 rounded-lg hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-300 cursor-pointer"
+      className="min-w-0 flex-1 sm:flex-none px-2 py-1.5 text-sm font-medium bg-white text-violet-700 border border-violet-300 rounded-lg hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-300 cursor-pointer"
     >
       <option value="total">총차 (총계약금액)</option>
       {years.map((y) => (
@@ -520,7 +520,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
       value={categoryFilter}
       onChange={(e) => setCategoryFilter(e.target.value)}
       title="소관사업별 보기"
-      className="px-2 py-1.5 text-sm font-medium bg-white text-violet-700 border border-violet-300 rounded-lg hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-300 cursor-pointer max-w-[180px]"
+      className="min-w-0 flex-1 sm:flex-none px-2 py-1.5 text-sm font-medium bg-white text-violet-700 border border-violet-300 rounded-lg hover:bg-violet-100 focus:outline-none focus:ring-2 focus:ring-violet-300 cursor-pointer sm:max-w-[180px]"
     >
       <option value="all">소관사업 전체</option>
       {categories.map((c) => (
@@ -573,7 +573,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
       {!error && viewLevel === 'hq' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-violet-50 px-4 py-3 border-b border-gray-200">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <Coins className="h-4 w-4 text-violet-600" />
                 <span className="text-sm font-medium text-violet-800">본부별 공사·용역·물품 계약현황</span>
@@ -609,7 +609,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
       {!error && viewLevel === 'branch' && selectedHq && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-violet-50 px-4 py-3 border-b border-gray-200">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <Coins className="h-4 w-4 text-violet-600" />
                 <span className="text-sm font-medium text-violet-800">{hqDisplay(selectedHq)} - 지사별 공사·용역·물품 계약현황</span>
@@ -645,7 +645,7 @@ const BusinessAllContractView: React.FC<BusinessAllContractViewProps> = ({
       {!error && viewLevel === 'project' && selectedHq && selectedBranch && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-violet-50 px-4 py-3 border-b border-gray-200">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <Coins className="h-4 w-4 text-violet-600" />
                 <span className="text-sm font-medium text-violet-800">{selectedBranch} - 사업별 공사·용역·물품 계약현황</span>

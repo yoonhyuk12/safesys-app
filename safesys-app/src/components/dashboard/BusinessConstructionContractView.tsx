@@ -578,7 +578,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       value={categoryFilter}
       onChange={(e) => setCategoryFilter(e.target.value)}
       title="소관사업별 보기"
-      className="px-2 py-1.5 text-sm font-medium bg-white text-sky-700 border border-sky-300 rounded-lg hover:bg-sky-100 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer max-w-[180px]"
+      className="min-w-0 flex-1 sm:flex-none px-2 py-1.5 text-sm font-medium bg-white text-sky-700 border border-sky-300 rounded-lg hover:bg-sky-100 focus:outline-none focus:ring-2 focus:ring-sky-300 cursor-pointer sm:max-w-[180px]"
     >
       <option value="all">소관사업 전체</option>
       {categories.map((c) => (
@@ -638,7 +638,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       {!error && viewLevel === 'hq' && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-sky-50 px-4 py-3 border-b border-gray-200">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <Building className="h-4 w-4 text-sky-600" />
                 <span className="text-sm font-medium text-sky-800">본부별 공사 계약현황</span>
@@ -684,7 +684,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       {!error && viewLevel === 'branch' && selectedHq && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-sky-50 px-4 py-3 border-b border-gray-200">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <Building className="h-4 w-4 text-sky-600" />
                 <span className="text-sm font-medium text-sky-800">{hqDisplay(selectedHq)} - 지사별 공사 계약현황</span>
@@ -730,7 +730,7 @@ const BusinessConstructionContractView: React.FC<BusinessConstructionContractVie
       {!error && viewLevel === 'project' && selectedHq && selectedBranch && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-sky-50 px-4 py-3 border-b border-gray-200">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <Building className="h-4 w-4 text-sky-600" />
                 <span className="text-sm font-medium text-sky-800">{selectedBranch} - 사업별 공사 계약현황</span>

@@ -119,21 +119,21 @@ const BusinessInspectionView: React.FC<BusinessInspectionViewProps> = ({
       <div className="flex items-center gap-3 mb-4">
         <button
           onClick={handleBack}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           aria-label="뒤로가기"
         >
-          <ArrowLeft className="h-5 w-5 text-gray-600" />
+          <ArrowLeft className="h-5 w-5 text-gray-300" />
         </button>
         <div className="flex items-center gap-2">
-          <ClipboardCheck className="h-5 w-5 text-indigo-600" />
-          <h2 className="text-lg font-semibold text-gray-900">
+          <ClipboardCheck className="h-5 w-5 text-indigo-400" />
+          <h2 className="text-lg font-semibold text-white">
             검사/검측 등록현황
             {viewLevel === 'project' && selectedBranchForDetail && (
-              <span className="text-sm font-normal text-gray-500 ml-2">- {selectedBranchForDetail}</span>
+              <span className="text-sm font-normal text-gray-300 ml-2">- {selectedBranchForDetail}</span>
             )}
           </h2>
         </div>
-        <div className="ml-auto text-sm text-gray-500">
+        <div className="ml-auto text-sm text-gray-300">
           총 {totalInspectionCount.toLocaleString()}건 등록
         </div>
       </div>

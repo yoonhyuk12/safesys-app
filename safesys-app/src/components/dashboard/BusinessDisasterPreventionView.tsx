@@ -415,25 +415,27 @@ const BusinessDisasterPreventionView: React.FC<BusinessDisasterPreventionViewPro
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 mb-4">
-        <button
-          onClick={handleBack}
-          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          aria-label="뒤로가기"
-        >
-          <ArrowLeft className="h-5 w-5 text-gray-600" />
-        </button>
-        <div className="flex items-center gap-2">
-          <Shield className="h-5 w-5 text-emerald-600" />
-          <h2 className="text-lg font-semibold text-gray-900">
-            재해예방기술지도 계약현황
-            {viewLevel === 'project' && selectedBranchForDetail && (
-              <span className="text-sm font-normal text-gray-500 ml-2">- {selectedBranchForDetail}</span>
-            )}
-          </h2>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 mb-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleBack}
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            aria-label="뒤로가기"
+          >
+            <ArrowLeft className="h-5 w-5 text-gray-300" />
+          </button>
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-emerald-400" />
+            <h2 className="text-lg font-semibold text-white">
+              재해예방기술지도 계약현황
+              {viewLevel === 'project' && selectedBranchForDetail && (
+                <span className="text-sm font-normal text-gray-300 ml-2">- {selectedBranchForDetail}</span>
+              )}
+            </h2>
+          </div>
         </div>
-        <div className="ml-auto flex items-center gap-3">
-          <span className="hidden sm:inline text-sm text-gray-500">
+        <div className="sm:ml-auto flex items-center justify-end gap-3">
+          <span className="hidden sm:inline text-sm text-gray-300">
             공사 {totalWorkCount.toLocaleString()}건 · 기술지도 {totalGuideCount.toLocaleString()}건
           </span>
           <button
