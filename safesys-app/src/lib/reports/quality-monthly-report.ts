@@ -27,7 +27,7 @@ function buildDataRowHtml(row: QualityMonthlyReportRow): string {
   const d = deriveRow(row)
   const cells = [
     escapeHtml(row.workType),
-    escapeHtml(row.testItem),
+    escapeHtml(row.testItem).replace(/\n/g, '<br/>'),
     escapeHtml(row.yearlyPlan),
     escapeHtml(row.yearlyPlanCount),
     escapeHtml(row.monthVolume),

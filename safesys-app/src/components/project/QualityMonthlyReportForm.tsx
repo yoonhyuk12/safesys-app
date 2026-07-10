@@ -22,6 +22,8 @@ interface QualityMonthlyReportFormProps {
 const WORK_TYPE_PRESETS: { label: string; items: string[] }[] = [
   { label: '콘크리트', items: ['슬럼프', '공기량', '염화물', '단위수량', '압축강도'] },
   { label: '토공', items: ['현장밀도', '함수비', '다짐'] },
+  { label: '강관비계', items: ['인장하중\n(비계용)', '휨하중\n(강관조인트)', '인장하중\n(강관조인트)', '압축하중\n(강관조인트)'] },
+  { label: '시스템비계', items: ['압축하중\n(수직재)', '휨하중\n(수평재)', '압축하중\n(가새재)', '휨하중\n(트러스)', '압축하중\n(연결조인트)', '인장하중\n(연결조인트)'] },
 ]
 
 const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm text-gray-900'
@@ -175,7 +177,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                       className={`${INPUT_CLASS} min-w-20`}
                     />
                     {quickRowIndex === index && (
-                      <div className="flex gap-1 mt-1">
+                      <div className="grid grid-cols-2 gap-1 mt-1 w-max">
                         {WORK_TYPE_PRESETS.map((preset) => (
                           <button
                             key={preset.label}
@@ -192,7 +194,12 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                     )}
                   </td>
                   <td className={TD_CLASS}>
-                    <input type="text" value={row.testItem} onChange={(e) => updateRow(index, 'testItem', e.target.value)} className={`${INPUT_CLASS} min-w-24`} />
+                    <textarea
+                      value={row.testItem}
+                      onChange={(e) => updateRow(index, 'testItem', e.target.value)}
+                      rows={Math.max(1, row.testItem.split('\n').length)}
+                      className={`${INPUT_CLASS} min-w-24 resize-none`}
+                    />
                   </td>
                   <td className={TD_CLASS}>
                     <input type="text" value={row.yearlyPlan} onChange={(e) => updateRow(index, 'yearlyPlan', e.target.value)} className={`${INPUT_CLASS} min-w-20`} />
