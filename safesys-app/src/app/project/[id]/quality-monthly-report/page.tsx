@@ -363,7 +363,8 @@ export default function QualityMonthlyReportPage() {
                 </button>
               </div>
             ) : (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+              /* 데스크탑에선 내용물 맞춤 폭으로 가운데 배치 */
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden lg:w-fit lg:mx-auto">
                 <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between">
                   <h2 className="font-semibold text-sm sm:text-base truncate">
                     {formData.report_year}년 {formData.report_month}월 보고서 {editingRecordId ? '수정' : '작성'}
