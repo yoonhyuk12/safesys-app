@@ -11,6 +11,7 @@ import {
   deriveRow,
   extractUnit,
   formatNum,
+  formatThousands,
   parseNum,
   replaceUnit,
 } from '@/lib/quality/quality-monthly-types'
@@ -31,6 +32,12 @@ const WORK_TYPE_PRESETS: { label: string; items: string[]; volume: string }[] = 
 
 // 콘크리트 시험 빈도 — 물량 120㎥당 1회 (횟수 자동 계산, 소수점은 올림)
 const CONCRETE_VOLUME_PER_TEST = 120
+
+// 1,000단위 콤마를 자동 적용할 숫자 입력 필드
+const NUMERIC_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
+  'yearlyPlan', 'yearlyPlanCount', 'monthVolume', 'monthQualityTest',
+  'monthExpertConfirm', 'monthOtherConfirm', 'nextMonthPlan', 'nextMonthPlanCount',
+]
 
 const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm text-gray-900'
 const TH_CLASS = 'border border-gray-300 bg-gray-100 px-1.5 py-1.5 text-xs font-semibold text-gray-700 whitespace-nowrap'
@@ -80,6 +87,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
   }
 
   const updateRow = (index: number, field: keyof QualityMonthlyReportRow, value: string) => {
+    if (NUMERIC_FIELDS.includes(field)) value = formatThousands(value)
     const edited = formData.report_rows[index]
     // 콘크리트 슬럼프 행에 물량(시공계획·월 실적) 입력 시 나머지 콘크리트 시험항목 행에도 동일 값 전파
     const propagateVolume =
@@ -93,7 +101,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
       // 콘크리트 물량 입력 시 횟수 자동 계산 (120㎥당 1회, 올림)
       if ((field === 'yearlyPlan' || field === 'nextMonthPlan') && updated.workType === '콘크리트') {
         const volume = parseNum(value)
-        const count = volume !== null && volume > 0 ? String(Math.ceil(volume / CONCRETE_VOLUME_PER_TEST)) : ''
+        const count = volume !== null && volume > 0 ? formatThousands(String(Math.ceil(volume / CONCRETE_VOLUME_PER_TEST))) : ''
         if (field === 'yearlyPlan') updated.yearlyPlanCount = count
         else updated.nextMonthPlanCount = count
       }

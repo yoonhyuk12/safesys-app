@@ -69,6 +69,16 @@ export function extractUnit(value: string): string {
   return cleaned.replace(/^-?\d*(?:\.\d+)?\s*/, '')
 }
 
+// 입력값의 숫자 부분에 1,000단위 콤마 적용 ("1200㎥" → "1,200㎥"). 숫자로 시작하지 않으면 그대로.
+export function formatThousands(value: string): string {
+  const match = (value || '').match(/^(-?)([\d,]+)(\.\d*)?(.*)$/)
+  if (!match) return value
+  const digits = match[2].replace(/,/g, '')
+  if (!digits) return value
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+  return match[1] + grouped + (match[3] || '') + match[4]
+}
+
 // 물량 값의 단위 부분만 교체 — 숫자 부분은 유지 ("684㎥" + "톤" → "684톤")
 export function replaceUnit(value: string, unit: string): string {
   const match = (value || '').trim().match(/^(-?[\d,]*(?:\.\d+)?)\s*/)
