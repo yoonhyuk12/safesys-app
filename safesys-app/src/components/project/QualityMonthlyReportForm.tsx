@@ -132,12 +132,12 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
             <tr>
               <th rowSpan={2} className={TH_CLASS}>공종</th>
               <th rowSpan={2} className={TH_CLASS}>시험항목</th>
+              <th rowSpan={2} className={TH_CLASS}></th>
               <th colSpan={2} className={TH_CLASS}>{formData.report_year}년<br />시공계획</th>
               <th colSpan={4} className={`${TH_CLASS} bg-amber-50`}>{formData.report_month}월 실적</th>
               <th colSpan={4} className={TH_CLASS}>전월까지 누계</th>
               <th rowSpan={2} className={TH_CLASS}>다음월<br />시공계획</th>
               <th colSpan={3} className={`${TH_CLASS} bg-blue-100`}>자동 계산</th>
-              <th rowSpan={2} className={TH_CLASS}></th>
             </tr>
             <tr>
               <th className={TH_CLASS}>물량</th>
@@ -201,6 +201,15 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                       className={`${INPUT_CLASS} min-w-24 resize-none`}
                     />
                   </td>
+                  <td className={`${TD_CLASS} text-center`}>
+                    <button
+                      onClick={() => removeRow(index)}
+                      className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                      title="행 삭제"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </td>
                   <td className={TD_CLASS}>
                     <input type="text" value={row.yearlyPlan} onChange={(e) => updateRow(index, 'yearlyPlan', e.target.value)} className={`${INPUT_CLASS} min-w-20`} />
                   </td>
@@ -237,15 +246,6 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                   <td className={CALC_TD_CLASS}>{formatNum(d.cumulVolume) || '-'}</td>
                   <td className={CALC_TD_CLASS}>{formatNum(d.cumulTotal) || '-'}</td>
                   <td className={CALC_TD_CLASS}>{formatNum(d.remaining) || '-'}</td>
-                  <td className={`${TD_CLASS} text-center`}>
-                    <button
-                      onClick={() => removeRow(index)}
-                      className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
-                      title="행 삭제"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </td>
                 </tr>
               )
             })}
