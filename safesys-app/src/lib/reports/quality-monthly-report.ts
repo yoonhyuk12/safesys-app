@@ -29,6 +29,7 @@ function buildDataRowHtml(row: QualityMonthlyReportRow): string {
     escapeHtml(row.workType),
     escapeHtml(row.testItem),
     escapeHtml(row.yearlyPlan),
+    escapeHtml(row.yearlyPlanCount),
     escapeHtml(row.monthVolume),
     formatNum(d.monthTotal),
     escapeHtml(row.monthQualityTest),
@@ -48,7 +49,7 @@ function buildDataRowHtml(row: QualityMonthlyReportRow): string {
 }
 
 function buildEmptyRowHtml(): string {
-  return `<tr>${Array(17).fill(0).map(() => `<td style="${CELL} height: 30px;">&nbsp;</td>`).join('')}</tr>`
+  return `<tr>${Array(18).fill(0).map(() => `<td style="${CELL} height: 30px;">&nbsp;</td>`).join('')}</tr>`
 }
 
 function buildPageHtml(record: QualityMonthlyReportRecord, rowsForPage: QualityMonthlyReportRow[]): string {
@@ -81,13 +82,15 @@ function buildPageHtml(record: QualityMonthlyReportRecord, rowsForPage: QualityM
           <tr>
             <th rowspan="4" style="${HEAD} width: 6%;">공종</th>
             <th rowspan="4" style="${HEAD} width: 8%;">시 험<br/>항 목</th>
-            <th rowspan="4" style="${HEAD} width: 6.5%;">(${record.report_year})년<br/>시 공<br/>계 획</th>
+            <th colspan="2" style="${HEAD}">(${record.report_year})년<br/>시 공<br/>계 획</th>
             <th colspan="6" style="${HEAD}">(${record.report_month})월 시공내역</th>
             <th colspan="6" style="${HEAD}">이번 월까지 시공누계</th>
             <th rowspan="4" style="${HEAD} width: 6.5%;">(${nextMonth})월<br/>시 공 계 획</th>
             <th rowspan="4" style="${HEAD} width: 6.5%;">시공잔량③</th>
           </tr>
           <tr>
+            <th rowspan="3" style="${HEAD} width: 5.5%;">물 량</th>
+            <th rowspan="3" style="${HEAD} width: 5.5%;">횟 수</th>
             <th rowspan="3" style="${HEAD} width: 5.5%;">시공<br/>물량</th>
             <th rowspan="3" style="${HEAD} width: 5.5%;">계<br/>①+②</th>
             <th colspan="4" style="${HEAD}">시 험 회 수</th>

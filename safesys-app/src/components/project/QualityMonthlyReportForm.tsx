@@ -2,7 +2,7 @@
 
 // 품질시험 월례보고서 작성/수정 폼 — 헤더 정보 + 행 입력 테이블(소계·계·누계·시공잔량 자동 계산)
 
-import React from 'react'
+import React, { useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import {
   QualityMonthlyReportFormData,
@@ -17,6 +17,12 @@ interface QualityMonthlyReportFormProps {
   onChange: (data: QualityMonthlyReportFormData) => void
   isEditing: boolean // 수정 모드면 연/월 변경 잠금 (월 1건 고유키 보호)
 }
+
+// 공종 퀵입력 프리셋 — 버튼 클릭 시 해당 공종의 시험항목 행들을 일괄 추가
+const WORK_TYPE_PRESETS: { label: string; items: string[] }[] = [
+  { label: '콘크리트', items: ['슬럼프', '공기량', '염화물', '단위수량', '압축강도'] },
+  { label: '토공', items: ['현장밀도', '함수비', '다짐'] },
+]
 
 const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm text-gray-900'
 const TH_CLASS = 'border border-gray-300 bg-gray-100 px-1.5 py-1.5 text-xs font-semibold text-gray-700 whitespace-nowrap'
@@ -42,6 +48,23 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
 
   const removeRow = (index: number) => {
     onChange({ ...formData, report_rows: formData.report_rows.filter((_, i) => i !== index) })
+  }
+
+  // 공종 입력 포커스 시 퀵입력 버튼을 보여줄 행 인덱스
+  const [quickRowIndex, setQuickRowIndex] = useState<number | null>(null)
+
+  // 퀵입력 적용 — 현재 행에 공종+첫 시험항목을 채우고, 나머지 시험항목은 아래에 행으로 추가
+  const applyPreset = (index: number, preset: { label: string; items: string[] }) => {
+    const rows = [...formData.report_rows]
+    rows[index] = { ...rows[index], workType: preset.label, testItem: preset.items[0] }
+    const extraRows = preset.items.slice(1).map((item) => ({
+      ...createEmptyRow(),
+      workType: preset.label,
+      testItem: item,
+    }))
+    rows.splice(index + 1, 0, ...extraRows)
+    onChange({ ...formData, report_rows: rows })
+    setQuickRowIndex(null)
   }
 
   return (
@@ -107,7 +130,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
             <tr>
               <th rowSpan={2} className={TH_CLASS}>공종</th>
               <th rowSpan={2} className={TH_CLASS}>시험항목</th>
-              <th rowSpan={2} className={TH_CLASS}>{formData.report_year}년<br />시공계획</th>
+              <th colSpan={2} className={TH_CLASS}>{formData.report_year}년<br />시공계획</th>
               <th colSpan={4} className={`${TH_CLASS} bg-amber-50`}>{formData.report_month}월 실적</th>
               <th colSpan={4} className={TH_CLASS}>전월까지 누계</th>
               <th rowSpan={2} className={TH_CLASS}>다음월<br />시공계획</th>
@@ -115,6 +138,8 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
               <th rowSpan={2} className={TH_CLASS}></th>
             </tr>
             <tr>
+              <th className={TH_CLASS}>물량</th>
+              <th className={TH_CLASS}>횟수</th>
               <th className={`${TH_CLASS} bg-amber-50`}>시공물량</th>
               <th className={`${TH_CLASS} bg-amber-50`}>품질시험①</th>
               <th className={`${TH_CLASS} bg-amber-50`}>전문기관②</th>
@@ -131,7 +156,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
           <tbody>
             {formData.report_rows.length === 0 && (
               <tr>
-                <td colSpan={16} className="border border-gray-300 px-3 py-6 text-center text-sm text-gray-400">
+                <td colSpan={17} className="border border-gray-300 px-3 py-6 text-center text-sm text-gray-400">
                   행 추가 버튼으로 공종/시험항목을 등록해주세요.
                 </td>
               </tr>
@@ -141,13 +166,39 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
               return (
                 <tr key={index}>
                   <td className={TD_CLASS}>
-                    <input type="text" value={row.workType} onChange={(e) => updateRow(index, 'workType', e.target.value)} className={`${INPUT_CLASS} min-w-20`} />
+                    <input
+                      type="text"
+                      value={row.workType}
+                      onChange={(e) => updateRow(index, 'workType', e.target.value)}
+                      onFocus={() => setQuickRowIndex(index)}
+                      onBlur={() => setQuickRowIndex(null)}
+                      className={`${INPUT_CLASS} min-w-20`}
+                    />
+                    {quickRowIndex === index && (
+                      <div className="flex gap-1 mt-1">
+                        {WORK_TYPE_PRESETS.map((preset) => (
+                          <button
+                            key={preset.label}
+                            onMouseDown={(e) => {
+                              e.preventDefault()
+                              applyPreset(index, preset)
+                            }}
+                            className="px-2 py-0.5 text-xs text-blue-700 bg-blue-50 border border-blue-300 rounded hover:bg-blue-100 whitespace-nowrap"
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </td>
                   <td className={TD_CLASS}>
                     <input type="text" value={row.testItem} onChange={(e) => updateRow(index, 'testItem', e.target.value)} className={`${INPUT_CLASS} min-w-24`} />
                   </td>
                   <td className={TD_CLASS}>
                     <input type="text" value={row.yearlyPlan} onChange={(e) => updateRow(index, 'yearlyPlan', e.target.value)} className={`${INPUT_CLASS} min-w-20`} />
+                  </td>
+                  <td className={TD_CLASS}>
+                    <input type="text" value={row.yearlyPlanCount} onChange={(e) => updateRow(index, 'yearlyPlanCount', e.target.value)} className={`${INPUT_CLASS} min-w-16`} />
                   </td>
                   <td className={`${TD_CLASS} bg-amber-50/50`}>
                     <input type="text" value={row.monthVolume} onChange={(e) => updateRow(index, 'monthVolume', e.target.value)} className={`${INPUT_CLASS} min-w-20`} />

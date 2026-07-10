@@ -19,14 +19,6 @@ import {
   normalizeRows,
 } from '@/lib/quality/quality-monthly-types'
 
-// 프로젝트명에서 지구명 추출 ("…지구"까지, 없으면 첫 단어)
-const extractDistrict = (projectName?: string): string => {
-  if (!projectName) return ''
-  const districtMatch = projectName.match(/^(.+?지구)/)
-  if (districtMatch) return districtMatch[1]
-  return projectName.trim().split(/\s+/)[0] || ''
-}
-
 export default function QualityMonthlyReportPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -128,7 +120,7 @@ export default function QualityMonthlyReportPage() {
     setFormData({
       report_year: year,
       report_month: month,
-      district_name: latest?.district_name || extractDistrict(project?.project_name),
+      district_name: project?.project_name || latest?.district_name || '',
       author_name: latest?.author_name || projectOwner?.full_name || '',
       confirmer_name: latest?.confirmer_name || project?.supervisor_name || '',
       report_rows: latest ? carryOverRows(latest.report_rows) : [createEmptyRow()],

@@ -4,7 +4,8 @@
 export interface QualityMonthlyReportRow {
   workType: string // 공종
   testItem: string // 시험항목
-  yearlyPlan: string // ( )년 시공계획
+  yearlyPlan: string // ( )년 시공계획 물량
+  yearlyPlanCount: string // ( )년 시공계획 횟수
   monthVolume: string // 이번달 시공물량
   monthQualityTest: string // 이번달 품질시험① 회수
   monthExpertConfirm: string // 이번달 확인시험② 전문기관확인 회수
@@ -38,6 +39,7 @@ export function createEmptyRow(): QualityMonthlyReportRow {
     workType: '',
     testItem: '',
     yearlyPlan: '',
+    yearlyPlanCount: '',
     monthVolume: '',
     monthQualityTest: '',
     monthExpertConfirm: '',
@@ -117,6 +119,7 @@ export function carryOverRows(prevRows: QualityMonthlyReportRow[]): QualityMonth
       workType: row.workType,
       testItem: row.testItem,
       yearlyPlan: row.yearlyPlan,
+      yearlyPlanCount: row.yearlyPlanCount,
       prevCumulVolume: derived.cumulVolume !== null ? String(derived.cumulVolume) : '',
       prevCumulQualityTest: derived.cumulQualityTest !== null ? String(derived.cumulQualityTest) : '',
       prevCumulExpertConfirm: derived.cumulExpertConfirm !== null ? String(derived.cumulExpertConfirm) : '',
