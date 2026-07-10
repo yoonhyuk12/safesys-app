@@ -26,7 +26,7 @@ interface QualityMonthlyReportFormProps {
 const WORK_TYPE_PRESETS: { label: string; items: string[]; volume: string }[] = [
   { label: '콘크리트', items: ['슬럼프', '공기량', '염화물', '단위수량', '압축강도'], volume: '㎥' },
   { label: '토공', items: ['현장밀도', '함수비', '다짐'], volume: '㎥' },
-  { label: '강관비계', items: ['인장하중\n(비계용)', '휨하중\n(강관조인트)', '인장하중\n(강관조인트)', '압축하중\n(강관조인트)'], volume: '㎡' },
+  { label: '강관동바리', items: ['인장하중\n(비계용)', '휨하중\n(강관조인트)', '인장하중\n(강관조인트)', '압축하중\n(강관조인트)'], volume: '㎥' },
   { label: '시스템비계', items: ['압축하중\n(수직재)', '휨하중\n(수평재)', '압축하중\n(가새재)', '휨하중\n(트러스)', '압축하중\n(연결조인트)', '인장하중\n(연결조인트)'], volume: '㎡' },
 ]
 
