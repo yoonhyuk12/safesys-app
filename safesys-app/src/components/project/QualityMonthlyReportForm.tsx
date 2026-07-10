@@ -10,6 +10,7 @@ import {
   createEmptyRow,
   deriveRow,
   formatNum,
+  parseNum,
 } from '@/lib/quality/quality-monthly-types'
 
 interface QualityMonthlyReportFormProps {
@@ -26,6 +27,9 @@ const WORK_TYPE_PRESETS: { label: string; items: string[]; volume: string }[] = 
   { label: '시스템비계', items: ['압축하중\n(수직재)', '휨하중\n(수평재)', '압축하중\n(가새재)', '휨하중\n(트러스)', '압축하중\n(연결조인트)', '인장하중\n(연결조인트)'], volume: '공급자마다' },
 ]
 
+// 콘크리트 시험 빈도 — 물량 120㎥당 1회 (횟수 자동 계산, 소수점은 올림)
+const CONCRETE_VOLUME_PER_TEST = 120
+
 const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm text-gray-900'
 const TH_CLASS = 'border border-gray-300 bg-gray-100 px-1.5 py-1.5 text-xs font-semibold text-gray-700 whitespace-nowrap'
 const TD_CLASS = 'border border-gray-300 px-1 py-1'
@@ -40,7 +44,16 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
   }
 
   const updateRow = (index: number, field: keyof QualityMonthlyReportRow, value: string) => {
-    const rows = formData.report_rows.map((row, i) => (i === index ? { ...row, [field]: value } : row))
+    const rows = formData.report_rows.map((row, i) => {
+      if (i !== index) return row
+      const updated = { ...row, [field]: value }
+      // 콘크리트 물량 입력 시 횟수 자동 계산 (120㎥당 1회, 올림)
+      if (field === 'yearlyPlan' && updated.workType === '콘크리트') {
+        const volume = parseNum(value)
+        updated.yearlyPlanCount = volume !== null && volume > 0 ? String(Math.ceil(volume / CONCRETE_VOLUME_PER_TEST)) : ''
+      }
+      return updated
+    })
     onChange({ ...formData, report_rows: rows })
   }
 
