@@ -26,25 +26,26 @@ function escapeHtml(value: string): string {
 
 function buildDataRowHtml(row: QualityMonthlyReportRow): string {
   const d = deriveRow(row)
-  // 누계 시공물량·시공잔량에는 년 시공계획 물량의 단위(㎥ 등)를 그대로 붙여 출력
+  // 누계 시공물량·시공잔량에는 년 시공계획 물량의 단위(㎥ 등), 횟수 계산 셀에는 년 시공계획 횟수의 단위를 붙여 출력
   const volumeUnit = escapeHtml(extractUnit(row.yearlyPlan))
+  const countUnit = escapeHtml(extractUnit(row.yearlyPlanCount))
   const cells = [
     escapeHtml(row.workType),
     escapeHtml(row.testItem).replace(/\n/g, '<br/>'),
     escapeHtml(row.yearlyPlan),
     escapeHtml(row.yearlyPlanCount),
     escapeHtml(row.monthVolume),
-    formatNum(d.monthTotal),
+    d.monthTotal !== null ? formatNum(d.monthTotal) + countUnit : '',
     escapeHtml(row.monthQualityTest),
-    formatNum(d.monthConfirmSubtotal),
+    d.monthConfirmSubtotal !== null ? formatNum(d.monthConfirmSubtotal) + countUnit : '',
     escapeHtml(row.monthExpertConfirm),
     escapeHtml(row.monthOtherConfirm),
     d.cumulVolume !== null ? formatNum(d.cumulVolume) + volumeUnit : '',
-    formatNum(d.cumulTotal),
-    formatNum(d.cumulQualityTest),
-    formatNum(d.cumulConfirmSubtotal),
-    formatNum(d.cumulExpertConfirm),
-    formatNum(d.cumulOtherConfirm),
+    d.cumulTotal !== null ? formatNum(d.cumulTotal) + countUnit : '',
+    d.cumulQualityTest !== null ? formatNum(d.cumulQualityTest) + countUnit : '',
+    d.cumulConfirmSubtotal !== null ? formatNum(d.cumulConfirmSubtotal) + countUnit : '',
+    d.cumulExpertConfirm !== null ? formatNum(d.cumulExpertConfirm) + countUnit : '',
+    d.cumulOtherConfirm !== null ? formatNum(d.cumulOtherConfirm) + countUnit : '',
     escapeHtml(row.nextMonthPlan),
     escapeHtml(row.nextMonthPlanCount),
     d.remaining !== null ? formatNum(d.remaining) + volumeUnit : '',

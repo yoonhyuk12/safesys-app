@@ -25,7 +25,7 @@ interface QualityMonthlyReportFormProps {
 // 공종 퀵입력 프리셋 — 버튼 클릭 시 해당 공종의 시험항목 행들을 일괄 추가, volume은 시공계획 물량 기본값
 const WORK_TYPE_PRESETS: { label: string; items: string[]; volume: string }[] = [
   { label: '콘크리트', items: ['슬럼프', '공기량', '염화물', '단위수량', '압축강도'], volume: '㎥' },
-  { label: '토공', items: ['현장밀도', '함수비', '다짐'], volume: '토취장마다' },
+  { label: '토공', items: ['현장밀도', '함수비', '다짐'], volume: '' },
   { label: '강관비계', items: ['인장하중\n(비계용)', '휨하중\n(강관조인트)', '인장하중\n(강관조인트)', '압축하중\n(강관조인트)'], volume: '공급자마다' },
   { label: '시스템비계', items: ['압축하중\n(수직재)', '휨하중\n(수평재)', '압축하중\n(가새재)', '휨하중\n(트러스)', '압축하중\n(연결조인트)', '인장하중\n(연결조인트)'], volume: '공급자마다' },
 ]
@@ -37,6 +37,11 @@ const CONCRETE_VOLUME_PER_TEST = 120
 const NUMERIC_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
   'yearlyPlan', 'yearlyPlanCount', 'monthVolume', 'monthQualityTest',
   'monthExpertConfirm', 'monthOtherConfirm', 'nextMonthPlan', 'nextMonthPlanCount',
+]
+
+// 콘크리트 슬럼프 행에서 아래 콘크리트 행 전체로 동일 값이 전파되는 필드 (시공계획 물량 + 월 실적 전체)
+const SLUMP_PROPAGATE_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
+  'yearlyPlan', 'monthVolume', 'monthQualityTest', 'monthExpertConfirm', 'monthOtherConfirm',
 ]
 
 const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm text-gray-900'
@@ -89,21 +94,22 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
   const updateRow = (index: number, field: keyof QualityMonthlyReportRow, value: string) => {
     if (NUMERIC_FIELDS.includes(field)) value = formatThousands(value)
     const edited = formData.report_rows[index]
-    // 콘크리트 슬럼프 행에 물량(시공계획·월 실적) 입력 시 나머지 콘크리트 시험항목 행에도 동일 값 전파
-    const propagateVolume =
-      (field === 'yearlyPlan' || field === 'monthVolume') &&
+    // 콘크리트 슬럼프 행에 시공계획 물량·월 실적 입력 시 나머지 콘크리트 시험항목 행에도 동일 값 전파
+    const propagateFromSlump =
+      SLUMP_PROPAGATE_FIELDS.includes(field) &&
       edited.workType === '콘크리트' &&
       edited.testItem.trim() === '슬럼프'
     const rows = formData.report_rows.map((row, i) => {
-      const isTarget = i === index || (propagateVolume && row.workType === '콘크리트')
+      const isTarget = i === index || (propagateFromSlump && row.workType === '콘크리트')
       if (!isTarget) return row
       const updated = { ...row, [field]: value }
       // 콘크리트 물량 입력 시 횟수 자동 계산 (120㎥당 1회, 올림)
       if ((field === 'yearlyPlan' || field === 'nextMonthPlan') && updated.workType === '콘크리트') {
         const volume = parseNum(value)
         const count = volume !== null && volume > 0 ? formatThousands(String(Math.ceil(volume / CONCRETE_VOLUME_PER_TEST))) : ''
-        if (field === 'yearlyPlan') updated.yearlyPlanCount = count
-        else updated.nextMonthPlanCount = count
+        // 자동 계산 시에도 횟수 칸에 붙어 있던 단위(회 등)는 유지
+        if (field === 'yearlyPlan') updated.yearlyPlanCount = count ? count + extractUnit(updated.yearlyPlanCount) : ''
+        else updated.nextMonthPlanCount = count ? count + extractUnit(updated.nextMonthPlanCount) : ''
       }
       // 시공계획 물량의 단위를 수정하면 월 실적·다음월 물량의 단위도 동일하게 맞춤
       if (field === 'yearlyPlan') {
@@ -278,6 +284,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
             {formData.report_rows.map((row, index) => {
               const d = deriveRow(row)
               const volumeUnit = extractUnit(row.yearlyPlan)
+              const countUnit = extractUnit(row.yearlyPlanCount)
               return (
                 <tr key={index}>
                   <td className={TD_CLASS}>
@@ -324,11 +331,11 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                   <td className={`${TD_CLASS} bg-amber-50/50`}>
                     <SizedInput value={row.monthVolume} minWidthClass="min-w-20" alignRight onChange={(v) => updateRow(index, 'monthVolume', v)} />
                   </td>
-                  <td className={CALC_TD_CLASS}>{formatNum(d.monthTotal) || '-'}</td>
+                  <td className={CALC_TD_CLASS}>{d.monthTotal !== null ? formatNum(d.monthTotal) + countUnit : '-'}</td>
                   <td className={`${TD_CLASS} bg-amber-50/50`}>
                     <SizedInput value={row.monthQualityTest} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'monthQualityTest', v)} />
                   </td>
-                  <td className={CALC_TD_CLASS}>{formatNum(d.monthConfirmSubtotal) || '-'}</td>
+                  <td className={CALC_TD_CLASS}>{d.monthConfirmSubtotal !== null ? formatNum(d.monthConfirmSubtotal) + countUnit : '-'}</td>
                   <td className={`${TD_CLASS} bg-amber-50/50`}>
                     <SizedInput value={row.monthExpertConfirm} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'monthExpertConfirm', v)} />
                   </td>
@@ -337,11 +344,11 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                   </td>
                   {/* 금월까지 누계 — 직전 보고서 이월 누계 + 금월 실적 자동 합산 (읽기 전용) */}
                   <td className={CALC_TD_CLASS}>{d.cumulVolume !== null ? formatNum(d.cumulVolume) + volumeUnit : '-'}</td>
-                  <td className={CALC_TD_CLASS}>{formatNum(d.cumulTotal) || '-'}</td>
-                  <td className={CALC_TD_CLASS}>{formatNum(d.cumulQualityTest) || '-'}</td>
-                  <td className={CALC_TD_CLASS}>{formatNum(d.cumulConfirmSubtotal) || '-'}</td>
-                  <td className={CALC_TD_CLASS}>{formatNum(d.cumulExpertConfirm) || '-'}</td>
-                  <td className={CALC_TD_CLASS}>{formatNum(d.cumulOtherConfirm) || '-'}</td>
+                  <td className={CALC_TD_CLASS}>{d.cumulTotal !== null ? formatNum(d.cumulTotal) + countUnit : '-'}</td>
+                  <td className={CALC_TD_CLASS}>{d.cumulQualityTest !== null ? formatNum(d.cumulQualityTest) + countUnit : '-'}</td>
+                  <td className={CALC_TD_CLASS}>{d.cumulConfirmSubtotal !== null ? formatNum(d.cumulConfirmSubtotal) + countUnit : '-'}</td>
+                  <td className={CALC_TD_CLASS}>{d.cumulExpertConfirm !== null ? formatNum(d.cumulExpertConfirm) + countUnit : '-'}</td>
+                  <td className={CALC_TD_CLASS}>{d.cumulOtherConfirm !== null ? formatNum(d.cumulOtherConfirm) + countUnit : '-'}</td>
                   <td className={TD_CLASS}>
                     <SizedInput value={row.nextMonthPlan} minWidthClass="min-w-20" alignRight onChange={(v) => updateRow(index, 'nextMonthPlan', v)} />
                   </td>
@@ -349,7 +356,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                     <SizedInput value={row.nextMonthPlanCount} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'nextMonthPlanCount', v)} />
                   </td>
                   <td className={CALC_TD_CLASS}>{d.remaining !== null ? formatNum(d.remaining) + volumeUnit : '-'}</td>
-                  <td className={CALC_TD_CLASS}>{formatNum(d.remainingCount) || '-'}</td>
+                  <td className={CALC_TD_CLASS}>{d.remainingCount !== null ? formatNum(d.remainingCount) + countUnit : '-'}</td>
                 </tr>
               )
             })}
