@@ -49,6 +49,11 @@ const SLUMP_PROPAGATE_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
 const EARTHWORK_SYNC_ITEMS = ['현장밀도', '함수비']
 const EARTHWORK_SYNC_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = NUMERIC_FIELDS
 
+// 물량 필드는 다짐 등 나머지 토공 행에도 그대로 전파
+const EARTHWORK_VOLUME_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
+  'yearlyPlan', 'monthVolume', 'nextMonthPlan',
+]
+
 // 행의 횟수 자동 계산 기준 물량 — 자동 계산 대상이 아니면 null
 const volumePerTestOf = (row: QualityMonthlyReportRow): number | null => {
   if (row.workType === '콘크리트') return CONCRETE_VOLUME_PER_TEST
@@ -120,7 +125,9 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
       const isTarget =
         i === index ||
         (propagateFromSlump && row.workType === '콘크리트') ||
-        (propagateEarthwork && row.workType === '토공' && EARTHWORK_SYNC_ITEMS.includes(row.testItem.trim()))
+        (propagateEarthwork &&
+          row.workType === '토공' &&
+          (EARTHWORK_SYNC_ITEMS.includes(row.testItem.trim()) || EARTHWORK_VOLUME_FIELDS.includes(field)))
       if (!isTarget) return row
       const updated = { ...row, [field]: value }
       // 물량 입력 시 횟수 자동 계산 (콘크리트 120㎥당 1회, 토공 현장밀도·함수비 1,000㎥당 1회, 올림)
