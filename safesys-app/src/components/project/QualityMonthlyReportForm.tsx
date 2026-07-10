@@ -30,8 +30,9 @@ const WORK_TYPE_PRESETS: { label: string; items: string[]; volume: string }[] = 
   { label: '시스템비계', items: ['압축하중\n(수직재)', '휨하중\n(수평재)', '압축하중\n(가새재)', '휨하중\n(트러스)', '압축하중\n(연결조인트)', '인장하중\n(연결조인트)'], volume: '㎡' },
 ]
 
-// 콘크리트 시험 빈도 — 물량 120㎥당 1회 (횟수 자동 계산, 소수점은 올림)
-const CONCRETE_VOLUME_PER_TEST = 120
+// 시험 빈도 — 물량 N당 1회 (횟수 자동 계산, 소수점은 올림)
+const CONCRETE_VOLUME_PER_TEST = 120 // 콘크리트 전 항목
+const EARTHWORK_VOLUME_PER_TEST = 1000 // 토공 현장밀도·함수비
 
 // 1,000단위 콤마를 자동 적용할 숫자 입력 필드
 const NUMERIC_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
@@ -47,6 +48,13 @@ const SLUMP_PROPAGATE_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
 // 토공 현장밀도·함수비 행은 물량·횟수 등 모든 숫자 입력을 서로 동일하게 유지
 const EARTHWORK_SYNC_ITEMS = ['현장밀도', '함수비']
 const EARTHWORK_SYNC_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = NUMERIC_FIELDS
+
+// 행의 횟수 자동 계산 기준 물량 — 자동 계산 대상이 아니면 null
+const volumePerTestOf = (row: QualityMonthlyReportRow): number | null => {
+  if (row.workType === '콘크리트') return CONCRETE_VOLUME_PER_TEST
+  if (row.workType === '토공' && EARTHWORK_SYNC_ITEMS.includes(row.testItem.trim())) return EARTHWORK_VOLUME_PER_TEST
+  return null
+}
 
 const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm text-gray-900'
 const TH_CLASS = 'border border-gray-300 bg-gray-100 px-1.5 py-1.5 text-xs font-semibold text-gray-700 whitespace-nowrap'
@@ -115,10 +123,11 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
         (propagateEarthwork && row.workType === '토공' && EARTHWORK_SYNC_ITEMS.includes(row.testItem.trim()))
       if (!isTarget) return row
       const updated = { ...row, [field]: value }
-      // 콘크리트 물량 입력 시 횟수 자동 계산 (120㎥당 1회, 올림)
-      if ((field === 'yearlyPlan' || field === 'nextMonthPlan') && updated.workType === '콘크리트') {
+      // 물량 입력 시 횟수 자동 계산 (콘크리트 120㎥당 1회, 토공 현장밀도·함수비 1,000㎥당 1회, 올림)
+      const volumePerTest = volumePerTestOf(updated)
+      if ((field === 'yearlyPlan' || field === 'nextMonthPlan') && volumePerTest !== null) {
         const volume = parseNum(value)
-        const count = volume !== null && volume > 0 ? formatThousands(String(Math.ceil(volume / CONCRETE_VOLUME_PER_TEST))) : ''
+        const count = volume !== null && volume > 0 ? formatThousands(String(Math.ceil(volume / volumePerTest))) : ''
         // 자동 계산 시에도 횟수 칸에 붙어 있던 단위(회 등)는 유지
         if (field === 'yearlyPlan') updated.yearlyPlanCount = count ? count + extractUnit(updated.yearlyPlanCount) : ''
         else updated.nextMonthPlanCount = count ? count + extractUnit(updated.nextMonthPlanCount) : ''
