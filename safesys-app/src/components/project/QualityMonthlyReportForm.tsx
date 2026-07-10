@@ -2,7 +2,7 @@
 
 // 품질시험 월례보고서 작성/수정 폼 — 헤더 정보 + 행 입력 테이블(소계·계·누계·시공잔량 자동 계산)
 
-import React, { useState } from 'react'
+import React, { useLayoutEffect, useRef, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import {
   QualityMonthlyReportFormData,
@@ -82,16 +82,39 @@ function SizedInput({
   onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void
   onBlur?: () => void
 }) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  // 콤마 자동 포맷으로 값이 재작성돼도 커서가 맨 뒤(단위 뒤)로 튀지 않게, 콤마 제외 문자 수 기준으로 위치 복원
+  const pendingCaret = useRef<number | null>(null)
+
+  useLayoutEffect(() => {
+    const el = inputRef.current
+    if (el && pendingCaret.current !== null && document.activeElement === el) {
+      let seen = 0
+      let pos = 0
+      while (pos < el.value.length && seen < pendingCaret.current) {
+        if (el.value[pos] !== ',') seen++
+        pos++
+      }
+      el.setSelectionRange(pos, pos)
+    }
+    pendingCaret.current = null
+  })
+
   return (
     <div className={`grid ${minWidthClass}`}>
       <span aria-hidden="true" className="invisible whitespace-pre col-start-1 row-start-1 px-1.5 py-1 text-sm border border-transparent">
         {value + ' '}
       </span>
       <input
+        ref={inputRef}
         type="text"
         size={1}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => {
+          const caret = e.target.selectionStart ?? e.target.value.length
+          pendingCaret.current = e.target.value.slice(0, caret).replace(/,/g, '').length
+          onChange(e.target.value)
+        }}
         onFocus={onFocus}
         onBlur={onBlur}
         className={`${INPUT_CLASS} col-start-1 row-start-1${alignRight ? ' text-right' : ''}`}
