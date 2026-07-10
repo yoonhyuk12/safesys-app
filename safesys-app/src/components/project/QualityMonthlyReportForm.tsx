@@ -116,6 +116,8 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
       testItem: preset.items[0],
       yearlyPlan: rows[index].yearlyPlan || preset.volume,
       monthVolume: rows[index].monthVolume || preset.volume,
+      prevCumulVolume: rows[index].prevCumulVolume || preset.volume,
+      nextMonthPlan: rows[index].nextMonthPlan || preset.volume,
     }
     const extraRows = preset.items.slice(1).map((item) => ({
       ...createEmptyRow(),
@@ -123,6 +125,8 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
       testItem: item,
       yearlyPlan: preset.volume,
       monthVolume: preset.volume,
+      prevCumulVolume: preset.volume,
+      nextMonthPlan: preset.volume,
     }))
     rows.splice(index + 1, 0, ...extraRows)
     onChange({ ...formData, report_rows: rows })
@@ -216,7 +220,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
               <th rowSpan={3} className={TH_CLASS}></th>
               <th colSpan={2} className={TH_CLASS}>{formData.report_year}년<br />시공계획</th>
               <th colSpan={6} className={`${TH_CLASS} bg-amber-50`}>{formData.report_month}월 실적</th>
-              <th colSpan={4} className={TH_CLASS}>전월까지 누계</th>
+              <th colSpan={6} className={TH_CLASS}>전월까지 누계</th>
               <th rowSpan={3} className={TH_CLASS}>다음월<br />시공계획</th>
               <th colSpan={3} className={`${TH_CLASS} bg-blue-100`}>자동 계산</th>
             </tr>
