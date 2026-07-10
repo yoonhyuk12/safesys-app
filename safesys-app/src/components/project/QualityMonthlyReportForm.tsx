@@ -167,7 +167,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
               const d = deriveRow(row)
               return (
                 <tr key={index}>
-                  <td className={TD_CLASS}>
+                  <td className={`${TD_CLASS} relative`}>
                     <input
                       type="text"
                       value={row.workType}
@@ -177,7 +177,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                       className={`${INPUT_CLASS} min-w-20`}
                     />
                     {quickRowIndex === index && (
-                      <div className="grid grid-cols-2 gap-1 mt-1 w-max">
+                      <div className="absolute left-1 top-full z-10 grid grid-cols-2 gap-1 w-max bg-white border border-gray-200 rounded-md shadow-lg p-1">
                         {WORK_TYPE_PRESETS.map((preset) => (
                           <button
                             key={preset.label}
