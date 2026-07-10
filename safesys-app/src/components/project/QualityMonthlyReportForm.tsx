@@ -39,9 +39,9 @@ const NUMERIC_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
   'monthExpertConfirm', 'monthOtherConfirm', 'nextMonthPlan', 'nextMonthPlanCount',
 ]
 
-// 콘크리트 슬럼프 행에서 아래 콘크리트 행 전체로 동일 값이 전파되는 필드 (시공계획 물량 + 월 실적 전체)
+// 콘크리트 슬럼프 행에서 아래 콘크리트 행 전체로 동일 값이 전파되는 필드 (시공계획 물량 + 월 실적 전체 + 다음월 물량)
 const SLUMP_PROPAGATE_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
-  'yearlyPlan', 'monthVolume', 'monthQualityTest', 'monthExpertConfirm', 'monthOtherConfirm',
+  'yearlyPlan', 'monthVolume', 'monthQualityTest', 'monthExpertConfirm', 'monthOtherConfirm', 'nextMonthPlan',
 ]
 
 const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm text-gray-900'
