@@ -49,8 +49,8 @@ const SLUMP_PROPAGATE_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
 const EARTHWORK_SYNC_ITEMS = ['현장밀도', '함수비']
 const EARTHWORK_SYNC_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = NUMERIC_FIELDS
 
-// 물량 필드는 다짐 등 나머지 토공 행에도 그대로 전파
-const EARTHWORK_VOLUME_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
+// 물량 입력 필드 — 단위 자동 부착 대상이며, 토공은 다짐 등 나머지 행에도 그대로 전파
+const VOLUME_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
   'yearlyPlan', 'monthVolume', 'nextMonthPlan',
 ]
 
@@ -134,6 +134,10 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
   const updateRow = (index: number, field: keyof QualityMonthlyReportRow, value: string) => {
     if (NUMERIC_FIELDS.includes(field)) value = formatThousands(value)
     const edited = formData.report_rows[index]
+    // 물량 칸에 숫자만 입력하면 년 시공계획 물량의 단위를 자동으로 붙임 (시공계획 자신은 기존 단위 유지)
+    if (VOLUME_FIELDS.includes(field) && parseNum(value) !== null && extractUnit(value) === '') {
+      value += extractUnit(edited.yearlyPlan)
+    }
     // 콘크리트 슬럼프 행에 시공계획 물량·월 실적 입력 시 나머지 콘크리트 시험항목 행에도 동일 값 전파
     const propagateFromSlump =
       SLUMP_PROPAGATE_FIELDS.includes(field) &&
@@ -150,7 +154,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
         (propagateFromSlump && row.workType === '콘크리트') ||
         (propagateEarthwork &&
           row.workType === '토공' &&
-          (EARTHWORK_SYNC_ITEMS.includes(row.testItem.trim()) || EARTHWORK_VOLUME_FIELDS.includes(field)))
+          (EARTHWORK_SYNC_ITEMS.includes(row.testItem.trim()) || VOLUME_FIELDS.includes(field)))
       if (!isTarget) return row
       const updated = { ...row, [field]: value }
       // 물량 입력 시 횟수 자동 계산 (콘크리트 120㎥당 1회, 토공 현장밀도·함수비 1,000㎥당 1회, 올림)
