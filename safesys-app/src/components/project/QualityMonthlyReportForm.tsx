@@ -18,12 +18,12 @@ interface QualityMonthlyReportFormProps {
   isEditing: boolean // 수정 모드면 연/월 변경 잠금 (월 1건 고유키 보호)
 }
 
-// 공종 퀵입력 프리셋 — 버튼 클릭 시 해당 공종의 시험항목 행들을 일괄 추가
-const WORK_TYPE_PRESETS: { label: string; items: string[] }[] = [
-  { label: '콘크리트', items: ['슬럼프', '공기량', '염화물', '단위수량', '압축강도'] },
-  { label: '토공', items: ['현장밀도', '함수비', '다짐'] },
-  { label: '강관비계', items: ['인장하중\n(비계용)', '휨하중\n(강관조인트)', '인장하중\n(강관조인트)', '압축하중\n(강관조인트)'] },
-  { label: '시스템비계', items: ['압축하중\n(수직재)', '휨하중\n(수평재)', '압축하중\n(가새재)', '휨하중\n(트러스)', '압축하중\n(연결조인트)', '인장하중\n(연결조인트)'] },
+// 공종 퀵입력 프리셋 — 버튼 클릭 시 해당 공종의 시험항목 행들을 일괄 추가, volume은 시공계획 물량 기본값
+const WORK_TYPE_PRESETS: { label: string; items: string[]; volume: string }[] = [
+  { label: '콘크리트', items: ['슬럼프', '공기량', '염화물', '단위수량', '압축강도'], volume: '㎥' },
+  { label: '토공', items: ['현장밀도', '함수비', '다짐'], volume: '토취장마다' },
+  { label: '강관비계', items: ['인장하중\n(비계용)', '휨하중\n(강관조인트)', '인장하중\n(강관조인트)', '압축하중\n(강관조인트)'], volume: '공급자마다' },
+  { label: '시스템비계', items: ['압축하중\n(수직재)', '휨하중\n(수평재)', '압축하중\n(가새재)', '휨하중\n(트러스)', '압축하중\n(연결조인트)', '인장하중\n(연결조인트)'], volume: '공급자마다' },
 ]
 
 const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm text-gray-900'
@@ -55,14 +55,20 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
   // 공종 입력 포커스 시 퀵입력 버튼을 보여줄 행 인덱스
   const [quickRowIndex, setQuickRowIndex] = useState<number | null>(null)
 
-  // 퀵입력 적용 — 현재 행에 공종+첫 시험항목을 채우고, 나머지 시험항목은 아래에 행으로 추가
-  const applyPreset = (index: number, preset: { label: string; items: string[] }) => {
+  // 퀵입력 적용 — 현재 행에 공종+첫 시험항목을 채우고, 나머지 시험항목은 아래에 행으로 추가. 물량 기본값도 함께 채움
+  const applyPreset = (index: number, preset: { label: string; items: string[]; volume: string }) => {
     const rows = [...formData.report_rows]
-    rows[index] = { ...rows[index], workType: preset.label, testItem: preset.items[0] }
+    rows[index] = {
+      ...rows[index],
+      workType: preset.label,
+      testItem: preset.items[0],
+      yearlyPlan: rows[index].yearlyPlan || preset.volume,
+    }
     const extraRows = preset.items.slice(1).map((item) => ({
       ...createEmptyRow(),
       workType: preset.label,
       testItem: item,
+      yearlyPlan: preset.volume,
     }))
     rows.splice(index + 1, 0, ...extraRows)
     onChange({ ...formData, report_rows: rows })
@@ -125,6 +131,25 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
         </div>
       </div>
 
+      {/* 공종 퀵입력 — 공종 입력 포커스 시 표 바로 위에 표시 */}
+      {quickRowIndex !== null && (
+        <div className="flex items-center gap-1 flex-wrap">
+          <span className="text-xs text-gray-500 mr-1">{quickRowIndex + 1}행 공종 퀵입력</span>
+          {WORK_TYPE_PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                applyPreset(quickRowIndex, preset)
+              }}
+              className="px-2 py-0.5 text-xs text-blue-700 bg-blue-50 border border-blue-300 rounded hover:bg-blue-100 whitespace-nowrap"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* 행 입력 테이블 */}
       <div className="overflow-x-auto border border-gray-300 rounded-lg">
         <table className="border-collapse min-w-max">
@@ -167,39 +192,36 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
               const d = deriveRow(row)
               return (
                 <tr key={index}>
-                  <td className={`${TD_CLASS} relative`}>
-                    <input
-                      type="text"
-                      value={row.workType}
-                      onChange={(e) => updateRow(index, 'workType', e.target.value)}
-                      onFocus={() => setQuickRowIndex(index)}
-                      onBlur={() => setQuickRowIndex(null)}
-                      className={`${INPUT_CLASS} min-w-20`}
-                    />
-                    {quickRowIndex === index && (
-                      <div className="absolute left-1 top-full z-10 grid grid-cols-2 gap-1 w-max bg-white border border-gray-200 rounded-md shadow-lg p-1">
-                        {WORK_TYPE_PRESETS.map((preset) => (
-                          <button
-                            key={preset.label}
-                            onMouseDown={(e) => {
-                              e.preventDefault()
-                              applyPreset(index, preset)
-                            }}
-                            className="px-2 py-0.5 text-xs text-blue-700 bg-blue-50 border border-blue-300 rounded hover:bg-blue-100 whitespace-nowrap"
-                          >
-                            {preset.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                  <td className={TD_CLASS}>
+                    {/* 입력값과 같은 서체의 투명 사이저를 겹쳐 컬럼 폭이 데이터 최대폭을 따라가게 함 */}
+                    <div className="grid min-w-20">
+                      <span aria-hidden="true" className="invisible whitespace-pre col-start-1 row-start-1 px-1.5 py-1 text-sm border border-transparent">
+                        {row.workType + ' '}
+                      </span>
+                      <input
+                        type="text"
+                        size={1}
+                        value={row.workType}
+                        onChange={(e) => updateRow(index, 'workType', e.target.value)}
+                        onFocus={() => setQuickRowIndex(index)}
+                        onBlur={() => setQuickRowIndex(null)}
+                        className={`${INPUT_CLASS} col-start-1 row-start-1`}
+                      />
+                    </div>
                   </td>
                   <td className={TD_CLASS}>
-                    <textarea
-                      value={row.testItem}
-                      onChange={(e) => updateRow(index, 'testItem', e.target.value)}
-                      rows={Math.max(1, row.testItem.split('\n').length)}
-                      className={`${INPUT_CLASS} min-w-24 resize-none`}
-                    />
+                    <div className="grid min-w-24">
+                      <span aria-hidden="true" className="invisible whitespace-pre col-start-1 row-start-1 px-1.5 py-1 text-sm border border-transparent">
+                        {row.testItem + ' '}
+                      </span>
+                      <textarea
+                        cols={1}
+                        value={row.testItem}
+                        onChange={(e) => updateRow(index, 'testItem', e.target.value)}
+                        rows={Math.max(1, row.testItem.split('\n').length)}
+                        className={`${INPUT_CLASS} col-start-1 row-start-1 resize-none`}
+                      />
+                    </div>
                   </td>
                   <td className={`${TD_CLASS} text-center`}>
                     <button
