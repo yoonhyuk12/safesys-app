@@ -2,8 +2,9 @@
 
 // 프로젝트·근로자·공정표 값을 자동 인입해 작업계획서 기본정보와 현장 즉시 정보를 입력하는 폼
 
-import type { ReactNode } from 'react'
-import { CalendarRange, Users } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { CalendarRange, History, Loader2, Users } from 'lucide-react'
+import { fetchRecentTbm, type TbmCandidate } from '@/lib/ptw/recent-tbm'
 import type {
   CommonWorkPlanFields,
   PersonContact,
@@ -19,6 +20,8 @@ interface WorkPlanFormProps {
   workers: WorkPlanWorker[]
   scheduleCandidates: string[]
   constructionPeriod: { start?: string | null; end?: string | null }
+  projectId: string
+  projectName: string
 }
 
 interface FieldProps {
@@ -114,7 +117,32 @@ export default function WorkPlanForm({
   workers,
   scheduleCandidates,
   constructionPeriod,
+  projectId,
+  projectName,
 }: WorkPlanFormProps) {
+  const [tbmPickerType, setTbmPickerType] = useState<PlanType | null>(null)
+  const [tbmLoading, setTbmLoading] = useState(false)
+  const [tbmCandidates, setTbmCandidates] = useState<TbmCandidate[] | null>(null)
+
+  const toggleTbmPicker = async (type: PlanType) => {
+    if (tbmPickerType === type) {
+      setTbmPickerType(null)
+      return
+    }
+    if (!tbmCandidates) {
+      setTbmLoading(true)
+      try {
+        setTbmCandidates(await fetchRecentTbm(projectId, projectName))
+      } catch {
+        alert('TBM 제출 내역을 불러오지 못했습니다.')
+        return
+      } finally {
+        setTbmLoading(false)
+      }
+    }
+    setTbmPickerType(type)
+  }
+
   const updatePlan = (type: PlanType, values: Record<string, unknown>) => {
     const current = formData[type]
     if (!current) return
@@ -214,10 +242,48 @@ export default function WorkPlanForm({
           {renderPerson('운전원', current.operator, (value) => updatePerson(type, 'operator', value))}
           {renderPerson('유도자', current.guide, (value) => updatePerson(type, 'guide', value))}
         </div>
-        <label className="mt-4 block">
-          <span className="mb-1 block text-xs font-medium text-gray-600">작업내용 공유</span>
+        <div className="mt-4">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-xs font-medium text-gray-600">작업내용 공유</span>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => toggleTbmPicker(type)}
+                disabled={tbmLoading}
+                className="flex items-center gap-1 rounded border border-blue-300 bg-white px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {tbmLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <History className="h-3.5 w-3.5" />}
+                최근 TBM에서 선택
+              </button>
+              {tbmPickerType === type && (
+                <div className="absolute right-0 top-full z-20 mt-1 max-h-72 w-80 overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-lg">
+                  {(tbmCandidates || []).length === 0 ? (
+                    <div className="p-4 text-center text-xs text-gray-400">제출된 TBM이 없습니다.</div>
+                  ) : (
+                    (tbmCandidates || []).map((tbm) => {
+                      const preview = (tbm.today_work || '').replace(/\s+/g, ' ').trim()
+                      return (
+                        <button
+                          key={tbm.id}
+                          type="button"
+                          onClick={() => {
+                            updatePlan(type, { sharedWorkContent: tbm.today_work || '' })
+                            setTbmPickerType(null)
+                          }}
+                          className="w-full border-b border-gray-100 px-3 py-2 text-left last:border-b-0 hover:bg-blue-50"
+                        >
+                          <span className="whitespace-nowrap text-sm font-medium text-gray-800">{tbm.meeting_date}</span>
+                          <span className="ml-2 text-xs text-gray-500">{preview.slice(0, 24)}{preview.length > 24 ? '…' : ''}</span>
+                        </button>
+                      )
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
           <textarea value={current.sharedWorkContent} onChange={(event) => updatePlan(type, { sharedWorkContent: event.target.value })} rows={3} placeholder={scheduleCandidates.length ? `공정표 후보. ${scheduleCandidates.join(', ')}` : '작업내용과 근로자 공유사항을 입력하세요.'} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-        </label>
+        </div>
       </Section>
     )
   }

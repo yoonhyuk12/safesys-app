@@ -516,6 +516,8 @@ export default function WorkPlanWizard({
             workers={workers}
             scheduleCandidates={scheduleCandidates}
             constructionPeriod={{ start: project.construction_start_date, end: project.construction_end_date }}
+            projectId={project.id}
+            projectName={project.project_name}
           />
         )}
         {step === 3 && (
