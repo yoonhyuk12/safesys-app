@@ -31,6 +31,7 @@ interface ContractRecord {
   dminstt_nm: string | null
   cntrct_instt_nm: string | null
   cntrct_info_url: string | null
+  payment_completed: boolean | null
   created_at: string
 }
 
@@ -1090,6 +1091,25 @@ export default function ContractStatusPage() {
     }
   }
 
+  // 대금지급 완료 토글 — 계약건(그룹) 단위로 차수 행 전체에 같은 값을 쓴다.
+  // 조달청에 대금지급 여부 공개 API가 없어(2026-07-12 확인) 수동 관리.
+  // RLS로 본인 등록 행만 갱신되므로 반환 행 수로 부분 실패를 감지해 안내한다
+  const isGroupPaymentCompleted = (g: ContractGroup) =>
+    g.members.length > 0 && g.members.every((m) => !!m.payment_completed)
+  const handleTogglePaymentCompleted = async (g: ContractGroup) => {
+    const next = !isGroupPaymentCompleted(g)
+    const { data, error } = await (supabase as any)
+      .from('project_contracts')
+      .update({ payment_completed: next, updated_at: new Date().toISOString() })
+      .in('id', g.members.map((m) => m.id))
+      .select('id')
+    if (error) { alert('지급완료 상태 변경 실패: ' + error.message); return }
+    if ((data?.length || 0) < g.members.length) {
+      alert('본인이 등록한 계약 행만 변경할 수 있어 일부 차수 행은 변경되지 않았습니다.')
+    }
+    await loadRecords()
+  }
+
   const handleDelete = async (g: ContractGroup) => {
     const label =
       g.members.length > 1
@@ -1334,6 +1354,7 @@ export default function ContractStatusPage() {
                   {sortedGroups.map((g, idx) => {
                     const r = g.repr
                     const isRep = isGroupRepresentative(g)
+                    const isPaid = isGroupPaymentCompleted(g)
                     const expanded = expandedKeys.has(g.key)
                     // 구분(공사→용역)이 바뀌는 첫 행 위에 해당 구분의 소계행 삽입
                     const prevType = idx > 0 ? sortedGroups[idx - 1].repr.contract_type : null
@@ -1383,19 +1404,34 @@ export default function ContractStatusPage() {
                         ) : (
                           <span className="block truncate" title={r.cntrct_nm}>{r.cntrct_nm}</span>
                         )}
-                        {g.members.length > 1 && (
-                          <span className="flex items-center gap-1 text-[11px] text-gray-400">
-                            장기계속 · 차수 {g.members.length}건 병합
-                            <button
-                              type="button"
-                              onClick={() => toggleExpanded(g.key)}
-                              className="w-4 h-4 flex items-center justify-center rounded border border-gray-300 text-gray-500 leading-none hover:bg-gray-100 hover:text-gray-700"
-                              title={expanded ? '병합된 차수 접기' : '병합된 차수 펼쳐보기'}
-                            >
-                              {expanded ? '−' : '+'}
-                            </button>
-                          </span>
-                        )}
+                        <span className="flex items-center gap-2">
+                          {/* 대금지급 완료 토글 뱃지 — 조달청 공개 API가 없어 수동 관리 (대표 버튼과 같은 점선→채움 패턴) */}
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePaymentCompleted(g)}
+                            className={`px-1.5 py-px rounded-full text-[10px] font-semibold cursor-pointer transition-colors ${
+                              isPaid
+                                ? 'bg-emerald-500 text-white'
+                                : 'text-gray-300 border border-dashed border-gray-300 hover:text-emerald-600 hover:border-emerald-400'
+                            }`}
+                            title={isPaid ? '대금지급 완료 해제' : '대금지급 완료로 표시'}
+                          >
+                            지급완료
+                          </button>
+                          {g.members.length > 1 && (
+                            <span className="flex items-center gap-1 text-[11px] text-gray-400">
+                              장기계속 · 차수 {g.members.length}건 병합
+                              <button
+                                type="button"
+                                onClick={() => toggleExpanded(g.key)}
+                                className="w-4 h-4 flex items-center justify-center rounded border border-gray-300 text-gray-500 leading-none hover:bg-gray-100 hover:text-gray-700"
+                                title={expanded ? '병합된 차수 접기' : '병합된 차수 펼쳐보기'}
+                              >
+                                {expanded ? '−' : '+'}
+                              </button>
+                            </span>
+                          )}
+                        </span>
                       </td>
                       <td className="px-3 py-2 max-w-[180px] xl:max-w-none truncate" title={r.corp_nm || ''}>{r.corp_nm || '-'}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatAmt(r.tot_cntrct_amt)}</td>
