@@ -164,11 +164,17 @@ export default function WorkPlanForm({
     onSelect({ ...current, name: value, phone: worker?.phone || current.phone })
   }
 
+  const personInputClass = 'w-full min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
+
+  // 그룹 라벨 1개 아래 직급·성명·연락처를 한 줄로 배치해 세로 공간을 줄인 컴팩트 레이아웃
   const renderPerson = (label: string, person: PersonContact, onUpdate: (person: PersonContact) => void, position = false) => (
-    <div className={`grid gap-3 ${position ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
-      {position && <Field label={`${label} 직급`} value={person.position} onChange={(value) => onUpdate({ ...person, position: value })} />}
-      <Field label={`${label} 성명`} value={person.name} list="work-plan-workers" onChange={(value) => selectPerson(value, person, onUpdate)} />
-      <Field label={`${label} 연락처`} value={person.phone} placeholder="010-0000-0000" onChange={(value) => onUpdate({ ...person, phone: value })} />
+    <div className="min-w-0">
+      <span className="mb-1 block text-xs font-medium text-gray-600">{label}</span>
+      <div className={`grid gap-2 ${position ? 'grid-cols-[0.7fr_1fr_1.2fr]' : 'grid-cols-[1fr_1.2fr]'}`}>
+        {position && <input value={person.position ?? ''} onChange={(event) => onUpdate({ ...person, position: event.target.value })} placeholder="직급" aria-label={`${label} 직급`} className={personInputClass} />}
+        <input value={person.name ?? ''} list="work-plan-workers" onChange={(event) => selectPerson(event.target.value, person, onUpdate)} placeholder="성명" aria-label={`${label} 성명`} className={personInputClass} />
+        <input value={person.phone ?? ''} onChange={(event) => onUpdate({ ...person, phone: event.target.value })} placeholder="010-0000-0000" aria-label={`${label} 연락처`} className={personInputClass} />
+      </div>
     </div>
   )
 
@@ -237,7 +243,7 @@ export default function WorkPlanForm({
         {(constructionPeriod.start || constructionPeriod.end) && <p className="mt-2 flex items-center gap-1 text-xs text-blue-700"><CalendarRange className="h-3.5 w-3.5" />공사기간 {constructionPeriod.start || '-'} ~ {constructionPeriod.end || '-'}</p>}
         <div className="my-4 border-t border-gray-100" />
         {renderWorkerPicker(type, current)}
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 grid gap-3 lg:grid-cols-3">
           {renderPerson('작업지휘자', current.workDirector, (value) => updatePerson(type, 'workDirector', value))}
           {renderPerson('운전원', current.operator, (value) => updatePerson(type, 'operator', value))}
           {renderPerson('유도자', current.guide, (value) => updatePerson(type, 'guide', value))}
