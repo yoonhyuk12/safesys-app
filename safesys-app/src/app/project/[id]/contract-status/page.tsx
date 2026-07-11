@@ -1,7 +1,7 @@
 // 계약(공사·용역) 현황 서류철 — 조달청 계약현황 조회로 등록하는 프로젝트 계약 목록 페이지
 'use client'
 
-import { Fragment, useState, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+import { Fragment, useState, useEffect, useCallback, useMemo, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
@@ -31,7 +31,6 @@ interface ContractRecord {
   dminstt_nm: string | null
   cntrct_instt_nm: string | null
   cntrct_info_url: string | null
-  payment_completed: boolean | null
   created_at: string
 }
 
@@ -193,6 +192,39 @@ interface DlvrReqInfo {
 const dlvrInfoCache = new Map<string, DlvrReqInfo | null>()
 const dlvrUrlCache = new Map<string, string>()
 
+// /api/g2b/pay-insp 응답 행 — 나라장터 통합검색의 대금지급(KG)·검사검수(NZ) 문서
+interface G2bPayDoc {
+  docNo: string
+  name: string
+  payDate: string
+  amt: number
+  seNm: string
+  ctrtNo: string
+  chgOrd: string
+  dlvrReqNo: string
+  corpNm: string
+  dminsttNm: string
+}
+interface G2bInspDoc {
+  docNo: string
+  name: string
+  inspDate: string
+  amt: number
+  dlvrReqNo: string
+  ctrtNo: string
+  dminsttNm: string
+}
+interface PayInspResult {
+  pays: G2bPayDoc[]
+  insps: G2bInspDoc[]
+}
+// 대금지급·검사검수 조회의 세션 캐시 — 키는 '키워드|수요기관' (실패는 null로 기록해 재시도 억제)
+const payInspCache = new Map<string, PayInspResult | null>()
+
+// 통합검색 키워드 — 연도 등 숫자 시작 토큰을 건너뛴 첫 단어 (사업명 부분일치 검색용)
+const payInspKeyword = (title: string): string =>
+  title.split(/\s+/).find((w) => w.length >= 2 && !/^\d/.test(w)) || ''
+
 // 합계행 공용 입력 — 공사·용역 그룹과 물품 그룹을 같은 형태로 합산하기 위한 (총액, 연도별 금액) 튜플
 interface TotalRowItem {
   tot: number
@@ -235,6 +267,24 @@ const iterOrdFromName = (name: string): number => {
   const m = name.match(/(?:\(\s*(\d+)\s*차[^)]*\)|(\d+)\s*차년도)\s*$/)
   return m ? Number(m[1] || m[2]) : 1
 }
+
+// 계약명은 공통 사업명 접두어가 길어 끝부분(…검증용역 등)이 식별점 — 앞쪽을 …로 생략해 뒷부분을 보여준다.
+// direction:rtl 말줄임 트릭으로 말줄임표를 왼쪽에 표시하고, bdi(ltr)로 내부 어순·끝 괄호 뒤집힘을 방지한다.
+function TailTruncate({ text, className = '', title }: { text: string; className?: string; title?: string }) {
+  return (
+    <span dir="rtl" title={title} className={`truncate text-left ${className}`}>
+      <bdi dir="ltr">{text}</bdi>
+    </span>
+  )
+}
+
+// 제목행 세로 고정용 공통 th 클래스 — border-collapse에서는 sticky 셀의 테두리가 함께 고정되지 않아 그림자로 하단선을 대체
+const TH_STICKY = 'px-3 py-2 text-center font-medium sticky top-0 shadow-[inset_0_-1px_0_#e5e7eb]'
+
+// 계약명 컬럼 사용자 조정 폭의 localStorage 키·허용 범위
+const NAME_COL_W_KEY = 'contractStatus.nameColWidth'
+const NAME_COL_MIN = 80
+const NAME_COL_MAX = 640
 
 // 표시용 계약 그룹 — 차수별 등록 행을 한 계약 한 행으로 병합
 interface ContractGroup {
@@ -319,6 +369,8 @@ export default function ContractStatusPage() {
   const [matLoading, setMatLoading] = useState(true)
   const [dlvrInfos, setDlvrInfos] = useState<Map<string, DlvrReqInfo | null>>(() => new Map(dlvrInfoCache))
   const [matLinkLoading, setMatLinkLoading] = useState<string | null>(null)
+  // 나라장터 대금지급·검사검수 문서 — 지급완료·검수 뱃지용 (세션 캐시 미러)
+  const [payInsp, setPayInsp] = useState<Map<string, PayInspResult | null>>(() => new Map(payInspCache))
 
   // 조달청 조회 모달
   const [isLookupOpen, setIsLookupOpen] = useState(false)
@@ -351,6 +403,37 @@ export default function ContractStatusPage() {
   // 등록 건 일괄 갱신 (조달청 최신 계약정보 반영)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshProgress, setRefreshProgress] = useState({ done: 0, total: 0 })
+  // 가로 스크롤 중 여부 — 스크롤 중에는 좌측 고정된 계약명 컬럼을 5글자 폭으로 접어 데이터 영역을 확보
+  const [hScrolled, setHScrolled] = useState(false)
+  // 계약명 컬럼 사용자 조정 폭(px) — 헤더 경계선 드래그로 설정. 설정되면 스크롤 자동 축소보다 우선하며 localStorage에 보존
+  const [nameColPx, setNameColPx] = useState<number | null>(null)
+  useEffect(() => {
+    const saved = Number(localStorage.getItem(NAME_COL_W_KEY))
+    if (saved >= NAME_COL_MIN && saved <= NAME_COL_MAX) setNameColPx(saved)
+  }, [])
+  const startNameColResize = (e: ReactPointerEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = nameColPx ?? (hScrolled ? 104 : 256)
+    const clampW = (x: number) => Math.min(NAME_COL_MAX, Math.max(NAME_COL_MIN, startW + x - startX))
+    const onMove = (ev: PointerEvent) => setNameColPx(clampW(ev.clientX))
+    const onUp = (ev: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      localStorage.setItem(NAME_COL_W_KEY, String(clampW(ev.clientX)))
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }
+  // 계약명 폭 조절 핸들 — 제목행뿐 아니라 모든 계약명 셀(데이터·합계행) 우측 경계에 공용으로 삽입
+  const nameResizeHandle = (
+    <span
+      onPointerDown={startNameColResize}
+      onDoubleClick={() => { setNameColPx(null); localStorage.removeItem(NAME_COL_W_KEY) }}
+      className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none select-none hover:bg-blue-300/60"
+      title="드래그로 계약명 폭 조정 · 더블클릭으로 초기화"
+    />
+  )
   // 차수 병합 행 펼쳐보기 — 펼쳐진 그룹 key 집합
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
   const toggleExpanded = (key: string) =>
@@ -527,6 +610,80 @@ export default function ContractStatusPage() {
       }
     })
   }, [records])
+
+  // 나라장터 대금지급(KG)·검사검수(NZ) 문서 배경 조회 — 사업명 키워드+수요기관으로 통합검색해 뱃지 데이터 확보.
+  // 공식 API에 없는 데이터라 비공식 통합검색 엔드포인트를 쓴다 — 실패 시 뱃지만 표시되지 않는다 (2026-07-12 실호출 확인)
+  useEffect(() => {
+    const wants = new Map<string, { nm: string; inst: string }>()
+    const add = (title: string, inst: string) => {
+      const nm = payInspKeyword(title)
+      if (!nm) return
+      const key = `${nm}|${inst}`
+      if (!payInspCache.has(key)) wants.set(key, { nm, inst })
+    }
+    for (const g of materialGroups) {
+      const info = dlvrInfos.get(g.dlvrReqNo)
+      add(info?.title || g.materialNames[0] || '', (info?.dminsttNm || '').trim())
+    }
+    for (const g of groups) {
+      add(g.repr.cntrct_nm, ((g.repr.dminstt_nm || '').split(',')[0] || '').trim())
+    }
+    if (wants.size === 0) return
+    let cancelled = false
+    const run = async () => {
+      const entries = [...wants.entries()]
+      for (let i = 0; i < entries.length; i += 2) {
+        await Promise.all(entries.slice(i, i + 2).map(async ([key, w]) => {
+          try {
+            const res = await fetch(`/api/g2b/pay-insp?nm=${encodeURIComponent(w.nm)}${w.inst ? `&inst=${encodeURIComponent(w.inst)}` : ''}`)
+            const json = await res.json()
+            payInspCache.set(key, res.ok && json.success ? (json.data as PayInspResult) : null)
+          } catch {
+            payInspCache.set(key, null)
+          }
+        }))
+        if (!cancelled) setPayInsp(new Map(payInspCache))
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [materialGroups, dlvrInfos, groups])
+
+  // 캐시 전체를 풀로 매칭 — 검색 키워드가 달라도 번호(계약·납품요구)로 연결한다 (문서번호 기준 중복 제거)
+  const allPays = useMemo(() => {
+    const m = new Map<string, G2bPayDoc>()
+    for (const v of payInsp.values()) for (const p of v?.pays || []) m.set(p.docNo, p)
+    return [...m.values()]
+  }, [payInsp])
+  const allInsps = useMemo(() => {
+    const m = new Map<string, G2bInspDoc>()
+    for (const v of payInsp.values()) for (const d of v?.insps || []) m.set(d.docNo, d)
+    return [...m.values()]
+  }, [payInsp])
+  const paysForDlvr = useCallback(
+    (no: string) => allPays.filter((p) => p.dlvrReqNo && p.dlvrReqNo === no),
+    [allPays]
+  )
+  const inspsForDlvr = useCallback(
+    (no: string) => allInsps.filter((d) => d.dlvrReqNo && d.dlvrReqNo === no),
+    [allInsps]
+  )
+  // 공사·용역 그룹 매칭 — 딥링크 ctrtNo·확정계약번호(차수 제외 기본번호 포함) 기준
+  const paysForGroup = useCallback(
+    (g: ContractGroup) => {
+      const keys = new Set<string>()
+      for (const m of g.members) {
+        const cn = ctrtNoFromUrl(m.cntrct_info_url)
+        if (cn) keys.add(cn)
+        if (m.cntrct_no) {
+          keys.add(m.cntrct_no)
+          if (m.cntrct_no.length >= 13) keys.add(m.cntrct_no.slice(0, -2))
+        }
+      }
+      return allPays.filter((p) => p.ctrtNo && keys.has(p.ctrtNo))
+    },
+    [allPays]
+  )
 
   // 표 정렬: 공사 먼저 → 용역(소계행이 구분 연속 그룹핑에 의존), 그다음 총계약금액 내림차순 (사용자 지정 순서)
   const sortedGroups = useMemo(() => {
@@ -1091,24 +1248,11 @@ export default function ContractStatusPage() {
     }
   }
 
-  // 대금지급 완료 토글 — 계약건(그룹) 단위로 차수 행 전체에 같은 값을 쓴다.
-  // 조달청에 대금지급 여부 공개 API가 없어(2026-07-12 확인) 수동 관리.
-  // RLS로 본인 등록 행만 갱신되므로 반환 행 수로 부분 실패를 감지해 안내한다
-  const isGroupPaymentCompleted = (g: ContractGroup) =>
-    g.members.length > 0 && g.members.every((m) => !!m.payment_completed)
-  const handleTogglePaymentCompleted = async (g: ContractGroup) => {
-    const next = !isGroupPaymentCompleted(g)
-    const { data, error } = await (supabase as any)
-      .from('project_contracts')
-      .update({ payment_completed: next, updated_at: new Date().toISOString() })
-      .in('id', g.members.map((m) => m.id))
-      .select('id')
-    if (error) { alert('지급완료 상태 변경 실패: ' + error.message); return }
-    if ((data?.length || 0) < g.members.length) {
-      alert('본인이 등록한 계약 행만 변경할 수 있어 일부 차수 행은 변경되지 않았습니다.')
-    }
-    await loadRecords()
-  }
+  // 계약 완료 자동 판정 — 그룹의 최종 준공(완수)일이 오늘 이전이면 계약 절차가 끝난 것으로 본다.
+  // 대금지급 여부 자체는 조달청 공개 API가 없어(2026-07-12 확인) 준공일 경과를 완료 기준으로 사용.
+  // 준공일은 "업데이트" 버튼의 조달청 재조회로 최신화된다(기간 연장 변경계약 반영)
+  const todayIso = new Date().toISOString().slice(0, 10)
+  const isGroupCompleted = (g: ContractGroup) => !!g.endDate && g.endDate < todayIso
 
   const handleDelete = async (g: ContractGroup) => {
     const label =
@@ -1222,10 +1366,19 @@ export default function ContractStatusPage() {
     }
   }
 
+  // 계약명 컬럼 폭(px) — 사용자 조정값 우선, 없으면 평상시 256px·가로 스크롤 중 5글자 정도(104px)
+  const nameW = nameColPx ?? (hScrolled ? 104 : 256)
+  // 사용자 조정값이 없을 때만 스크롤 축소가 동작 — 라벨 줄바꿈/말줄임 전환도 실제 접힘 여부를 따른다
+  const nameCollapsed = nameColPx === null && hScrolled
+
   // 합계행 렌더 — 총 합계·공사/용역/물품 소계 공용 (총액은 계약 단위로 1회만 합산 — 차수 중복 합산 방지)
   const renderTotalRow = (label: string, list: TotalRowItem[], rowClass: string, thisYearCellClass: string, suffix?: ReactNode) => (
     <tr className={`border-b border-gray-200 font-semibold text-gray-700 ${rowClass}`}>
-      <td className="px-3 py-2" colSpan={4}>{label} ({list.length}건){suffix}</td>
+      <td colSpan={2} />
+      {/* 라벨은 계약명 컬럼 자리에서 좌측 고정 — 고정 셀은 뒤가 비치면 안 되므로 rowClass는 불투명색이어야 한다.
+          긴 라벨이 컬럼 폭을 밀어 넓히지 않도록 max-w + 평상시 줄바꿈 허용, 접힘 중엔 말줄임 */}
+      <td style={{ maxWidth: nameW }} className={`px-3 py-2 sticky left-0 z-[1] bg-inherit shadow-[inset_-1px_0_0_#e5e7eb] ${nameCollapsed ? 'truncate' : 'whitespace-normal'}`}>{label} ({list.length}건){suffix}{nameResizeHandle}</td>
+      <td />
       <td className="px-3 py-2 text-right tabular-nums">
         {list.reduce((s, g) => s + g.tot, 0).toLocaleString('ko-KR')}
       </td>
@@ -1328,33 +1481,48 @@ export default function ContractStatusPage() {
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div
+              className="overflow-auto max-h-[calc(100vh-9.5rem)]"
+              onScroll={(e) => setHScrolled(e.currentTarget.scrollLeft > 8)}
+            >
+              {/* 세로 스크롤은 이 컨테이너 내부에서 발생해야 제목행 sticky가 동작 — 상단 헤더·카드 제목 높이만큼 제외 */}
               <table className="w-full text-sm whitespace-nowrap">
                 <thead>
+                  {/* 제목행: 세로 스크롤 시 상단 고정. 계약명 컬럼만 좌측 고정 — 대표·구분은 가로 스크롤 시 계약명 아래로 사라진다 */}
                   <tr className="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
-                    <th className="px-3 py-2 text-center font-medium">대표</th>
-                    <th className="px-3 py-2 text-center font-medium">구분</th>
-                    <th className="px-3 py-2 text-center font-medium">계약명</th>
-                    <th className="px-3 py-2 text-center font-medium">계약상대자</th>
-                    <th className="px-3 py-2 text-center font-medium">총계약금액(원)</th>
+                    <th className={`${TH_STICKY} z-[2] w-[72px] bg-gray-50`}>대표</th>
+                    <th className={`${TH_STICKY} z-[2] w-[72px] bg-gray-50`}>구분</th>
+                    {/* TH_STICKY 미사용 — 하단선+우측 구분선을 한 그림자로 합쳐야 해서(shadow 유틸 중복 충돌 방지) 개별 지정 */}
+                    <th style={{ width: nameW }} className="px-3 py-2 text-center font-medium sticky top-0 left-0 z-[3] bg-gray-50 shadow-[inset_-1px_-1px_0_#e5e7eb]">
+                      계약명
+                      {/* 우측 경계 드래그로 폭 조정(더블클릭 시 초기화) — 조정값은 localStorage에 보존 */}
+                      {nameResizeHandle}
+                    </th>
+                    <th className={`${TH_STICKY} z-[2] bg-gray-50`}>계약상대자</th>
+                    <th className={`${TH_STICKY} z-[2] bg-gray-50`}>총계약금액(원)</th>
                     {yearCols.map((y) => (
-                      <th key={y} className={`px-3 py-2 text-center font-medium ${y === thisYear ? 'bg-amber-100/70 text-amber-800' : ''}`}>
+                      <th key={y} className={`${TH_STICKY} z-[2] ${y === thisYear ? 'bg-[#fdf5d7] text-amber-800' : 'bg-gray-50'}`}>
                         {y === '기타' ? '연도미상(원)' : `${y.slice(2)}년(원)`}
                       </th>
                     ))}
-                    <th className="px-3 py-2 text-center font-medium">계약체결일</th>
-                    <th className="px-3 py-2 text-center font-medium">계약기간</th>
-                    <th className="px-3 py-2 text-center font-medium">수요기관</th>
-                    <th className="px-3 py-2 text-center font-medium">관리</th>
+                    <th className={`${TH_STICKY} z-[2] bg-gray-50`}>계약체결일</th>
+                    <th className={`${TH_STICKY} z-[2] bg-gray-50`}>계약기간</th>
+                    <th className={`${TH_STICKY} z-[2] bg-gray-50`}>수요기관</th>
+                    <th className={`${TH_STICKY} z-[2] bg-gray-50`}>관리</th>
                   </tr>
                 </thead>
                 <tbody>
                   {/* 총 합계행 — 제목행 바로 아래 (공사·용역 계약 + 물품 지급자재 합산) */}
-                  {renderTotalRow('총 합계', [...groups.map(toTotalItem), ...materialGroups.map(matToTotalItem)], 'bg-blue-100/80', 'bg-amber-100/60')}
+                  {renderTotalRow('총 합계', [...groups.map(toTotalItem), ...materialGroups.map(matToTotalItem)], 'bg-[#e2eefe]', 'bg-amber-100/60')}
                   {sortedGroups.map((g, idx) => {
                     const r = g.repr
                     const isRep = isGroupRepresentative(g)
-                    const isPaid = isGroupPaymentCompleted(g)
+                    const isDone = isGroupCompleted(g)
+                    // 나라장터 대금지급 문서 누계가 총액에 도달하면 지급완료 (부분지급은 뱃지 없이 준공경과 완료만 표시)
+                    const gPays = paysForGroup(g)
+                    const paySum = gPays.reduce((s, p) => s + p.amt, 0)
+                    const isPaidFull = (r.tot_cntrct_amt || 0) > 0 && paySum >= (r.tot_cntrct_amt || 0)
+                    const lastPayDate = gPays.reduce((d, p) => (p.payDate > d ? p.payDate : d), '')
                     const expanded = expandedKeys.has(g.key)
                     // 구분(공사→용역)이 바뀌는 첫 행 위에 해당 구분의 소계행 삽입
                     const prevType = idx > 0 ? sortedGroups[idx - 1].repr.contract_type : null
@@ -1364,10 +1532,10 @@ export default function ContractStatusPage() {
                       renderTotalRow(
                         `${r.contract_type} 소계`,
                         groups.filter((x) => x.repr.contract_type === r.contract_type).map(toTotalItem),
-                        r.contract_type === '공사' ? 'bg-blue-50/60' : 'bg-green-50/60',
+                        r.contract_type === '공사' ? 'bg-[#f5faff]' : 'bg-[#f6fef8]',
                         'bg-amber-100/40'
                       )}
-                    <tr className={`border-b border-gray-100 ${isRep ? 'bg-amber-50' : 'hover:bg-gray-50'}`}>
+                    <tr className={`group border-b border-gray-100 ${isRep ? 'bg-amber-50' : 'hover:bg-gray-50'}`}>
                       <td className="px-3 py-2 text-center">
                         <button
                           type="button"
@@ -1389,7 +1557,8 @@ export default function ContractStatusPage() {
                           {r.contract_type}
                         </span>
                       </td>
-                      <td className="px-3 py-2 max-w-[320px] xl:max-w-none">
+                      {/* 좌측 고정 셀은 tr 배경이 안 따라오므로 자체 배경 + group-hover로 행 호버색 동기화 */}
+                      <td style={{ maxWidth: nameW }} className={`px-3 py-2 overflow-hidden sticky left-0 z-[1] shadow-[inset_-1px_0_0_#e5e7eb] ${isRep ? 'bg-amber-50' : 'bg-white group-hover:bg-gray-50'}`}>
                         {isDetailUrl(r.cntrct_info_url) ? (
                           <a
                             href={r.cntrct_info_url}
@@ -1398,26 +1567,30 @@ export default function ContractStatusPage() {
                             className="text-blue-600 hover:underline inline-flex items-center gap-1 max-w-full"
                             title={r.cntrct_nm}
                           >
-                            <span className="truncate">{r.cntrct_nm}</span>
+                            <TailTruncate text={r.cntrct_nm} />
                             <ExternalLink className="h-3 w-3 shrink-0" />
                           </a>
                         ) : (
-                          <span className="block truncate" title={r.cntrct_nm}>{r.cntrct_nm}</span>
+                          <TailTruncate text={r.cntrct_nm} className="block" title={r.cntrct_nm} />
                         )}
+                        {(isDone || isPaidFull || g.members.length > 1) && (
                         <span className="flex items-center gap-2">
-                          {/* 대금지급 완료 토글 뱃지 — 조달청 공개 API가 없어 수동 관리 (대표 버튼과 같은 점선→채움 패턴) */}
-                          <button
-                            type="button"
-                            onClick={() => handleTogglePaymentCompleted(g)}
-                            className={`px-1.5 py-px rounded-full text-[10px] font-semibold cursor-pointer transition-colors ${
-                              isPaid
-                                ? 'bg-emerald-500 text-white'
-                                : 'text-gray-300 border border-dashed border-gray-300 hover:text-emerald-600 hover:border-emerald-400'
-                            }`}
-                            title={isPaid ? '대금지급 완료 해제' : '대금지급 완료로 표시'}
-                          >
-                            지급완료
-                          </button>
+                          {/* 지급완료(나라장터 대금지급 문서 누계=총액) > 완료(준공일 경과) 순으로 강한 신호 하나만 표시 */}
+                          {isPaidFull ? (
+                            <span
+                              className="px-1.5 py-px rounded-full text-[10px] font-semibold bg-emerald-500 text-white"
+                              title={`나라장터 대금지급 누계 ${formatAmt(paySum)}원 (${gPays.length}건) · 최근 지급 ${lastPayDate || '-'}`}
+                            >
+                              지급완료
+                            </span>
+                          ) : isDone && (
+                            <span
+                              className="px-1.5 py-px rounded-full text-[10px] font-semibold bg-emerald-500 text-white"
+                              title={`최종 준공일(${g.endDate}) 경과 — 계약 절차 종료${paySum > 0 ? ` · 나라장터 대금지급 누계 ${formatAmt(paySum)}원` : ''}`}
+                            >
+                              완료
+                            </span>
+                          )}
                           {g.members.length > 1 && (
                             <span className="flex items-center gap-1 text-[11px] text-gray-400">
                               장기계속 · 차수 {g.members.length}건 병합
@@ -1432,6 +1605,8 @@ export default function ContractStatusPage() {
                             </span>
                           )}
                         </span>
+                        )}
+                        {nameResizeHandle}
                       </td>
                       <td className="px-3 py-2 max-w-[180px] xl:max-w-none truncate" title={r.corp_nm || ''}>{r.corp_nm || '-'}</td>
                       <td className="px-3 py-2 text-right tabular-nums">{formatAmt(r.tot_cntrct_amt)}</td>
@@ -1465,9 +1640,9 @@ export default function ContractStatusPage() {
                         .map((m) => {
                           const my = contractYear(m) || '기타'
                           return (
-                            <tr key={m.id} className="border-b border-gray-100 bg-gray-50/70 text-xs text-gray-500">
+                            <tr key={m.id} className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500">
                               <td colSpan={2} />
-                              <td className="px-3 py-1.5 pl-7 max-w-[320px] xl:max-w-none">
+                              <td style={{ maxWidth: nameW }} className="px-3 py-1.5 pl-7 overflow-hidden sticky left-0 z-[1] bg-inherit shadow-[inset_-1px_0_0_#e5e7eb]">
                                 {isDetailUrl(m.cntrct_info_url) ? (
                                   <a
                                     href={m.cntrct_info_url}
@@ -1476,12 +1651,13 @@ export default function ContractStatusPage() {
                                     className="text-blue-500 hover:underline inline-flex items-center gap-1 max-w-full"
                                     title={m.cntrct_nm}
                                   >
-                                    <span className="truncate">{m.cntrct_nm}</span>
+                                    <TailTruncate text={m.cntrct_nm} />
                                     <ExternalLink className="h-3 w-3 shrink-0" />
                                   </a>
                                 ) : (
-                                  <span className="block truncate" title={m.cntrct_nm}>{m.cntrct_nm}</span>
+                                  <TailTruncate text={m.cntrct_nm} className="block" title={m.cntrct_nm} />
                                 )}
+                                {nameResizeHandle}
                               </td>
                               <td className="px-3 py-1.5 max-w-[180px] xl:max-w-none truncate" title={m.corp_nm || ''}>{m.corp_nm || '-'}</td>
                               <td className="px-3 py-1.5 text-right tabular-nums">{formatAmt(m.tot_cntrct_amt)}</td>
@@ -1516,7 +1692,7 @@ export default function ContractStatusPage() {
                       {renderTotalRow(
                         '물품 소계',
                         materialGroups.map(matToTotalItem),
-                        'bg-purple-50/60',
+                        'bg-[#fcf9ff]',
                         'bg-amber-100/40',
                         <>
                           {' '}
@@ -1537,30 +1713,62 @@ export default function ContractStatusPage() {
                             : g.materialNames[0] || g.dlvrReqNo)
                         const deadline = info?.deadline || g.deadline
                         return (
-                          <tr key={g.dlvrReqNo} className="border-b border-gray-100 hover:bg-gray-50">
+                          <tr key={g.dlvrReqNo} className="group border-b border-gray-100 hover:bg-gray-50">
                             <td className="px-3 py-2" />
                             <td className="px-3 py-2">
                               <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
                                 물품
                               </span>
                             </td>
-                            <td className="px-3 py-2 max-w-[320px] xl:max-w-none">
+                            <td style={{ maxWidth: nameW }} className="px-3 py-2 overflow-hidden sticky left-0 z-[1] bg-white group-hover:bg-gray-50 shadow-[inset_-1px_0_0_#e5e7eb]">
                               <button
                                 type="button"
                                 onClick={() => handleMaterialLink(g.dlvrReqNo)}
                                 className="text-blue-600 hover:underline inline-flex items-center gap-1 max-w-full"
                                 title={`${title} — 조달청 계약 상세 열기`}
                               >
-                                <span className="truncate">{title}</span>
+                                <TailTruncate text={title} />
                                 {matLinkLoading === g.dlvrReqNo ? (
                                   <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
                                 ) : (
                                   <ExternalLink className="h-3 w-3 shrink-0" />
                                 )}
                               </button>
-                              <span className="block text-[11px] text-gray-400 truncate" title={g.materialNames.join(', ')}>
-                                납품요구 {g.dlvrReqNo} · {g.materialNames.join(', ')}
-                              </span>
+                              {/* 자재명 목록이 끝에 오므로 앞쪽 생략 시 자재명이 보인다 (납품요구 번호는 title 툴팁으로 확인) */}
+                              <TailTruncate
+                                text={`납품요구 ${g.dlvrReqNo} · ${g.materialNames.join(', ')}`}
+                                className="block text-[11px] text-gray-400"
+                                title={`납품요구 ${g.dlvrReqNo} · ${g.materialNames.join(', ')}`}
+                              />
+                              {/* 나라장터 대금지급·검사검수 문서 뱃지 — 지급 문서가 있으면 검수까지 끝난 것이므로 지급완료를 우선 표시 */}
+                              {(() => {
+                                const pays = paysForDlvr(g.dlvrReqNo)
+                                const insps = inspsForDlvr(g.dlvrReqNo)
+                                if (pays.length === 0 && insps.length === 0) return null
+                                const lastPay = pays.reduce((d, p) => (p.payDate > d ? p.payDate : d), '')
+                                const paidSum = pays.reduce((s, p) => s + p.amt, 0)
+                                const lastInsp = insps.reduce((d, x) => (x.inspDate > d ? x.inspDate : d), '')
+                                return (
+                                  <span className="flex items-center gap-1">
+                                    {pays.length > 0 ? (
+                                      <span
+                                        className="px-1.5 py-px rounded-full text-[10px] font-semibold bg-emerald-500 text-white"
+                                        title={`나라장터 대금지급 ${lastPay} · 누계 ${formatAmt(paidSum)}원${lastInsp ? ` · 검사검수 ${lastInsp}` : ''}`}
+                                      >
+                                        지급완료
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className="px-1.5 py-px rounded-full text-[10px] font-semibold bg-sky-500 text-white"
+                                        title={`나라장터 검사검수 ${lastInsp}`}
+                                      >
+                                        검수
+                                      </span>
+                                    )}
+                                  </span>
+                                )
+                              })()}
+                              {nameResizeHandle}
                             </td>
                             <td className="px-3 py-2 max-w-[180px] xl:max-w-none truncate" title={info?.corpNm || g.supplier || ''}>
                               {info?.corpNm || g.supplier || '-'}
@@ -1583,8 +1791,9 @@ export default function ContractStatusPage() {
                     </>
                   ) : (
                     /* 조달청 연계 지급자재가 없으면 기존 안내 링크 행 유지 */
-                    <tr className="border-b border-gray-200 font-semibold text-gray-700 bg-purple-50/60">
-                      <td className="px-3 py-2" colSpan={9 + yearCols.length}>
+                    <tr className="border-b border-gray-200 font-semibold text-gray-700 bg-[#fcf9ff]">
+                      <td colSpan={2} />
+                      <td style={{ maxWidth: nameW }} className={`px-3 py-2 sticky left-0 z-[1] bg-inherit shadow-[inset_-1px_0_0_#e5e7eb] ${nameCollapsed ? 'truncate' : 'whitespace-normal'}`}>
                         물품 소계{' '}
                         <Link
                           href={`/project/${projectId}/material-ledger`}
@@ -1592,7 +1801,9 @@ export default function ContractStatusPage() {
                         >
                           (지급자재 수불부 확인 바랍니다)
                         </Link>
+                        {nameResizeHandle}
                       </td>
+                      <td colSpan={6 + yearCols.length} />
                     </tr>
                   )}
                 </tbody>
