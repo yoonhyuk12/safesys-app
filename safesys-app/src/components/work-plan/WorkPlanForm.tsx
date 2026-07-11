@@ -76,6 +76,37 @@ function nullableNumber(value: string) {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+interface PeriodPreset {
+  label: string
+  days?: number
+  months?: number
+}
+
+const PERIOD_PRESETS: PeriodPreset[] = [
+  { label: '7일', days: 7 },
+  { label: '15일', days: 15 },
+  { label: '30일', days: 30 },
+  { label: '분기', months: 3 },
+  { label: '반기', months: 6 },
+  { label: '1년', months: 12 },
+]
+
+function toDateString(date: Date) {
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+// 시작일을 포함한 기간이므로 종료일은 하루를 뺀다 (예: 7/1 시작 7일 → 7/7 종료)
+function calcPeriodEnd(start: string, preset: PeriodPreset) {
+  const [year, month, day] = start.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  if (preset.months) date.setMonth(date.getMonth() + preset.months)
+  if (preset.days) date.setDate(date.getDate() + preset.days)
+  date.setDate(date.getDate() - 1)
+  return toDateString(date)
+}
+
 export default function WorkPlanForm({
   selectedTypes,
   formData,
@@ -157,6 +188,22 @@ export default function WorkPlanForm({
           <div className="sm:col-span-2"><Field label="작업명(장소)" value={current.title} onChange={(value) => updatePlan(type, { title: value })} /></div>
           <Field label="작업 시작일" type="date" value={current.workStartDate} onChange={(value) => updatePlan(type, { workStartDate: value })} />
           <Field label="작업 종료일" type="date" value={current.workEndDate} onChange={(value) => updatePlan(type, { workEndDate: value })} />
+          <div className="-mt-1 flex flex-wrap items-center gap-1.5 sm:col-span-2">
+            <span className="text-xs text-gray-500">기간 설정</span>
+            {PERIOD_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => {
+                  const start = current.workStartDate || toDateString(new Date())
+                  updatePlan(type, { workStartDate: start, workEndDate: calcPeriodEnd(start, preset) })
+                }}
+                className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
           <div className="sm:col-span-2"><Field label="작업업체" value={current.companyName} onChange={(value) => updatePlan(type, { companyName: value })} /></div>
         </div>
         {(constructionPeriod.start || constructionPeriod.end) && <p className="mt-2 flex items-center gap-1 text-xs text-blue-700"><CalendarRange className="h-3.5 w-3.5" />공사기간 {constructionPeriod.start || '-'} ~ {constructionPeriod.end || '-'}</p>}
