@@ -47,6 +47,19 @@ export interface RiskControlRow {
   improvementMeasure: string
 }
 
+// 보고서 서명 대상 역할 — 공통 서식(지휘자·운전원·유도자)과 전기 서식(지시확인·인계인수)
+export type WorkPlanSignatureRole =
+  | 'workDirector'
+  | 'operator'
+  | 'guide'
+  | 'instructionManager'
+  | 'instructionWorker'
+  | 'handoverDeliverer'
+  | 'handoverReceiver'
+
+// 역할별 손글씨 서명 PNG data URL
+export type WorkPlanSignatures = Partial<Record<WorkPlanSignatureRole, string>>
+
 export interface CommonWorkPlanFields {
   title: string
   workStartDate: string
@@ -58,6 +71,7 @@ export interface CommonWorkPlanFields {
   guide: PersonContact
   sharedWorkContent: string
   riskControls: RiskControlRow[]
+  signatures?: WorkPlanSignatures
 }
 
 export interface LiftingCapacityReview {
@@ -195,6 +209,7 @@ export interface ElectricWorkPlanFormData {
   handover: { details: string; deliverer: string; receiver: string }
   attachments: string[]
   checklist: ChecklistAnswer[]
+  signatures?: WorkPlanSignatures
 }
 
 export interface HeavyLoadSpec {

@@ -19,6 +19,7 @@ import {
   checkbox,
   personBlock,
   sectionTitle,
+  signedName,
   approvalHeader,
   checklistTable,
   buildFileName,
@@ -82,7 +83,7 @@ function buildMainPage(form: ElectricForm): string {
       <tr>${cell('기타', LABEL, 2)}${cell(escapeHtml(form.otherEquipment), LEFT, 8)}</tr>
       <tr>${cell('작업 전 지시/협의사항', LABEL, 12)}</tr>
       ${instructions}
-      <tr>${cell(`담당자 : ${escapeHtml(form.instructionAcknowledgement?.managerName || '')} (인) &nbsp;&nbsp; 작업자 : ${escapeHtml(form.instructionAcknowledgement?.workerName || '')} (인)`, `${LEFT} text-align:right;`, 12)}</tr>
+      <tr>${cell(`담당자 : ${signedName(form.instructionAcknowledgement?.managerName || '', form.signatures?.instructionManager)} (인) &nbsp;&nbsp; 작업자 : ${signedName(form.instructionAcknowledgement?.workerName || '', form.signatures?.instructionWorker)} (인)`, `${LEFT} text-align:right;`, 12)}</tr>
     </table>`
 }
 
@@ -117,7 +118,7 @@ function buildStepsPage(form: ElectricForm): string {
       ${colgroup(12)}
       <tr>${cell('인계사항', LABEL, 6)}${cell('인수사항', LABEL, 6)}</tr>
       <tr>${cell(escapeHtml(form.handover?.details || ''), `${LEFT} height:24mm; vertical-align:top;`, 6)}${cell('', `${LEFT} vertical-align:top;`, 6)}</tr>
-      <tr>${cell(`인계자 : ${escapeHtml(form.handover?.deliverer || '')} (인)`, `${LEFT} text-align:right;`, 6)}${cell(`인수자 : ${escapeHtml(form.handover?.receiver || '')} (인)`, `${LEFT} text-align:right;`, 6)}</tr>
+      <tr>${cell(`인계자 : ${signedName(form.handover?.deliverer || '', form.signatures?.handoverDeliverer)} (인)`, `${LEFT} text-align:right;`, 6)}${cell(`인수자 : ${signedName(form.handover?.receiver || '', form.signatures?.handoverReceiver)} (인)`, `${LEFT} text-align:right;`, 6)}</tr>
     </table>
     ${sectionTitle('⑩ <첨부자료>')}
     <table style="${TABLE}">

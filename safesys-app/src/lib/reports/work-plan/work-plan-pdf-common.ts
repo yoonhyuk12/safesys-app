@@ -78,6 +78,13 @@ export function personBlock(p: PersonContact | undefined): string {
   return head || phone
 }
 
+// 성명 텍스트 위에 손글씨 서명 이미지를 겹쳐 출력한다 (서명이 없으면 성명만)
+export function signedName(name: string, signature: string | undefined): string {
+  const escaped = escapeHtml(name)
+  if (!signature) return escaped
+  return `<span style="position:relative; display:inline-block; min-width:40px;">${escaped}<img src="${signature}" alt="" style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:72px; height:40px; object-fit:contain;" /></span>`
+}
+
 export function dateRange(start: string | null | undefined, end: string | null | undefined): string {
   const s = start || ''
   const e = end || ''

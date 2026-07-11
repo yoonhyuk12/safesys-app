@@ -11,6 +11,7 @@ import {
   colgroup,
   escapeHtml,
   sectionTitle,
+  signedName,
   approvalHeader,
   mapSection,
   riskControlTable,
@@ -33,9 +34,9 @@ function buildMainAndSpec(form: NonNullable<WorkPlanRecord['form_data']['loading
       <tr>${cell('작업명(장소)', LABEL, 2)}${cell(escapeHtml(form.title), VALUE, 4)}${cell('작업기간', LABEL, 2)}${cell(escapeHtml([form.workStartDate, form.workEndDate].filter(Boolean).join(' ~ ')), VALUE, 4)}</tr>
       <tr>${cell('차량 번호', LABEL, 2)}${cell(escapeHtml(form.vehicleNumber), VALUE, 4)}${cell('작업시간', LABEL, 2)}${cell(escapeHtml(form.workTime), VALUE, 4)}</tr>
       <tr>${cell('작업업체', LABEL, 2)}${cell('업체명', LABEL, 2)}${cell(escapeHtml(form.companyName), VALUE, 3)}${cell('작업자', LABEL, 2)}${cell(workers, VALUE, 3)}</tr>
-      <tr>${cell('작업지휘자', LABEL, 2)}${cell('성명', LABEL)}${cell(escapeHtml(form.workDirector?.name || ''), VALUE, 4)}${cell('연락처', LABEL, 2)}${cell(escapeHtml(form.workDirector?.phone || ''), VALUE, 3)}</tr>
-      <tr>${cell('운전원', LABEL, 2)}${cell('성명', LABEL)}${cell(escapeHtml(form.operator?.name || ''), VALUE, 4)}${cell('연락처', LABEL, 2)}${cell(escapeHtml(form.operator?.phone || ''), VALUE, 3)}</tr>
-      <tr>${cell('유도자', LABEL, 2)}${cell('성명', LABEL)}${cell(escapeHtml(form.guide?.name || ''), VALUE, 4)}${cell('연락처', LABEL, 2)}${cell(escapeHtml(form.guide?.phone || ''), VALUE, 3)}</tr>
+      <tr>${cell('작업지휘자', LABEL, 2)}${cell('성명', LABEL)}${cell(signedName(form.workDirector?.name || '', form.signatures?.workDirector), VALUE, 4)}${cell('연락처', LABEL, 2)}${cell(escapeHtml(form.workDirector?.phone || ''), VALUE, 3)}</tr>
+      <tr>${cell('운전원', LABEL, 2)}${cell('성명', LABEL)}${cell(signedName(form.operator?.name || '', form.signatures?.operator), VALUE, 4)}${cell('연락처', LABEL, 2)}${cell(escapeHtml(form.operator?.phone || ''), VALUE, 3)}</tr>
+      <tr>${cell('유도자', LABEL, 2)}${cell('성명', LABEL)}${cell(signedName(form.guide?.name || '', form.signatures?.guide), VALUE, 4)}${cell('연락처', LABEL, 2)}${cell(escapeHtml(form.guide?.phone || ''), VALUE, 3)}</tr>
       <tr>${cell('작업내용 공유', LABEL, 2)}${cell(escapeHtml(form.sharedWorkContent), LEFT, 10)}</tr>
     </table>
     ${sectionTitle('<차량계 하역운반기계 제원>')}

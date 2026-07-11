@@ -8,9 +8,10 @@ interface SignaturePadProps {
   onCancel: () => void
   selectedCount?: number
   isSaving?: boolean
+  title?: string
 }
 
-const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel, selectedCount = 0, isSaving = false }) => {
+const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel, selectedCount = 0, isSaving = false, title = '일괄 서명' }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isDrawing, setIsDrawing] = useState(false)
 
@@ -145,7 +146,7 @@ const SignaturePad: React.FC<SignaturePadProps> = ({ onSave, onCancel, selectedC
         <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900">
             <PenTool className="h-6 w-6 inline mr-2" />
-            일괄 서명 {selectedCount > 0 && `(${selectedCount}개 항목)`}
+            {title} {selectedCount > 0 && `(${selectedCount}개 항목)`}
           </h2>
           <button
             onClick={onCancel}

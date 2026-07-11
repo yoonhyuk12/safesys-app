@@ -1,13 +1,14 @@
 'use client'
 
-// AI 작업계획서의 6단계 작성·수정 흐름과 단계별 입력·저장 상태를 관리하는 마법사
+// AI 작업계획서의 7단계 작성·수정 흐름과 단계별 입력·저장 상태를 관리하는 마법사
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, Download, Loader2, Map, RotateCcw, Save, Sparkles, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Download, Loader2, Map, PenLine, RotateCcw, Save, Sparkles, X } from 'lucide-react'
 import AiReviewStep from './AiReviewStep'
 import DeferredInfoStep from './DeferredInfoStep'
 import MapDrawingEditor from './MapDrawingEditor'
 import PlanTypeSelector from './PlanTypeSelector'
+import SignatureStep from './SignatureStep'
 import WorkPlanForm from './WorkPlanForm'
 import { downloadConstructionWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-construction-pdf'
 import { downloadElectricWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-electric-pdf'
@@ -43,6 +44,7 @@ const STEPS = [
   { label: '지도 드로잉', icon: Map },
   { label: 'AI 검토', icon: Sparkles },
   { label: '나중 확인 정보', icon: Check },
+  { label: '서명', icon: PenLine },
   { label: '저장·다운로드', icon: Save },
 ]
 
@@ -512,7 +514,7 @@ export default function WorkPlanWizard({
         </div>
       </div>
 
-      <ol className="grid grid-cols-6 border-b border-gray-200 bg-gray-50 px-2 py-3 sm:px-6">
+      <ol className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 px-2 py-3 sm:px-6">
         {STEPS.map((item, index) => {
           const number = index + 1
           const Icon = item.icon
@@ -536,7 +538,7 @@ export default function WorkPlanWizard({
       </ol>
 
       <div className="max-h-[calc(100vh-15rem)] min-h-80 overflow-y-auto p-4 sm:p-6">
-        {saveError && step !== 6 && (
+        {saveError && step !== 7 && (
           <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {saveError}
           </p>
@@ -591,6 +593,9 @@ export default function WorkPlanWizard({
           <DeferredInfoStep selectedTypes={selectedTypes} formData={formData} onChange={handleFormDataChange} />
         )}
         {step === 6 && (
+          <SignatureStep selectedTypes={selectedTypes} formData={formData} onChange={handleFormDataChange} />
+        )}
+        {step === 7 && (
           <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
             {saveSucceeded ? <Check className="mb-4 h-12 w-12 text-emerald-500" /> : <Save className="mb-4 h-12 w-12 text-blue-500" />}
             <h3 className="text-lg font-bold text-gray-900">
@@ -639,19 +644,13 @@ export default function WorkPlanWizard({
           <ArrowLeft className="h-4 w-4" />
           {step === 1 ? '취소' : '이전'}
         </button>
-        {step < 5 && (
+        {step < 7 && (
           <button type="button" disabled={!canContinue} onClick={() => setStep((value) => value + 1)} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40">
             다음
             <ArrowRight className="h-4 w-4" />
           </button>
         )}
-        {step === 5 && (
-          <button type="button" onClick={() => setStep(6)} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-            건너뛰고 저장
-            <ArrowRight className="h-4 w-4" />
-          </button>
-        )}
-        {step === 6 && (
+        {step === 7 && (
           saveSucceeded ? (
             <button type="button" disabled={downloadingType !== null} onClick={onClose} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
               <Check className="h-4 w-4" />
