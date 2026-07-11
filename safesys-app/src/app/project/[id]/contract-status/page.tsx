@@ -2101,7 +2101,7 @@ export default function ContractStatusPage() {
                             </div>
                           ))}
                         </div>
-                        <p className="mb-2 text-[11px] text-gray-500">조달수수료는 조달청 고시 요율 추정치이며 면제·감경 특례는 반영하지 않습니다.</p>
+                        <p className="mb-2 text-[11px] text-gray-500">조달수수료는 고시 요율에 따른 추정치입니다. 실제 납부금액은 조달청 수수료 고지 금액을 확인해야 합니다.</p>
                         <div className="border border-gray-200 rounded-lg overflow-x-auto">
                           <table className="w-full min-w-[760px] text-sm whitespace-nowrap">
                             <thead>
