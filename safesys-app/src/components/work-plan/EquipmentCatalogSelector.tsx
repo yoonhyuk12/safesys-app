@@ -24,6 +24,7 @@ function fixedSpecRows(item: EquipmentCatalogItem) {
   const { specs } = item
   return [
     ['장비중량', specs.operatingWeightTon, 'ton'],
+    ['버킷 용량', specs.bucketCapacityM3, '㎥'],
     ['전폭', specs.widthM, 'm'],
     ['최소 선회반경', specs.minimumTurningRadiusM, 'm'],
     ['최대 인양높이', specs.maxLiftingHeightM, 'm'],
