@@ -114,6 +114,15 @@ export async function POST(
     push(r.before_photo_url, r.after_photo_url)
   })
 
+  const { data: workPlans } = await supabaseAdmin
+    .from('work_plans')
+    .select('map_image_url, site_photo_urls')
+    .eq('project_id', id)
+  workPlans?.forEach((r: { map_image_url: unknown; site_photo_urls: unknown }) => {
+    push(r.map_image_url)
+    if (Array.isArray(r.site_photo_urls)) push(...r.site_photo_urls)
+  })
+
   // 검측요청서 사진(inspection_requests.photos)은 safety-inspection-photos/{projectId}/에
   // 평면 저장되므로 아래 4번 폴더 정리에서 함께 삭제된다.
 

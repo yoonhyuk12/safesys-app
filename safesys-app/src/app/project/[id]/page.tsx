@@ -221,10 +221,11 @@ export default function ProjectDetailPage() {
       return countError ? null : (count ?? 0)
     }
     const loadCardCounts = async () => {
-      const [workDaily, materials, safeDocs, tbmDirect, newWorker, workers, heatWave, tbmSafety] = await Promise.all([
+      const [workDaily, materials, safeDocs, workPlans, tbmDirect, newWorker, workers, heatWave, tbmSafety] = await Promise.all([
         countOf('work_daily_reports'),
         countOf('materials'),
         countOf('safe_document_inspections'),
+        countOf('work_plans'),
         countOf('tbm_submissions'),
         countOf('new_worker_orientations'),
         countOf('workers'),
@@ -250,6 +251,7 @@ export default function ProjectDetailPage() {
       put('workDailyReport', workDaily)
       put('materials', materials)
       put('safeDocuments', safeDocs)
+      put('workPlans', workPlans)
       put('tbm', tbmDirect !== null ? tbmDirect + tbmLegacy : null)
       put('newWorkerOrientation', newWorker)
       put('workers', workers)
@@ -1421,6 +1423,15 @@ export default function ProjectDetailPage() {
                   isActive={false}
                   docCount={cardCounts.safeDocuments}
                   onClick={() => router.push(`/project/${projectId}/safe-documents`)}
+                  pdcaCategory="P"
+                />
+                <DocumentFolder
+                  title={'︵AI︶\n작업계획서'}
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  docCount={cardCounts.workPlans}
+                  onClick={() => router.push(`/project/${projectId}/work-plan`)}
                   pdcaCategory="P"
                 />
                 <DocumentFolder

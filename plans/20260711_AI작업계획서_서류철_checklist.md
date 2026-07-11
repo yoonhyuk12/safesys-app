@@ -1,16 +1,16 @@
 # AI 작업계획서 체크리스트
 
 ## Phase 1 — 골격
-- [ ] `database/20260711-HHMM_add_work_plans.sql` 작성 (work_plans 테이블, RLS, ON DELETE CASCADE)
-- [ ] Storage 버킷 `work-plans` 생성 SQL/안내 포함
-- [ ] `src/lib/work-plan/types.ts` — PlanType·폼 데이터 타입
-- [ ] `src/lib/work-plan/constants.ts` — 4종 체크리스트 문항, 범례, 중점관리사항, 안전계수/장력계수
-- [ ] `project/[id]/page.tsx` 안전캐비넷 P 그룹에 DocumentFolder 추가 + cardCounts.workPlans
-- [ ] `work-plan/page.tsx` 스텁 교체 — 목록(조회·삭제) + 마법사 진입
-- [ ] `WorkPlanWizard.tsx` 스텝 컨테이너
-- [ ] `PlanTypeSelector.tsx` 4종 복수 체크
-- [ ] `WorkPlanForm.tsx` 공통+종류별 필드, 자동 인입(프로젝트·workers·계약·공정표), 안전율 자동계산
-- [ ] tsc·lint 통과, 커밋
+- [x] `database/20260711-HHMM_add_work_plans.sql` 작성 (work_plans 테이블, RLS, ON DELETE CASCADE)
+- [x] Storage 버킷 `work-plans` 생성 SQL/안내 포함
+- [x] `src/lib/work-plan/types.ts` — PlanType·폼 데이터 타입
+- [x] `src/lib/work-plan/constants.ts` — 4종 체크리스트 문항, 범례, 중점관리사항, 안전계수/장력계수
+- [x] `project/[id]/page.tsx` 안전캐비넷 P 그룹에 DocumentFolder 추가 + cardCounts.workPlans
+- [x] `work-plan/page.tsx` 스텁 교체 — 목록(조회·삭제) + 마법사 진입
+- [x] `WorkPlanWizard.tsx` 스텝 컨테이너
+- [x] `PlanTypeSelector.tsx` 4종 복수 체크
+- [x] `WorkPlanForm.tsx` 공통+종류별 필드, 자동 인입(프로젝트·workers·계약·공정표), 안전율 자동계산
+- [x] tsc·lint 통과, 커밋
 
 ## Phase 2 — 지도 드로잉
 - [ ] `MapDrawingEditor.tsx` — 전역 로드된 Kakao Maps SDK(layout.tsx) 사용, 위성(HYBRID) 기본 + 일반지도(ROADMAP) 토글, 프로젝트 좌표 중심 (기존 KakaoMap.tsx·SimpleProjectMap.tsx 패턴 참조)
@@ -38,5 +38,5 @@
 - [ ] tsc·lint 통과, 커밋
 
 ## 배포 전
-- [ ] 마이그레이션·버킷 사용자 실행 확인
+- [x] 마이그레이션·버킷 사용자 실행 확인
 - [ ] main 푸시(=운영 배포) 동의 확인
