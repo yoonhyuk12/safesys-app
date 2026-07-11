@@ -8,7 +8,12 @@ import DeferredInfoStep from './DeferredInfoStep'
 import MapDrawingEditor from './MapDrawingEditor'
 import PlanTypeSelector from './PlanTypeSelector'
 import WorkPlanForm from './WorkPlanForm'
+import { downloadConstructionWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-construction-pdf'
+import { downloadElectricWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-electric-pdf'
+import { downloadHeavyWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-heavy-pdf'
+import { downloadLoadingWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-loading-pdf'
 import { supabase } from '@/lib/supabase'
+import { PLAN_TYPE_OPTIONS } from '@/lib/work-plan/constants'
 import { removeWorkPlanStorageUrls, uploadWorkPlanSource } from '@/lib/work-plan/storage'
 import type {
   CommonWorkPlanFields,
@@ -39,6 +44,17 @@ const STEPS = [
   { label: '나중 확인 정보', icon: Check },
   { label: '저장·다운로드', icon: Save },
 ]
+
+const WORK_PLAN_DOWNLOADERS: Record<PlanType, (record: WorkPlanRecord) => Promise<void>> = {
+  loading: downloadLoadingWorkPlanPdf,
+  construction: downloadConstructionWorkPlanPdf,
+  electric: downloadElectricWorkPlanPdf,
+  heavy: downloadHeavyWorkPlanPdf,
+}
+
+function getPlanTypeLabel(type: PlanType): string {
+  return PLAN_TYPE_OPTIONS.find((option) => option.value === type)?.shortTitle || type
+}
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -247,6 +263,8 @@ export default function WorkPlanWizard({
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [saveSucceeded, setSaveSucceeded] = useState(false)
+  const [downloadingType, setDownloadingType] = useState<PlanType | null>(null)
+  const [downloadError, setDownloadError] = useState('')
 
   const scheduleCandidates = useMemo(() => {
     const schedule = project.construction_schedule as { items?: Array<{ name?: string }> } | null
@@ -260,6 +278,7 @@ export default function WorkPlanWizard({
     setSelectedTypes(types)
     setSaveSucceeded(false)
     setSaveError('')
+    setDownloadError('')
     setFormData((current) => {
       const next: WorkPlanFormData = {}
       types.forEach((type) => {
@@ -271,9 +290,38 @@ export default function WorkPlanWizard({
 
   const canContinue = step !== 1 || selectedTypes.length > 0
 
+  const markAsUnsaved = () => {
+    setSaveSucceeded(false)
+    setSaveError('')
+    setDownloadError('')
+  }
+
+  const handleFormDataChange = (next: WorkPlanFormData) => {
+    markAsUnsaved()
+    setFormData(next)
+  }
+
+  const handleDownload = async (type: PlanType) => {
+    if (!saveSucceeded || !persistedRecord || downloadingType) return
+
+    setDownloadError('')
+    setDownloadingType(type)
+    try {
+      await WORK_PLAN_DOWNLOADERS[type](persistedRecord)
+    } catch (error: unknown) {
+      console.error(`${getPlanTypeLabel(type)} 작업계획서 PDF 생성 실패:`, error)
+      setDownloadError(
+        error instanceof Error ? error.message : 'PDF를 생성하지 못했습니다. 잠시 후 다시 시도해주세요.',
+      )
+    } finally {
+      setDownloadingType(null)
+    }
+  }
+
   const handleSave = async () => {
     setSaveError('')
     setSaveSucceeded(false)
+    setDownloadError('')
 
     if (selectedTypes.length === 0) {
       setSaveError('저장할 서류를 한 개 이상 선택해주세요.')
@@ -464,7 +512,7 @@ export default function WorkPlanWizard({
           <WorkPlanForm
             selectedTypes={selectedTypes}
             formData={formData}
-            onChange={setFormData}
+            onChange={handleFormDataChange}
             workers={workers}
             scheduleCandidates={scheduleCandidates}
             constructionPeriod={{ start: project.construction_start_date, end: project.construction_end_date }}
@@ -476,12 +524,21 @@ export default function WorkPlanWizard({
             longitude={project.longitude}
             address={projectAddress}
             value={mapDrawing}
-            onChange={setMapDrawing}
+            onChange={(value) => {
+              markAsUnsaved()
+              setMapDrawing(value)
+            }}
             compositeSource={compositeSource}
-            onCompositeChange={setCompositeSource}
+            onCompositeChange={(source) => {
+              markAsUnsaved()
+              setCompositeSource(source)
+            }}
             electricOnly={electricOnly}
             electricAttachments={electricAttachments}
-            onElectricAttachmentsChange={setElectricAttachments}
+            onElectricAttachmentsChange={(value) => {
+              markAsUnsaved()
+              setElectricAttachments(value)
+            }}
             disabled={isSaving}
           />
         )}
@@ -495,7 +552,7 @@ export default function WorkPlanWizard({
           </div>
         )}
         {step === 5 && (
-          <DeferredInfoStep selectedTypes={selectedTypes} formData={formData} onChange={setFormData} />
+          <DeferredInfoStep selectedTypes={selectedTypes} formData={formData} onChange={handleFormDataChange} />
         )}
         {step === 6 && (
           <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border border-gray-200 bg-gray-50 p-8 text-center">
@@ -511,9 +568,32 @@ export default function WorkPlanWizard({
                 {saveError}
               </p>
             )}
-            <button type="button" disabled className="mt-5 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm text-gray-400">
-              <Download className="h-4 w-4" />PDF 다운로드 (Phase 4)
-            </button>
+            {downloadError && (
+              <p role="alert" className="mt-4 w-full max-w-lg rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {downloadError}
+              </p>
+            )}
+            <div className="mt-5 flex flex-wrap justify-center gap-2">
+              {(saveSucceeded && persistedRecord ? persistedRecord.plan_types : selectedTypes).map((type) => {
+                const isDownloading = downloadingType === type
+                const disabled = !saveSucceeded || !persistedRecord || downloadingType !== null
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => handleDownload(type)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
+                  >
+                    {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    {isDownloading ? 'PDF 생성 중...' : `${getPlanTypeLabel(type)} PDF 다운로드`}
+                  </button>
+                )
+              })}
+            </div>
+            {!saveSucceeded && (
+              <p className="mt-3 text-xs text-gray-500">저장을 완료하면 PDF를 다운로드할 수 있습니다.</p>
+            )}
           </div>
         )}
       </div>
@@ -536,10 +616,17 @@ export default function WorkPlanWizard({
           </button>
         )}
         {step === 6 && (
-          <button type="button" disabled={isSaving} onClick={handleSave} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
-            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {isSaving ? '저장 중...' : persistedRecord ? '수정 저장' : '저장'}
-          </button>
+          saveSucceeded ? (
+            <button type="button" disabled={downloadingType !== null} onClick={onClose} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+              <Check className="h-4 w-4" />
+              목록으로
+            </button>
+          ) : (
+            <button type="button" disabled={isSaving} onClick={handleSave} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {isSaving ? '저장 중...' : persistedRecord ? '수정 저장' : '저장'}
+            </button>
+          )
         )}
       </div>
     </div>
