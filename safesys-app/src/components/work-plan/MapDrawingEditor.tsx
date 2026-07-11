@@ -12,8 +12,9 @@ import type {
   WorkPlanElectricAttachments,
 } from '@/lib/work-plan/types'
 
+// PDF 작업계획도 칸(폭 약 123mm × 높이 120mm 이상)에 여백 없이 담기도록 1:1 비율로 캡처·합성한다.
 const CANVAS_WIDTH = 960
-const CANVAS_HEIGHT = 540
+const CANVAS_HEIGHT = 960
 const DEFAULT_CENTER = { latitude: 37.5665, longitude: 126.978 }
 
 interface MapDrawingEditorProps {
@@ -715,7 +716,7 @@ export default function MapDrawingEditor({
         </div>
 
         <div className="lg:col-start-1 lg:row-start-1 lg:row-span-2">
-          <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-gray-300 bg-gray-100 shadow-inner">
+          <div className="relative mx-auto aspect-square w-full max-w-[540px] overflow-hidden rounded-xl border border-gray-300 bg-gray-100 shadow-inner">
             {!frozen ? (
               // key 분리 필수 — React가 카카오 SDK가 인라인 스타일·자식을 심은 이 노드를 배경 div로 재사용하면 높이가 0으로 붕괴한다.
               <div key="kakao-map" ref={mapElementRef} data-work-plan-map="true" className="h-full w-full" />
@@ -736,7 +737,7 @@ export default function MapDrawingEditor({
               </>
             )}
           </div>
-          {frozen && compositeSource && <p className="mt-1.5 text-xs text-emerald-700">배경과 표시가 PDF 출력용 이미지로 합성되었습니다.</p>}
+          {frozen && compositeSource && <p className="mx-auto mt-1.5 w-full max-w-[540px] text-xs text-emerald-700">배경과 표시가 PDF 출력용 이미지로 합성되었습니다.</p>}
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-white p-2.5 lg:col-start-2 lg:row-start-2">
