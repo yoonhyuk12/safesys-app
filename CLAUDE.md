@@ -20,7 +20,7 @@ SafeSys — Next.js 15 · React 19 · Supabase로 만든 한국 건설 안전관
 | [docs/environment.md](./docs/environment.md) | 개발 명령어, main 푸시=자동 배포, 환경 변수, API 키 위치 |
 | [docs/troubleshooting.md](./docs/troubleshooting.md) | 빌드 캐시, 프로필 미동기화, 권한/지도, html2canvas PDF 버그 |
 
-`plans/` — 계획서(일급 아티팩트, `YYYYMMDD_주제.md`). `database/*.sql` — 마이그레이션(`YYYYMMDD-HHMM_설명.sql`).
+`plans/` — 계획서(일급 아티팩트, `YYYYMMDD_주제.md`). `database/*.sql` — 마이그레이션(`YYYYMMDD-HHMM_설명.sql`). `wiki/검사기준/` — 공종단계별 검사 기준 LLM 위키(구조·규칙은 그 안의 CLAUDE.md 참조).
 
 ## 핵심 제약 (항상 적용, 위반 금지)
 

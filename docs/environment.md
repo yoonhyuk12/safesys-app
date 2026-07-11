@@ -17,9 +17,9 @@ npm run start            # 마지막 빌드 결과를 스테이징 검수용으�
 npm run deploy           # 빌드 후 next start 실행 (배포 검증용)
 ```
 
-## 검증 (테스트 프레임워크 부재)
+## 검증
 
-자동화 테스트 프레임워크가 없으므로 린트·타입체크·수동 시나리오 검증이 필수다.
+Playwright가 설치되어 있으나(`safesys-app/tests/*.spec.ts` 2건, 2026-02 이후 미유지) 커버리지가 사실상 없다. 린트·타입체크·수동 시나리오 검증이 필수다.
 
 - `npm run lint`, `npx tsc --noEmit` 실행
 - 로그인, 점검 목록(`/list`), 프로젝트 상세(`/project/[id]`), 지도 화면 직접 확인
