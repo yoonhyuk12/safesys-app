@@ -5,13 +5,17 @@
 import { useMemo, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, Download, Loader2, Map, Save, Sparkles, X } from 'lucide-react'
 import DeferredInfoStep from './DeferredInfoStep'
+import MapDrawingEditor from './MapDrawingEditor'
 import PlanTypeSelector from './PlanTypeSelector'
 import WorkPlanForm from './WorkPlanForm'
 import { supabase } from '@/lib/supabase'
+import { removeWorkPlanStorageUrls, uploadWorkPlanSource } from '@/lib/work-plan/storage'
 import type {
   CommonWorkPlanFields,
+  MapDrawingData,
   PlanType,
   RiggingCapacityReview,
+  WorkPlanElectricAttachments,
   WorkPlanFormData,
   WorkPlanProject,
   WorkPlanRecord,
@@ -143,6 +147,51 @@ function cloneFormData(formData: WorkPlanFormData): WorkPlanFormData {
   return JSON.parse(JSON.stringify(formData)) as WorkPlanFormData
 }
 
+function cloneMapDrawing(value: MapDrawingData): MapDrawingData {
+  return JSON.parse(JSON.stringify(value)) as MapDrawingData
+}
+
+function isDataUrl(source: string | null | undefined): source is string {
+  return Boolean(source?.startsWith('data:'))
+}
+
+function isWorkPlanStorageUrl(source: string | null | undefined): source is string {
+  if (!source || isDataUrl(source)) return false
+  try {
+    return decodeURIComponent(new URL(source).pathname).includes('/work-plans/')
+  } catch {
+    return false
+  }
+}
+
+function getStoredFileName(source: string | null | undefined): string {
+  if (!source || isDataUrl(source)) return ''
+  try {
+    return decodeURIComponent(new URL(source).pathname.split('/').pop() || '')
+  } catch {
+    return ''
+  }
+}
+
+function getUploadFileName(source: string | null, fileName: string, fallbackBase: string): string {
+  if (fileName) return fileName
+  const contentType = /^data:([^;,]+)/.exec(source || '')?.[1]?.toLowerCase()
+  const extensionByType: Record<string, string> = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/webp': 'webp',
+    'application/pdf': 'pdf',
+  }
+  const extension = contentType ? extensionByType[contentType] || 'bin' : 'png'
+  return `${fallbackBase}.${extension}`
+}
+
+function buildElectricSitePhotoUrls(drawingUrl: string | null, sitePhotoUrl: string | null): string[] {
+  if (sitePhotoUrl) return [drawingUrl || '', sitePhotoUrl]
+  if (drawingUrl) return [drawingUrl]
+  return []
+}
+
 function getWorkPlanSummary(selectedTypes: PlanType[], formData: WorkPlanFormData) {
   const representativeType = selectedTypes[0]
   const representativeForm = representativeType ? formData[representativeType] : undefined
@@ -178,6 +227,22 @@ export default function WorkPlanWizard({
   const [formData, setFormData] = useState<WorkPlanFormData>(() =>
     initialRecord ? cloneFormData(initialRecord.form_data) : {},
   )
+  const [mapDrawing, setMapDrawing] = useState<MapDrawingData | null>(() =>
+    initialRecord?.map_drawing ? cloneMapDrawing(initialRecord.map_drawing) : null,
+  )
+  const [compositeSource, setCompositeSource] = useState<string | null>(
+    initialRecord?.map_image_url || null,
+  )
+  const [electricAttachments, setElectricAttachments] = useState<WorkPlanElectricAttachments>(() => {
+    const drawingSource = initialRecord?.site_photo_urls?.[0] || null
+    const sitePhotoSource = initialRecord?.site_photo_urls?.[1] || null
+    return {
+      drawingSource,
+      drawingFileName: getStoredFileName(drawingSource),
+      sitePhotoSource,
+      sitePhotoFileName: getStoredFileName(sitePhotoSource),
+    }
+  })
   const [persistedRecord, setPersistedRecord] = useState<WorkPlanRecord | null>(initialRecord)
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
@@ -187,6 +252,9 @@ export default function WorkPlanWizard({
     const schedule = project.construction_schedule as { items?: Array<{ name?: string }> } | null
     return (schedule?.items || []).map((item) => item.name || '').filter(Boolean)
   }, [project.construction_schedule])
+
+  const electricOnly = selectedTypes.length === 1 && selectedTypes[0] === 'electric'
+  const projectAddress = project.actual_work_address || project.site_address || null
 
   const handleTypeChange = (types: PlanType[]) => {
     setSelectedTypes(types)
@@ -221,8 +289,64 @@ export default function WorkPlanWizard({
       return
     }
 
+    const uploadedUrls: string[] = []
+    let savedToDatabase = false
     setIsSaving(true)
     try {
+      const resolveSource = async (source: string | null, fileName: string): Promise<string | null> => {
+        if (!isDataUrl(source)) return source
+        const result = await uploadWorkPlanSource(source, project.id, fileName)
+        if (!result.url) throw new Error(`${fileName} 파일을 저장하지 못했습니다.`)
+        if (result.uploaded) uploadedUrls.push(result.url)
+        return result.url
+      }
+
+      let savedMapDrawing: MapDrawingData | null = null
+      let savedMapImageUrl: string | null = null
+      let savedSitePhotoUrls: string[] = []
+
+      if (electricOnly) {
+        const drawingUrl = await resolveSource(
+          electricAttachments.drawingSource,
+          getUploadFileName(
+            electricAttachments.drawingSource,
+            electricAttachments.drawingFileName,
+            'electric-drawing',
+          ),
+        )
+        const sitePhotoUrl = await resolveSource(
+          electricAttachments.sitePhotoSource,
+          getUploadFileName(
+            electricAttachments.sitePhotoSource,
+            electricAttachments.sitePhotoFileName,
+            'electric-site-photo',
+          ),
+        )
+        savedSitePhotoUrls = buildElectricSitePhotoUrls(drawingUrl, sitePhotoUrl)
+      } else {
+        if (mapDrawing) {
+          const backgroundUrl = await resolveSource(
+            mapDrawing.background.imageUrl || null,
+            getUploadFileName(mapDrawing.background.imageUrl || null, '', 'map-background'),
+          )
+          const clonedDrawing = cloneMapDrawing(mapDrawing)
+          savedMapDrawing = {
+            ...clonedDrawing,
+            background: {
+              ...clonedDrawing.background,
+              imageUrl: backgroundUrl || undefined,
+            },
+          }
+        }
+        savedMapImageUrl = await resolveSource(
+          compositeSource,
+          getUploadFileName(compositeSource, '', 'map-composite'),
+        )
+        savedSitePhotoUrls = persistedRecord?.site_photo_urls
+          ? [...persistedRecord.site_photo_urls]
+          : []
+      }
+
       const payload = {
         project_id: project.id,
         plan_types: [...selectedTypes],
@@ -230,6 +354,9 @@ export default function WorkPlanWizard({
         work_start_date: summary.workStartDate,
         work_end_date: summary.workEndDate,
         form_data: cloneFormData(formData),
+        map_drawing: savedMapDrawing,
+        map_image_url: savedMapImageUrl,
+        site_photo_urls: savedSitePhotoUrls,
       }
 
       const query = persistedRecord
@@ -246,10 +373,49 @@ export default function WorkPlanWizard({
       if (error) throw new Error(error.message)
 
       const savedRecord = data as WorkPlanRecord
+      savedToDatabase = true
+
+      if (persistedRecord) {
+        const previousUrls = [
+          persistedRecord.map_drawing?.background.imageUrl,
+          persistedRecord.map_image_url,
+          ...(persistedRecord.site_photo_urls || []),
+        ].filter(isWorkPlanStorageUrl)
+        const currentUrls = new Set([
+          savedMapDrawing?.background.imageUrl,
+          savedMapImageUrl,
+          ...savedSitePhotoUrls,
+        ].filter((url): url is string => Boolean(url)))
+        const staleUrls = previousUrls.filter((url) => !currentUrls.has(url))
+        if (staleUrls.length > 0) {
+          try {
+            await removeWorkPlanStorageUrls(staleUrls)
+          } catch (cleanupError: unknown) {
+            console.error('이전 작업계획서 파일 정리 실패:', cleanupError)
+          }
+        }
+      }
+
+      setMapDrawing(savedMapDrawing)
+      setCompositeSource(savedMapImageUrl)
+      if (electricOnly) {
+        setElectricAttachments((current) => ({
+          ...current,
+          drawingSource: savedSitePhotoUrls[0] || null,
+          sitePhotoSource: savedSitePhotoUrls[1] || null,
+        }))
+      }
       setPersistedRecord(savedRecord)
       setSaveSucceeded(true)
       onSaved(savedRecord)
     } catch (error: unknown) {
+      if (!savedToDatabase && uploadedUrls.length > 0) {
+        try {
+          await removeWorkPlanStorageUrls(uploadedUrls)
+        } catch (cleanupError: unknown) {
+          console.error('작업계획서 저장 실패 파일 정리 실패:', cleanupError)
+        }
+      }
       console.error('작업계획서 저장 실패:', error)
       setSaveError(error instanceof Error ? error.message : '작업계획서를 저장하지 못했습니다.')
     } finally {
@@ -304,14 +470,27 @@ export default function WorkPlanWizard({
             constructionPeriod={{ start: project.construction_start_date, end: project.construction_end_date }}
           />
         )}
-        {(step === 3 || step === 4) && (
+        {step === 3 && (
+          <MapDrawingEditor
+            latitude={project.latitude}
+            longitude={project.longitude}
+            address={projectAddress}
+            value={mapDrawing}
+            onChange={setMapDrawing}
+            compositeSource={compositeSource}
+            onCompositeChange={setCompositeSource}
+            electricOnly={electricOnly}
+            electricAttachments={electricAttachments}
+            onElectricAttachmentsChange={setElectricAttachments}
+            disabled={isSaving}
+          />
+        )}
+        {step === 4 && (
           <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-8 text-center">
-            {step === 3 && <Map className="mb-4 h-12 w-12 text-blue-400" />}
-            {step === 4 && <Sparkles className="mb-4 h-12 w-12 text-violet-400" />}
+            <Sparkles className="mb-4 h-12 w-12 text-violet-400" />
             <h3 className="text-lg font-bold text-gray-900">{STEPS[step - 1].label}</h3>
             <p className="mt-2 max-w-md text-sm text-gray-500">
-              {step === 3 && 'Phase 2에서 위성지도·현장사진 위에 작업 동선과 안전표지를 그리는 기능이 연결됩니다.'}
-              {step === 4 && 'Phase 3에서 입력 내용을 바탕으로 위험요인과 안전대책 AI 초안을 생성하고 검토합니다.'}
+              Phase 3에서 입력 내용을 바탕으로 위험요인과 안전대책 AI 초안을 생성하고 검토합니다.
             </p>
           </div>
         )}
