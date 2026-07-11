@@ -147,7 +147,7 @@ export const EQUIPMENT_CATALOG: EquipmentCatalogItem[] = [
   ].map(([id, sizeClass, manufacturer, model, operatingWeightTon, widthM, minimumTurningRadiusM, maxLiftingHeightM, maxWorkingRadiusM, maxRatedLoadTon, capacitySummary, sourceUrl]) => ({
     id: id as string, category: 'mobileCrane' as const, sizeClass: sizeClass as string, manufacturer: manufacturer as string, model: model as string,
     sourceUrl: sourceUrl as string, sourceLabel: `${manufacturer} 공식 제품 제원`, sourceDate: SOURCE_DATE,
-    applicablePlanTypes: ['loading' as const, 'heavy' as const], specs: {
+    applicablePlanTypes: ['loading' as const, 'construction' as const, 'heavy' as const], specs: {
       operatingWeightTon: operatingWeightTon as number, widthM: widthM as number,
       minimumTurningRadiusM: minimumTurningRadiusM as number | undefined,
       maxLiftingHeightM: maxLiftingHeightM as number, maxWorkingRadiusM: maxWorkingRadiusM as number,
@@ -168,7 +168,7 @@ export const EQUIPMENT_CATALOG: EquipmentCatalogItem[] = [
   ].map(([id, sizeClass, model, maxLiftingHeightM, maxWorkingRadiusM, maxRatedLoadTon, capacitySummary, sourceIndex]) => ({
     id: id as string, category: 'truckMountedCrane' as const, sizeClass: sizeClass as string, manufacturer: '광림', model: model as string,
     sourceUrl: `https://www.kanglim.com/product/details?ca_id=01&idx=${sourceIndex}`, sourceLabel: kanglimSource, sourceDate: SOURCE_DATE,
-    applicablePlanTypes: ['loading' as const, 'heavy' as const], specs: {
+    applicablePlanTypes: ['loading' as const, 'construction' as const, 'heavy' as const], specs: {
       maxLiftingHeightM: maxLiftingHeightM as number | undefined, maxWorkingRadiusM: maxWorkingRadiusM as number | undefined,
       maxRatedLoadTon: maxRatedLoadTon as number | undefined, capacitySummary: capacitySummary as string,
     }, warning: CRANE_WARNING,
