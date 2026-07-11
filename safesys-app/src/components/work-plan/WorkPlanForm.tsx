@@ -5,7 +5,7 @@
 import { useState, type ReactNode } from 'react'
 import { CalendarRange, History, Loader2, Users } from 'lucide-react'
 import { fetchRecentTbm, type TbmCandidate } from '@/lib/ptw/recent-tbm'
-import { HEAVY_FIXING_METHODS, HEAVY_LOAD_SHAPE_EXAMPLES } from '@/lib/work-plan/constants'
+import { GUIDE_SIGNAL_METHODS, HEAVY_FIXING_METHODS, HEAVY_LOAD_SHAPE_EXAMPLES } from '@/lib/work-plan/constants'
 import type {
   CommonWorkPlanFields,
   PersonContact,
@@ -319,7 +319,10 @@ export default function WorkPlanForm({
       {renderCommon('construction')}
       <Section title="건설기계 작업정보">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="유도자 신호방법" value={current.guideSignalMethod} placeholder="수신호 / 무전기 / 기타" onChange={(value) => updatePlan('construction', { guideSignalMethod: value })} />
+          <div className="min-w-0">
+            <Field label="유도자 신호방법" value={current.guideSignalMethod} placeholder="수신호 / 무전기 / 기타" onChange={(value) => updatePlan('construction', { guideSignalMethod: value })} />
+            {renderQuickFill(GUIDE_SIGNAL_METHODS, current.guideSignalMethod, (next) => updatePlan('construction', { guideSignalMethod: next }))}
+          </div>
           <Field label="작업방법" value={current.workMethod} list="work-plan-schedules" onChange={(value) => updatePlan('construction', { workMethod: value })} />
           <label className="block"><span className="mb-1 block text-xs font-medium text-gray-600">사전조사 작업유형</span><select value={current.surveyType} onChange={(event) => updatePlan('construction', { surveyType: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"><option value="constructionMachine">건설기계 사용</option><option value="excavation">굴착작업</option><option value="tunnel">터널굴착작업</option><option value="demolition">해체작업</option></select></label>
         </div>

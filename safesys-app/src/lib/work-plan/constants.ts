@@ -102,12 +102,13 @@ export const WORK_PLAN_COVERS: Record<PlanType, WorkPlanCover> = {
 }
 
 export const MAP_LEGEND = [
-  { symbol: '▣', label: '장비', style: '검정 사각' },
+  { symbol: '▣', label: '장비', style: '주황 원' },
   { symbol: '→', label: '경로', style: '빨간 화살표' },
-  { symbol: '⊙', label: '유도자', style: '파란 이중원' },
-  { symbol: '★', label: '작업지휘자', style: '파란 별' },
+  { symbol: '⊙', label: '유도자(신호수)', style: '빨간 원' },
+  { symbol: '★', label: '작업지휘자', style: '파란 원' },
   { symbol: '⬭', label: '출입통제구역', style: '보라 점선 타원' },
-  { symbol: '□', label: '안전표지판', style: '녹색 사각' },
+  { symbol: '▲', label: '안전표지판', style: '노란 A형간판' },
+  { symbol: '▲', label: '안전콘', style: '주황 삼각콘' },
 ] as const
 
 export const MAP_FOCUS_ITEMS = [
@@ -270,6 +271,8 @@ export const ELECTRIC_CHECKLIST = [
   '고소작업 전에 추락방지를 위한 안전시설 설치하였는가?(추락방지망, 안전난간대 등)',
   '작업 중 외부인 출입금지 대책을 세웠는가?(점검장소 시건, 출입금지 표지판 설치 등)',
 ] as const
+
+export const GUIDE_SIGNAL_METHODS = ['수신호', '무전기', '호루라기'] as const
 
 export const HEAVY_LOAD_SHAPE_EXAMPLES = ['박스형', '봉형', '묶음형'] as const
 export const HEAVY_FIXING_METHODS = ['체인', '와이어로프', '샤클'] as const
