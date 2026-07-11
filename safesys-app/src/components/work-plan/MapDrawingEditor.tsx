@@ -244,6 +244,126 @@ function containsTaintedImage(element: HTMLElement) {
   })
 }
 
+function readBlobAsDataUrl(blob: Blob) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('이미지를 읽지 못했습니다.'))
+    reader.onerror = () => reject(new Error('이미지를 읽지 못했습니다.'))
+    reader.readAsDataURL(blob)
+  })
+}
+
+async function fetchTileAsDataUrl(source: string) {
+  const response = await fetch(`/api/map-tile?url=${encodeURIComponent(source)}`)
+  if (!response.ok) throw new Error('지도 타일을 가져오지 못했습니다.')
+  return readBlobAsDataUrl(await response.blob())
+}
+
+// SVG 렌더링 시 외부 요청이 차단되므로 복제본의 모든 원격 이미지를 data URL로 인라인한다.
+async function inlineCloneImages(clone: HTMLElement) {
+  const imageElements = Array.from(clone.querySelectorAll('img'))
+  const svgImageElements = Array.from(clone.querySelectorAll('image'))
+  await Promise.all([
+    ...imageElements.map(async (image) => {
+      const source = image.getAttribute('src') || ''
+      image.removeAttribute('srcset')
+      image.removeAttribute('loading')
+      if (!/^https?:/i.test(source)) return
+      try {
+        image.src = await fetchTileAsDataUrl(source)
+      } catch {
+        image.removeAttribute('src')
+      }
+    }),
+    ...svgImageElements.map(async (image) => {
+      const source = image.getAttribute('href') || image.getAttribute('xlink:href') || ''
+      if (!/^https?:/i.test(source)) return
+      try {
+        const dataUrl = await fetchTileAsDataUrl(source)
+        image.setAttribute('href', dataUrl)
+        image.removeAttribute('xlink:href')
+      } catch {
+        image.removeAttribute('href')
+        image.removeAttribute('xlink:href')
+      }
+    }),
+  ])
+}
+
+// cloneNode는 캔버스 픽셀을 복사하지 않으므로 원본 캔버스 내용을 이미지로 옮겨 심는다.
+function copyCanvasContent(element: HTMLElement, clone: HTMLElement) {
+  const sourceCanvases = element.querySelectorAll('canvas')
+  const cloneCanvases = clone.querySelectorAll('canvas')
+  sourceCanvases.forEach((sourceCanvas, index) => {
+    const target = cloneCanvases[index]
+    if (!target) return
+    try {
+      const replacement = document.createElement('img')
+      replacement.src = sourceCanvas.toDataURL('image/png')
+      const style = target.getAttribute('style')
+      if (style) replacement.setAttribute('style', style)
+      if (target.className) replacement.setAttribute('class', target.className)
+      replacement.width = sourceCanvas.width
+      replacement.height = sourceCanvas.height
+      target.replaceWith(replacement)
+    } catch {
+      target.remove()
+    }
+  })
+}
+
+// 카카오 벡터(SVG) 지도는 html2canvas가 그리지 못하므로 DOM을 foreignObject SVG로 직렬화해 캡처한다.
+async function captureMapViaSvg(element: HTMLElement) {
+  const rectangle = element.getBoundingClientRect()
+  const width = Math.max(1, Math.round(rectangle.width))
+  const height = Math.max(1, Math.round(rectangle.height))
+  const clone = element.cloneNode(true) as HTMLElement
+  clone.style.width = `${width}px`
+  clone.style.height = `${height}px`
+  clone.style.backgroundColor = '#ffffff'
+  copyCanvasContent(element, clone)
+  await inlineCloneImages(clone)
+  const markup = new XMLSerializer().serializeToString(clone)
+  const svgSource = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject x="0" y="0" width="100%" height="100%">${markup}</foreignObject></svg>`
+  const image = new Image()
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve()
+    image.onerror = () => reject(new Error('지도 화면을 이미지로 변환하지 못했습니다.'))
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgSource)}`
+  })
+  const output = document.createElement('canvas')
+  output.width = CANVAS_WIDTH
+  output.height = CANVAS_HEIGHT
+  const context = output.getContext('2d')
+  if (!context) throw new Error('캔버스를 만들지 못했습니다.')
+  context.fillStyle = '#ffffff'
+  context.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+  context.drawImage(image, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+  return output
+}
+
+// 캡처가 "성공"했지만 내용이 없는 흰 이미지인 경우를 걸러낸다 (오염된 캔버스도 실패로 간주).
+function isMostlyBlankCanvas(canvas: HTMLCanvasElement) {
+  const context = canvas.getContext('2d')
+  if (!context) return true
+  try {
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height)
+    const stride = 4 * 61
+    let sampled = 0
+    let varied = 0
+    for (let index = 0; index < data.length; index += stride) {
+      sampled += 1
+      const delta = Math.abs(data[index] - data[0])
+        + Math.abs(data[index + 1] - data[1])
+        + Math.abs(data[index + 2] - data[2])
+      if (delta > 30) varied += 1
+    }
+    return sampled === 0 || varied / sampled < 0.02
+  } catch {
+    return true
+  }
+}
+
 export default function MapDrawingEditor({
   latitude,
   longitude,
@@ -432,9 +552,7 @@ export default function MapDrawingEditor({
     setDraftObject(null)
   }
 
-  const captureMap = async (proxyImages: boolean) => {
-    const element = mapElementRef.current
-    if (!element) throw new Error('지도 영역이 없습니다.')
+  const captureMapWithHtml2canvas = async (element: HTMLElement, proxyImages: boolean) => {
     if (!proxyImages && containsTaintedImage(element)) {
       throw new Error('지도 타일에 CORS 제한이 있습니다.')
     }
@@ -460,21 +578,33 @@ export default function MapDrawingEditor({
     const context = resized.getContext('2d')
     if (!context) throw new Error('캔버스를 만들지 못했습니다.')
     context.drawImage(captured, 0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
-    return resized.toDataURL('image/png')
+    return resized
   }
 
   const freezeMap = async () => {
     const map = mapInstanceRef.current
-    if (!map || disabled) return
+    const element = mapElementRef.current
+    if (!map || !element || disabled) return
     setIsCapturing(true)
     setErrorMessage('')
     try {
-      let source: string
-      try {
-        source = await captureMap(false)
-      } catch {
-        source = await captureMap(true)
+      const attempts = [
+        () => captureMapViaSvg(element),
+        () => captureMapWithHtml2canvas(element, false),
+        () => captureMapWithHtml2canvas(element, true),
+      ]
+      let source: string | null = null
+      for (const attempt of attempts) {
+        try {
+          const candidate = await attempt()
+          if (isMostlyBlankCanvas(candidate)) continue
+          source = candidate.toDataURL('image/png')
+          break
+        } catch {
+          continue
+        }
       }
+      if (!source) throw new Error('지도 캡처에 실패했습니다.')
       const center = map.getCenter()
       const nextValue: MapDrawingData = {
         background: {
@@ -491,7 +621,7 @@ export default function MapDrawingEditor({
       setFrozen(true)
       onChange(nextValue)
     } catch {
-      setErrorMessage('지도 캡처를 완료하지 못했습니다. 현장 전경 사진을 배경으로 업로드해 계속 진행해주세요.')
+      setErrorMessage('지도 캡처를 완료하지 못했습니다. 지도가 화면에 완전히 표시된 상태에서 다시 시도하거나, 현장 전경 사진을 배경으로 업로드해주세요.')
     } finally {
       setIsCapturing(false)
     }
@@ -556,70 +686,84 @@ export default function MapDrawingEditor({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto w-full max-w-5xl space-y-4">
       <div>
-        <h2 className="text-xl font-bold text-gray-900">작업 위치와 안전 배치를 표시해주세요.</h2>
+        <h2 className="text-lg font-bold text-gray-900 sm:text-xl">작업 위치와 안전 배치를 표시해주세요.</h2>
         <p className="mt-1 text-sm text-gray-500">지도 화면을 맞춘 뒤 고정하거나 현장 전경 사진을 배경으로 사용하세요.</p>
       </div>
 
-      {!frozen && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white p-3">
-          <MapIcon className="h-4 w-4 text-blue-600" />
-          <button type="button" disabled={disabled} onClick={() => setMapType('hybrid')} className={`rounded-lg px-3 py-2 text-sm font-semibold ${mapType === 'hybrid' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>위성지도</button>
-          <button type="button" disabled={disabled} onClick={() => setMapType('roadmap')} className={`rounded-lg px-3 py-2 text-sm font-semibold ${mapType === 'roadmap' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>일반지도</button>
-          <button type="button" disabled={disabled || isCapturing} onClick={() => void freezeMap()} className="ml-auto flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Lock className="h-4 w-4" />{isCapturing ? '화면 고정 중...' : '현재 화면 고정'}</button>
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700">
-            <ImagePlus className="h-4 w-4" />현장 전경 사진
-            <input disabled={disabled} type="file" accept="image/*" capture="environment" onChange={(event) => { const file = event.target.files?.[0]; if (file) void setPhotoBackground(file) }} className="sr-only" />
-          </label>
-        </div>
-      )}
-
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-gray-300 bg-gray-100 shadow-inner">
-        {!frozen ? (
-          <div ref={mapElementRef} data-work-plan-map="true" className="h-full w-full" />
-        ) : (
-          <>
-            <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${JSON.stringify(backgroundSource)})` }} />
-            <canvas
-              ref={canvasRef}
-              width={CANVAS_WIDTH}
-              height={CANVAS_HEIGHT}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={() => setDraftObject(null)}
-              className="absolute inset-0 h-full w-full touch-none cursor-crosshair"
-            />
-          </>
-        )}
-      </div>
-
-      {frozen && (
-        <div className="space-y-3 rounded-xl border border-gray-200 bg-white p-3">
-          <div className="flex flex-wrap gap-2">
-            {TOOL_OPTIONS.map((tool) => (
-              <button key={tool.type} type="button" disabled={disabled} onClick={() => setActiveTool(tool.type)} className={`rounded-lg border px-3 py-2 text-sm font-semibold ${activeTool === tool.type ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-600'}`}>{tool.label}</button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3">
-            <button type="button" disabled={disabled || objects.length === 0} onClick={() => onChange(dataWithObjects(objects.slice(0, -1)))} className="flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-40"><Undo2 className="h-4 w-4" />실행 취소</button>
-            <button type="button" disabled={disabled || objects.length === 0} onClick={() => onChange(dataWithObjects([]))} className="flex items-center gap-1 rounded-lg border border-red-200 px-3 py-2 text-sm text-red-600 disabled:opacity-40"><Trash2 className="h-4 w-4" />전체 지우기</button>
-            <button type="button" disabled={disabled} onClick={() => { onChange(null); onCompositeChange(null); setFrozen(false); setBackgroundSource(''); setDraftObject(null); setErrorMessage('') }} className="ml-auto rounded-lg bg-gray-100 px-3 py-2 text-sm font-semibold text-gray-600">배경 다시 선택</button>
-          </div>
-          {objects.length > 0 && (
-            <div className="grid gap-2 border-t border-gray-100 pt-3 sm:grid-cols-2 lg:grid-cols-3">
-              {objects.map((object, index) => (
-                <div key={object.id} className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                  <span className="truncate">{index + 1}. {TOOL_OPTIONS.find((tool) => tool.type === object.type)?.label || object.type}{object.text ? ` · ${object.text}` : ''}</span>
-                  <button type="button" disabled={disabled} onClick={() => onChange(dataWithObjects(objects.filter((item) => item.id !== object.id)))} className="shrink-0 font-semibold text-red-600">삭제</button>
-                </div>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_15rem] lg:items-start">
+        <div className="rounded-xl border border-gray-200 bg-white p-2.5 lg:col-start-2 lg:row-start-1">
+          {!frozen ? (
+            <div className="flex flex-wrap items-center justify-center gap-2 lg:flex-col lg:items-stretch">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-600"><MapIcon className="h-4 w-4 text-blue-600" />지도 배경</span>
+              <div className="flex gap-1.5 lg:grid lg:grid-cols-2">
+                <button type="button" disabled={disabled} onClick={() => setMapType('hybrid')} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${mapType === 'hybrid' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>위성지도</button>
+                <button type="button" disabled={disabled} onClick={() => setMapType('roadmap')} className={`rounded-full px-3 py-1.5 text-xs font-semibold ${mapType === 'roadmap' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600'}`}>일반지도</button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-center gap-1.5 lg:grid lg:grid-cols-2">
+              {TOOL_OPTIONS.map((tool) => (
+                <button key={tool.type} type="button" disabled={disabled} onClick={() => setActiveTool(tool.type)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${activeTool === tool.type ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300 text-gray-600'}`}>{tool.label}</button>
               ))}
             </div>
           )}
-          {compositeSource && <p className="text-xs text-emerald-700">배경과 표시가 PDF 출력용 이미지로 합성되었습니다.</p>}
         </div>
-      )}
+
+        <div className="lg:col-start-1 lg:row-start-1 lg:row-span-2">
+          <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-gray-300 bg-gray-100 shadow-inner">
+            {!frozen ? (
+              <div ref={mapElementRef} data-work-plan-map="true" className="h-full w-full" />
+            ) : (
+              <>
+                <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${JSON.stringify(backgroundSource)})` }} />
+                <canvas
+                  ref={canvasRef}
+                  width={CANVAS_WIDTH}
+                  height={CANVAS_HEIGHT}
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={() => setDraftObject(null)}
+                  className="absolute inset-0 h-full w-full touch-none cursor-crosshair"
+                />
+              </>
+            )}
+          </div>
+          {frozen && compositeSource && <p className="mt-1.5 text-xs text-emerald-700">배경과 표시가 PDF 출력용 이미지로 합성되었습니다.</p>}
+        </div>
+
+        <div className="rounded-xl border border-gray-200 bg-white p-2.5 lg:col-start-2 lg:row-start-2">
+          {!frozen ? (
+            <div className="flex flex-wrap items-center justify-center gap-2 lg:flex-col lg:items-stretch">
+              <button type="button" disabled={disabled || isCapturing} onClick={() => void freezeMap()} className="flex items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white disabled:opacity-50"><Lock className="h-4 w-4" />{isCapturing ? '화면 고정 중...' : '현재 화면 고정'}</button>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700">
+                <ImagePlus className="h-4 w-4" />현장 전경 사진
+                <input disabled={disabled} type="file" accept="image/*" capture="environment" onChange={(event) => { const file = event.target.files?.[0]; if (file) void setPhotoBackground(file) }} className="sr-only" />
+              </label>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex flex-wrap justify-center gap-1.5 lg:grid lg:grid-cols-2">
+                <button type="button" disabled={disabled || objects.length === 0} onClick={() => onChange(dataWithObjects(objects.slice(0, -1)))} className="flex items-center justify-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 disabled:opacity-40"><Undo2 className="h-3.5 w-3.5" />실행 취소</button>
+                <button type="button" disabled={disabled || objects.length === 0} onClick={() => onChange(dataWithObjects([]))} className="flex items-center justify-center gap-1 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-600 disabled:opacity-40"><Trash2 className="h-3.5 w-3.5" />전체 지우기</button>
+                <button type="button" disabled={disabled} onClick={() => { onChange(null); onCompositeChange(null); setFrozen(false); setBackgroundSource(''); setDraftObject(null); setErrorMessage('') }} className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600 lg:col-span-2">배경 다시 선택</button>
+              </div>
+              {objects.length > 0 && (
+                <div className="grid max-h-40 gap-1.5 overflow-y-auto border-t border-gray-100 pt-2 sm:grid-cols-2 lg:max-h-56 lg:grid-cols-1">
+                  {objects.map((object, index) => (
+                    <div key={object.id} className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-1.5 text-xs text-gray-600">
+                      <span className="truncate">{index + 1}. {TOOL_OPTIONS.find((tool) => tool.type === object.type)?.label || object.type}{object.text ? ` · ${object.text}` : ''}</span>
+                      <button type="button" disabled={disabled} onClick={() => onChange(dataWithObjects(objects.filter((item) => item.id !== object.id)))} className="shrink-0 font-semibold text-red-600">삭제</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {errorMessage && <p className="flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />{errorMessage}</p>}
     </div>
