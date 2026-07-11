@@ -367,16 +367,13 @@ export default function WorkPlanForm({
           <Field label="발주처" value={current.clientName} onChange={(value) => updatePlan('electric', { clientName: value })} />
           <div className="sm:col-span-2">{renderPerson('담당자', current.manager, (value) => updatePerson('electric', 'manager', value), true)}</div>
           <Field label="공사(용역)업체" value={current.companyName} onChange={(value) => updatePlan('electric', { companyName: value })} />
-          <div className="sm:col-span-2">{renderPerson('작업책임자', current.workLeader, (value) => updatePerson('electric', 'workLeader', value), true)}</div>
-        </div>
-        <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-xs font-medium text-gray-600">작업목적 및 내용</span>
+          <div className="flex items-center justify-between gap-2 sm:col-span-2">
+            <p className="text-[11px] text-gray-400">TBM을 선택하면 작업내용과 작업책임자(제출자), 아래 교육장소·교육자가 함께 채워집니다.</p>
             {renderTbmPicker('electric', applyElectricTbm)}
           </div>
-          <textarea rows={3} value={current.purposeAndContent} onChange={(event) => updatePlan('electric', { purposeAndContent: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-          <p className="mt-1 text-[11px] text-gray-400">TBM을 선택하면 작업내용과 작업책임자(제출자), 아래 교육장소·교육자가 함께 채워집니다.</p>
+          <div className="sm:col-span-2">{renderPerson('작업책임자', current.workLeader, (value) => updatePerson('electric', 'workLeader', value), true)}</div>
         </div>
+        <label className="mt-3 block"><span className="mb-1 block text-xs font-medium text-gray-600">작업목적 및 내용</span><textarea rows={3} value={current.purposeAndContent} onChange={(event) => updatePlan('electric', { purposeAndContent: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></label>
         <div className="mt-3"><Field label="공사범위" value={current.workScope} list="work-plan-schedules" onChange={(value) => updatePlan('electric', { workScope: value })} /></div>
       </Section>
       <Section title="작업자·안전보건교육">
