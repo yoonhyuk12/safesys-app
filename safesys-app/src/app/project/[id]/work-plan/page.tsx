@@ -1,10 +1,10 @@
 'use client'
 
-// 프로젝트별 AI 작업계획서 목록 조회·삭제와 새 작성 마법사 진입을 제공하는 페이지
+// 프로젝트별 AI 작업계획서 목록 조회·수정·삭제와 작성 마법사 진입을 제공하는 페이지
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Download, FileText, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download, FileText, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import WorkPlanWizard from '@/components/work-plan/WorkPlanWizard'
@@ -22,6 +22,58 @@ const formatDate = (value: string | null) => {
   return new Intl.DateTimeFormat('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(date)
 }
 
+const hasEnteredValue = (values: unknown[]) => values.some((value) => {
+  if (typeof value === 'string') return value.trim().length > 0
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (Array.isArray(value)) return value.length > 0
+  return value != null
+})
+
+const hasRiggingValue = (review: NonNullable<WorkPlanRecord['form_data']['loading']>['riggingReview']) =>
+  hasEnteredValue([
+    review.tools,
+    review.otherTool,
+    review.diameterMm,
+    review.lengthM,
+    review.quantity,
+    review.safeLoadPerToolTon,
+    review.slingMethod,
+    review.hookTool,
+    review.hookDiameterInch,
+    review.hookQuantity,
+    review.hookSafeLoadTon,
+    review.breakingLoadTon,
+  ])
+
+const hasDelayedInputPending = (record: WorkPlanRecord) => record.plan_types.some((type) => {
+  if (type === 'loading') {
+    const form = record.form_data.loading
+    if (!form) return true
+    return !hasEnteredValue(Object.values(form.equipment))
+      || !hasEnteredValue([form.liftingReview.totalLoadTon, form.liftingReview.maxCapacityTon])
+      || !hasRiggingValue(form.riggingReview)
+  }
+
+  if (type === 'construction') {
+    const form = record.form_data.construction
+    if (!form) return true
+    return !hasEnteredValue(Object.values(form.equipment)) || !hasEnteredValue([form.operatorLicense])
+  }
+
+  if (type === 'electric') {
+    const form = record.form_data.electric
+    if (!form) return true
+    return !form.workers.some((worker) => hasEnteredValue([worker.qualification]))
+  }
+
+  const form = record.form_data.heavy
+  if (!form) return true
+  return !hasEnteredValue(Object.values(form.machine))
+    || !hasEnteredValue([form.load.dimensions, form.load.weightKg, form.load.transportWeightKg])
+    || !hasEnteredValue([form.liftingReview.totalLoadTon, form.liftingReview.maxCapacityTon])
+    || !hasRiggingValue(form.riggingReview)
+})
+
 export default function WorkPlanPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -34,6 +86,7 @@ export default function WorkPlanPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showWizard, setShowWizard] = useState(false)
+  const [editingRecord, setEditingRecord] = useState<WorkPlanRecord | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
@@ -88,6 +141,28 @@ export default function WorkPlanPage() {
     router.push(`/project/${projectId}`)
   }
 
+  const openNewWizard = () => {
+    setEditingRecord(null)
+    setShowWizard(true)
+  }
+
+  const openEditWizard = (record: WorkPlanRecord) => {
+    setEditingRecord(record)
+    setShowWizard(true)
+  }
+
+  const closeWizard = () => {
+    setEditingRecord(null)
+    setShowWizard(false)
+  }
+
+  const handleSaved = (savedRecord: WorkPlanRecord) => {
+    setRecords((current) => current.some((record) => record.id === savedRecord.id)
+      ? current.map((record) => record.id === savedRecord.id ? savedRecord : record)
+      : [savedRecord, ...current])
+    closeWizard()
+  }
+
   const handleDelete = async (record: WorkPlanRecord) => {
     if (!confirm(`「${record.title}」 작업계획서를 삭제하시겠습니까?`)) return
     setDeletingId(record.id)
@@ -121,7 +196,7 @@ export default function WorkPlanPage() {
             {project && <p className="truncate text-xs text-gray-500 sm:text-sm">{project.project_name}</p>}
           </div>
           {!showWizard && project && (
-            <button onClick={() => setShowWizard(true)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:px-4">
+            <button onClick={openNewWizard} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:px-4">
               <Plus className="h-4 w-4" />
               <span className="hidden sm:inline">새 작업계획서</span>
               <span className="sm:hidden">새 작성</span>
@@ -139,7 +214,14 @@ export default function WorkPlanPage() {
         )}
 
         {showWizard && project ? (
-          <WorkPlanWizard project={project} workers={workers} onClose={() => setShowWizard(false)} />
+          <WorkPlanWizard
+            project={project}
+            workers={workers}
+            userId={user.id}
+            initialRecord={editingRecord}
+            onSaved={handleSaved}
+            onClose={closeWizard}
+          />
         ) : (
           <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-6">
@@ -155,7 +237,7 @@ export default function WorkPlanPage() {
                 <p className="mt-4 font-medium text-gray-700">아직 작성된 작업계획서가 없습니다.</p>
                 <p className="mt-1 text-sm text-gray-500">프로젝트 정보와 등록 근로자를 불러와 빠르게 작성할 수 있습니다.</p>
                 {project && (
-                  <button onClick={() => setShowWizard(true)} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
+                  <button onClick={openNewWizard} className="mt-5 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
                     <Plus className="h-4 w-4" />첫 작업계획서 작성
                   </button>
                 )}
@@ -170,18 +252,26 @@ export default function WorkPlanPage() {
                       <th className="px-4 py-3 text-left font-semibold">작업기간</th>
                       <th className="px-4 py-3 text-left font-semibold">작성일</th>
                       <th className="px-4 py-3 text-center font-semibold">PDF</th>
-                      <th className="px-4 py-3 text-center font-semibold">삭제</th>
+                      <th className="px-4 py-3 text-center font-semibold">관리</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {records.map((record) => (
                       <tr key={record.id} className="hover:bg-blue-50/50">
-                        <td className="max-w-sm px-4 py-3 font-medium text-gray-900 sm:px-6"><span className="line-clamp-2">{record.title}</span></td>
+                        <td className="max-w-sm px-4 py-3 font-medium text-gray-900 sm:px-6">
+                          <span className="line-clamp-2">{record.title}</span>
+                          {hasDelayedInputPending(record) && <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">입력 대기</span>}
+                        </td>
                         <td className="px-4 py-3"><div className="flex flex-wrap gap-1">{record.plan_types.map((type) => <span key={type} className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">{planTypeName(type)}</span>)}</div></td>
                         <td className="whitespace-nowrap px-4 py-3 text-gray-600">{formatDate(record.work_start_date)} ~ {formatDate(record.work_end_date)}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-gray-600">{formatDate(record.created_at)}</td>
                         <td className="px-4 py-3 text-center"><button type="button" disabled title="PDF 출력은 Phase 4에서 제공됩니다." className="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-400"><Download className="h-3.5 w-3.5" />PDF</button></td>
-                        <td className="px-4 py-3 text-center"><button type="button" disabled={deletingId === record.id} onClick={() => handleDelete(record)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-40" aria-label={`${record.title} 삭제`}><Trash2 className="h-4 w-4" /></button></td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="inline-flex items-center gap-1">
+                            <button type="button" onClick={() => openEditWizard(record)} className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 hover:text-blue-800" aria-label={`${record.title} 수정`}><Pencil className="h-4 w-4" /></button>
+                            <button type="button" disabled={deletingId === record.id} onClick={() => handleDelete(record)} className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-40" aria-label={`${record.title} 삭제`}><Trash2 className="h-4 w-4" /></button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

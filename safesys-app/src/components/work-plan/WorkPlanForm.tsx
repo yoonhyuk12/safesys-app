@@ -1,15 +1,13 @@
 'use client'
 
-// 프로젝트·근로자·공정표 값을 자동 인입해 작업계획서 기본정보와 종류별 핵심 제원을 입력하는 폼
+// 프로젝트·근로자·공정표 값을 자동 인입해 작업계획서 기본정보와 현장 즉시 정보를 입력하는 폼
 
 import type { ReactNode } from 'react'
-import { AlertTriangle, Calculator, CalendarRange, Users } from 'lucide-react'
+import { CalendarRange, Users } from 'lucide-react'
 import type {
   CommonWorkPlanFields,
-  LiftingCapacityReview,
   PersonContact,
   PlanType,
-  RiggingCapacityReview,
   WorkPlanFormData,
   WorkPlanWorker,
 } from '@/lib/work-plan/types'
@@ -39,8 +37,6 @@ const TYPE_LABELS: Record<PlanType, string> = {
   electric: '붙임 2-3 전기 작업',
   heavy: '붙임 2-4 중량물 취급',
 }
-
-const TENSION_FACTORS: Record<number, number> = { 0: 1, 30: 1.04, 60: 1.16, 90: 1.41, 120: 2 }
 
 function Field({ label, value, onChange, type = 'text', placeholder, list, suffix }: FieldProps) {
   return (
@@ -72,11 +68,6 @@ function Section({ title, description, children }: { title: string; description?
       {children}
     </section>
   )
-}
-
-function ratio(total: number | null, capacity: number | null) {
-  if (!total || !capacity || capacity <= 0) return null
-  return Math.round((total / capacity) * 1000) / 10
 }
 
 function nullableNumber(value: string) {
@@ -157,87 +148,6 @@ export default function WorkPlanForm({
     </div>
   )
 
-  const updateLifting = (type: 'loading' | 'heavy', patch: Partial<LiftingCapacityReview>) => {
-    const current = formData[type]
-    if (!current) return
-    const lifting = { ...current.liftingReview, ...patch }
-    lifting.safetyRatioPercent = ratio(lifting.totalLoadTon, lifting.maxCapacityTon)
-    const rigging = { ...current.riggingReview }
-    rigging.safetyRatioPercent = ratio(lifting.totalLoadTon, rigging.safeLoadTon)
-    updatePlan(type, { liftingReview: lifting, riggingReview: rigging })
-  }
-
-  const updateRigging = (type: 'loading' | 'heavy', patch: Partial<RiggingCapacityReview>) => {
-    const current = formData[type]
-    if (!current) return
-    const rigging = { ...current.riggingReview, ...patch }
-    const count = Number(rigging.slingMethod.slice(0, 1)) || 1
-    const breaking = rigging.breakingLoadTon || 0
-    const safety = rigging.safetyFactor || 0
-    const tension = rigging.tensionFactor || 0
-    rigging.safeLoadTon = breaking > 0 && safety > 0 && tension > 0
-      ? Math.round((breaking * count / (safety * tension)) * 1000) / 1000
-      : null
-    rigging.safetyRatioPercent = ratio(current.liftingReview.totalLoadTon, rigging.safeLoadTon)
-    updatePlan(type, { riggingReview: rigging })
-  }
-
-  const renderSafetyResult = (label: string, percent: number | null) => {
-    const unsafe = percent !== null && percent > 100
-    return (
-      <div className={`rounded-lg border px-4 py-3 ${unsafe ? 'border-red-300 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}>
-        <div className="flex items-center justify-between gap-3">
-          <span className={`text-sm font-semibold ${unsafe ? 'text-red-800' : 'text-emerald-800'}`}>{label}</span>
-          <span className={`text-lg font-bold ${unsafe ? 'text-red-700' : 'text-emerald-700'}`}>{percent === null ? '-' : `${percent.toFixed(1)}%`}</span>
-        </div>
-        {unsafe && <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-red-700"><AlertTriangle className="h-3.5 w-3.5" />안전율 100% 초과로 사용이 불가합니다.</p>}
-      </div>
-    )
-  }
-
-  const renderLiftingReview = (type: 'loading' | 'heavy') => {
-    const current = formData[type]
-    if (!current) return null
-    const lifting = current.liftingReview
-    const rigging = current.riggingReview
-    return (
-      <Section title="인양·줄걸이 안전율 검토" description="입력 즉시 양중능력과 줄걸이 안전하중을 계산하며, 100%를 넘으면 사용 불가로 표시합니다.">
-        <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-700"><Calculator className="h-4 w-4 text-blue-600" />건설기계 인양능력</div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="중량물 총 하중" type="number" suffix="ton" value={lifting.totalLoadTon} onChange={(value) => updateLifting(type, { totalLoadTon: nullableNumber(value) })} />
-          <Field label="최대 양중능력" type="number" suffix="ton" value={lifting.maxCapacityTon} onChange={(value) => updateLifting(type, { maxCapacityTon: nullableNumber(value) })} />
-        </div>
-        <div className="mt-3">{renderSafetyResult('건설기계 안전율', lifting.safetyRatioPercent)}</div>
-
-        <div className="my-5 border-t border-gray-200" />
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">줄걸이 방법</span>
-            <select value={rigging.slingMethod} onChange={(event) => updateRigging(type, { slingMethod: event.target.value as RiggingCapacityReview['slingMethod'] })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-              <option value="">선택</option><option>1줄걸이</option><option>2줄걸이</option><option>3줄걸이</option><option>4줄걸이</option>
-            </select>
-          </label>
-          <Field label="줄걸이 절단하중" type="number" suffix="ton" value={rigging.breakingLoadTon} onChange={(value) => updateRigging(type, { breakingLoadTon: nullableNumber(value) })} />
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">안전계수</span>
-            <select value={rigging.safetyFactor ?? ''} onChange={(event) => updateRigging(type, { safetyFactor: nullableNumber(event.target.value) })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-              <option value="5">줄걸이 작업 5</option><option value="7">섬유로프 7</option><option value="10">근로자 탑승 10</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">줄걸이 각도·장력계수</span>
-            <select value={rigging.slingAngleDegree} onChange={(event) => { const angle = Number(event.target.value) as RiggingCapacityReview['slingAngleDegree']; updateRigging(type, { slingAngleDegree: angle, tensionFactor: TENSION_FACTORS[angle] }) }} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-              {Object.entries(TENSION_FACTORS).map(([angle, factor]) => <option key={angle} value={angle}>{angle}° / {factor}</option>)}
-            </select>
-          </label>
-          <Field label="계산된 줄걸이 안전하중" type="number" suffix="ton" value={rigging.safeLoadTon} onChange={() => undefined} />
-        </div>
-        <p className="mt-2 text-xs text-gray-500">줄걸이 안전하중 = 절단하중 × 줄걸이 수 ÷ (안전계수 × 장력계수)</p>
-        <div className="mt-3">{renderSafetyResult('줄걸이 안전율', rigging.safetyRatioPercent)}</div>
-      </Section>
-    )
-  }
-
   const renderCommon = (type: 'loading' | 'construction' | 'heavy') => {
     const current = formData[type]
     if (!current) return null
@@ -270,23 +180,12 @@ export default function WorkPlanForm({
     if (!current) return null
     return <>
       {renderCommon('loading')}
-      <Section title="차량·장비 제원">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <Section title="차량 작업정보">
+        <div className="grid gap-3 sm:grid-cols-2">
           <Field label="차량 번호" value={current.vehicleNumber} onChange={(value) => updatePlan('loading', { vehicleNumber: value })} />
           <Field label="작업시간" type="time" value={current.workTime} onChange={(value) => updatePlan('loading', { workTime: value })} />
-          <Field label="장비명" value={current.equipment.equipmentName} onChange={(value) => updateNested('loading', 'equipment', { equipmentName: value })} />
-          <Field label="차량/장비번호" value={current.equipment.registrationNumber} onChange={(value) => updateNested('loading', 'equipment', { registrationNumber: value })} />
-          <Field label="모델명/생산년도" value={current.equipment.modelAndYear} onChange={(value) => updateNested('loading', 'equipment', { modelAndYear: value })} />
-          <Field label="보험기간" value={current.equipment.insurancePeriod} onChange={(value) => updateNested('loading', 'equipment', { insurancePeriod: value })} />
-          <Field label="소유회사명" value={current.equipment.ownerCompany} onChange={(value) => updateNested('loading', 'equipment', { ownerCompany: value })} />
-          <Field label="검사유효기간" value={current.equipment.inspectionValidity} onChange={(value) => updateNested('loading', 'equipment', { inspectionValidity: value })} />
-          <Field label="차체중량" value={current.equipment.bodyWeightTon} suffix="ton" onChange={(value) => updateNested('loading', 'equipment', { bodyWeightTon: value })} />
-          <Field label="장비폭" value={current.equipment.widthM} suffix="m" onChange={(value) => updateNested('loading', 'equipment', { widthM: value })} />
-          <Field label="최소선회반경" value={current.equipment.minimumTurningRadiusM} suffix="m" onChange={(value) => updateNested('loading', 'equipment', { minimumTurningRadiusM: value })} />
-          <Field label="작업반경" value={current.equipment.workingRadiusM} suffix="m" onChange={(value) => updateNested('loading', 'equipment', { workingRadiusM: value })} />
         </div>
       </Section>
-      {renderLiftingReview('loading')}
     </>
   }
 
@@ -297,14 +196,9 @@ export default function WorkPlanForm({
       {renderCommon('construction')}
       <Section title="건설기계 작업정보">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="운전원 면허" value={current.operatorLicense} onChange={(value) => updatePlan('construction', { operatorLicense: value })} />
           <Field label="유도자 신호방법" value={current.guideSignalMethod} placeholder="수신호 / 무전기 / 기타" onChange={(value) => updatePlan('construction', { guideSignalMethod: value })} />
           <Field label="작업방법" value={current.workMethod} list="work-plan-schedules" onChange={(value) => updatePlan('construction', { workMethod: value })} />
           <label className="block"><span className="mb-1 block text-xs font-medium text-gray-600">사전조사 작업유형</span><select value={current.surveyType} onChange={(event) => updatePlan('construction', { surveyType: event.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"><option value="constructionMachine">건설기계 사용</option><option value="excavation">굴착작업</option><option value="tunnel">터널굴착작업</option><option value="demolition">해체작업</option></select></label>
-          <Field label="장비명" value={current.equipment.equipmentName} onChange={(value) => updateNested('construction', 'equipment', { equipmentName: value })} />
-          <Field label="등록번호" value={current.equipment.registrationNumber} onChange={(value) => updateNested('construction', 'equipment', { registrationNumber: value })} />
-          <Field label="차체중량" value={current.equipment.bodyWeight} onChange={(value) => updateNested('construction', 'equipment', { bodyWeight: value })} />
-          <Field label="능력" value={current.equipment.capacity} onChange={(value) => updateNested('construction', 'equipment', { capacity: value })} />
         </div>
         <label className="mt-3 block"><span className="mb-1 block text-xs font-medium text-gray-600">작업순서</span><textarea rows={4} value={current.workSequence.join('\n')} onChange={(event) => updatePlan('construction', { workSequence: event.target.value.split('\n') })} placeholder="장비 현장 투입&#10;단거리 이동&#10;작업 실시" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" /></label>
       </Section>
@@ -348,6 +242,30 @@ export default function WorkPlanForm({
           })}
           {workers.length === 0 && <p className="text-sm text-gray-500">등록된 근로자가 없습니다.</p>}
         </div>
+        {current.workers.length > 0 && (
+          <div className="mt-4 space-y-2">
+            {current.workers.map((worker, index) => (
+              <label key={`${worker.name}-${index}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3 py-2">
+                <span className="min-w-0 truncate text-sm font-medium text-gray-700">{worker.name}</span>
+                <span className="flex items-center gap-2 text-xs text-gray-500">
+                  근로형태
+                  <select
+                    value={worker.employmentType}
+                    onChange={(event) => updatePlan('electric', {
+                      workers: current.workers.map((item, workerIndex) => workerIndex === index
+                        ? { ...item, employmentType: event.target.value as typeof item.employmentType }
+                        : item),
+                    })}
+                    className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-700"
+                  >
+                    <option value="상근">상근</option>
+                    <option value="일용">일용</option>
+                  </select>
+                </span>
+              </label>
+            ))}
+          </div>
+        )}
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="교육일자" type="date" value={current.education.date} onChange={(value) => updateNested('electric', 'education', { date: value })} />
           <Field label="교육장소" value={current.education.place} onChange={(value) => updateNested('electric', 'education', { place: value })} />
@@ -364,25 +282,13 @@ export default function WorkPlanForm({
     if (!current) return null
     return <>
       {renderCommon('heavy')}
-      <Section title="중량물·기계 제원">
+      <Section title="중량물 정보">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="중량물 품명" value={current.load.itemName} onChange={(value) => updateNested('heavy', 'load', { itemName: value })} />
           <Field label="형상" value={current.load.shape} placeholder="박스형 / 봉형 / 묶음형" onChange={(value) => updateNested('heavy', 'load', { shape: value })} />
-          <Field label="규격" value={current.load.dimensions} placeholder="너비 × 길이 × 높이" onChange={(value) => updateNested('heavy', 'load', { dimensions: value })} />
-          <Field label="중량" value={current.load.weightKg} suffix="kg" onChange={(value) => updateNested('heavy', 'load', { weightKg: value })} />
-          <Field label="1회 운반중량" value={current.load.transportWeightKg} suffix="kg" onChange={(value) => updateNested('heavy', 'load', { transportWeightKg: value })} />
           <Field label="고정방법" value={current.load.fixingMethod} placeholder="체인 / 와이어로프 / 샤클" onChange={(value) => updateNested('heavy', 'load', { fixingMethod: value })} />
-          <Field label="기계명" value={current.machine.machineName} onChange={(value) => updateNested('heavy', 'machine', { machineName: value })} />
-          <Field label="형식번호" value={current.machine.modelNumber} onChange={(value) => updateNested('heavy', 'machine', { modelNumber: value })} />
-          <Field label="거더형식" value={current.machine.girderType} onChange={(value) => updateNested('heavy', 'machine', { girderType: value })} />
-          <Field label="기계규격" value={current.machine.machineSpecification} onChange={(value) => updateNested('heavy', 'machine', { machineSpecification: value })} />
-          <Field label="정격하중" value={current.machine.ratedLoad} onChange={(value) => updateNested('heavy', 'machine', { ratedLoad: value })} />
-          <Field label="조작방식" value={current.machine.controlMethod} onChange={(value) => updateNested('heavy', 'machine', { controlMethod: value })} />
-          <Field label="검사여부" value={current.machine.inspectionResult} onChange={(value) => updateNested('heavy', 'machine', { inspectionResult: value })} />
-          <Field label="유효기간" value={current.machine.validityPeriod} onChange={(value) => updateNested('heavy', 'machine', { validityPeriod: value })} />
         </div>
       </Section>
-      {renderLiftingReview('heavy')}
     </>
   }
 
@@ -390,7 +296,7 @@ export default function WorkPlanForm({
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-bold text-gray-900">기본정보를 확인해주세요.</h2>
-        <p className="mt-1 text-sm text-gray-500">자동 인입된 값과 종류별 핵심 제원을 확인한 뒤 다음 단계로 이동하세요.</p>
+        <p className="mt-1 text-sm text-gray-500">자동 인입된 값과 현장에서 확인 가능한 정보를 검토한 뒤 다음 단계로 이동하세요.</p>
       </div>
       <datalist id="work-plan-workers">{workers.map((worker) => <option key={worker.id} value={worker.name}>{worker.phone || ''}</option>)}</datalist>
       <datalist id="work-plan-schedules">{scheduleCandidates.map((name) => <option key={name} value={name} />)}</datalist>

@@ -13,13 +13,13 @@
 - [x] tsc·lint 통과, 커밋
 
 ## 보완 1 — 확인 어려운 정보 지연 입력 ([보완 계획서](./20260711_AI작업계획서_보완_지연입력.md))
-- [ ] 나중 확인 그룹 필드 분리 — loading·heavy의 equipment/machine·인양/줄걸이, construction의 equipment·operatorLicense, electric의 qualification
-- [ ] 마법사에 "나중 확인 정보" 스텝 삽입(저장 직전) + "건너뛰고 저장" 버튼
-- [ ] 필수 검증 완화 — title·plan_types만 필수, 나머지 전부 공란 허용
-- [ ] 안전율 계산 — 입력값 없으면 공란(계산·표시 로직 확인)
-- [ ] 목록에 "수정" 진입 — WorkPlanRecord 프리필 + UPDATE 저장
-- [ ] 목록 행 "입력 대기" 배지(나중 확인 그룹 공란 시)
-- [ ] tsc·lint 통과, 커밋
+- [x] 나중 확인 그룹 필드 분리 — loading·heavy의 equipment/machine·인양/줄걸이, construction의 equipment·operatorLicense, electric의 qualification
+- [x] 마법사에 "나중 확인 정보" 스텝 삽입(저장 직전) + "건너뛰고 저장" 버튼
+- [x] 필수 검증 완화 — title·plan_types만 필수, 나머지 전부 공란 허용
+- [x] 안전율 계산 — 입력값 없으면 공란(계산·표시 로직 확인)
+- [x] 목록에 "수정" 진입 — WorkPlanRecord 프리필 + UPDATE 저장
+- [x] 목록 행 "입력 대기" 배지(나중 확인 그룹 공란 시)
+- [x] tsc·lint 통과, 커밋
 
 ## Phase 2 — 지도 드로잉
 - [ ] `MapDrawingEditor.tsx` — 전역 로드된 Kakao Maps SDK(layout.tsx) 사용, 위성(HYBRID) 기본 + 일반지도(ROADMAP) 토글, 프로젝트 좌표 중심 (기존 KakaoMap.tsx·SimpleProjectMap.tsx 패턴 참조)

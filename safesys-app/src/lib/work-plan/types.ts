@@ -83,8 +83,8 @@ export interface RiggingCapacityReview {
   hookSafeLoadTon: number | null
   breakingLoadTon: number | null
   safetyFactor: number | null
-  slingAngleDegree: 0 | 30 | 60 | 90 | 120
-  tensionFactor: number
+  slingAngleDegree: 0 | 30 | 60 | 90 | 120 | null
+  tensionFactor: number | null
   safeLoadTon: number | null
   safetyRatioPercent: number | null
 }
