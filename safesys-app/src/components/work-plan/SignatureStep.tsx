@@ -75,6 +75,25 @@ export default function SignatureStep({ selectedTypes, formData, onChange }: Sig
 
   const getSignatures = (type: PlanType): WorkPlanSignatures => formData[type]?.signatures || {}
 
+  // 서명 단계에서 고친 성명을 원래 입력 위치(기본정보·전기 지시확인/인계인수)에 반영한다
+  const updateName = (slot: SignatureSlot, name: string) => {
+    if (slot.type === 'electric') {
+      const form = formData.electric
+      if (!form) return
+      if (slot.role === 'instructionManager' || slot.role === 'instructionWorker') {
+        const key = slot.role === 'instructionManager' ? 'managerName' : 'workerName'
+        onChange({ ...formData, electric: { ...form, instructionAcknowledgement: { ...form.instructionAcknowledgement, [key]: name } } })
+      } else if (slot.role === 'handoverDeliverer' || slot.role === 'handoverReceiver') {
+        const key = slot.role === 'handoverDeliverer' ? 'deliverer' : 'receiver'
+        onChange({ ...formData, electric: { ...form, handover: { ...form.handover, [key]: name } } })
+      }
+      return
+    }
+    const form = formData[slot.type]
+    if (!form || (slot.role !== 'workDirector' && slot.role !== 'operator' && slot.role !== 'guide')) return
+    onChange({ ...formData, [slot.type]: { ...form, [slot.role]: { ...form[slot.role], name } } } as WorkPlanFormData)
+  }
+
   const applySignature = (slot: SignatureSlot, dataUrl: string | null) => {
     const current = formData[slot.type]
     if (!current) return
@@ -104,10 +123,16 @@ export default function SignatureStep({ selectedTypes, formData, onChange }: Sig
                 const signature = signatures[slot.role]
                 return (
                   <div key={`${slot.type}-${slot.role}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <span className="block text-xs font-medium text-gray-500">{slot.roleLabel}</span>
                       {slot.showName !== false && (
-                        <span className={`block truncate text-sm font-semibold ${slot.name ? 'text-gray-800' : 'text-gray-400'}`}>{slot.name || '성명 미입력'}</span>
+                        <input
+                          value={slot.name}
+                          onChange={(event) => updateName(slot, event.target.value)}
+                          placeholder="성명 입력"
+                          aria-label={`${slot.roleLabel} 성명`}
+                          className="w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-gray-800 placeholder:font-normal placeholder:text-gray-400 hover:border-gray-200 focus:border-blue-400 focus:bg-white focus:outline-none"
+                        />
                       )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
