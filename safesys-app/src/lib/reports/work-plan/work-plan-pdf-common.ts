@@ -1,0 +1,359 @@
+// AI 작업계획서 4종 PDF의 공용 조각 — 결재란·기본정보 셀·지도·위험표·체크리스트·인양/줄걸이 검토표·오프스크린 렌더 헬퍼
+
+import { applyHtml2canvasTextFix } from '../html2canvas-text-fix'
+import {
+  MAP_LEGEND,
+  MAP_FOCUS_ITEMS,
+  MAP_FOOTNOTE,
+  LIFTING_CAPACITY_NOTES,
+  LIFTING_CAPACITY_FORMULA,
+  RIGGING_CAPACITY_FORMULA,
+  RIGGING_SAFETY_RATIO_FORMULA,
+  CAPACITY_WARNING,
+  SAFETY_FACTORS,
+  TENSION_FACTORS,
+  PLAN_TYPE_OPTIONS,
+} from '../../work-plan/constants'
+import type {
+  LiftingCapacityReview,
+  RiggingCapacityReview,
+  RiskControlRow,
+  ChecklistAnswer,
+  ChecklistResult,
+  PersonContact,
+  PlanType,
+} from '../../work-plan/types'
+
+// ── 스타일 상수 ─────────────────────────────────────────────
+export const FONT = "'Malgun Gothic', '맑은 고딕', Arial, sans-serif"
+const BORDER = '1px solid #000'
+export const CELL = `border:${BORDER}; padding:4px 6px; font-size:12px; vertical-align:middle; text-align:center; word-break:break-all; line-height:1.4;`
+export const LABEL = `${CELL} background-color:#f2f2f2; font-weight:bold;`
+export const VALUE = CELL
+export const LEFT = `border:${BORDER}; padding:4px 6px; font-size:12px; vertical-align:middle; text-align:left; word-break:break-all; line-height:1.5;`
+export const TABLE = 'width:100%; border-collapse:collapse; table-layout:fixed; margin-top:-1px;'
+const SECTION = `border:${BORDER}; background-color:#f2f2f2; text-align:center; font-weight:bold; font-size:14px; padding:5px 4px; margin-top:-1px;`
+
+// ── 기본 유틸 ───────────────────────────────────────────────
+export function escapeHtml(value: string): string {
+  return (value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+export function numOrBlank(n: number | null | undefined): string {
+  return n === null || n === undefined || Number.isNaN(n) ? '' : String(n)
+}
+
+// 값 셀(html은 호출부가 이스케이프 책임). 빈 값이면 셀 높이 유지를 위해 &nbsp; 삽입.
+export function cell(html: string, style: string = VALUE, colspan = 1): string {
+  const c = html && html.length ? html : '&nbsp;'
+  return `<td style="${style}"${colspan > 1 ? ` colspan="${colspan}"` : ''}>${c}</td>`
+}
+
+export function sectionTitle(text: string): string {
+  return `<div style="${SECTION}">${escapeHtml(text)}</div>`
+}
+
+export function colgroup(n: number): string {
+  const w = (100 / n).toFixed(4)
+  return `<colgroup>${Array(n).fill(`<col style="width:${w}%"/>`).join('')}</colgroup>`
+}
+
+export function checkbox(label: string, checked: boolean): string {
+  return `${checked ? '■' : '□'} ${escapeHtml(label)}`
+}
+
+// 담당자/운전원 등 이름·연락처 블록
+export function personBlock(p: PersonContact | undefined): string {
+  if (!p) return ''
+  const head = escapeHtml([p.position, p.name].filter(Boolean).join(' '))
+  const phone = p.phone ? escapeHtml(p.phone) : ''
+  if (head && phone) return `${head}<br/>(${phone})`
+  return head || phone
+}
+
+export function dateRange(start: string | null | undefined, end: string | null | undefined): string {
+  const s = start || ''
+  const e = end || ''
+  return s || e ? `${escapeHtml(s)} ~ ${escapeHtml(e)}` : ''
+}
+
+// ── 결재란 + 제목 헤더 ──────────────────────────────────────
+// 담당=수급업체 / 승인=현장 소장, 서명칸은 빈칸.
+export function approvalHeader(mainTitle: string, subTitle: string): string {
+  const inner = `
+    <table style="width:100%; height:100%; border-collapse:collapse; table-layout:fixed;">
+      <tr>${cell('담당', LABEL)}${cell('승인', LABEL)}</tr>
+      <tr>${cell('수급업체', `${VALUE} height:34px;`)}${cell('현장 소장', `${VALUE} height:34px;`)}</tr>
+    </table>`
+  return `
+    <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
+      ${colgroup(12)}
+      <tr>
+        <td colspan="9" style="border:${BORDER}; text-align:center; padding:12px 6px;">
+          <div style="font-size:22px; font-weight:900;">${escapeHtml(mainTitle)}</div>
+          <div style="font-size:14px; font-weight:bold; color:#555;">[${escapeHtml(subTitle)}]</div>
+        </td>
+        <td style="border:${BORDER}; background-color:#f2f2f2; font-weight:bold; text-align:center; padding:2px;">결<br/>재</td>
+        <td colspan="2" style="border:${BORDER}; padding:0;">${inner}</td>
+      </tr>
+    </table>`
+}
+
+// ── 지도 섹션 ──────────────────────────────────────────────
+const LEGEND_COLORS: Record<string, string> = {
+  장비: '#000',
+  경로: '#e00000',
+  유도자: '#0000e0',
+  작업지휘자: '#0000e0',
+  출입통제구역: '#8000c0',
+  안전표지판: '#22aa22',
+}
+
+function legendTable(): string {
+  const rows = MAP_LEGEND.map(
+    (l) =>
+      `<tr>${cell(`<span style="color:${LEGEND_COLORS[l.label] || '#000'}; font-size:15px;">${l.symbol}</span>`, VALUE)}${cell(escapeHtml(l.label), VALUE)}</tr>`
+  ).join('')
+  return `
+    <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
+      <tr>${cell('범  례', LABEL, 2)}</tr>
+      <tr>${cell('표시', LABEL)}${cell('내  용', LABEL)}</tr>
+      ${rows}
+    </table>`
+}
+
+function focusList(): string {
+  const items = MAP_FOCUS_ITEMS.map(
+    (t, i) => `<div style="font-size:12px; margin-bottom:3px;">${i + 1}. ${escapeHtml(t)}</div>`
+  ).join('')
+  return `
+    <div style="margin-top:10px;">
+      <div style="font-weight:bold; font-size:13px; margin-bottom:5px;">ㅇ 중점관리사항</div>
+      ${items}
+    </div>`
+}
+
+// map_image_url이 없으면 좌측 지도 셀은 빈 칸으로 유지.
+export function mapSection(mapTitle: string, imageUrl: string | null): string {
+  const img = imageUrl
+    ? `<img src="${escapeHtml(imageUrl)}" style="display:block; width:100%; height:auto; max-height:135mm; object-fit:contain;" crossorigin="anonymous" />`
+    : ''
+  return `
+    ${sectionTitle(mapTitle)}
+    <table style="${TABLE}">
+      ${colgroup(12)}
+      <tr>
+        <td colspan="8" style="border:${BORDER}; vertical-align:top; padding:6px;">
+          <div style="min-height:120mm; display:flex; align-items:center; justify-content:center;">${img}</div>
+          <div style="text-align:center; color:#0000c0; font-weight:bold; font-size:12px; margin-top:4px;">${escapeHtml(MAP_FOOTNOTE)}</div>
+        </td>
+        <td colspan="4" style="border:${BORDER}; vertical-align:top; padding:6px;">
+          ${legendTable()}
+          ${focusList()}
+        </td>
+      </tr>
+    </table>`
+}
+
+// ── 위험요인 및 개선대책 표 ────────────────────────────────
+export function riskControlTable(title: string, firstColLabel: string, rows: RiskControlRow[]): string {
+  const body =
+    rows.length > 0
+      ? rows
+          .map(
+            (r, i) =>
+              `<tr>${cell(String(i + 1), VALUE)}${cell(escapeHtml(r.workStep), LEFT, 3)}${cell(escapeHtml(r.riskFactor), LEFT, 4)}${cell(escapeHtml(r.improvementMeasure), LEFT, 4)}</tr>`
+          )
+          .join('')
+      : `<tr>${cell('', VALUE)}${cell('', LEFT, 3)}${cell('', LEFT, 4)}${cell('', LEFT, 4)}</tr>`
+  return `
+    ${sectionTitle(title)}
+    <table style="${TABLE}">
+      ${colgroup(12)}
+      <tr>${cell('연번', LABEL)}${cell(escapeHtml(firstColLabel), LABEL, 3)}${cell('위험요인', LABEL, 4)}${cell('개선대책', LABEL, 4)}</tr>
+      ${body}
+    </table>`
+}
+
+// ── 체크리스트 표 ──────────────────────────────────────────
+function mark(target: ChecklistResult, current: ChecklistResult | undefined): string {
+  return current === target ? '■' : '□'
+}
+
+export function checklistTable(title: string, items: readonly string[], answers: ChecklistAnswer[]): string {
+  const byIndex = new Map<number, ChecklistAnswer>(answers.map((a) => [a.itemIndex, a]))
+  const rows = items
+    .map((q, i) => {
+      const a = byIndex.get(i)
+      const note = a?.note ? `<div style="color:#444; font-size:11px; margin-top:2px;">└ ${escapeHtml(a.note)}</div>` : ''
+      const question = `<div>${escapeHtml(q)}</div>${note}`
+      return `<tr>${cell(question, `${LEFT} height:30px;`)}${cell(mark('양호', a?.result), VALUE)}${cell(mark('미흡', a?.result), VALUE)}${cell(mark('해당없음', a?.result), VALUE)}</tr>`
+    })
+    .join('')
+  return `
+    ${sectionTitle(title)}
+    <table style="width:100%; border-collapse:collapse; table-layout:fixed; margin-top:-1px;">
+      <colgroup><col style="width:76%"/><col style="width:8%"/><col style="width:8%"/><col style="width:8%"/></colgroup>
+      <tr>${cell('점검사항', LABEL)}${cell('양호', LABEL)}${cell('미흡', LABEL)}${cell('해당없음', LABEL)}</tr>
+      ${rows}
+    </table>`
+}
+
+// ── 건설기계 인양능력 검토표 (2-1·2-4 공용) ────────────────
+export function liftingReviewTable(review: LiftingCapacityReview | undefined): string {
+  const total = numOrBlank(review?.totalLoadTon)
+  const capacity = numOrBlank(review?.maxCapacityTon)
+  const pct = numOrBlank(review?.safetyRatioPercent)
+  const expr = LIFTING_CAPACITY_FORMULA.replace('안전율 = ', '')
+  const notes = LIFTING_CAPACITY_NOTES.map(
+    (n) => `<tr>${cell(`※ ${escapeHtml(n)}`, `${LEFT} font-size:11px;`, 12)}</tr>`
+  ).join('')
+  return `
+    ${sectionTitle('<건설기계 인양능력 검토>')}
+    <table style="${TABLE}">
+      ${colgroup(12)}
+      <tr>${cell('중량물 총 하중', LABEL, 3)}${cell(total ? `${total} ton` : '', `${VALUE} text-align:right;`, 3)}${cell('최대 양중능력', LABEL, 3)}${cell(capacity ? `${capacity} ton` : '', `${VALUE} text-align:right;`, 3)}</tr>
+      ${notes}
+      <tr>${cell('안전율', LABEL, 3)}${cell(`${escapeHtml(expr)} = ( ${pct} )% <b>※ ${escapeHtml(CAPACITY_WARNING)}</b>`, LEFT, 9)}</tr>
+    </table>`
+}
+
+// ── 줄걸이 인양능력 검토표 (2-1·2-4 공용) ─────────────────
+function slingCount(method: string): string {
+  const m = method?.match(/(\d)/)
+  return m ? m[1] : ''
+}
+
+function safetyFactorTable(): string {
+  const s = SAFETY_FACTORS
+  return `
+    <div style="font-size:11px; font-weight:bold; margin-bottom:2px;">※ 안전계수</div>
+    <table style="width:100%; border-collapse:collapse; table-layout:fixed; font-size:11px;">
+      <tr>${cell('작업구분', LABEL)}${cell(escapeHtml(s.workerBoarding.label), LABEL)}${cell(escapeHtml(s.rigging.label), LABEL)}</tr>
+      <tr>${cell('안전계수', LABEL)}${cell(String(s.workerBoarding.value), VALUE)}${cell(`${s.rigging.value}(섬유로프: ${s.fiberRopeRigging.value})`, VALUE)}</tr>
+    </table>`
+}
+
+function tensionFactorTable(): string {
+  const head = TENSION_FACTORS.map((t) => cell(`${t.angleDegree}°`, LABEL)).join('')
+  const vals = TENSION_FACTORS.map((t) => cell(String(t.value), VALUE)).join('')
+  return `
+    <div style="font-size:11px; font-weight:bold; margin-bottom:2px;">※ 장력계수</div>
+    <table style="width:100%; border-collapse:collapse; table-layout:fixed; font-size:11px;">
+      <tr>${cell('각도', LABEL)}${head}</tr>
+      <tr>${cell('장력계수', LABEL)}${vals}</tr>
+    </table>`
+}
+
+export function riggingReviewTable(r: RiggingCapacityReview | undefined): string {
+  const tools = r?.tools || []
+  const toolBox = `
+    ${checkbox('와이어로프', tools.includes('와이어로프'))} ${checkbox('섬유로프', tools.includes('섬유로프'))}<br/>
+    ${checkbox('체인블럭', tools.includes('체인블럭'))} ${checkbox('기타', tools.includes('기타'))}( ${escapeHtml(r?.otherTool || '')} )`
+  const spec = `D : ( ${numOrBlank(r?.diameterMm)} )mm, L : ( ${numOrBlank(r?.lengthM)} )m, ( ${numOrBlank(r?.quantity)} )EA<br/>각 안전하중 : ( ${numOrBlank(r?.safeLoadPerToolTon)} )ton`
+  const methodBox = `
+    ${checkbox('1줄걸이', r?.slingMethod === '1줄걸이')} ${checkbox('2줄걸이', r?.slingMethod === '2줄걸이')}<br/>
+    ${checkbox('3줄걸이', r?.slingMethod === '3줄걸이')} ${checkbox('4줄걸이', r?.slingMethod === '4줄걸이')}`
+  const hookLabel = escapeHtml(r?.hookTool || '') || '훅/샤클/아이볼트'
+  const hookSpec = `${hookLabel} : D ( ${numOrBlank(r?.hookDiameterInch)} )in, ( ${numOrBlank(r?.hookQuantity)} )EA<br/>각 안전하중 : ( ${numOrBlank(r?.hookSafeLoadTon)} )ton`
+
+  const breaking = numOrBlank(r?.breakingLoadTon)
+  const safeLoad = numOrBlank(r?.safeLoadTon)
+  const count = r?.slingMethod ? slingCount(r.slingMethod) : ''
+  const sf = numOrBlank(r?.safetyFactor)
+  const tf = numOrBlank(r?.tensionFactor)
+  const pct = numOrBlank(r?.safetyRatioPercent)
+  const ratioExpr = RIGGING_SAFETY_RATIO_FORMULA.replace('안전율 = ', '')
+
+  return `
+    ${sectionTitle('<줄걸이 인양능력 검토>')}
+    <table style="${TABLE}">
+      ${colgroup(12)}
+      <tr>${cell('줄걸이 용구', LABEL, 2)}${cell(toolBox, LEFT, 4)}${cell('줄걸이 규격', LABEL, 2)}${cell(spec, LEFT, 4)}</tr>
+      <tr>${cell('줄걸이 방법', LABEL, 2)}${cell(methodBox, LEFT, 4)}${cell('고리걸이용구/규격', LABEL, 2)}${cell(hookSpec, LEFT, 4)}</tr>
+      <tr>${cell('줄걸이 절단하중', LABEL, 2)}${cell(breaking ? `${breaking} ton` : '', `${VALUE} text-align:right;`, 4)}${cell('줄걸이 안전하중', LABEL, 2)}${cell(safeLoad ? `${safeLoad} ton` : '', `${VALUE} text-align:right;`, 4)}</tr>
+      <tr>${cell('※ 줄걸이 절단하중 : 줄걸이 제조사별 구조계산서 등 제원 확인 후 기재', `${LEFT} font-size:11px;`, 12)}</tr>
+      <tr>${cell(`※ ${escapeHtml(RIGGING_CAPACITY_FORMULA)} → 절단하중 ( ${breaking} ) × 줄걸이 수 ( ${count} ) ÷ ( 안전계수 ( ${sf} ) × 장력계수 ( ${tf} ) ) = ( ${safeLoad} ) ton`, `${LEFT} font-size:11px;`, 12)}</tr>
+      <tr>
+        <td colspan="6" style="border:${BORDER}; padding:4px 6px; vertical-align:top;">${safetyFactorTable()}</td>
+        <td colspan="6" style="border:${BORDER}; padding:4px 6px; vertical-align:top;">${tensionFactorTable()}</td>
+      </tr>
+      <tr>${cell('안전율', LABEL, 2)}${cell(`${escapeHtml(ratioExpr)} = ( ${pct} )% <b>※ ${escapeHtml(CAPACITY_WARNING)}</b>`, LEFT, 10)}</tr>
+    </table>`
+}
+
+// ── 파일명 ─────────────────────────────────────────────────
+export function buildFileName(planType: PlanType, title: string, dateStr: string | null): string {
+  const opt = PLAN_TYPE_OPTIONS.find((o) => o.value === planType)
+  const shortTitle = opt?.shortTitle ?? ''
+  let d = new Date()
+  if (dateStr && /^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+    const parsed = new Date(dateStr)
+    if (!Number.isNaN(parsed.getTime())) d = parsed
+  }
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+  return `작업계획서_${shortTitle}_${title || ''}_${ymd}.pdf`
+}
+
+// ── 오프스크린 렌더 → jsPDF (A4 세로, 페이지별 캡처) ───────
+function waitForImages(el: HTMLElement): Promise<unknown> {
+  return Promise.all(
+    Array.from(el.querySelectorAll('img')).map((img) =>
+      img.complete
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            img.onload = () => resolve()
+            img.onerror = () => resolve()
+          })
+    )
+  )
+}
+
+// 페이지별 HTML 문자열 배열을 받아 A4 세로 PDF로 저장.
+export async function renderWorkPlanPdf(pagesHtml: string[], fileName: string): Promise<void> {
+  const html2canvas = (await import('html2canvas')).default
+  const jsPDF = (await import('jspdf')).jsPDF
+
+  const pdf = new jsPDF('p', 'mm', 'a4')
+  const pageWidth = 210
+  const pageHeight = 297
+  const restoreTextFix = applyHtml2canvasTextFix()
+
+  try {
+    for (let i = 0; i < pagesHtml.length; i++) {
+      const container = document.createElement('div')
+      container.style.cssText = `position:absolute; top:0; left:-9999px; width:210mm; min-height:297mm; padding:10mm 10mm; background-color:#ffffff; box-sizing:border-box; font-family:${FONT}; color:#000; font-size:12px;`
+      container.innerHTML = pagesHtml[i]
+      document.body.appendChild(container)
+      try {
+        await waitForImages(container)
+        const canvas = await html2canvas(container, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        })
+        let imgW = pageWidth
+        let imgH = (canvas.height * imgW) / canvas.width
+        // 한 페이지를 넘으면 비율을 유지하며 축소(좌우 여백 발생).
+        if (imgH > pageHeight) {
+          imgW = (imgW * pageHeight) / imgH
+          imgH = pageHeight
+        }
+        if (i > 0) pdf.addPage()
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (pageWidth - imgW) / 2, 0, imgW, imgH, undefined, 'FAST')
+      } finally {
+        document.body.removeChild(container)
+      }
+    }
+    pdf.save(fileName)
+  } finally {
+    restoreTextFix()
+  }
+}
