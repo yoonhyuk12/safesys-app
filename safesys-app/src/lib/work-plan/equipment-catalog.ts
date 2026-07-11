@@ -17,6 +17,7 @@ export type EquipmentCategory =
 
 export interface EquipmentCatalogSpecs {
   operatingWeightTon?: number | null
+  bucketCapacityM3?: number | null
   widthM?: number | null
   minimumTurningRadiusM?: number | null
   maxLiftingHeightM?: number | null
@@ -58,49 +59,49 @@ const kanglimSource = '광림 공식 제품 제원'
 
 export const EQUIPMENT_CATALOG: EquipmentCatalogItem[] = [
   {
-    id: 'excavator-develop-dx17z-7', category: 'excavator', sizeClass: '미니 2t급', manufacturer: '디벨론', model: 'DX17Z-7',
+    id: 'excavator-develop-dx17z-7', category: 'excavator', sizeClass: '버킷 0.114㎥', manufacturer: '디벨론', model: 'DX17Z-7',
     sourceUrl: 'https://asia.develon-ce.com/kr/products/excavators-detail/10/DX17Z-5', sourceLabel: develonSource, sourceDate: SOURCE_DATE,
-    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 1.93, widthM: 1.36, capacitySummary: '버킷 0.114㎥·가변식 하부체 폭 최대 1.36m' }, warning: CONSTRUCTION_WARNING,
+    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 1.93, bucketCapacityM3: 0.114, widthM: 1.36, capacitySummary: '버킷 0.114㎥·가변식 하부체 폭 최대 1.36m' }, warning: CONSTRUCTION_WARNING,
   },
   {
-    id: 'excavator-develop-dx30z-7k', category: 'excavator', sizeClass: '미니 3t급', manufacturer: '디벨론', model: 'DX30Z-7K', variant: '캐노피',
+    id: 'excavator-develop-dx30z-7k', category: 'excavator', sizeClass: '버킷 0.13㎥', manufacturer: '디벨론', model: 'DX30Z-7K', variant: '캐노피',
     sourceUrl: 'https://asia.develon-ce.com/kr/products/excavators-detail/115/DX30Z-7K', sourceLabel: develonSource, sourceDate: SOURCE_DATE,
-    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 2.9, widthM: 1.55, minimumTurningRadiusM: 2.095, capacitySummary: '버킷 0.13㎥·캐빈형 운전중량 2.93t' }, warning: CONSTRUCTION_WARNING,
+    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 2.9, bucketCapacityM3: 0.13, widthM: 1.55, minimumTurningRadiusM: 2.095, capacitySummary: '버킷 0.13㎥·캐빈형 운전중량 2.93t' }, warning: CONSTRUCTION_WARNING,
   },
   {
-    id: 'excavator-develop-dx35z-7', category: 'excavator', sizeClass: '미니 4t급', manufacturer: '디벨론', model: 'DX35Z-7', variant: '캐노피',
+    id: 'excavator-develop-dx35z-7', category: 'excavator', sizeClass: '버킷 0.19㎥', manufacturer: '디벨론', model: 'DX35Z-7', variant: '캐노피',
     sourceUrl: 'https://asia.develon-ce.com/kr/products/excavators-detail/51/DX35Z-7', sourceLabel: develonSource, sourceDate: SOURCE_DATE,
-    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 4.01, capacitySummary: '버킷 0.19㎥·캐빈형 운전중량 4.14t' }, warning: CONSTRUCTION_WARNING,
+    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 4.01, bucketCapacityM3: 0.19, capacitySummary: '버킷 0.19㎥·캐빈형 운전중량 4.14t' }, warning: CONSTRUCTION_WARNING,
   },
   {
-    id: 'excavator-develop-dx65-7k', category: 'excavator', sizeClass: '크롤러 6t급', manufacturer: '디벨론', model: 'DX65-7K',
+    id: 'excavator-develop-dx65-7k', category: 'excavator', sizeClass: '버킷 0.17㎥', manufacturer: '디벨론', model: 'DX65-7K',
     sourceUrl: 'https://asia.develon-ce.com/kr/products/excavators-detail/123/DX65-7K', sourceLabel: develonSource, sourceDate: SOURCE_DATE,
-    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 6.4, widthM: 1.955, capacitySummary: '버킷 0.17㎥' }, warning: CONSTRUCTION_WARNING,
+    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 6.4, bucketCapacityM3: 0.17, widthM: 1.955, capacitySummary: '버킷 0.17㎥' }, warning: CONSTRUCTION_WARNING,
   },
   {
-    id: 'excavator-hd-hx85a', category: 'excavator', sizeClass: '크롤러 8t급', manufacturer: 'HD현대', model: 'HX85A',
+    id: 'excavator-hd-hx85a', category: 'excavator', sizeClass: '버킷 0.25㎥', manufacturer: 'HD현대', model: 'HX85A',
     sourceUrl: 'https://www.hyundai-ce.com/ko/products/view?productsSeq=544', sourceLabel: 'HD현대건설기계 공식 제품 제원', sourceDate: SOURCE_DATE,
-    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 8.61, widthM: 2.3, capacitySummary: '버킷 0.25㎥' }, warning: CONSTRUCTION_WARNING,
+    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 8.61, bucketCapacityM3: 0.25, widthM: 2.3, capacitySummary: '버킷 0.25㎥' }, warning: CONSTRUCTION_WARNING,
   },
   {
-    id: 'excavator-develop-dx150lc-7', category: 'excavator', sizeClass: '크롤러 14t급', manufacturer: '디벨론', model: 'DX150LC-7',
+    id: 'excavator-develop-dx150lc-7', category: 'excavator', sizeClass: '버킷 0.59㎥', manufacturer: '디벨론', model: 'DX150LC-7',
     sourceUrl: 'https://asia.develon-ce.com/kr/products/excavators-detail/71/DX150LC-7', sourceLabel: develonSource, sourceDate: SOURCE_DATE,
-    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 14.5, widthM: 2.59, capacitySummary: '버킷 0.59㎥' }, warning: CONSTRUCTION_WARNING,
+    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 14.5, bucketCapacityM3: 0.59, widthM: 2.59, capacitySummary: '버킷 0.59㎥' }, warning: CONSTRUCTION_WARNING,
   },
   {
-    id: 'excavator-develop-dx240', category: 'excavator', sizeClass: '크롤러 24t급', manufacturer: '디벨론', model: 'DX240',
+    id: 'excavator-develop-dx240', category: 'excavator', sizeClass: '버킷 0.92㎥', manufacturer: '디벨론', model: 'DX240',
     sourceUrl: 'https://asia.develon-ce.com/kr/products/excavators-detail/113/DX240', sourceLabel: develonSource, sourceDate: SOURCE_DATE,
-    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 23.6, widthM: 2.99, capacitySummary: '버킷 0.92㎥' }, warning: CONSTRUCTION_WARNING,
+    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 23.6, bucketCapacityM3: 0.92, widthM: 2.99, capacitySummary: '버킷 0.92㎥' }, warning: CONSTRUCTION_WARNING,
   },
   {
-    id: 'excavator-develop-dx320lc-7', category: 'excavator', sizeClass: '크롤러 33t급', manufacturer: '디벨론', model: 'DX320LC-7',
+    id: 'excavator-develop-dx320lc-7', category: 'excavator', sizeClass: '버킷 1.50㎥', manufacturer: '디벨론', model: 'DX320LC-7',
     sourceUrl: 'https://asia.develon-ce.com/kr/products/excavators-detail/76/DX320LC-7', sourceLabel: develonSource, sourceDate: SOURCE_DATE,
-    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 32.9, widthM: 3.2, capacitySummary: '버킷 1.50㎥' }, warning: CONSTRUCTION_WARNING,
+    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 32.9, bucketCapacityM3: 1.5, widthM: 3.2, capacitySummary: '버킷 1.50㎥' }, warning: CONSTRUCTION_WARNING,
   },
   {
-    id: 'excavator-develop-dx400', category: 'excavator', sizeClass: '크롤러 40t급', manufacturer: '디벨론', model: 'DX400',
+    id: 'excavator-develop-dx400', category: 'excavator', sizeClass: '버킷 1.61㎥', manufacturer: '디벨론', model: 'DX400',
     sourceUrl: 'https://asia.develon-ce.com/kr/products/excavators-detail/81/DX400LC-7', sourceLabel: develonSource, sourceDate: SOURCE_DATE,
-    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 40.9, widthM: 3.495, capacitySummary: '버킷 1.61㎥' }, warning: CONSTRUCTION_WARNING,
+    applicablePlanTypes: ['construction'], specs: { operatingWeightTon: 40.9, bucketCapacityM3: 1.61, widthM: 3.495, capacitySummary: '버킷 1.61㎥' }, warning: CONSTRUCTION_WARNING,
   },
 
   ...[
