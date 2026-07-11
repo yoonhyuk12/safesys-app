@@ -47,8 +47,10 @@ export interface RiskControlRow {
   improvementMeasure: string
 }
 
-// 보고서 서명 대상 역할 — 공통 서식(지휘자·운전원·유도자)과 전기 서식(지시확인·인계인수)
+// 보고서 서명 대상 역할 — 결재란(담당·승인), 공통 서식(지휘자·운전원·유도자), 전기 서식(지시확인·인계인수)
 export type WorkPlanSignatureRole =
+  | 'approvalManager'
+  | 'approvalApprover'
   | 'workDirector'
   | 'operator'
   | 'guide'

@@ -23,6 +23,7 @@ import type {
   ChecklistResult,
   PersonContact,
   PlanType,
+  WorkPlanSignatures,
 } from '../../work-plan/types'
 
 // ── 스타일 상수 ─────────────────────────────────────────────
@@ -92,8 +93,10 @@ export function dateRange(start: string | null | undefined, end: string | null |
 }
 
 // ── 결재란 + 제목 헤더 ──────────────────────────────────────
-// 담당·승인 서명칸은 공란(출력 후 수기 결재). 중첩 표 없이 rowspan으로 선을 맞춘다.
-export function approvalHeader(mainTitle: string, subTitle: string): string {
+// 담당·승인 서명칸은 서명 단계에서 받은 이미지를 넣고, 없으면 공란(출력 후 수기 결재). 중첩 표 없이 rowspan으로 선을 맞춘다.
+export function approvalHeader(mainTitle: string, subTitle: string, signatures?: WorkPlanSignatures): string {
+  const sign = (dataUrl: string | undefined) =>
+    dataUrl ? `<img src="${dataUrl}" alt="" style="display:block; margin:0 auto; width:76px; height:46px; object-fit:contain;" />` : ''
   return `
     <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
       ${colgroup(12)}
@@ -105,7 +108,7 @@ export function approvalHeader(mainTitle: string, subTitle: string): string {
         <td rowspan="2" style="border:${BORDER}; background-color:#f2f2f2; font-weight:bold; text-align:center; padding:2px;">결<br/>재</td>
         ${cell('담당', `${LABEL} height:16px; padding:1px 6px;`)}${cell('승인', `${LABEL} height:16px; padding:1px 6px;`)}
       </tr>
-      <tr>${cell('', `${VALUE} height:54px;`)}${cell('', `${VALUE} height:54px;`)}</tr>
+      <tr>${cell(sign(signatures?.approvalManager), `${VALUE} height:54px; padding:2px;`)}${cell(sign(signatures?.approvalApprover), `${VALUE} height:54px; padding:2px;`)}</tr>
     </table>`
 }
 

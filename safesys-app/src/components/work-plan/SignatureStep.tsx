@@ -23,6 +23,8 @@ interface SignatureSlot {
   role: WorkPlanSignatureRole
   roleLabel: string
   name: string
+  // 결재란처럼 성명 없이 서명만 받는 항목
+  showName?: boolean
 }
 
 const TYPE_LABELS: Record<PlanType, string> = {
@@ -41,6 +43,12 @@ const COMMON_ROLES: Array<{ role: WorkPlanSignatureRole; label: string }> = [
 function buildSlots(selectedTypes: PlanType[], formData: WorkPlanFormData): SignatureSlot[] {
   const slots: SignatureSlot[] = []
   selectedTypes.forEach((type) => {
+    if (formData[type]) {
+      slots.push(
+        { type, role: 'approvalManager', roleLabel: '결재란 담당', name: '', showName: false },
+        { type, role: 'approvalApprover', roleLabel: '결재란 승인', name: '', showName: false },
+      )
+    }
     if (type === 'electric') {
       const form = formData.electric
       if (!form) return
@@ -98,7 +106,9 @@ export default function SignatureStep({ selectedTypes, formData, onChange }: Sig
                   <div key={`${slot.type}-${slot.role}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
                     <div className="min-w-0">
                       <span className="block text-xs font-medium text-gray-500">{slot.roleLabel}</span>
-                      <span className={`block truncate text-sm font-semibold ${slot.name ? 'text-gray-800' : 'text-gray-400'}`}>{slot.name || '성명 미입력'}</span>
+                      {slot.showName !== false && (
+                        <span className={`block truncate text-sm font-semibold ${slot.name ? 'text-gray-800' : 'text-gray-400'}`}>{slot.name || '성명 미입력'}</span>
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
                       {signature && (
