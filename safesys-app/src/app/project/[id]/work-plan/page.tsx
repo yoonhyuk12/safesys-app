@@ -221,7 +221,7 @@ export default function WorkPlanPage() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-lg font-bold text-gray-900 sm:text-xl">︵AI︶ 작업계획서</h1>
+            <h1 className="truncate text-lg font-bold text-gray-900 sm:text-xl">(AI) 작업계획서</h1>
             {project && <p className="truncate text-xs text-gray-500 sm:text-sm">{project.project_name}</p>}
           </div>
           {!showWizard && project && (

@@ -40,7 +40,7 @@ export default function RiskAssessmentPage() {
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <h1 className="text-xl font-bold text-gray-900">︵AI︶수시 위험성 평가</h1>
+            <h1 className="text-xl font-bold text-gray-900">(AI) 수시 위험성 평가</h1>
           </div>
         </div>
       </header>
