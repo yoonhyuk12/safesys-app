@@ -476,9 +476,14 @@ export default function WorkPlanWizard({
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-xl">
       <div className="flex items-center justify-between border-b border-gray-200 px-4 py-4 sm:px-6">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-bold text-gray-900">{initialRecord ? '작업계획서 수정' : '새 작업계획서'}</h2>
             {initialRecord && <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">수정 모드</span>}
+            {selectedTypes.map((type) => (
+              <span key={type} className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">
+                {getPlanTypeLabel(type)} 작업계획서
+              </span>
+            ))}
           </div>
           <p className="text-xs text-gray-500">{project.project_name}</p>
         </div>
