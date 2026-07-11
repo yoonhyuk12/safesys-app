@@ -4,7 +4,7 @@
 
 - **라우트 스텁 존재** — `src/app/project/[id]/work-plan/page.tsx`가 "준비중입니다" 상태로 이미 있음. 진입 폴더(DocumentFolder)만 안전캐비넷 P 그룹(page.tsx line 1412~1444)에 추가하면 연결 완료.
 - **양식 소스** — 바탕화면 붙임2-1~2-4 PDF(개정 2025-09-11, 한국농어촌공사 수급업체용). 표지+본표+지도+위험요인/개선대책+체크리스트 구조. 체크리스트 문항 수는 2-1이 12, 2-2가 18, 2-3이 9, 2-4가 13 — 전부 고정 텍스트라 상수 하드코딩하기로 결정(AI 생성 대상 아님).
-- **지도 방식 결정** — V-World JS API(SOPPlugin)는 캡처·오버레이 제어가 어려워 Leaflet + V-World WMTS 위성 타일 조합 선택. 드로잉은 SignaturePad.tsx의 raw canvas 패턴을 지도 위 absolute 오버레이로 재사용. "지도 이동·줌 → 화면 고정 → 드로잉" 2단계 UX로 좌표계 문제(지도 팬 시 드로잉 어긋남)를 회피.
+- **지도 방식 결정(사용자 지시로 변경)** — 당초 Leaflet + V-World 위성 타일을 검토했으나, 사용자 지시로 **카카오맵**으로 확정. 기본 위성(HYBRID) + 일반지도 토글 + **현장 전경 사진 업로드** 배경 옵션 3종. 카카오 JavaScript 키 신규 발급·도메인 등록 필요(`NEXT_PUBLIC_KAKAO_MAP_APP_KEY`, 사용자 작업). 드로잉은 SignaturePad.tsx의 raw canvas 패턴을 배경 위 absolute 오버레이로 재사용. "배경 확정(지도 캡처 또는 사진) → 드로잉" 2단계 UX로 좌표계 문제(지도 팬 시 드로잉 어긋남)를 회피. 카카오 타일 CORS로 캡처가 막히면 타일 프록시 폴백, 최후엔 사진 업로드 배경이 대안.
 - **저장 이중화** — map_drawing(벡터 JSON, 재편집용) + map_image_url(합성 PNG, PDF·목록용) 둘 다 저장. base64를 DB에 넣지 않고 Storage 버킷 `work-plans` 사용(서명 base64 관행과 달리 이미지가 커서).
 - **AI 패턴** — `api/ai/inspection-checklist`(Gemini gemini-3.1-flash-lite, GEMINI_API_KEY, responseMimeType json) 복제가 기준. OpenAI 패턴도 있으나 문서 생성 주력은 Gemini.
 - **PDF 패턴** — `src/lib/reports/quality-monthly-report.ts`(html2canvas+jsPDF, 오프스크린 div, 맑은 고딕, applyHtml2canvasTextFix) 기준. 한글 폰트 임베딩 불필요.
