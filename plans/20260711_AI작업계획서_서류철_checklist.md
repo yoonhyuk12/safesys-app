@@ -42,9 +42,9 @@
 - [x] `work-plan-construction-pdf.ts` (2-2, 사전조사표 유형 분기) — `downloadConstructionWorkPlanPdf(record)`
 - [x] `work-plan-electric-pdf.ts` (2-3) — `downloadElectricWorkPlanPdf(record)`
 - [x] `work-plan-heavy-pdf.ts` (2-4) — `downloadHeavyWorkPlanPdf(record)`
-- [ ] 목록·상세에서 종류별 다운로드 연결, 파일명 규칙 적용
-- [ ] 원본 붙임 PDF와 페이지 단위 대조 조정
-- [ ] tsc·lint 통과, 커밋
+- [x] 목록·상세에서 종류별 다운로드 연결, 파일명 규칙 적용
+- [x] 원본 붙임 PDF와 페이지 단위 대조 조정
+- [x] tsc·lint 통과, 커밋
 
 ## 배포 전
 - [x] 마이그레이션·버킷 사용자 실행 확인
