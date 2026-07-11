@@ -4,6 +4,13 @@
 
 import type { ReactNode } from 'react'
 import { AlertTriangle, Calculator } from 'lucide-react'
+import EquipmentCatalogSelector from '@/components/work-plan/EquipmentCatalogSelector'
+import {
+  toConstructionEquipmentPatch,
+  toHeavyMachinePatch,
+  toLoadingEquipmentPatch,
+  type EquipmentCatalogItem,
+} from '@/lib/work-plan/equipment-catalog'
 import type {
   LiftingCapacityReview,
   PlanType,
@@ -238,7 +245,11 @@ export default function DeferredInfoStep({ selectedTypes, formData, onChange }: 
     return (
       <>
         <Section title="장비 제원">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <EquipmentCatalogSelector
+            planType="loading"
+            onSelect={(item: EquipmentCatalogItem) => updateNested('loading', 'equipment', toLoadingEquipmentPatch(item))}
+          />
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="장비명" value={current.equipment.equipmentName} onChange={(value) => updateNested('loading', 'equipment', { equipmentName: value })} />
             <Field label="차량/장비번호" value={current.equipment.registrationNumber} onChange={(value) => updateNested('loading', 'equipment', { registrationNumber: value })} />
             <Field label="모델명/생산년도" value={current.equipment.modelAndYear} onChange={(value) => updateNested('loading', 'equipment', { modelAndYear: value })} />
@@ -263,7 +274,11 @@ export default function DeferredInfoStep({ selectedTypes, formData, onChange }: 
     if (!current) return null
     return (
       <Section title="건설기계 제원·운전원 면허">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <EquipmentCatalogSelector
+          planType="construction"
+          onSelect={(item: EquipmentCatalogItem) => updateNested('construction', 'equipment', toConstructionEquipmentPatch(item))}
+        />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="운전원 면허" value={current.operatorLicense} onChange={(value) => updatePlan('construction', { operatorLicense: value })} />
           <Field label="장비명" value={current.equipment.equipmentName} onChange={(value) => updateNested('construction', 'equipment', { equipmentName: value })} />
           <Field label="등록번호" value={current.equipment.registrationNumber} onChange={(value) => updateNested('construction', 'equipment', { registrationNumber: value })} />
@@ -310,7 +325,11 @@ export default function DeferredInfoStep({ selectedTypes, formData, onChange }: 
     return (
       <>
         <Section title="중량물·기계 제원">
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <EquipmentCatalogSelector
+            planType="heavy"
+            onSelect={(item: EquipmentCatalogItem) => updateNested('heavy', 'machine', toHeavyMachinePatch(item))}
+          />
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="중량물 규격" value={current.load.dimensions} placeholder="너비 × 길이 × 높이" onChange={(value) => updateNested('heavy', 'load', { dimensions: value })} />
             <Field label="중량" value={current.load.weightKg} suffix="kg" onChange={(value) => updateNested('heavy', 'load', { weightKg: value })} />
             <Field label="1회 운반중량" value={current.load.transportWeightKg} suffix="kg" onChange={(value) => updateNested('heavy', 'load', { transportWeightKg: value })} />
