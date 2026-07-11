@@ -272,6 +272,7 @@ export type DrawingToolType =
   | 'workDirector'
   | 'restrictedArea'
   | 'safetySign'
+  | 'safetyCone'
   | 'label'
 
 export interface DrawingPoint {

@@ -2,7 +2,7 @@
 
 // 프로젝트·근로자·공정표 값을 자동 인입해 작업계획서 기본정보와 현장 즉시 정보를 입력하는 폼
 
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { CalendarRange, History, Loader2, Users } from 'lucide-react'
 import { fetchRecentTbm, type TbmCandidate } from '@/lib/ptw/recent-tbm'
 import { GUIDE_SIGNAL_METHODS, HEAVY_FIXING_METHODS, HEAVY_LOAD_SHAPE_EXAMPLES } from '@/lib/work-plan/constants'
@@ -59,6 +59,122 @@ function Field({ label, value, onChange, type = 'text', placeholder, list, suffi
         {suffix && <span className="absolute right-3 top-2 text-sm text-gray-400">{suffix}</span>}
       </span>
     </label>
+  )
+}
+
+// 작업시간 바 눈금 — 05:00부터 21:00까지 30분 단위 시각 목록
+const WORK_TIME_SLOTS = Array.from({ length: 33 }, (_, index) => {
+  const minutes = 5 * 60 + index * 30
+  return `${`${Math.floor(minutes / 60)}`.padStart(2, '0')}:${`${minutes % 60}`.padStart(2, '0')}`
+})
+
+const WORK_TIME_HOUR_LABELS = ['05', '07', '09', '11', '13', '15', '17', '19', '21']
+
+function parseWorkTimeRange(value: string) {
+  const [start, end] = value.split('~').map((part) => part.trim())
+  return {
+    startIndex: WORK_TIME_SLOTS.indexOf(start || ''),
+    endIndex: WORK_TIME_SLOTS.indexOf(end || ''),
+  }
+}
+
+// "07:30" → "7시30분", "08:00" → "8시"
+function formatKoreanTime(slot: string) {
+  const [hour, minute] = slot.split(':').map(Number)
+  return minute === 0 ? `${hour}시` : `${hour}시${minute}분`
+}
+
+// 세로 핸들 2개를 좌우로 드래그해 시작·종료 시간을 30분 단위로 고르는 작업시간 슬라이더
+function WorkTimeRangeBar({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  const draggingRef = useRef<'start' | 'end' | null>(null)
+  const parsed = parseWorkTimeRange(value)
+  const hasValue = parsed.startIndex >= 0
+  // 값이 없으면 기본 위치(08:00~17:00)에 회색 핸들을 보여주고, 조작하는 순간부터 값을 기록한다.
+  const startIndex = parsed.startIndex >= 0 ? parsed.startIndex : WORK_TIME_SLOTS.indexOf('08:00')
+  const endIndex = parsed.endIndex >= 0 ? parsed.endIndex : parsed.startIndex >= 0 ? parsed.startIndex : WORK_TIME_SLOTS.indexOf('17:00')
+  const toPercent = (index: number) => index / (WORK_TIME_SLOTS.length - 1) * 100
+
+  const slotFromClientX = (clientX: number) => {
+    const rect = trackRef.current?.getBoundingClientRect()
+    if (!rect || rect.width === 0) return 0
+    const ratio = (clientX - rect.left) / rect.width
+    return Math.min(WORK_TIME_SLOTS.length - 1, Math.max(0, Math.round(ratio * (WORK_TIME_SLOTS.length - 1))))
+  }
+
+  const moveHandle = (handle: 'start' | 'end', index: number) => {
+    if (handle === 'start') onChange(`${WORK_TIME_SLOTS[Math.min(index, endIndex)]} ~ ${WORK_TIME_SLOTS[endIndex]}`)
+    else onChange(`${WORK_TIME_SLOTS[startIndex]} ~ ${WORK_TIME_SLOTS[Math.max(index, startIndex)]}`)
+  }
+
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId)
+    const index = slotFromClientX(event.clientX)
+    const handle = Math.abs(index - startIndex) <= Math.abs(index - endIndex) ? 'start' : 'end'
+    draggingRef.current = handle
+    moveHandle(handle, index)
+  }
+
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (draggingRef.current) moveHandle(draggingRef.current, slotFromClientX(event.clientX))
+  }
+
+  const stopDragging = () => {
+    draggingRef.current = null
+  }
+
+  return (
+    <div className="block min-w-0">
+      <span className="mb-1 flex flex-wrap items-center justify-between gap-1 text-xs font-medium text-gray-600">
+        <span>작업시간 (30분 단위)</span>
+        <span className="flex items-center gap-2">
+          <span className={hasValue ? 'font-semibold text-blue-700' : 'text-gray-400'}>
+            {hasValue ? `${WORK_TIME_SLOTS[startIndex]} ~ ${WORK_TIME_SLOTS[endIndex]}` : '바를 움직여 시작·종료 시간을 선택하세요.'}
+          </span>
+          {hasValue && <button type="button" onClick={() => onChange('')} className="text-gray-400 underline hover:text-gray-600">초기화</button>}
+        </span>
+      </span>
+      <div
+        ref={trackRef}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={stopDragging}
+        onPointerCancel={stopDragging}
+        className="relative h-12 touch-none cursor-pointer select-none"
+      >
+        {/* 핸들 위 선택 시간 표시 — 시작·종료가 같으면 하나만 보여준다 */}
+        <span
+          className={`absolute top-0.5 -translate-x-1/2 whitespace-nowrap text-[11px] font-semibold ${hasValue ? 'text-blue-700' : 'text-gray-400'}`}
+          style={{ left: `${toPercent(startIndex)}%` }}
+        >
+          {formatKoreanTime(WORK_TIME_SLOTS[startIndex])}
+        </span>
+        {endIndex !== startIndex && (
+          <span
+            className={`absolute top-0.5 -translate-x-1/2 whitespace-nowrap text-[11px] font-semibold ${hasValue ? 'text-blue-700' : 'text-gray-400'}`}
+            style={{ left: `${toPercent(endIndex)}%` }}
+          >
+            {formatKoreanTime(WORK_TIME_SLOTS[endIndex])}
+          </span>
+        )}
+        <div className="absolute inset-x-0 top-8 h-2 -translate-y-1/2 rounded-full bg-gray-200" />
+        <div
+          className={`absolute top-8 h-2 -translate-y-1/2 rounded-full ${hasValue ? 'bg-blue-500' : 'bg-gray-300'}`}
+          style={{ left: `${toPercent(startIndex)}%`, width: `${toPercent(endIndex) - toPercent(startIndex)}%` }}
+        />
+        <div
+          className={`absolute top-8 h-7 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white shadow ${hasValue ? 'bg-blue-600' : 'bg-gray-400'}`}
+          style={{ left: `${toPercent(startIndex)}%` }}
+        />
+        <div
+          className={`absolute top-8 h-7 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white shadow ${hasValue ? 'bg-blue-600' : 'bg-gray-400'}`}
+          style={{ left: `${toPercent(endIndex)}%` }}
+        />
+      </div>
+      <div className="flex justify-between px-0.5 text-[10px] text-gray-400">
+        {WORK_TIME_HOUR_LABELS.map((hour) => <span key={hour}>{hour}시</span>)}
+      </div>
+    </div>
   )
 }
 
@@ -311,7 +427,7 @@ export default function WorkPlanForm({
       <Section title="차량 작업정보">
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="차량 번호" value={current.vehicleNumber} onChange={(value) => updatePlan('loading', { vehicleNumber: value })} />
-          <Field label="작업시간" type="time" value={current.workTime} onChange={(value) => updatePlan('loading', { workTime: value })} />
+          <div className="sm:col-span-2"><WorkTimeRangeBar value={current.workTime} onChange={(value) => updatePlan('loading', { workTime: value })} /></div>
         </div>
       </Section>
     </>

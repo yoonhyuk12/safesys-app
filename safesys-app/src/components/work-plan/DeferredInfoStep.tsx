@@ -139,6 +139,64 @@ function SafetyResult({ label, percent }: { label: string; percent: number | nul
   )
 }
 
+function HookToolIcon({ tool, active }: { tool: string; active: boolean }) {
+  const strokeColor = active ? 'stroke-blue-600' : 'stroke-gray-400 group-hover:stroke-gray-500'
+  const fillColor = active ? 'fill-blue-50/50' : 'fill-none'
+
+  switch (tool) {
+    case '샤클':
+      return (
+        <svg viewBox="0 0 24 24" className={`h-10 w-10 ${strokeColor} ${fillColor}`} strokeWidth="1.8" fill="none">
+          {/* Shackle body */}
+          <path d="M 8,9 A 4,4 0 0,1 16,9 L 16,16 M 8,9 L 8,16" />
+          {/* Ears/collars */}
+          <circle cx="8" cy="16" r="1.2" />
+          <circle cx="16" cy="16" r="1.2" />
+          {/* Pin */}
+          <path d="M 5,16 L 19,16" />
+          {/* Pin head */}
+          <circle cx="5" cy="16" r="0.8" />
+        </svg>
+      )
+    case '훅':
+      return (
+        <svg viewBox="0 0 24 24" className={`h-10 w-10 ${strokeColor} ${fillColor}`} strokeWidth="1.8" fill="none">
+          {/* Top Eye */}
+          <circle cx="12" cy="5" r="2" />
+          {/* Hook body */}
+          <path d="M 12,7 L 12,12 C 12,16.5 16,16.5 18,14.5 C 19,13.5 19,12 19,11" />
+          {/* Latch */}
+          <line x1="12" y1="12" x2="19" y2="11" strokeDasharray="1.5 1.5" />
+        </svg>
+      )
+    case '마스터링크':
+      return (
+        <svg viewBox="0 0 24 24" className={`h-10 w-10 ${strokeColor} ${fillColor}`} strokeWidth="1.8" fill="none">
+          <rect x="8" y="5" width="8" height="14" rx="4" />
+          <rect x="9.5" y="6.5" width="5" height="11" rx="2.5" className={active ? 'stroke-blue-300' : 'stroke-gray-300'} strokeWidth="1" />
+        </svg>
+      )
+    case '아이볼트':
+      return (
+        <svg viewBox="0 0 24 24" className={`h-10 w-10 ${strokeColor} ${fillColor}`} strokeWidth="1.8" fill="none">
+          {/* Eye ring */}
+          <circle cx="12" cy="7" r="3.5" />
+          <circle cx="12" cy="7" r="1.8" className={active ? 'stroke-blue-300' : 'stroke-gray-300'} strokeWidth="1" />
+          {/* Collar */}
+          <path d="M 8.5,11.5 C 8.5,12 10,12.5 12,12.5 C 14,12.5 15.5,12 15.5,11.5 Z" />
+          {/* Threaded shaft */}
+          <line x1="12" y1="12.5" x2="12" y2="19.5" />
+          {/* Thread lines */}
+          <line x1="10" y1="14.5" x2="14" y2="14.5" />
+          <line x1="10" y1="16.5" x2="14" y2="16.5" />
+          <line x1="10" y1="18.5" x2="14" y2="18.5" />
+        </svg>
+      )
+    default:
+      return null
+  }
+}
+
 export default function DeferredInfoStep({ selectedTypes, formData, onChange }: DeferredInfoStepProps) {
   const updatePlan = (type: PlanType, values: Record<string, unknown>) => {
     const current = formData[type]
@@ -246,17 +304,29 @@ export default function DeferredInfoStep({ selectedTypes, formData, onChange }: 
           </label>
           <div className="min-w-0">
             <Field label="훅 용구" value={rigging.hookTool} onChange={(value) => updateRigging(type, { hookTool: value })} />
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {HOOK_TOOL_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  onClick={() => updateRigging(type, { hookTool: preset })}
-                  className={quickChipClass(rigging.hookTool === preset)}
-                >
-                  {preset}
-                </button>
-              ))}
+            <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+              {HOOK_TOOL_PRESETS.map((preset) => {
+                const active = rigging.hookTool === preset
+                return (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => updateRigging(type, { hookTool: preset })}
+                    className={`group flex flex-col items-center justify-center gap-1.5 rounded-xl border p-2 text-center transition-all duration-200 ${
+                      active
+                        ? 'border-blue-600 bg-blue-50/50 text-blue-700 font-semibold ring-2 ring-blue-100 shadow-sm'
+                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                      active ? 'border-blue-200 bg-white' : 'border-gray-200 bg-gray-50'
+                    }`}>
+                      <HookToolIcon tool={preset} active={active} />
+                    </div>
+                    <span className="text-[11px] font-bold tracking-tight">{preset}</span>
+                  </button>
+                )
+              })}
             </div>
             {rigging.hookTool === '샤클' && (
               <>

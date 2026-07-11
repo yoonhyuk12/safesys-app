@@ -150,12 +150,13 @@ export function coverPage(planType: PlanType): string {
 
 // ── 지도 섹션 ──────────────────────────────────────────────
 const LEGEND_COLORS: Record<string, string> = {
-  장비: '#000',
+  장비: '#f97316',
   경로: '#e00000',
-  유도자: '#0000e0',
-  작업지휘자: '#0000e0',
+  '유도자(신호수)': '#ef4444',
+  작업지휘자: '#2563eb',
   출입통제구역: '#8000c0',
-  안전표지판: '#22aa22',
+  안전표지판: '#facc15',
+  안전콘: '#f97316',
 }
 
 function legendSymbol(label: string, symbol: string): string {
@@ -163,7 +164,19 @@ function legendSymbol(label: string, symbol: string): string {
     return '<span style="display:inline-block; width:22px; height:16px; border:3px dashed #8000c0; border-radius:50%; box-sizing:border-box;"></span>'
   }
   if (label === '안전표지판') {
-    return '<span style="display:inline-block; width:12px; height:20px; background-color:#82d442;"></span>'
+    return '<span style="display:inline-block; width:0; height:0; border-left:8px solid transparent; border-right:8px solid transparent; border-bottom:16px solid #facc15; position:relative; bottom:2px;"></span>'
+  }
+  if (label === '안전콘') {
+    return '<span style="display:inline-block; width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-bottom:14px solid #f97316;"></span>'
+  }
+  if (label === '장비') {
+    return '<span style="display:inline-block; width:14px; height:14px; border:2px solid #f97316; border-radius:50%; box-sizing:border-box; background-color:#ffffff;"></span>'
+  }
+  if (label === '유도자(신호수)') {
+    return '<span style="display:inline-block; width:14px; height:14px; border:2px solid #ffffff; border-radius:50%; box-sizing:border-box; background-color:#ef4444;"></span>'
+  }
+  if (label === '작업지휘자') {
+    return '<span style="display:inline-block; width:14px; height:14px; border:2px solid #2563eb; border-radius:50%; box-sizing:border-box; background-color:#ffffff;"></span>'
   }
   return `<span style="color:${LEGEND_COLORS[label] || '#000'}; font-size:15px;">${symbol}</span>`
 }
