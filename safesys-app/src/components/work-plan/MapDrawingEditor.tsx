@@ -405,7 +405,8 @@ export default function MapDrawingEditor({
   }, [value?.background.imageUrl])
 
   useEffect(() => {
-    if (electricOnly || frozen || !mapElementRef.current) return
+    const mountedElement = mapElementRef.current
+    if (electricOnly || frozen || !mountedElement) return
     let cancelled = false
     let retryTimer: ReturnType<typeof setTimeout> | null = null
     let attempts = 0
@@ -454,6 +455,8 @@ export default function MapDrawingEditor({
       cancelled = true
       if (retryTimer) clearTimeout(retryTimer)
       mapInstanceRef.current = null
+      // 카카오가 심은 자식 DOM을 비워 재초기화 시 지도가 겹겹이 쌓이는 것을 막는다.
+      mountedElement.replaceChildren()
     }
   }, [address, electricOnly, frozen, latitude, longitude, value?.background.center, value?.background.level])
 
@@ -714,11 +717,13 @@ export default function MapDrawingEditor({
         <div className="lg:col-start-1 lg:row-start-1 lg:row-span-2">
           <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-gray-300 bg-gray-100 shadow-inner">
             {!frozen ? (
-              <div ref={mapElementRef} data-work-plan-map="true" className="h-full w-full" />
+              // key 분리 필수 — React가 카카오 SDK가 인라인 스타일·자식을 심은 이 노드를 배경 div로 재사용하면 높이가 0으로 붕괴한다.
+              <div key="kakao-map" ref={mapElementRef} data-work-plan-map="true" className="h-full w-full" />
             ) : (
               <>
-                <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${JSON.stringify(backgroundSource)})` }} />
+                <div key="frozen-background" className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${JSON.stringify(backgroundSource)})` }} />
                 <canvas
+                  key="drawing-canvas"
                   ref={canvasRef}
                   width={CANVAS_WIDTH}
                   height={CANVAS_HEIGHT}

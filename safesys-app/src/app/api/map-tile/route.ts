@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server'
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 const FETCH_TIMEOUT_MS = 5_000
 const ALLOWED_SUFFIXES = ['.daumcdn.net', '.kakaocdn.net', '.daum-img.net']
-const ALLOWED_HOST_PREFIX = /^(?:map\d*|t\d+|s\d+|tile\d*|tiles)(?:\.|$)/
+const ALLOWED_HOST_PREFIX = /^(?:map\d*|mts\d*|t\d+|s\d+|tile\d*|tiles)(?:\.|$)/
 
 function isAllowedUrl(value: string) {
   try {
