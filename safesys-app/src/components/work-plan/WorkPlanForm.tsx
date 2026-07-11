@@ -224,19 +224,22 @@ export default function WorkPlanForm({
           <Field label="작업 종료일" type="date" value={current.workEndDate} onChange={(value) => updatePlan(type, { workEndDate: value })} />
           <div className="-mt-1 flex flex-wrap items-center gap-1.5 sm:col-span-2">
             <span className="text-xs text-gray-500">기간 설정</span>
-            {PERIOD_PRESETS.map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => {
-                  const start = current.workStartDate || toDateString(new Date())
-                  updatePlan(type, { workStartDate: start, workEndDate: calcPeriodEnd(start, preset) })
-                }}
-                className="rounded-full border border-gray-300 bg-white px-2.5 py-1 text-xs text-gray-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
-              >
-                {preset.label}
-              </button>
-            ))}
+            {PERIOD_PRESETS.map((preset) => {
+              const selected = Boolean(current.workStartDate) && current.workEndDate === calcPeriodEnd(current.workStartDate, preset)
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => {
+                    const start = current.workStartDate || toDateString(new Date())
+                    updatePlan(type, { workStartDate: start, workEndDate: calcPeriodEnd(start, preset) })
+                  }}
+                  className={`rounded-full border px-2.5 py-1 text-xs ${selected ? 'border-blue-600 bg-blue-50 font-medium text-blue-700' : 'border-gray-300 bg-white text-gray-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700'}`}
+                >
+                  {preset.label}
+                </button>
+              )
+            })}
           </div>
           <div className="sm:col-span-2"><Field label="작업업체" value={current.companyName} onChange={(value) => updatePlan(type, { companyName: value })} /></div>
         </div>
