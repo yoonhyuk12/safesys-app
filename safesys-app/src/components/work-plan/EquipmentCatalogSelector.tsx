@@ -54,9 +54,9 @@ export default function EquipmentCatalogSelector({ planType, onSelect }: Equipme
   const specRows = selectedItem ? fixedSpecRows(selectedItem) : []
 
   return (
-    <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-4" aria-labelledby="equipment-catalog-title">
+    <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-4" aria-label="표준 장비 제원 자동입력">
       <div className="mb-4">
-        <h3 id="equipment-catalog-title" className="font-bold text-gray-900">표준 장비 제원 자동입력</h3>
+        <h3 className="font-bold text-gray-900">표준 장비 제원 자동입력</h3>
         <p className="mt-1 text-xs text-gray-600">장비군, 규격급, 모델을 차례로 선택하면 공식 자료의 고정 제원을 불러옵니다.</p>
       </div>
 
