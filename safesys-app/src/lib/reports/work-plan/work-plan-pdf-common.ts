@@ -29,7 +29,8 @@ import type {
 export const FONT = "'Malgun Gothic', '맑은 고딕', Arial, sans-serif"
 const BORDER = '1px solid #000'
 export const CELL = `border:${BORDER}; padding:4px 6px; font-size:12px; vertical-align:middle; text-align:center; word-break:break-all; line-height:1.4;`
-export const LABEL = `${CELL} background-color:#f2f2f2; font-weight:bold;`
+// 라벨은 정해진 짧은 문구이므로 단어 중간 줄바꿈(break-all)을 금지해 "근로형태" 등이 한 줄로 나오게 한다
+export const LABEL = `${CELL} background-color:#f2f2f2; font-weight:bold; word-break:keep-all;`
 export const VALUE = CELL
 export const LEFT = `border:${BORDER}; padding:4px 6px; font-size:12px; vertical-align:middle; text-align:left; word-break:break-all; line-height:1.5;`
 export const TABLE = 'width:100%; border-collapse:collapse; table-layout:fixed; margin-top:-1px;'
