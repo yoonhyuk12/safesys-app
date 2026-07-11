@@ -37,11 +37,11 @@
 - [ ] tsc·lint 통과, 커밋
 
 ## Phase 4 — PDF·마무리
-- [ ] `work-plan-pdf-common.ts` — 결재란·기본정보·지도 섹션·체크리스트 표 조각
-- [ ] `work-plan-loading-pdf.ts` (2-1)
-- [ ] `work-plan-construction-pdf.ts` (2-2, 사전조사표 유형 분기)
-- [ ] `work-plan-electric-pdf.ts` (2-3)
-- [ ] `work-plan-heavy-pdf.ts` (2-4)
+- [x] `work-plan-pdf-common.ts` — 결재란·기본정보·지도 섹션·체크리스트 표 조각 (커밋 942c701)
+- [x] `work-plan-loading-pdf.ts` (2-1) — `downloadLoadingWorkPlanPdf(record)`
+- [x] `work-plan-construction-pdf.ts` (2-2, 사전조사표 유형 분기) — `downloadConstructionWorkPlanPdf(record)`
+- [x] `work-plan-electric-pdf.ts` (2-3) — `downloadElectricWorkPlanPdf(record)`
+- [x] `work-plan-heavy-pdf.ts` (2-4) — `downloadHeavyWorkPlanPdf(record)`
 - [ ] 목록·상세에서 종류별 다운로드 연결, 파일명 규칙 적용
 - [ ] 원본 붙임 PDF와 페이지 단위 대조 조정
 - [ ] tsc·lint 통과, 커밋

@@ -26,7 +26,7 @@
 - **요청(POST JSON)** — `{ planTypes: PlanType[](필수), title(필수), sharedWorkContent?, workMethod?, equipmentName?, loadItemName?, surveyType?, projectContext?: { address?, workTypes?: string[] } }`. planTypes·title 없으면 400.
 - **응답** — `{ result: WorkPlanAiResult }` (types.ts의 `Partial<Record<PlanType, WorkPlanAiDraft>>`). 공통 sharedWorkContent·riskControls, construction은 workSequence(+surveyType 지정 시 항목 개수에 맞춘 surveyFindings), electric은 electricWorkSteps 추가. 배열 누락 시 빈 배열 보정.
 - **남은 배선** — AiReviewStep(마법사 AI 검토 스텝)에서 이 라우트 호출 + 편집 표 UI. 실패 시 빈 초안으로 수동 입력 가능해야 함.
-- **Phase 4 PDF 빌더** — Claude 세션에서 별도 에이전트로 `src/lib/reports/work-plan/` 5파일(공용+4종) 작성이 진행 중이었음. **커밋되어 있으면 검증 후 배선만, 커밋이 없거나 미완성 미커밋 파일만 있으면 폐기하고 본 계획서 6절+양식데이터 문서대로 새로 구현할 것.** 미커밋 파일을 그대로 신뢰하지 말 것.
+- **Phase 4 PDF 빌더 완료·커밋(942c701)** — `src/lib/reports/work-plan/` 5파일(공용 조각 + 4종 빌더). 각 빌더는 `download{Loading|Construction|Electric|Heavy}WorkPlanPdf(record: WorkPlanRecord): Promise<void>` export. 원본 붙임 PDF를 직접 읽어 재현했고, 공란은 빈 셀 출력·안전율은 값이 있을 때만 표기·상수는 constants.ts import·체크리스트 itemIndex는 0-based 가정. tsc(전체 exit 0)·eslint 통과 확인됨. **남은 일은 목록·마법사 완료 화면에 다운로드 버튼 배선 + 원본과 페이지 단위 대조 조정뿐.** 빌더 파일 자체는 수정 없이 사용 권장(대조 조정 시에만 수정).
 - **동시 작업 사고 기록** — 미추적 신규 파일이 git 정리로 삭제된 사고가 있었음. 신규 파일은 검증 즉시 커밋할 것.
 
 ## 2026-07-11 Phase 1 구현
