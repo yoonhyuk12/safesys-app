@@ -266,6 +266,58 @@ const payInspKeyword = (title: string, specific = false): string => {
     .sort((a, b) => b.length - a.length)[0] || ''
 }
 
+const materialDetailPayInspCache = new Map<string, PayInspResult>()
+const materialDetailPayInspPending = new Map<string, Promise<PayInspResult>>()
+const mergePayInspResults = (...results: PayInspResult[]): PayInspResult => ({
+  pays: [...new Map(results.flatMap(result => result.pays).map(doc => [doc.docNo, doc])).values()],
+  insps: [...new Map(results.flatMap(result => result.insps).map(doc => [doc.docNo, doc])).values()],
+})
+
+const fetchMaterialDetailPayInsp = async (no: string, title: string, demandOrg: string): Promise<PayInspResult> => {
+  const cached = materialDetailPayInspCache.get(no)
+  if (cached) return cached
+  const pending = materialDetailPayInspPending.get(no)
+  if (pending) return pending
+
+  const request = (async () => {
+    const keyword = payInspKeyword(title, true)
+    if (keyword.length < 2) {
+      const empty = { pays: [], insps: [] }
+      materialDetailPayInspCache.set(no, empty)
+      return empty
+    }
+    const res = await fetch(
+      `/api/g2b/pay-insp?nm=${encodeURIComponent(keyword)}${demandOrg ? `&inst=${encodeURIComponent(demandOrg)}` : ''}`
+    )
+    const json = await res.json()
+    if (!res.ok || !json.success) throw new Error(json.error || '지급·검사검수 내역을 불러오지 못했습니다.')
+    const payRows: G2bPayDoc[] = Array.isArray(json.data?.pays) ? json.data.pays : []
+    const inspRows: G2bInspDoc[] = Array.isArray(json.data?.insps) ? json.data.insps : []
+    const exact = {
+      pays: [...new Map(payRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])).values()],
+      insps: [...new Map(inspRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])).values()],
+    }
+    materialDetailPayInspCache.set(no, exact)
+    return exact
+  })().finally(() => {
+    materialDetailPayInspPending.delete(no)
+  })
+
+  materialDetailPayInspPending.set(no, request)
+  return request
+}
+
+// 조달청고시 제2025-33호 내자구매 단가계약 요율. 면제·감경 특례는 반영하지 않은 추정치다
+const calcG2bFee = (amt: number): number => {
+  if (!amt || amt <= 0) return 0
+  const b1 = 1_000_000_000
+  const b2 = 10_000_000_000
+  let fee = Math.min(amt, b1) * 0.0054
+  if (amt > b1) fee += (Math.min(amt, b2) - b1) * 0.0047
+  if (amt > b2) fee += (amt - b2) * 0.0037
+  return Math.round(fee)
+}
+
 // 합계행 공용 입력 — 공사·용역 그룹과 물품 그룹을 같은 형태로 합산하기 위한 (총액, 연도별 금액) 튜플
 interface TotalRowItem {
   tot: number
@@ -415,6 +467,9 @@ export default function ContractStatusPage() {
   const [materialDetailProgress, setMaterialDetailProgress] = useState(0)
   const [materialDetailError, setMaterialDetailError] = useState('')
   const [materialDetail, setMaterialDetail] = useState<DlvrReqDetail | null>(null)
+  const [materialDetailPayInsp, setMaterialDetailPayInsp] = useState<PayInspResult>({ pays: [], insps: [] })
+  const [materialDetailPayInspLoading, setMaterialDetailPayInspLoading] = useState(false)
+  const [materialDetailPayInspError, setMaterialDetailPayInspError] = useState('')
   const materialDetailRequestRef = useRef(0)
   const materialDetailProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const materialDetailCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -639,6 +694,22 @@ export default function ContractStatusPage() {
     clearMaterialDetailProgressTimers()
   }, [clearMaterialDetailProgressTimers])
 
+  const loadMaterialDetailPayInsp = async (requestId: number, no: string, detail: DlvrReqDetail) => {
+    if (materialDetailRequestRef.current !== requestId) return
+    setMaterialDetailPayInspLoading(true)
+    setMaterialDetailPayInspError('')
+    try {
+      const docs = await fetchMaterialDetailPayInsp(no, detail.title, detail.demandOrg)
+      if (materialDetailRequestRef.current !== requestId) return
+      setMaterialDetailPayInsp(previous => mergePayInspResults(previous, docs))
+    } catch (err: unknown) {
+      if (materialDetailRequestRef.current !== requestId) return
+      setMaterialDetailPayInspError(err instanceof Error ? err.message : '지급·검사검수 내역을 불러오지 못했습니다.')
+    } finally {
+      if (materialDetailRequestRef.current === requestId) setMaterialDetailPayInspLoading(false)
+    }
+  }
+
   // 물품 행 계약명 클릭 — 상위 조달청 단가계약이 아닌 실제 수요기관 납품요구 상세를 표시한다.
   const openMaterialDetail = async (no: string) => {
     const requestId = ++materialDetailRequestRef.current
@@ -646,6 +717,19 @@ export default function ContractStatusPage() {
     setMaterialDetailNo(no)
     setMaterialDetail(null)
     setMaterialDetailError('')
+    const backgroundDocs = {
+      pays: [...new Map(
+        [...payInsp.values()].flatMap(result => result?.pays || [])
+          .filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])
+      ).values()],
+      insps: [...new Map(
+        [...payInsp.values()].flatMap(result => result?.insps || [])
+          .filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])
+      ).values()],
+    }
+    setMaterialDetailPayInsp(mergePayInspResults(backgroundDocs, materialDetailPayInspCache.get(no) || { pays: [], insps: [] }))
+    setMaterialDetailPayInspLoading(false)
+    setMaterialDetailPayInspError('')
     setMaterialDetailLoading(true)
     setMaterialDetailOpen(true)
     try {
@@ -655,7 +739,9 @@ export default function ContractStatusPage() {
         throw new Error(json.error || '납품요구 상세를 불러오지 못했습니다.')
       }
       if (materialDetailRequestRef.current !== requestId) return
-      setMaterialDetail(json.data as DlvrReqDetail)
+      const detail = json.data as DlvrReqDetail
+      setMaterialDetail(detail)
+      void loadMaterialDetailPayInsp(requestId, no, detail)
     } catch (err: unknown) {
       if (materialDetailRequestRef.current !== requestId) return
       setMaterialDetailError(err instanceof Error ? err.message : '납품요구 상세를 불러오지 못했습니다.')
@@ -671,6 +757,7 @@ export default function ContractStatusPage() {
     setMaterialDetailOpen(false)
     setMaterialDetailLoading(false)
     setMaterialDetailProgress(0)
+    setMaterialDetailPayInspLoading(false)
   }
 
   // 차수별 등록 행을 계약 단위로 병합 — 한 계약 한 행, 차수 금차는 연도별 컬럼에 분산
@@ -1979,6 +2066,70 @@ export default function ContractStatusPage() {
                     </dl>
                   </div>
 
+                  {materialDetailPayInspLoading && (
+                    <p className="py-4 text-center text-sm text-blue-600 border border-blue-200 rounded-lg bg-blue-50">
+                      나라장터 지급·검사검수 내역을 확인하는 중입니다.
+                    </p>
+                  )}
+
+                  {materialDetailPayInspError && (
+                    <p className="py-4 px-3 text-center text-sm text-red-600 border border-red-200 rounded-lg bg-red-50">
+                      {materialDetailPayInspError}
+                    </p>
+                  )}
+
+                  {materialDetailPayInsp.pays.length > 0 && (() => {
+                    const paidTotal = materialDetailPayInsp.pays.reduce((sum, pay) => sum + pay.amt, 0)
+                    const productTotal = materialDetail.items.reduce((sum, item) => sum + (item.amt || 0), 0)
+                    const estimatedFee = calcG2bFee(productTotal)
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <h4 className="text-sm font-semibold text-gray-900">지급완료 내역</h4>
+                          <span className="text-xs text-gray-500">{materialDetailPayInsp.pays.length}건</span>
+                        </div>
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2 text-xs">
+                          {[
+                            ['지급액 합계', paidTotal],
+                            ['물품금액', productTotal],
+                            ['조달수수료', estimatedFee],
+                            ['수수료 포함 합계', productTotal + estimatedFee],
+                          ].map(([label, amount]) => (
+                            <div key={String(label)} className="rounded border border-gray-200 bg-gray-50 px-3 py-2">
+                              <p className="text-gray-500">{label}</p>
+                              <p className="mt-0.5 text-right font-semibold text-gray-900 tabular-nums">{formatAmt(Number(amount))}원</p>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="mb-2 text-[11px] text-gray-500">조달수수료는 조달청 고시 요율 추정치이며 면제·감경 특례는 반영하지 않습니다.</p>
+                        <div className="border border-gray-200 rounded-lg overflow-x-auto">
+                          <table className="w-full min-w-[760px] text-sm whitespace-nowrap">
+                            <thead>
+                              <tr className="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
+                                <th className="px-3 py-2 text-left font-medium">문서번호</th>
+                                <th className="px-3 py-2 text-left font-medium">명칭</th>
+                                <th className="px-3 py-2 text-center font-medium">지급일</th>
+                                <th className="px-3 py-2 text-right font-medium">금액(원)</th>
+                                <th className="px-3 py-2 text-left font-medium">수요기관</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {materialDetailPayInsp.pays.map((pay) => (
+                                <tr key={pay.docNo} className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
+                                  <td className="px-3 py-2 text-gray-700 font-mono text-xs">{pay.docNo}</td>
+                                  <td className="px-3 py-2 text-gray-900 max-w-[260px] truncate" title={pay.name}>{pay.name || '-'}</td>
+                                  <td className="px-3 py-2 text-center text-gray-700">{pay.payDate || '-'}</td>
+                                  <td className="px-3 py-2 text-right text-gray-900 tabular-nums font-medium">{formatAmt(pay.amt)}</td>
+                                  <td className="px-3 py-2 text-gray-700 max-w-[260px] truncate" title={pay.dminsttNm}>{pay.dminsttNm || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
                   <div>
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <h4 className="text-sm font-semibold text-gray-900">품목 내역</h4>
@@ -2019,44 +2170,7 @@ export default function ContractStatusPage() {
                   </div>
 
                   {(() => {
-                    const pays = paysForDlvr(materialDetail.dlvrReqNo || materialDetailNo)
-                    if (pays.length === 0) return null
-                    return (
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-2">
-                          <h4 className="text-sm font-semibold text-gray-900">지급완료 내역</h4>
-                          <span className="text-xs text-gray-500">{pays.length}건</span>
-                        </div>
-                        <div className="border border-gray-200 rounded-lg overflow-x-auto">
-                          <table className="w-full min-w-[760px] text-sm whitespace-nowrap">
-                            <thead>
-                              <tr className="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
-                                <th className="px-3 py-2 text-left font-medium">문서번호</th>
-                                <th className="px-3 py-2 text-left font-medium">명칭</th>
-                                <th className="px-3 py-2 text-center font-medium">지급일</th>
-                                <th className="px-3 py-2 text-right font-medium">금액(원)</th>
-                                <th className="px-3 py-2 text-left font-medium">수요기관</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {pays.map((pay) => (
-                                <tr key={pay.docNo} className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
-                                  <td className="px-3 py-2 text-gray-700 font-mono text-xs">{pay.docNo}</td>
-                                  <td className="px-3 py-2 text-gray-900 max-w-[260px] truncate" title={pay.name}>{pay.name || '-'}</td>
-                                  <td className="px-3 py-2 text-center text-gray-700">{pay.payDate || '-'}</td>
-                                  <td className="px-3 py-2 text-right text-gray-900 tabular-nums font-medium">{formatAmt(pay.amt)}</td>
-                                  <td className="px-3 py-2 text-gray-700 max-w-[260px] truncate" title={pay.dminsttNm}>{pay.dminsttNm || '-'}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )
-                  })()}
-
-                  {(() => {
-                    const insps = inspsForDlvr(materialDetail.dlvrReqNo || materialDetailNo)
+                    const insps = materialDetailPayInsp.insps
                     if (insps.length === 0) return null
                     return (
                       <div>

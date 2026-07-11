@@ -137,6 +137,11 @@ interface G2bPayInspDocs {
 // 납품요구번호별 지급·검사검수 세션 캐시 — 빈 결과도 조회 성공으로 기록해 재호출을 막는다
 const dlvrPayInspCache = new Map<string, G2bPayInspDocs>()
 const dlvrPayInspPending = new Map<string, Promise<G2bPayInspDocs>>()
+const dlvrPayInspDemandScoped = new Set<string>()
+const mergeDlvrPayInspDocs = (...results: G2bPayInspDocs[]): G2bPayInspDocs => ({
+  pays: [...new Map(results.flatMap(result => result.pays).map(doc => [doc.docNo, doc])).values()],
+  insps: [...new Map(results.flatMap(result => result.insps).map(doc => [doc.docNo, doc])).values()],
+})
 
 const PAY_INSP_GENERIC_WORDS = ['구매', '지급자재', '관급자재', '사업', '공사', '설치', '제조', '제작', '납품']
 const normalizeDlvrReqNo = (value: string) => value.replace(/\s+/g, '').toUpperCase().replace(/-\d{1,3}$/, '')
@@ -165,16 +170,18 @@ const payInspKeyword = (title: string): string => {
 
 const fetchDlvrPayInsp = async (no: string, title: string, demandOrg = ''): Promise<G2bPayInspDocs> => {
   const cached = dlvrPayInspCache.get(no)
-  if (cached) return cached
-  const pending = dlvrPayInspPending.get(no)
+  if (cached && (!demandOrg || dlvrPayInspDemandScoped.has(no))) return cached
+  const pendingKey = `${no}|${demandOrg ? 'demand' : 'background'}`
+  const pending = dlvrPayInspPending.get(pendingKey)
   if (pending) return pending
 
   const request = (async () => {
     const keyword = payInspKeyword(title)
     if (keyword.length < 2) {
-      const empty = { pays: [], insps: [] }
-      dlvrPayInspCache.set(no, empty)
-      return empty
+      const current = dlvrPayInspCache.get(no) || { pays: [], insps: [] }
+      dlvrPayInspCache.set(no, current)
+      if (demandOrg) dlvrPayInspDemandScoped.add(no)
+      return current
     }
     const res = await fetch(
       `/api/g2b/pay-insp?nm=${encodeURIComponent(keyword)}${demandOrg ? `&inst=${encodeURIComponent(demandOrg)}` : ''}`
@@ -183,7 +190,7 @@ const fetchDlvrPayInsp = async (no: string, title: string, demandOrg = ''): Prom
     if (!res.ok || !json.success) throw new Error(json.error || '지급·검사검수 내역을 불러오지 못했습니다.')
     const payRows: G2bPayDoc[] = Array.isArray(json.data?.pays) ? json.data.pays : []
     const inspRows: G2bInspDoc[] = Array.isArray(json.data?.insps) ? json.data.insps : []
-    const exact = {
+    const exact: G2bPayInspDocs = {
       pays: [...new Map(
         payRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])
       ).values()],
@@ -191,13 +198,15 @@ const fetchDlvrPayInsp = async (no: string, title: string, demandOrg = ''): Prom
         inspRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])
       ).values()],
     }
-    dlvrPayInspCache.set(no, exact)
-    return exact
+    const merged = mergeDlvrPayInspDocs(dlvrPayInspCache.get(no) || { pays: [], insps: [] }, exact)
+    dlvrPayInspCache.set(no, merged)
+    if (demandOrg) dlvrPayInspDemandScoped.add(no)
+    return merged
   })().finally(() => {
-    dlvrPayInspPending.delete(no)
+    dlvrPayInspPending.delete(pendingKey)
   })
 
-  dlvrPayInspPending.set(no, request)
+  dlvrPayInspPending.set(pendingKey, request)
   return request
 }
 
@@ -2768,8 +2777,8 @@ export default function MaterialLedgerPage() {
               </button>
             </div>
           ) : dlvrDetail ? (
-            <div className="space-y-4">
-              <div className="rounded border border-amber-900/60 overflow-hidden text-sm">
+            <div className="flex flex-col gap-4">
+              <div className="order-1 rounded border border-amber-900/60 overflow-hidden text-sm">
                 <dl className="grid grid-cols-[7rem_minmax(0,1fr)] sm:grid-cols-[8rem_minmax(0,1fr)_8rem_minmax(0,1fr)]">
                   <dt className="bg-black/25 px-3 py-2 font-medium text-amber-200/60 border-b border-amber-900/40">건명</dt>
                   <dd className="px-3 py-2 text-amber-100 border-b border-amber-900/40 sm:col-span-3 break-words">{dlvrDetail.title || '-'}</dd>
@@ -2793,7 +2802,7 @@ export default function MaterialLedgerPage() {
                 </dl>
               </div>
 
-              <div>
+              <div className="order-3">
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <h4 className="text-sm font-semibold text-amber-100">품목 내역</h4>
                   <span className="text-xs text-amber-200/50">{dlvrDetail.items.length}건</span>
@@ -2833,52 +2842,71 @@ export default function MaterialLedgerPage() {
               </div>
 
               {dlvrInspsLoading && (
-                <p className="py-4 text-center text-sm text-blue-300 border border-blue-500/30 rounded bg-blue-950/20">
+                <p className="order-2 py-4 text-center text-sm text-blue-300 border border-blue-500/30 rounded bg-blue-950/20">
                   나라장터 지급·검사검수 내역을 확인하는 중입니다.
                 </p>
               )}
 
               {dlvrInspsError && (
-                <p className="py-4 px-3 text-center text-sm text-red-400 border border-red-500/30 rounded bg-red-950/20">
+                <p className="order-2 py-4 px-3 text-center text-sm text-red-400 border border-red-500/30 rounded bg-red-950/20">
                   {dlvrInspsError}
                 </p>
               )}
 
-              {dlvrPays.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <h4 className="text-sm font-semibold text-amber-100">지급완료 내역</h4>
-                    <span className="text-xs text-amber-200/50">{dlvrPays.length}건</span>
-                  </div>
-                  <div className="border border-amber-900/50 rounded overflow-x-auto">
-                    <table className="w-full min-w-[760px] text-sm whitespace-nowrap">
-                      <thead>
-                        <tr className="bg-black/30 text-xs text-amber-200/50 border-b border-amber-900/50">
-                          <th className="px-3 py-2 text-left font-medium">문서번호</th>
-                          <th className="px-3 py-2 text-left font-medium">명칭</th>
-                          <th className="px-3 py-2 text-center font-medium">지급일</th>
-                          <th className="px-3 py-2 text-right font-medium">금액(원)</th>
-                          <th className="px-3 py-2 text-left font-medium">수요기관</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dlvrPays.map((pay) => (
-                          <tr key={pay.docNo} className="border-b border-amber-900/30 last:border-b-0 hover:bg-white/5">
-                            <td className="px-3 py-2 text-amber-200/70 font-mono text-xs">{pay.docNo}</td>
-                            <td className="px-3 py-2 text-amber-100 max-w-[260px] truncate" title={pay.name}>{pay.name || '-'}</td>
-                            <td className="px-3 py-2 text-center text-amber-100">{pay.payDate || '-'}</td>
-                            <td className="px-3 py-2 text-right text-amber-100 tabular-nums font-medium">{formatNumber(String(pay.amt))}</td>
-                            <td className="px-3 py-2 text-amber-200/70 max-w-[260px] truncate" title={pay.dminsttNm}>{pay.dminsttNm || '-'}</td>
+              {dlvrPays.length > 0 && (() => {
+                const paidTotal = dlvrPays.reduce((sum, pay) => sum + pay.amt, 0)
+                const productTotal = dlvrDetail.items.reduce((sum, item) => sum + (item.amt || 0), 0)
+                const estimatedFee = calcG2bFee(productTotal)
+                return (
+                  <div className="order-2">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <h4 className="text-sm font-semibold text-amber-100">지급완료 내역</h4>
+                      <span className="text-xs text-amber-200/50">{dlvrPays.length}건</span>
+                    </div>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-2 text-xs">
+                      {[
+                        ['지급액 합계', paidTotal],
+                        ['물품금액', productTotal],
+                        ['조달수수료', estimatedFee],
+                        ['수수료 포함 합계', productTotal + estimatedFee],
+                      ].map(([label, amount]) => (
+                        <div key={String(label)} className="rounded border border-amber-900/50 bg-black/25 px-3 py-2">
+                          <p className="text-amber-200/50">{label}</p>
+                          <p className="mt-0.5 text-right font-semibold text-amber-100 tabular-nums">{formatNumber(String(amount))}원</p>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mb-2 text-[11px] text-amber-200/50">조달수수료는 조달청 고시 요율 추정치이며 면제·감경 특례는 반영하지 않습니다.</p>
+                    <div className="border border-amber-900/50 rounded overflow-x-auto">
+                      <table className="w-full min-w-[760px] text-sm whitespace-nowrap">
+                        <thead>
+                          <tr className="bg-black/30 text-xs text-amber-200/50 border-b border-amber-900/50">
+                            <th className="px-3 py-2 text-left font-medium">문서번호</th>
+                            <th className="px-3 py-2 text-left font-medium">명칭</th>
+                            <th className="px-3 py-2 text-center font-medium">지급일</th>
+                            <th className="px-3 py-2 text-right font-medium">금액(원)</th>
+                            <th className="px-3 py-2 text-left font-medium">수요기관</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {dlvrPays.map((pay) => (
+                            <tr key={pay.docNo} className="border-b border-amber-900/30 last:border-b-0 hover:bg-white/5">
+                              <td className="px-3 py-2 text-amber-200/70 font-mono text-xs">{pay.docNo}</td>
+                              <td className="px-3 py-2 text-amber-100 max-w-[260px] truncate" title={pay.name}>{pay.name || '-'}</td>
+                              <td className="px-3 py-2 text-center text-amber-100">{pay.payDate || '-'}</td>
+                              <td className="px-3 py-2 text-right text-amber-100 tabular-nums font-medium">{formatNumber(String(pay.amt))}</td>
+                              <td className="px-3 py-2 text-amber-200/70 max-w-[260px] truncate" title={pay.dminsttNm}>{pay.dminsttNm || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
+                )
+              })()}
 
               {dlvrInsps.length > 0 && (
-                <div>
+                <div className="order-4">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <h4 className="text-sm font-semibold text-amber-100">검사검수 완료 내역</h4>
                     <span className="text-xs text-amber-200/50">{dlvrInsps.length}건</span>
