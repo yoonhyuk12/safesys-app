@@ -22,13 +22,13 @@
 - [x] tsc·lint 통과, 커밋
 
 ## Phase 2 — 지도 드로잉
-- [ ] `MapDrawingEditor.tsx` — 전역 로드된 Kakao Maps SDK(layout.tsx) 사용, 위성(HYBRID) 기본 + 일반지도(ROADMAP) 토글, 프로젝트 좌표 중심 (기존 KakaoMap.tsx·SimpleProjectMap.tsx 패턴 참조)
-- [ ] 배경 소스 선택 UI — 카카오맵 / 현장 전경 사진 업로드(카메라·파일)
-- [ ] 화면 고정(지도 캡처) → 캔버스 오버레이 드로잉(장비·경로·유도자·지휘자·통제구역·표지판·라벨)
-- [ ] 벡터 JSON 저장 + 재편집 로드(배경 종류·지도 뷰 상태 포함)
-- [ ] 배경+드로잉 합성 PNG 생성 → Storage 업로드 (카카오 타일 CORS 확인, 필요 시 타일 프록시 `/api/map-tile`)
-- [ ] 전기(2-3) 단독 선택 시 사진·도면 업로드 대체 UI
-- [ ] tsc·lint 통과, 커밋
+- [x] `MapDrawingEditor.tsx` — 전역 로드된 Kakao Maps SDK(layout.tsx) 사용, 위성(HYBRID) 기본 + 일반지도(ROADMAP) 토글, 프로젝트 좌표 중심 (기존 KakaoMap.tsx·SimpleProjectMap.tsx 패턴 참조)
+- [x] 배경 소스 선택 UI — 카카오맵 / 현장 전경 사진 업로드(카메라·파일)
+- [x] 화면 고정(지도 캡처) → 캔버스 오버레이 드로잉(장비·경로·유도자·지휘자·통제구역·표지판·라벨)
+- [x] 벡터 JSON 저장 + 재편집 로드(배경 종류·지도 뷰 상태 포함)
+- [x] 배경+드로잉 합성 PNG 생성 → Storage 업로드 (카카오 타일 CORS 확인, 필요 시 타일 프록시 `/api/map-tile`)
+- [x] 전기(2-3) 단독 선택 시 사진·도면 업로드 대체 UI
+- [x] tsc·lint 통과, 커밋
 
 ## Phase 3 — AI 초안
 - [x] `api/ai/work-plan/route.ts` — Gemini JSON 강제, 종류별 출력 스키마 (커밋 dd5425e, 요청/응답 스키마는 컨텍스트 노트 참조)

@@ -44,3 +44,11 @@
 - **저장·재편집 완결** — 마법사 마지막 단계에서 `work_plans` INSERT/UPDATE를 수행한다. UPDATE는 기존 지도·사진 컬럼을 덮지 않고 `form_data`와 목록 요약 필드만 갱신하며, 목록 수정 버튼에서 기존 레코드를 불변 복제해 이어서 입력한다.
 - **입력 대기 표시** — 선택 서식 중 지연 입력 그룹이 비어 있는 항목은 목록에 `입력 대기` 배지를 표시한다.
 - **검증 결과** — `npx tsc --noEmit`, `npm run lint`, 보완 1 대상 엄격 ESLint가 모두 종료 코드 0으로 통과했다.
+
+## 2026-07-11 Phase 2 구현
+
+- **지도·사진 편집기** — 카카오 HYBRID/ROADMAP, 프로젝트 좌표·주소 지오코딩, 화면 고정, 현장 전경 사진 배경, 양식 범례 7종 도형, undo·개별/전체 삭제를 `MapDrawingEditor`에 구현했다.
+- **CORS 폴백** — 직접 html2canvas 캡처 실패 시 clone의 Kakao 타일 이미지를 `/api/map-tile`로 재작성한다. 프록시는 Kakao/Daum 이미지 호스트만 허용하고 리다이렉트 차단, 5초 타임아웃, 5MB 제한을 적용한다.
+- **Storage 저장** — 배경 원본·합성 PNG·전기 도면/PDF·현장사진의 data URL만 `work-plans` 버킷에 업로드한다. DB 실패 시 신규 업로드를 롤백하고 UPDATE 성공 후 교체된 기존 파일을 정리한다.
+- **재편집** — `map_drawing`에는 Storage 배경 URL과 지도 중심·레벨·벡터를, `map_image_url`에는 합성 PNG를 저장한다. 전기 단독은 `site_photo_urls`의 도면·현장사진 순서를 유지한다.
+- **검증 결과** — `npx tsc --noEmit`, `npm run lint`, Phase 2 대상 엄격 ESLint가 종료 코드 0으로 통과했다. 별도 개발 서버에서 `/`와 `/project/[id]/work-plan`이 컴파일되고 HTTP 200으로 응답했으며, 내부 주소 타일 프록시 요청은 400으로 차단됐다. 환경에 `agent-browser` 실행 파일이 없어 실제 지도 타일 합성의 시각 대조는 수동 확인 항목으로 남긴다.
