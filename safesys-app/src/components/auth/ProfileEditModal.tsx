@@ -392,7 +392,7 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
                 >
                   {loading ? (
                     <>
-                      <LoadingSpinner size="sm" />
+                      <LoadingSpinner />
                       <span className="ml-2">저장 중...</span>
                     </>
                   ) : (

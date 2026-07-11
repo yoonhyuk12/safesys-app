@@ -155,10 +155,10 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
   const [progressPercentage, setProgressPercentage] = useState<number>(100)
 
   // 새로고침 동작 함수들을 ref로 보관 (타이머가 deps 변화로 재시작되지 않도록 안정화)
-  const loadAllTBMDataRef = useRef<(force?: boolean, resetInterval?: boolean) => Promise<void>>()
-  const filterTBMDataRef = useRef<() => void>()
-  const loadTbmSafetyInspectionsRef = useRef<() => Promise<void>>()
-  const checkSessionRef = useRef<() => Promise<boolean>>()
+  const loadAllTBMDataRef = useRef<((force?: boolean, resetInterval?: boolean) => Promise<void>) | undefined>(undefined)
+  const filterTBMDataRef = useRef<(() => void) | undefined>(undefined)
+  const loadTbmSafetyInspectionsRef = useRef<(() => Promise<void>) | undefined>(undefined)
+  const checkSessionRef = useRef<(() => Promise<boolean>) | undefined>(undefined)
 
   // onProgressUpdate ref 업데이트
   useEffect(() => {

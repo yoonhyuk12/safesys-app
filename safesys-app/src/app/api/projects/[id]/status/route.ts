@@ -4,9 +4,9 @@ import { createClient } from '@supabase/supabase-js'
 // GET 메서드 추가 (디버깅용)
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = params
+  const { id } = await params
   return NextResponse.json({
     message: 'Status API endpoint is working',
     projectId: id,
@@ -16,11 +16,11 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const startTime = Date.now()
-    const { id } = params
+    const { id } = await params
     const { is_active } = await request.json()
     
     if (typeof is_active !== 'boolean') {

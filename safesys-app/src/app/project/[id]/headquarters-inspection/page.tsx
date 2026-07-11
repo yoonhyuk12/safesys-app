@@ -3877,7 +3877,7 @@ export default function HeadquartersInspectionPage() {
                       setShowContactSelectModal(false)
                       setPhoneModalData({ 
                         name: project?.user_profiles?.full_name || '현장소장', 
-                        phone: project.user_profiles.phone_number,
+                        phone: project.user_profiles?.phone_number || '',
                         title: '현장소장 연락처'
                       })
                       setPhoneCopied(false)

@@ -16,7 +16,7 @@ function columnWidthToPoints(width: number): number {
 }
 
 function getWidthScaleForFitToPage(ws: ExcelJS.Worksheet): number {
-  const margins = ws.pageSetup.margins || {}
+  const margins: Partial<ExcelJS.Margins> = ws.pageSetup.margins || {}
   const leftMargin = margins.left ?? 0.7
   const rightMargin = margins.right ?? 0.7
 

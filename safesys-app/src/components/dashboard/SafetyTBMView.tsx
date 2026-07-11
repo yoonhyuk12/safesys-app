@@ -398,8 +398,7 @@ const SafetyTBMView: React.FC<SafetyTBMViewProps> = ({
       }
     })
 
-    const result = Array.from(stats.entries()).map(([hq, stat]) => ({
-      hq,
+    const result = Array.from(stats.entries()).map(([, stat]) => ({
       ...stat
     }))
 
@@ -1156,4 +1155,3 @@ const SafetyTBMView: React.FC<SafetyTBMViewProps> = ({
 }
 
 export default SafetyTBMView
-

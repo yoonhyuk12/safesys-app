@@ -250,7 +250,7 @@ export function generateConsentFormPage2HTML(worker: WorkerData, project: Projec
 
 // ===== 페이지 3: 건강·안전 문진표 =====
 export function generateHealthQuestionnaireHTML(worker: WorkerData, project: ProjectData): string {
-  const h = (worker.health_questionnaire || {}) as HealthQuestionnaireData
+  const h = (worker.health_questionnaire || {}) as unknown as HealthQuestionnaireData
 
   const diseaseCells = DISEASE_OPTIONS.map(d => {
     const checked = h.diseases?.includes(d)
@@ -379,7 +379,7 @@ export function generateHealthQuestionnaireHTML(worker: WorkerData, project: Pro
 
 // ===== 페이지 4: 안전서약서 =====
 export function generateSafetyPledgeHTML(worker: WorkerData, project: ProjectData): string {
-  const eq = (worker.safety_equipment || { items: [], other: '' }) as SafetyEquipmentData
+  const eq = (worker.safety_equipment || { items: [], other: '' }) as unknown as SafetyEquipmentData
 
   const equipmentCells = SAFETY_EQUIPMENT_OPTIONS.map(item => {
     const checked = eq.items?.includes(item)

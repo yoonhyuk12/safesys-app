@@ -216,7 +216,7 @@ const PasswordResetModal: React.FC<PasswordResetModalProps> = ({
               >
                 {loading ? (
                   <>
-                    <LoadingSpinner size="sm" />
+                    <LoadingSpinner />
                     <span className="ml-2">변경 중...</span>
                   </>
                 ) : (

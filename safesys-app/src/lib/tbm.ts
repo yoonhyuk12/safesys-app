@@ -43,6 +43,11 @@ export interface TBMStats {
   totalProjects: number
   averageDuration: number
   riskWorkTypes: number
+  totalCount?: number
+  totalWorkers?: number
+  newWorkers?: number
+  byHq?: Array<{ hq: string; total: number; workers: number; newWorkers: number }>
+  byBranch?: Array<{ hq: string; branch: string; total: number; workers: number; newWorkers: number }>
 }
 
 export interface TBMResponse {
@@ -399,6 +404,11 @@ export async function getTBMStats(
       return {
         success: true,
         stats: {
+          totalTBM: totalCount,
+          totalAttendees: totalWorkers,
+          totalProjects: new Set(records.map(record => record.project_name)).size,
+          averageDuration: 0,
+          riskWorkTypes: 0,
           totalCount,
           totalWorkers,
           newWorkers,

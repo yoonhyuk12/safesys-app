@@ -288,7 +288,7 @@ const Dashboard: React.FC = () => {
   }
 
   const handleProjectClick = (project: Project) => {
-    console.log('프로젝트 클릭:', project.id, project.name)
+    console.log('프로젝트 클릭:', project.id, project.project_name)
     try {
       router.push(`/project/${project.id}`)
       console.log('라우터 push 성공:', `/project/${project.id}`)
@@ -1028,4 +1028,4 @@ const Dashboard: React.FC = () => {
   )
 }
 
-export default Dashboard 
+export default Dashboard
