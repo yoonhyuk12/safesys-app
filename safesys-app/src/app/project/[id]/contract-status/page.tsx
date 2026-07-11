@@ -214,9 +214,20 @@ const contractGroupKey = (i: G2bCntrctItem): string =>
 
 // 장기계속계약의 연차별 차수는 계약번호가 서로 달라 번호로 못 묶는다 — 계약명(공백 제거)+구분으로 묶는다.
 // 연차 표기 접미어는 차수마다 달라("(2차년도_2025년도)", "(3차년도, 2026년)", 괄호 없는 "2차년도" 등,
-// 1차는 접미어 없음) 제거 후 비교한다
-const nameGroupKey = (type: string, name: string): string =>
-  `${type}|${name.replace(/(?:\(\s*\d+\s*차[^)]*\)|\d+\s*차년도)\s*$/, '').replace(/\s+/g, '')}`
+// 1차는 접미어 없음) 제거 후 비교한다.
+// 연차를 연도로만 표기하는 실데이터 패턴("2025년 ○○" 접두, "○○(2026년)" 접미 — 2026-07-12 실호출 확인)은
+// 단년도 반복 계약과 혼동될 수 있어 차수분 계약(stripYearAffix=true)에만 제거를 적용한다
+const nameGroupKey = (type: string, name: string, stripYearAffix = false): string => {
+  let n = name.replace(/(?:\(\s*\d+\s*차[^)]*\)|\d+\s*차년도)\s*$/, '')
+  if (stripYearAffix) {
+    n = n.replace(/^20\d{2}\s*년도?\s*/, '').replace(/\(\s*20\d{2}\s*년도?\s*\)\s*$/, '')
+  }
+  return `${type}|${n.replace(/\s+/g, '')}`
+}
+
+// 차수분 계약 판별 — 장기계속계약의 연차 차수 행은 총액과 금차가 다르다 (단년도 계약은 총액=금차)
+const isThtmPartial = (tot?: number | null, thtm?: number | null): boolean =>
+  tot != null && thtm != null && tot > 0 && thtm > 0 && tot !== thtm
 
 // 계약명 연차 접미어의 차수 번호 — "(3차년도_2026년)"·"3차년도" → 3, 접미어 없으면 1(원계약)
 const iterOrdFromName = (name: string): number => {
@@ -490,7 +501,7 @@ export default function ContractStatusPage() {
   const groups = useMemo<ContractGroup[]>(() => {
     const byKey = new Map<string, ContractRecord[]>()
     for (const r of records) {
-      const k = nameGroupKey(r.contract_type, r.cntrct_nm)
+      const k = nameGroupKey(r.contract_type, r.cntrct_nm, isThtmPartial(r.tot_cntrct_amt, r.thtm_cntrct_amt))
       const arr = byKey.get(k)
       if (arr) arr.push(r)
       else byKey.set(k, [r])
@@ -838,7 +849,12 @@ export default function ContractStatusPage() {
       if (error) throw error
       setLookupChecked(new Set())
       await loadRecords()
-      alert(`${rows.length}건이 등록되었습니다.`)
+      // 차수분 계약(총액≠금차)은 조회 기간 밖의 이전 연차 계약이 있을 수 있다 — 업데이트 버튼의 역탐색 안내
+      const hasPartial = targets.some((i) => isThtmPartial(i.totAmt, i.thtmAmt))
+      alert(
+        `${rows.length}건이 등록되었습니다.` +
+        (hasPartial ? '\n\n장기계속계약 차수가 포함되어 있습니다. 상단 "업데이트" 버튼을 누르면 조회 기간 밖의 이전 연차(차수) 계약을 자동 탐색해 추가합니다.' : '')
+      )
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '알 수 없는 오류'
       alert('등록 실패: ' + message)
@@ -849,8 +865,9 @@ export default function ContractStatusPage() {
 
   // 등록 건 일괄 갱신 — ① 번호가 있는 행을 조달청 최신 계약정보로 갱신하고,
   // ② 장기계속계약의 미등록 연차(차수) 계약을 수요기관명+계약명 월별 목록 조회로 탐색해 신규 등록
-  //    (3차년도만 등록된 경우의 과거 1·2차년도처럼 등록 차수보다 앞선 연차도 거슬러 탐색).
-  // 연차별 차수 계약은 확정·통합·공고번호가 전부 달라(2026-07-07 실호출 확정) 어떤 번호 재조회로도
+  //    (3차년도만 등록된 경우의 과거 1·2차년도처럼 등록 차수보다 앞선 연차도 거슬러 탐색.
+  //    연차를 연도로만 표기하는 계약명은 총공사 일수 역산으로 탐색 시작월을 잡는다).
+  // 연차별 차수 계약은 확정·통합·공고번호가 전부 달라(2026-07-07·07-12 실호출 확정) 어떤 번호 재조회로도
   // 다른 연차가 나오지 않는다 — 신규 연차 발견은 기간 목록 조회가 유일한 경로다.
   const handleRefreshAll = async () => {
     if (!user || refreshing) return
@@ -890,6 +907,20 @@ export default function ContractStatusPage() {
         const minOrd = Math.min(...ords)
         const [fy, fm] = firstDate.slice(0, 7).split('-').map(Number)
         fromMonth = monthKey(new Date(fy, fm - 1 - ((minOrd - 1) * 12 + 2), 1))
+      }
+      // 연차를 연도로만 표기하는 계약명(차수 접미어 없음)은 차수 번호로 과거 누락을 못 잡는다 —
+      // 금차 합이 총액에 못 미치면 계약기간의 총 일수(예: '총공사 1135일')로 사업 시작월을 역산해
+      // 그 시점(여유 1개월)부터 탐색한다 (2026-07-12 실호출 확인)
+      if (amountShort) {
+        const dm = (g.repr.cntrct_prd || '').match(/총\S*\s*([\d,]+)\s*일/)
+        const totalDays = dm ? Number(dm[1].replace(/,/g, '')) : 0
+        if (totalDays > 0 && g.endDate) {
+          const d = new Date(g.endDate)
+          d.setDate(d.getDate() - totalDays)
+          d.setMonth(d.getMonth() - 1)
+          const est = monthKey(d)
+          if (est < fromMonth) fromMonth = est
+        }
       }
       const months = buildMonths(fromMonth, nowKey).slice(-36)
       if (months.length === 0) return []
@@ -1032,7 +1063,7 @@ export default function ContractStatusPage() {
         }
         // 같은 계약(계약명 공백 제거 일치)의 미등록 차수만 등록 — 변경차수는 최신만
         const candidates = latestPerContract(
-          found.filter((it) => nameGroupKey(it.type, it.name) === plan.g.key)
+          found.filter((it) => nameGroupKey(it.type, it.name, isThtmPartial(it.totAmt, it.thtmAmt)) === plan.g.key)
         )
         for (const item of candidates) {
           if (isKnown(item)) continue
@@ -1750,9 +1781,9 @@ export default function ContractStatusPage() {
                                 // 장기계속계약은 차수(연차)별 행이 별개 건이므로 같은 계약명의 차수를 함께 토글
                                 const next = new Set(prev)
                                 const turnOn = !next.has(item.key)
-                                const gk = nameGroupKey(item.type, item.name)
+                                const gk = nameGroupKey(item.type, item.name, isThtmPartial(item.totAmt, item.thtmAmt))
                                 for (const v of visibleItems) {
-                                  if (isRegistered(v) || nameGroupKey(v.type, v.name) !== gk) continue
+                                  if (isRegistered(v) || nameGroupKey(v.type, v.name, isThtmPartial(v.totAmt, v.thtmAmt)) !== gk) continue
                                   if (turnOn) next.add(v.key)
                                   else next.delete(v.key)
                                 }
