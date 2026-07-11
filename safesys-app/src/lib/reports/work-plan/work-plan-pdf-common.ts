@@ -84,24 +84,20 @@ export function dateRange(start: string | null | undefined, end: string | null |
 }
 
 // ── 결재란 + 제목 헤더 ──────────────────────────────────────
-// 담당·승인 서명칸은 공란(출력 후 수기 결재).
+// 담당·승인 서명칸은 공란(출력 후 수기 결재). 중첩 표 없이 rowspan으로 선을 맞춘다.
 export function approvalHeader(mainTitle: string, subTitle: string): string {
-  const inner = `
-    <table style="width:100%; height:100%; border-collapse:collapse; table-layout:fixed;">
-      <tr>${cell('담당', LABEL)}${cell('승인', LABEL)}</tr>
-      <tr>${cell('', `${VALUE} height:34px;`)}${cell('', `${VALUE} height:34px;`)}</tr>
-    </table>`
   return `
     <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
       ${colgroup(12)}
       <tr>
-        <td colspan="9" style="border:${BORDER}; text-align:center; padding:12px 6px;">
+        <td colspan="9" rowspan="2" style="border:${BORDER}; text-align:center; padding:12px 6px;">
           <div style="font-size:22px; font-weight:900;">${escapeHtml(mainTitle)}</div>
           <div style="font-size:14px; font-weight:bold; color:#555;">(${escapeHtml(subTitle)})</div>
         </td>
-        <td style="border:${BORDER}; background-color:#f2f2f2; font-weight:bold; text-align:center; padding:2px;">결<br/>재</td>
-        <td colspan="2" style="border:${BORDER}; padding:0;">${inner}</td>
+        <td rowspan="2" style="border:${BORDER}; background-color:#f2f2f2; font-weight:bold; text-align:center; padding:2px;">결<br/>재</td>
+        ${cell('담당', LABEL)}${cell('승인', LABEL)}
       </tr>
+      <tr>${cell('', `${VALUE} height:34px;`)}${cell('', `${VALUE} height:34px;`)}</tr>
     </table>`
 }
 

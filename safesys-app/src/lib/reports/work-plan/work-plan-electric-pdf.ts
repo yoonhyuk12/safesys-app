@@ -76,7 +76,7 @@ function buildMainPage(form: ElectricForm): string {
       <tr>${cell('교육내용', LABEL, 2)}${cell(escapeHtml(form.education?.content || ''), LEFT, 10)}</tr>
       <tr>${cell('보호구 지급 및 사용 장비', LABEL, 12)}</tr>
       <tr>${cell('지급보호구', LABEL, 2)}${cell(protectiveBox(form), LEFT, 10)}</tr>
-      <tr>${cell('사용장비', LABEL, 2)}${cell('측정장비', LABEL, 2)}${cell(escapeHtml(form.measurementEquipment), LEFT, 8)}</tr>
+      <tr><td style="${LABEL}" colspan="2" rowspan="4">사용장비</td>${cell('측정장비', LABEL, 2)}${cell(escapeHtml(form.measurementEquipment), LEFT, 8)}</tr>
       <tr>${cell('활선기구/장비', LABEL, 2)}${cell(escapeHtml(form.liveLineEquipment), LEFT, 8)}</tr>
       <tr>${cell('방호구', LABEL, 2)}${cell(escapeHtml(form.protectiveDevices), LEFT, 8)}</tr>
       <tr>${cell('기타', LABEL, 2)}${cell(escapeHtml(form.otherEquipment), LEFT, 8)}</tr>
