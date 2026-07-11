@@ -73,3 +73,10 @@
 - **실원인** — 캡처가 아니라 표시였다. `{!frozen ? <지도 div> : <배경 div>}` 조건부 렌더링에서 React가 카카오 SDK가 스타일·자식을 심은 노드를 배경 div로 재사용했고, 카카오의 인라인 `position: relative`가 `absolute inset-0`을 이겨 배경 div 높이가 0으로 붕괴했다(임시 테스트 페이지 `/dev/map-capture-test` + Playwright DOM 덤프로 확정 — rect `[449,93,770,0]`, 카카오 잔여 자식 6개, 캡처 이미지는 1.45MB 정상 위성 지도).
 - **수정** — 두 분기에 `key="kakao-map"`/`key="frozen-background"` 부여로 재사용 차단. 지도 초기화 effect cleanup에 `replaceChildren()` 추가(StrictMode 이중 지도 생성도 해결 — 저작권 표기 2개 겹침이 사라짐). `/api/map-tile` 허용 접두사에 `mts\d*` 추가(위성 타일 호스트 `mts.daumcdn.net`이 400으로 거부되고 있었음).
 - **E2E 검증** — Playwright로 지도 로드 → 현재 화면 고정(위성 배경 표시 확인) → 캔버스 클릭 드로잉(개체 목록 "1. 장비") → 배경 다시 선택(지도 복귀) 전체 사이클과 모바일 390×844 레이아웃(도구 배지 위·지도 중앙·조작 버튼 아래)을 확인했다. 테스트 페이지는 검증 후 삭제.
+
+## 2026-07-11 PDF 표지 추가 (계획 변경)
+
+- **계획 변경** — 원계획은 "표지(안내 페이지) 출력 제외"였으나 사용자가 원본과 동일하게 표지 포함을 지시했다. 계획서 §6에 변경 이력을 남겼다.
+- **원본 추출** — 바탕화면 원본 4종 PDF 1쪽을 pdfjs(scratchpad)로 텍스트·좌표 추출해 표지 구성(파란 개정 주석 좌상단, 중앙 제목 상자 29pt, [작업계획서 내용] 중앙 제목+행잉 인덴트 목록 15pt, 2-1·2-2 하단 좌측 파란 ※통합작성 12pt)을 확인했다. "(작성예시)" 표기는 실문서이므로 제외했다.
+- **구현** — 표지 고정 텍스트는 `constants.ts`의 `WORK_PLAN_COVERS`(PlanType별 headerNote/titleLines/sections/footnote), 렌더러는 `work-plan-pdf-common.ts`의 `coverPage(planType)`. 항목 6개 초과(전기 ⑩) 시 컴팩트 간격으로 자동 전환. 4개 빌더 모두 pages 배열 맨 앞에 표지를 추가했다.
+- **검증** — 임시 `/dev/cover-test` 페이지에서 210mm 폭으로 4종 표지를 렌더해 원본과 시각 대조 후 삭제. 대상 파일 ESLint·`npx tsc --noEmit` 통과.

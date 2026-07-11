@@ -13,6 +13,94 @@ export const PLAN_TYPE_OPTIONS: ReadonlyArray<{
   { value: 'heavy', appendix: '붙임2-4', title: '중량물 취급 작업계획서', shortTitle: '중량물' },
 ]
 
+// 표지(원본 1쪽) 고정 텍스트 — 개정 2025-09-11 원본 표지에서 추출. "(작성예시)" 표기는 실문서이므로 제외.
+export interface WorkPlanCoverSection {
+  heading: string
+  items: readonly string[]
+}
+
+export interface WorkPlanCover {
+  headerNote: string
+  titleLines: readonly string[]
+  sections: readonly WorkPlanCoverSection[]
+  footnote?: string
+}
+
+export const WORK_PLAN_COVERS: Record<PlanType, WorkPlanCover> = {
+  loading: {
+    headerNote: '차량계 하역운반기계 등 작업계획서_개정 2025-09-11',
+    titleLines: ['차량계 하역운반기계등', '작업계획서'],
+    sections: [
+      {
+        heading: '[작업계획서 내용]',
+        items: [
+          '① 해당 작업에 따른 추락ㆍ낙하ㆍ전도ㆍ협착 및 붕괴 등의 위험 예방대책',
+          '② 차량계 하역운반기계등의 운행 경로 및 작업방법',
+        ],
+      },
+    ],
+    footnote: '※ 상황에 따라 다른 작업의 작업계획서(중량물 등)와 통합 작성',
+  },
+  construction: {
+    headerNote: '차량계 건설기계 등 작업계획서_개정 2025.09.11',
+    titleLines: ['차량계 건설기계 등', '작업계획서'],
+    sections: [
+      {
+        heading: '[작업계획서 내용]',
+        items: [
+          '① 사용하는 차량계 건설기계의 종류 및 성능',
+          '② 차량계 건설기계의 운행경로',
+          '③ 차량계 건설기계에 의한 작업방법',
+        ],
+      },
+      {
+        heading: '[사전조사 내용]',
+        items: [
+          '해당 기계의 굴러 떨어짐, 지반의 붕괴 등으로 인한 근로자의 위험을 방지하기 위한 해당 작업장소의 지형 및 지반상태',
+        ],
+      },
+    ],
+    footnote: '※ 상황에 따라 다른 작업의 작업계획서(중량물 등)와 통합 작성',
+  },
+  electric: {
+    headerNote: '전기 작업계획서 개정 2025-09-11',
+    titleLines: ['전기 작업계획서'],
+    sections: [
+      {
+        heading: '[작업계획서 내용]',
+        items: [
+          '① 전기작업의 목적 및 내용',
+          '② 전기작업 근로자의 자격 및 적정 인원',
+          '③ 작업 범위, 작업책임자 임명, 전격ㆍ아크 섬광ㆍ아크 폭발 등 전기 위험 요인 파악, 접근 한계거리, 활선접근 경보장치 휴대 등 작업시작 전에 필요한 사항',
+          '④ 제319조에 따른 전로 차단에 관한 작업계획 및 전원(電源) 재투입 절차 등 작업 상황에 필요한 안전 작업 요령',
+          '⑤ 절연용 보호구 및 방호구, 활선작업용 기구ㆍ장치 등의 준비ㆍ점검ㆍ착용ㆍ사용 등에 관한 사항',
+          '⑥ 점검ㆍ시운전을 위한 일시 운전, 작업 중단 등에 관한 사항',
+          '⑦ 교대 근무 시 근무 인계(引繼)에 관한 사항',
+          '⑧ 전기작업장소에 대한 관계 근로자가 아닌 사람의 출입금지에 관한 사항',
+          '⑨ 전기안전작업계획서를 해당 근로자에게 교육할 수 있는 방법과 작성된 전기안전작업계획서의 평가ㆍ관리계획',
+          '⑩ 전기 도면, 기기 세부 사항 등 작업과 관련되는 자료',
+        ],
+      },
+    ],
+  },
+  heavy: {
+    headerNote: '중량물 취급 작업계획서 개정 2025-09-11',
+    titleLines: ['중량물 취급 작업계획서'],
+    sections: [
+      {
+        heading: '[작업계획서 내용]',
+        items: [
+          '① 추락위험을 예방할 수 있는 안전대책',
+          '② 낙하위험을 예방할 수 있는 안전대책',
+          '③ 전도위험을 예방할 수 있는 안전대책',
+          '④ 협착위험을 예방할 수 있는 안전대책',
+          '⑤ 붕괴위험을 예방할 수 있는 안전대책',
+        ],
+      },
+    ],
+  },
+}
+
 export const MAP_LEGEND = [
   { symbol: '▣', label: '장비', style: '검정 사각' },
   { symbol: '→', label: '경로', style: '빨간 화살표' },

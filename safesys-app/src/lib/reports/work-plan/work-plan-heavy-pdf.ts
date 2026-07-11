@@ -18,6 +18,7 @@ import {
   liftingReviewTable,
   riggingReviewTable,
   buildFileName,
+  coverPage,
   renderWorkPlanPdf,
 } from './work-plan-pdf-common'
 
@@ -76,5 +77,5 @@ export async function downloadHeavyWorkPlanPdf(record: WorkPlanRecord): Promise<
   const page3 = checklistTable('<산업재해 예방을 위한 체크리스트>', HEAVY_CHECKLIST, form.checklist || [])
 
   const fileName = buildFileName('heavy', record.title, record.work_start_date)
-  await renderWorkPlanPdf([page1, page2, page3], fileName)
+  await renderWorkPlanPdf([coverPage('heavy'), page1, page2, page3], fileName)
 }

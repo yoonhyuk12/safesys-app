@@ -13,6 +13,7 @@ import {
   SAFETY_FACTORS,
   TENSION_FACTORS,
   PLAN_TYPE_OPTIONS,
+  WORK_PLAN_COVERS,
 } from '../../work-plan/constants'
 import type {
   LiftingCapacityReview,
@@ -102,6 +103,42 @@ export function approvalHeader(mainTitle: string, subTitle: string): string {
         <td colspan="2" style="border:${BORDER}; padding:0;">${inner}</td>
       </tr>
     </table>`
+}
+
+// ── 표지 (원본 붙임 양식 1쪽 재현) ─────────────────────────
+// 전체 테두리 상자 + 상단 파란 개정 주석 + 중앙 제목 상자 + [작업계획서 내용] 목록 + 하단 파란 ※주석.
+export function coverPage(planType: PlanType): string {
+  const cover = WORK_PLAN_COVERS[planType]
+  const itemCount = cover.sections.reduce((n, s) => n + s.items.length, 0)
+  const compact = itemCount > 6
+  const titleMargin = compact ? '24mm' : '42mm'
+  const firstSectionMargin = compact ? '16mm' : '38mm'
+  const itemFont = compact ? '17px' : '20px'
+  const title = cover.titleLines.map(escapeHtml).join('<br/>')
+  const sections = cover.sections
+    .map(
+      (s, i) => `
+      <div style="margin-top:${i === 0 ? firstSectionMargin : '16mm'}; text-align:center; font-size:20px; font-weight:bold;">${escapeHtml(s.heading)}</div>
+      <div style="display:table; margin:7mm auto 0; max-width:150mm;">
+        ${s.items
+          .map(
+            (item) =>
+              `<div style="font-size:${itemFont}; line-height:1.6; margin-bottom:2.5mm; text-indent:-1.15em; padding-left:1.15em;">${escapeHtml(item)}</div>`
+          )
+          .join('')}
+      </div>`
+    )
+    .join('')
+  const footnote = cover.footnote
+    ? `<div style="margin-top:auto; color:#0000c0; font-weight:bold; font-size:16px;">${escapeHtml(cover.footnote)}</div>`
+    : ''
+  return `
+    <div style="border:2px solid #000; height:277mm; box-sizing:border-box; padding:8mm 10mm 10mm; display:flex; flex-direction:column;">
+      <div style="color:#0000c0; font-size:13px; font-weight:bold;">${escapeHtml(cover.headerNote)}</div>
+      <div style="margin:${titleMargin} auto 0; border:2px solid #000; padding:5mm 14mm; text-align:center; font-size:38px; font-weight:900; line-height:1.5; letter-spacing:2px;">${title}</div>
+      ${sections}
+      ${footnote}
+    </div>`
 }
 
 // ── 지도 섹션 ──────────────────────────────────────────────

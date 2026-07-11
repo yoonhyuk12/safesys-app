@@ -22,6 +22,7 @@ import {
   approvalHeader,
   checklistTable,
   buildFileName,
+  coverPage,
   renderWorkPlanPdf,
 } from './work-plan-pdf-common'
 
@@ -148,7 +149,7 @@ export async function downloadElectricWorkPlanPdf(record: WorkPlanRecord): Promi
   const form = record.form_data.electric
   if (!form) throw new Error('전기 작업계획서 데이터가 없습니다.')
 
-  const pages = [buildMainPage(form), buildStepsPage(form)]
+  const pages = [coverPage('electric'), buildMainPage(form), buildStepsPage(form)]
   const photos = record.site_photo_urls || []
   if (photos.length > 0) pages.push(buildPhotoPage(photos))
 
