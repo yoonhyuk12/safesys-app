@@ -1,9 +1,10 @@
 'use client'
+// 주요자재 수불부와 조달청 납품요구 연계를 관리하는 프로젝트 화면
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil, Link2, Loader2, Download, ExternalLink, LayoutGrid, Table } from 'lucide-react'
+import { ArrowLeft, Package, Plus, Trash2, X, PenTool, Check, Printer, Pencil, Link2, Loader2, Download, LayoutGrid, Table, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { guessInstName } from '@/lib/g2b-inst'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -105,7 +106,99 @@ interface G2bDlvrReq {
   title: string
   demandOrg: string
   supplier: string
+  supplierTel: string
   items: G2bItem[]
+}
+
+// /api/g2b/pay-insp 응답 문서 — 납품요구번호 완전일치 결과만 상세 모달에 표시한다
+interface G2bPayDoc {
+  docNo: string
+  name: string
+  payDate: string
+  amt: number
+  dlvrReqNo: string
+  dminsttNm: string
+}
+
+interface G2bInspDoc {
+  docNo: string
+  name: string
+  inspDate: string
+  amt: number
+  dlvrReqNo: string
+  dminsttNm: string
+}
+
+interface G2bPayInspDocs {
+  pays: G2bPayDoc[]
+  insps: G2bInspDoc[]
+}
+
+// 납품요구번호별 지급·검사검수 세션 캐시 — 빈 결과도 조회 성공으로 기록해 재호출을 막는다
+const dlvrPayInspCache = new Map<string, G2bPayInspDocs>()
+const dlvrPayInspPending = new Map<string, Promise<G2bPayInspDocs>>()
+
+const PAY_INSP_GENERIC_WORDS = ['구매', '지급자재', '관급자재', '사업', '공사', '설치', '제조', '제작', '납품']
+const normalizeDlvrReqNo = (value: string) => value.replace(/\s+/g, '').toUpperCase().replace(/-\d{1,3}$/, '')
+const cleanPayInspCandidate = (value: string) => value.replace(/[\[\]{}<>]/g, ' ').replace(/\s+/g, ' ').trim()
+const isSpecificPayInspCandidate = (value: string) => {
+  const compact = value.replace(/[^0-9A-Za-z가-힣]/g, '')
+  return compact.length >= 2
+    && !/^\d+$/.test(compact)
+    && !PAY_INSP_GENERIC_WORDS.some(word => compact === word || compact.endsWith(word))
+}
+
+// 넓은 첫 단어 대신 품목을 가장 잘 특정하는 괄호 내용 또는 최장 토큰을 선택한다
+const payInspKeyword = (title: string): string => {
+  const parenthesized = [...title.matchAll(/\(([^()]*)\)/g)]
+    .map(match => cleanPayInspCandidate(match[1]))
+    .filter(isSpecificPayInspCandidate)
+    .sort((a, b) => b.length - a.length)[0]
+  if (parenthesized) return parenthesized
+
+  return title.replace(/\([^()]*\)/g, ' ')
+    .split(/[\s,·/]+/)
+    .map(cleanPayInspCandidate)
+    .filter(isSpecificPayInspCandidate)
+    .sort((a, b) => b.length - a.length)[0] || ''
+}
+
+const fetchDlvrPayInsp = async (no: string, title: string, demandOrg = ''): Promise<G2bPayInspDocs> => {
+  const cached = dlvrPayInspCache.get(no)
+  if (cached) return cached
+  const pending = dlvrPayInspPending.get(no)
+  if (pending) return pending
+
+  const request = (async () => {
+    const keyword = payInspKeyword(title)
+    if (keyword.length < 2) {
+      const empty = { pays: [], insps: [] }
+      dlvrPayInspCache.set(no, empty)
+      return empty
+    }
+    const res = await fetch(
+      `/api/g2b/pay-insp?nm=${encodeURIComponent(keyword)}${demandOrg ? `&inst=${encodeURIComponent(demandOrg)}` : ''}`
+    )
+    const json = await res.json()
+    if (!res.ok || !json.success) throw new Error(json.error || '지급·검사검수 내역을 불러오지 못했습니다.')
+    const payRows: G2bPayDoc[] = Array.isArray(json.data?.pays) ? json.data.pays : []
+    const inspRows: G2bInspDoc[] = Array.isArray(json.data?.insps) ? json.data.insps : []
+    const exact = {
+      pays: [...new Map(
+        payRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])
+      ).values()],
+      insps: [...new Map(
+        inspRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])
+      ).values()],
+    }
+    dlvrPayInspCache.set(no, exact)
+    return exact
+  })().finally(() => {
+    dlvrPayInspPending.delete(no)
+  })
+
+  dlvrPayInspPending.set(no, request)
+  return request
 }
 
 // 조달청 납품요구 목록 일괄 조회 결과 행 (수요기관·기간 검색, /api/g2b/dlvr-req-list)
@@ -257,6 +350,24 @@ export default function MaterialLedgerPage() {
   const [linkMapping, setLinkMapping] = useState<Record<number, string>>({}) // 품목순번 → 원장 규격 ('' = 연결 안 함, NEW_SPEC = 새 규격 행)
   const [linkAdjust, setLinkAdjust] = useState<Record<number, boolean>>({}) // 품목순번 → 발주량 차이 보정 여부
   const [linkApplying, setLinkApplying] = useState(false)
+
+  // 자재명 클릭용 실제 납품요구 읽기 전용 상세 모달
+  const [dlvrDetailOpen, setDlvrDetailOpen] = useState(false)
+  const [dlvrDetailNo, setDlvrDetailNo] = useState('')
+  const [dlvrDetail, setDlvrDetail] = useState<G2bDlvrReq | null>(null)
+  const [dlvrDetailLoading, setDlvrDetailLoading] = useState(false)
+  const [dlvrDetailProgress, setDlvrDetailProgress] = useState(0)
+  const [dlvrDetailError, setDlvrDetailError] = useState('')
+  const [dlvrPays, setDlvrPays] = useState<G2bPayDoc[]>([])
+  const [dlvrInsps, setDlvrInsps] = useState<G2bInspDoc[]>([])
+  const [dlvrInspsLoading, setDlvrInspsLoading] = useState(false)
+  const [dlvrInspsError, setDlvrInspsError] = useState('')
+  const [dlvrInspByNo, setDlvrInspByNo] = useState<Map<string, G2bInspDoc[]>>(
+    () => new Map([...dlvrPayInspCache].map(([no, docs]) => [no, docs.insps]))
+  )
+  const dlvrDetailRequestRef = useRef(0)
+  const dlvrDetailProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const dlvrDetailCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // 조달청 일괄 조회 모달 (수요기관·기간으로 납품요구 건 전수 조회 → 선택 등록)
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false)
@@ -427,6 +538,54 @@ export default function MaterialLedgerPage() {
       // 저장 실패는 무시 (다음 방문에 재조회)
     }
   }, [dlvrTitles])
+
+  // 계약 목록의 연계 납품요구 검사검수를 동시 2건씩 배경 조회한다. 실패는 캐시하지 않아 재방문 시 다시 시도한다
+  useEffect(() => {
+    const materialNamesByNo = new Map<string, string[]>()
+    const titleKeyByNo = new Map<string, string>()
+    for (const material of materials) {
+      const rawNo = material.dlvrReqNo || material.rows.find(row => row.dlvrReqNo)?.dlvrReqNo || ''
+      const no = normalizeDlvrReqNo(rawNo)
+      if (!no) continue
+      const names = materialNamesByNo.get(no) || []
+      names.push(material.name)
+      materialNamesByNo.set(no, names)
+      titleKeyByNo.set(no, rawNo)
+    }
+
+    const queue = [...materialNamesByNo.entries()].flatMap(([no, names]) => {
+      if (dlvrPayInspCache.has(no)) return []
+      const rawNo = titleKeyByNo.get(no) || no
+      const fetchedTitle = dlvrTitles[rawNo]
+      if (fetchedTitle === undefined) return []
+      const fallback = [...names].sort((a, b) => b.length - a.length)[0] || ''
+      const title = fetchedTitle || fallback
+      return title ? [{ no, title }] : []
+    })
+    if (queue.length === 0) {
+      setDlvrInspByNo(new Map([...dlvrPayInspCache].map(([no, docs]) => [no, docs.insps])))
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      await Promise.all(Array.from({ length: 2 }, async () => {
+        while (queue.length > 0) {
+          const target = queue.shift()
+          if (!target) break
+          try {
+            await fetchDlvrPayInsp(target.no, target.title)
+            if (!cancelled) {
+              setDlvrInspByNo(new Map([...dlvrPayInspCache].map(([no, docs]) => [no, docs.insps])))
+            }
+          } catch {
+            // 배경 조회 실패는 배지를 숨기고 캐시하지 않아 다음 방문에 재시도한다
+          }
+        }
+      }))
+    })()
+    return () => { cancelled = true }
+  }, [materials, dlvrTitles])
 
   const loadData = async () => {
     try {
@@ -655,6 +814,7 @@ export default function MaterialLedgerPage() {
         dlvr_req_no: result.dlvrReqNo,
         dlvr_req_synced_at: new Date().toISOString(),
         dlvr_supplier: result.supplier || null,
+        dlvr_supplier_tel: result.supplierTel || null,
         dlvr_deadline: maxDeadline || null,
       })
       .select()
@@ -1327,41 +1487,97 @@ export default function MaterialLedgerPage() {
     return list
   }
 
-  // 자재명 클릭 — 연계 납품요구의 조달청 계약 상세를 새 탭으로 (URL은 클릭 시 해석, 자재별 캐시)
-  const g2bUrlCache = useRef<Map<string, string>>(new Map())
-  const [g2bLinkLoading, setG2bLinkLoading] = useState(false)
-  const openG2bContractPage = async () => {
-    const no = selectedMaterial?.dlvrReqNo
-    if (!no || g2bLinkLoading) return
-    const cached = g2bUrlCache.current.get(no)
-    if (cached) {
-      window.open(cached, '_blank', 'noopener,noreferrer')
-      return
-    }
-    // 팝업 차단을 피하려고 클릭 시점에 창을 먼저 열고, URL 해석 후 이동시킨다
-    const win = window.open('', '_blank')
-    if (win) {
-      // 빈 창(about:blank)만 보이면 사용자가 닫아버리므로 조회 중 안내를 표시한다
-      win.document.title = '조달청 계약정보 조회 중…'
-      win.document.body.innerHTML =
-        '<div style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#555;font-size:15px">조달청 계약 페이지를 조회하는 중입니다… 잠시만 기다려 주세요.</div>'
-    }
-    setG2bLinkLoading(true)
+  const clearDlvrDetailProgressTimers = useCallback(() => {
+    if (dlvrDetailProgressTimerRef.current) clearInterval(dlvrDetailProgressTimerRef.current)
+    if (dlvrDetailCompleteTimerRef.current) clearTimeout(dlvrDetailCompleteTimerRef.current)
+    dlvrDetailProgressTimerRef.current = null
+    dlvrDetailCompleteTimerRef.current = null
+  }, [])
+
+  const startDlvrDetailProgress = useCallback(() => {
+    clearDlvrDetailProgressTimers()
+    setDlvrDetailProgress(0)
+    dlvrDetailProgressTimerRef.current = setInterval(() => {
+      setDlvrDetailProgress(prev => Math.min(90, prev + Math.max(1, Math.ceil((90 - prev) * 0.12))))
+    }, 300)
+  }, [clearDlvrDetailProgressTimers])
+
+  const finishDlvrDetailProgress = useCallback((requestId: number) => {
+    if (dlvrDetailRequestRef.current !== requestId) return
+    clearDlvrDetailProgressTimers()
+    setDlvrDetailProgress(100)
+    dlvrDetailCompleteTimerRef.current = setTimeout(() => {
+      if (dlvrDetailRequestRef.current === requestId) setDlvrDetailLoading(false)
+      dlvrDetailCompleteTimerRef.current = null
+    }, 180)
+  }, [clearDlvrDetailProgressTimers])
+
+  useEffect(() => () => {
+    dlvrDetailRequestRef.current += 1
+    clearDlvrDetailProgressTimers()
+  }, [clearDlvrDetailProgressTimers])
+
+  // 지급·검사검수는 기본 납품요구 상세를 먼저 표시한 뒤 별도로 조회하고, 납품요구번호 완전일치 문서만 남긴다
+  const loadDlvrPayInsp = async (requestId: number, no: string, detail: G2bDlvrReq) => {
+    if (dlvrDetailRequestRef.current !== requestId) return
+    setDlvrInspsLoading(true)
+    setDlvrInspsError('')
     try {
-      const res = await fetch(`/api/g2b/dlvr-req-url?no=${encodeURIComponent(no)}`)
-      const json = await res.json()
-      if (!res.ok || !json.success || !json.data?.url) {
-        throw new Error(json.error || '조달청 계약 페이지를 찾을 수 없습니다.')
-      }
-      g2bUrlCache.current.set(no, json.data.url)
-      if (win && !win.closed) win.location.href = json.data.url
-      else window.open(json.data.url, '_blank', 'noopener,noreferrer')
-    } catch (err) {
-      win?.close()
-      alert(err instanceof Error ? err.message : '조달청 계약 페이지 조회에 실패했습니다.')
+      const exact = await fetchDlvrPayInsp(no, detail.title, detail.demandOrg)
+      if (dlvrDetailRequestRef.current !== requestId) return
+      setDlvrPays(exact.pays)
+      setDlvrInsps(exact.insps)
+      setDlvrInspByNo(new Map([...dlvrPayInspCache].map(([cachedNo, docs]) => [cachedNo, docs.insps])))
+    } catch (err: unknown) {
+      if (dlvrDetailRequestRef.current !== requestId) return
+      setDlvrInspsError(err instanceof Error ? err.message : '지급·검사검수 내역을 불러오지 못했습니다.')
     } finally {
-      setG2bLinkLoading(false)
+      if (dlvrDetailRequestRef.current === requestId) setDlvrInspsLoading(false)
     }
+  }
+
+  // 자재명 클릭 — 상위 단가계약이 아닌 실제 수요기관 납품요구를 읽기 전용으로 표시한다
+  const openDlvrDetail = async (noParam?: string) => {
+    const no = normalizeDlvrReqNo(noParam || selectedMaterial?.dlvrReqNo || '')
+    if (!no) return
+    const requestId = ++dlvrDetailRequestRef.current
+    startDlvrDetailProgress()
+    setDlvrDetailNo(no)
+    setDlvrDetail(null)
+    setDlvrDetailError('')
+    const cachedDocs = dlvrPayInspCache.get(no)
+    setDlvrPays(cachedDocs?.pays || [])
+    setDlvrInsps(cachedDocs?.insps || [])
+    setDlvrInspsLoading(false)
+    setDlvrInspsError('')
+    setDlvrDetailLoading(true)
+    setDlvrDetailOpen(true)
+    try {
+      const res = await fetch(`/api/g2b/dlvr-req?no=${encodeURIComponent(no)}`)
+      const json = await res.json()
+      if (!res.ok || !json.success || !json.data) {
+        throw new Error(json.error || '납품요구 상세를 불러오지 못했습니다.')
+      }
+      if (dlvrDetailRequestRef.current !== requestId) return
+      const detail = json.data as G2bDlvrReq
+      setDlvrDetail(detail)
+      void loadDlvrPayInsp(requestId, no, detail)
+    } catch (err: unknown) {
+      if (dlvrDetailRequestRef.current !== requestId) return
+      setDlvrDetailError(err instanceof Error ? err.message : '납품요구 상세를 불러오지 못했습니다.')
+    } finally {
+      finishDlvrDetailProgress(requestId)
+    }
+  }
+
+  const closeDlvrDetail = () => {
+    // 닫힌 뒤 도착하거나 다음 클릭보다 늦게 도착한 응답이 모달을 다시 채우지 못하게 무효화한다
+    dlvrDetailRequestRef.current += 1
+    clearDlvrDetailProgressTimers()
+    setDlvrDetailOpen(false)
+    setDlvrDetailLoading(false)
+    setDlvrDetailProgress(0)
+    setDlvrInspsLoading(false)
   }
 
   const openLinkModal = () => {
@@ -1524,6 +1740,7 @@ export default function MaterialLedgerPage() {
           dlvr_req_no: linkResult.dlvrReqNo,
           dlvr_req_synced_at: new Date().toISOString(),
           dlvr_supplier: linkResult.supplier || null,
+          ...(linkResult.supplierTel ? { dlvr_supplier_tel: linkResult.supplierTel } : {}),
           dlvr_deadline: maxDeadline || null,
         })
         .in('id', Array.from(linkedMatIds))
@@ -2497,6 +2714,218 @@ export default function MaterialLedgerPage() {
     </div>
   ) : null
 
+  // 실제 수요기관 납품요구 상세 모달 — 조회만 수행하며 원장 데이터는 변경하지 않는다
+  const dlvrDetailModalJsx = dlvrDetailOpen && selectedMaterial ? (
+    <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={closeDlvrDetail}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="dlvr-detail-title"
+        className="max-w-5xl w-full rounded-lg overflow-hidden max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'linear-gradient(180deg, #2a2a35 0%, #1a1a22 50%, #12121a 100%)',
+          border: '3px solid #4a3a28',
+          boxShadow: 'inset 0 0 40px rgba(0,0,0,0.8), 0 10px 40px rgba(0,0,0,0.9)',
+        }}
+      >
+        <div className="flex items-center justify-between px-5 py-3 gap-3 shrink-0" style={{
+          background: 'linear-gradient(180deg, #3a3020 0%, #2a2015 100%)',
+          borderBottom: '2px solid #5a4a35',
+        }}>
+          <div className="min-w-0">
+            <h3 id="dlvr-detail-title" className="text-base font-bold text-amber-100 truncate" style={{ fontFamily: 'serif' }}>
+              조달청 납품요구 상세
+            </h3>
+            <p className="text-xs text-amber-200/50 truncate">{dlvrDetailNo}</p>
+          </div>
+          <button type="button" onClick={closeDlvrDetail} className="p-1 text-amber-200/50 hover:text-amber-200 shrink-0" aria-label="닫기">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 overflow-y-auto">
+          {dlvrDetailLoading ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-amber-200/60">
+              <div className="w-full max-w-xs" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dlvrDetailProgress}>
+                <div className="h-2.5 overflow-hidden rounded-full bg-black/40 border border-blue-500/30">
+                  <div className="h-full rounded-full bg-blue-400 transition-[width] duration-300" style={{ width: `${dlvrDetailProgress}%` }} />
+                </div>
+                <p className="mt-2 text-center text-sm font-medium tabular-nums text-blue-300">{dlvrDetailProgress}%</p>
+              </div>
+              조달청에서 실제 납품요구 내역을 불러오는 중입니다.
+            </div>
+          ) : dlvrDetailError ? (
+            <div className="text-center py-12 px-4">
+              <p className="text-sm text-red-400 mb-4">{dlvrDetailError}</p>
+              <button
+                type="button"
+                onClick={() => void openDlvrDetail(dlvrDetailNo)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded text-blue-100 bg-blue-900/60 border border-blue-500/50 hover:bg-blue-800/70"
+              >
+                <RefreshCw className="h-4 w-4" />
+                다시 조회
+              </button>
+            </div>
+          ) : dlvrDetail ? (
+            <div className="space-y-4">
+              <div className="rounded border border-amber-900/60 overflow-hidden text-sm">
+                <dl className="grid grid-cols-[7rem_minmax(0,1fr)] sm:grid-cols-[8rem_minmax(0,1fr)_8rem_minmax(0,1fr)]">
+                  <dt className="bg-black/25 px-3 py-2 font-medium text-amber-200/60 border-b border-amber-900/40">건명</dt>
+                  <dd className="px-3 py-2 text-amber-100 border-b border-amber-900/40 sm:col-span-3 break-words">{dlvrDetail.title || '-'}</dd>
+                  <dt className="bg-black/25 px-3 py-2 font-medium text-amber-200/60 border-b border-amber-900/40">납품요구번호</dt>
+                  <dd className="px-3 py-2 text-amber-100 border-b border-amber-900/40 break-all">{dlvrDetail.dlvrReqNo || dlvrDetailNo}</dd>
+                  <dt className="bg-black/25 px-3 py-2 font-medium text-amber-200/60 border-b border-amber-900/40">수요기관</dt>
+                  <dd className="px-3 py-2 text-amber-100 border-b border-amber-900/40 break-words">{dlvrDetail.demandOrg || '-'}</dd>
+                  <dt className="bg-black/25 px-3 py-2 font-medium text-amber-200/60">계약상대자</dt>
+                  <dd className="px-3 py-2 text-amber-100 break-words">{dlvrDetail.supplier || '-'}</dd>
+                  <dt className="bg-black/25 px-3 py-2 font-medium text-amber-200/60">업체 연락처</dt>
+                  <dd className="px-3 py-2 text-amber-100 break-words">
+                    {(dlvrDetail.supplierTel || selectedMaterial.dlvrSupplierTel) ? (
+                      <a
+                        href={`tel:${(dlvrDetail.supplierTel || selectedMaterial.dlvrSupplierTel || '').replace(/[^\d+]/g, '')}`}
+                        className="text-blue-300 hover:text-blue-200 hover:underline"
+                      >
+                        {dlvrDetail.supplierTel || selectedMaterial.dlvrSupplierTel}
+                      </a>
+                    ) : '-'}
+                  </dd>
+                </dl>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <h4 className="text-sm font-semibold text-amber-100">품목 내역</h4>
+                  <span className="text-xs text-amber-200/50">{dlvrDetail.items.length}건</span>
+                </div>
+                {dlvrDetail.items.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-amber-200/40 border border-amber-900/50 rounded">조회된 품목이 없습니다.</p>
+                ) : (
+                  <div className="border border-amber-900/50 rounded overflow-x-auto">
+                    <table className="w-full min-w-[840px] text-sm whitespace-nowrap">
+                      <thead>
+                        <tr className="bg-black/30 text-xs text-amber-200/50 border-b border-amber-900/50">
+                          <th className="px-3 py-2 text-center font-medium">순번</th>
+                          <th className="px-3 py-2 text-left font-medium">품목</th>
+                          <th className="px-3 py-2 text-left font-medium">규격</th>
+                          <th className="px-3 py-2 text-right font-medium">수량</th>
+                          <th className="px-3 py-2 text-right font-medium">단가(원)</th>
+                          <th className="px-3 py-2 text-right font-medium">금액(원)</th>
+                          <th className="px-3 py-2 text-center font-medium">납품기한</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dlvrDetail.items.map((item, idx) => (
+                          <tr key={`${item.sno}-${idx}`} className="border-b border-amber-900/30 last:border-b-0 hover:bg-white/5">
+                            <td className="px-3 py-2 text-center text-amber-200/50">{item.sno || idx + 1}</td>
+                            <td className="px-3 py-2 text-amber-100 max-w-[220px] truncate" title={item.name}>{item.name || '-'}</td>
+                            <td className="px-3 py-2 text-amber-200/70 max-w-[320px] truncate" title={item.spec}>{item.spec || '-'}</td>
+                            <td className="px-3 py-2 text-right text-amber-100 tabular-nums">{formatNumber(String(item.qty))}{item.unit ? ` ${item.unit}` : ''}</td>
+                            <td className="px-3 py-2 text-right text-amber-100 tabular-nums">{formatNumber(String(item.unitPrice))}</td>
+                            <td className="px-3 py-2 text-right text-amber-100 tabular-nums font-medium">{formatNumber(String(item.amt ?? item.unitPrice * item.qty))}</td>
+                            <td className="px-3 py-2 text-center text-amber-100">{item.deadline || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {dlvrInspsLoading && (
+                <p className="py-4 text-center text-sm text-blue-300 border border-blue-500/30 rounded bg-blue-950/20">
+                  나라장터 지급·검사검수 내역을 확인하는 중입니다.
+                </p>
+              )}
+
+              {dlvrInspsError && (
+                <p className="py-4 px-3 text-center text-sm text-red-400 border border-red-500/30 rounded bg-red-950/20">
+                  {dlvrInspsError}
+                </p>
+              )}
+
+              {dlvrPays.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <h4 className="text-sm font-semibold text-amber-100">지급완료 내역</h4>
+                    <span className="text-xs text-amber-200/50">{dlvrPays.length}건</span>
+                  </div>
+                  <div className="border border-amber-900/50 rounded overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-sm whitespace-nowrap">
+                      <thead>
+                        <tr className="bg-black/30 text-xs text-amber-200/50 border-b border-amber-900/50">
+                          <th className="px-3 py-2 text-left font-medium">문서번호</th>
+                          <th className="px-3 py-2 text-left font-medium">명칭</th>
+                          <th className="px-3 py-2 text-center font-medium">지급일</th>
+                          <th className="px-3 py-2 text-right font-medium">금액(원)</th>
+                          <th className="px-3 py-2 text-left font-medium">수요기관</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dlvrPays.map((pay) => (
+                          <tr key={pay.docNo} className="border-b border-amber-900/30 last:border-b-0 hover:bg-white/5">
+                            <td className="px-3 py-2 text-amber-200/70 font-mono text-xs">{pay.docNo}</td>
+                            <td className="px-3 py-2 text-amber-100 max-w-[260px] truncate" title={pay.name}>{pay.name || '-'}</td>
+                            <td className="px-3 py-2 text-center text-amber-100">{pay.payDate || '-'}</td>
+                            <td className="px-3 py-2 text-right text-amber-100 tabular-nums font-medium">{formatNumber(String(pay.amt))}</td>
+                            <td className="px-3 py-2 text-amber-200/70 max-w-[260px] truncate" title={pay.dminsttNm}>{pay.dminsttNm || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {dlvrInsps.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <h4 className="text-sm font-semibold text-amber-100">검사검수 완료 내역</h4>
+                    <span className="text-xs text-amber-200/50">{dlvrInsps.length}건</span>
+                  </div>
+                  <div className="border border-amber-900/50 rounded overflow-x-auto">
+                    <table className="w-full min-w-[760px] text-sm whitespace-nowrap">
+                        <thead>
+                          <tr className="bg-black/30 text-xs text-amber-200/50 border-b border-amber-900/50">
+                            <th className="px-3 py-2 text-left font-medium">문서번호</th>
+                            <th className="px-3 py-2 text-left font-medium">명칭</th>
+                            <th className="px-3 py-2 text-center font-medium">검사일</th>
+                            <th className="px-3 py-2 text-right font-medium">금액(원)</th>
+                            <th className="px-3 py-2 text-left font-medium">수요기관</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dlvrInsps.map((insp) => (
+                            <tr key={insp.docNo} className="border-b border-amber-900/30 last:border-b-0 hover:bg-white/5">
+                              <td className="px-3 py-2 text-amber-200/70 font-mono text-xs">{insp.docNo}</td>
+                              <td className="px-3 py-2 text-amber-100 max-w-[260px] truncate" title={insp.name}>{insp.name || '-'}</td>
+                              <td className="px-3 py-2 text-center text-amber-100">{insp.inspDate || '-'}</td>
+                              <td className="px-3 py-2 text-right text-amber-100 tabular-nums font-medium">{formatNumber(String(insp.amt))}</td>
+                              <td className="px-3 py-2 text-amber-200/70 max-w-[260px] truncate" title={insp.dminsttNm}>{insp.dminsttNm || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="px-5 py-3 flex justify-end shrink-0" style={{ borderTop: '2px solid #5a4a35' }}>
+          <button
+            type="button"
+            onClick={closeDlvrDetail}
+            className="px-4 py-2 text-sm rounded text-amber-100 bg-black/20 border border-amber-800/60 hover:bg-white/5"
+          >
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
   // ── 자재별 테이블 뷰 ──
 
   if (selectedMaterial) {
@@ -2562,17 +2991,23 @@ export default function MaterialLedgerPage() {
                   {'⚔ '}
                   {selectedMaterial.dlvrReqNo ? (
                     <button
-                      onClick={openG2bContractPage}
-                      disabled={g2bLinkLoading}
-                      className="inline-flex items-center gap-1 align-baseline hover:underline disabled:opacity-60 disabled:cursor-wait"
+                      onClick={() => void openDlvrDetail()}
+                      className="inline-flex items-center gap-1 align-baseline hover:underline"
                       style={{ color: '#7ec8ff' }}
-                      title={`조달청 계약정보 보기 (${selectedMaterial.dlvrReqNo})`}
+                      title={`실제 납품요구 상세 보기 (${selectedMaterial.dlvrReqNo})`}
                     >
                       {selectedMaterial.name}
                       {selectedMaterial.unit && <span className="font-normal opacity-70">({selectedMaterial.unit})</span>}
-                      {g2bLinkLoading
-                        ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                        : <ExternalLink className="h-3 w-3 shrink-0" />}
+                      {dlvrDetailLoading && dlvrDetailNo === selectedMaterial.dlvrReqNo
+                        ? (
+                          <span className="inline-flex items-center gap-1 shrink-0" aria-label={`조회 진행률 ${dlvrDetailProgress}%`}>
+                            <span className="w-10 h-1.5 overflow-hidden rounded-full bg-black/40 border border-blue-500/30">
+                              <span className="block h-full bg-blue-300 transition-[width] duration-300" style={{ width: `${dlvrDetailProgress}%` }} />
+                            </span>
+                            <span className="text-[10px] tabular-nums text-blue-300">{dlvrDetailProgress}%</span>
+                          </span>
+                        )
+                        : <Package className="h-3 w-3 shrink-0" />}
                     </button>
                   ) : (
                     <>{selectedMaterial.name}{selectedMaterial.unit && <span className="text-amber-200/60 font-normal ml-1">({selectedMaterial.unit})</span>}</>
@@ -3463,6 +3898,7 @@ export default function MaterialLedgerPage() {
         )}
 
         {linkModalJsx}
+        {dlvrDetailModalJsx}
       </div>
     )
   }
@@ -4027,6 +4463,10 @@ export default function MaterialLedgerPage() {
                         const mat = row.mat
                         const gemStyle = getMaterialGemStyle(mat.name, row.no - 1, mat.colorIndex)
                         const title = row.dlvrReqNo ? dlvrTitles[row.dlvrReqNo] : ''
+                        const rowInsps = row.dlvrReqNo
+                          ? dlvrInspByNo.get(normalizeDlvrReqNo(row.dlvrReqNo)) || []
+                          : []
+                        const lastInspDate = rowInsps.reduce((latest, insp) => insp.inspDate > latest ? insp.inspDate : latest, '')
                         return (
                           <tr
                             key={mat.id}
@@ -4038,9 +4478,16 @@ export default function MaterialLedgerPage() {
                           >
                             <td className="px-2 py-2 text-center text-xs text-amber-100/70" style={{ border: '1px solid #3a3a45' }}>{row.no}</td>
                             <td className="px-3 py-2 text-left text-xs text-amber-100/90" style={{ border: '1px solid #3a3a45', minWidth: '200px' }}>
-                              {title || mat.name}
-                              {row.dlvrReqNo && title === undefined && (
-                                <Loader2 className="inline-block h-3 w-3 ml-1.5 animate-spin text-amber-200/40 align-middle" />
+                              <span>
+                                {title || mat.name}
+                                {row.dlvrReqNo && title === undefined && (
+                                  <Loader2 className="inline-block h-3 w-3 ml-1.5 animate-spin text-amber-200/40 align-middle" />
+                                )}
+                              </span>
+                              {rowInsps.length > 0 && (
+                                <span className="block w-fit mt-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-700/70 text-emerald-100 border border-emerald-500/40 whitespace-nowrap">
+                                  검사검수 완료 · {lastInspDate || '-'} · {rowInsps.length}건
+                                </span>
                               )}
                             </td>
                             <td className="px-3 py-2 text-left text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>

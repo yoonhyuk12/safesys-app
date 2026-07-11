@@ -5,6 +5,8 @@ export const maxDuration = 60
 
 const G2B_ENDPOINT =
   'https://apis.data.go.kr/1230000/at/ShoppingMallPrdctInfoService/getDlvrReqDtlInfoList'
+const CORP_INFO_ENDPOINT =
+  'https://apis.data.go.kr/1230000/ao/UsrInfoService02/getPrcrmntCorpBasicInfo02'
 
 interface G2bRawItem {
   dlvrReqNo: string
@@ -22,6 +24,7 @@ interface G2bRawItem {
   dlvrTmlmtDate: string
   dminsttNm: string
   corpNm: string
+  cntrctCorpBizno: string
 }
 
 // 품목식별번호로 종합쇼핑몰 품목의 인도조건 조회 — 다수공급자계약 우선, 제3자단가 순.
@@ -83,6 +86,34 @@ async function fetchDlvrCndtn(apiKey: string, idntNo: string): Promise<string> {
     }
   }
   return ''
+}
+
+// 납품요구 상세의 계약업체 사업자번호로 나라장터 등록 대표전화를 조회한다.
+// 연락처는 부가 정보이므로 사용자정보 API 오류·지연·미등록은 빈 값으로 처리한다
+async function fetchSupplierTel(apiKey: string, bizno: string): Promise<string> {
+  if (!bizno) return ''
+  try {
+    const qs = new URLSearchParams({
+      serviceKey: apiKey,
+      pageNo: '1',
+      numOfRows: '1',
+      type: 'json',
+      inqryDiv: '3',
+      bizno,
+    })
+    const res = await fetch(`${CORP_INFO_ENDPOINT}?${qs.toString()}`, {
+      signal: AbortSignal.timeout(10000),
+      cache: 'no-store',
+    })
+    if (!res.ok) return ''
+    const json = await res.json()
+    if (json?.response?.header?.resultCode !== '00') return ''
+    const items = json?.response?.body?.items
+    const first = Array.isArray(items) ? items[0] : undefined
+    return first?.telNo ? String(first.telNo).trim() : ''
+  } catch {
+    return ''
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -189,13 +220,17 @@ export async function GET(request: NextRequest) {
       }))
       .sort((a, b) => a.sno - b.sno)
 
-    // 인도조건 — 품목식별번호별 1회씩 병렬 조회 (실패 시 빈 값)
+    // 인도조건과 업체 대표전화는 서로 독립적인 부가 정보이므로 함께 병렬 조회한다 (실패 시 빈 값)
     const cndtnByIdnt = new Map<string, string>()
-    await Promise.all(
-      [...new Set(baseItems.map(i => i.idntNo).filter(Boolean))].map(async idnt => {
-        cndtnByIdnt.set(idnt, await fetchDlvrCndtn(apiKey, idnt))
-      })
-    )
+    const supplierBizno = rawItems.find(it => it.cntrctCorpBizno)?.cntrctCorpBizno || ''
+    const [supplierTel] = await Promise.all([
+      fetchSupplierTel(apiKey, supplierBizno),
+      Promise.all(
+        [...new Set(baseItems.map(i => i.idntNo).filter(Boolean))].map(async idnt => {
+          cndtnByIdnt.set(idnt, await fetchDlvrCndtn(apiKey, idnt))
+        })
+      ),
+    ])
     const items = baseItems.map(i => ({ ...i, cndtn: cndtnByIdnt.get(i.idntNo) || '' }))
 
     return NextResponse.json({
@@ -205,6 +240,7 @@ export async function GET(request: NextRequest) {
         title: first.dlvrReqNm || '',
         demandOrg: first.dminsttNm || '',
         supplier: first.corpNm || '',
+        supplierTel,
         items,
       },
     })

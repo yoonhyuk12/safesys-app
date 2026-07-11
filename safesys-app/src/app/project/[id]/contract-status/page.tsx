@@ -1,7 +1,7 @@
 // 계약(공사·용역) 현황 서류철 — 조달청 계약현황 조회로 등록하는 프로젝트 계약 목록 페이지
 'use client'
 
-import { Fragment, useState, useEffect, useCallback, useMemo, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react'
+import { Fragment, useState, useEffect, useCallback, useMemo, useRef, type ReactNode, type PointerEvent as ReactPointerEvent } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
@@ -188,9 +188,28 @@ interface DlvrReqInfo {
   deadline: string
 }
 
-// 납품요구 요약·계약 딥링크의 세션 캐시 — 재방문·리렌더 시 조달청 재조회 방지 (요약 실패는 null로 기록해 재시도 억제)
+// /api/g2b/dlvr-req 응답 — 실제 수요기관 납품요구 상세와 품목 내역
+interface DlvrReqDetailItem {
+  sno: number
+  name: string
+  spec: string
+  unit: string
+  unitPrice: number
+  qty: number
+  amt: number
+  deadline: string
+}
+interface DlvrReqDetail {
+  dlvrReqNo: string
+  title: string
+  demandOrg: string
+  supplier: string
+  supplierTel: string
+  items: DlvrReqDetailItem[]
+}
+
+// 납품요구 요약의 세션 캐시 — 재방문·리렌더 시 조달청 재조회 방지 (요약 실패는 null로 기록해 재시도 억제)
 const dlvrInfoCache = new Map<string, DlvrReqInfo | null>()
-const dlvrUrlCache = new Map<string, string>()
 
 // /api/g2b/pay-insp 응답 행 — 나라장터 통합검색의 대금지급(KG)·검사검수(NZ) 문서
 interface G2bPayDoc {
@@ -221,9 +240,31 @@ interface PayInspResult {
 // 대금지급·검사검수 조회의 세션 캐시 — 키는 '키워드|수요기관' (실패는 null로 기록해 재시도 억제)
 const payInspCache = new Map<string, PayInspResult | null>()
 
-// 통합검색 키워드 — 연도 등 숫자 시작 토큰을 건너뛴 첫 단어 (사업명 부분일치 검색용)
-const payInspKeyword = (title: string): string =>
-  title.split(/\s+/).find((w) => w.length >= 2 && !/^\d/.test(w)) || ''
+const PAY_INSP_GENERIC_WORDS = ['구매', '지급자재', '관급자재', '사업', '공사', '설치', '제조', '제작', '납품']
+const cleanPayInspCandidate = (value: string) => value.replace(/[\[\]{}<>]/g, ' ').replace(/\s+/g, ' ').trim()
+const isSpecificPayInspCandidate = (value: string) => {
+  const compact = value.replace(/[^0-9A-Za-z가-힣]/g, '')
+  return compact.length >= 2
+    && !/^\d+$/.test(compact)
+    && !PAY_INSP_GENERIC_WORDS.some(word => compact === word || compact.endsWith(word))
+}
+
+// 공사·용역은 기존 첫 단어를 유지하고, 물품은 괄호 품목명 또는 일반어를 제외한 최장 토큰으로 좁힌다
+const payInspKeyword = (title: string, specific = false): string => {
+  if (!specific) return title.split(/\s+/).find(word => word.length >= 2 && !/^\d/.test(word)) || ''
+
+  const parenthesized = [...title.matchAll(/\(([^()]*)\)/g)]
+    .map(match => cleanPayInspCandidate(match[1]))
+    .filter(isSpecificPayInspCandidate)
+    .sort((a, b) => b.length - a.length)[0]
+  if (parenthesized) return parenthesized
+
+  return title.replace(/\([^()]*\)/g, ' ')
+    .split(/[\s,·/]+/)
+    .map(cleanPayInspCandidate)
+    .filter(isSpecificPayInspCandidate)
+    .sort((a, b) => b.length - a.length)[0] || ''
+}
 
 // 합계행 공용 입력 — 공사·용역 그룹과 물품 그룹을 같은 형태로 합산하기 위한 (총액, 연도별 금액) 튜플
 interface TotalRowItem {
@@ -368,7 +409,15 @@ export default function ContractStatusPage() {
   const [materialGroups, setMaterialGroups] = useState<MaterialContractGroup[]>([])
   const [matLoading, setMatLoading] = useState(true)
   const [dlvrInfos, setDlvrInfos] = useState<Map<string, DlvrReqInfo | null>>(() => new Map(dlvrInfoCache))
-  const [matLinkLoading, setMatLinkLoading] = useState<string | null>(null)
+  const [materialDetailOpen, setMaterialDetailOpen] = useState(false)
+  const [materialDetailNo, setMaterialDetailNo] = useState('')
+  const [materialDetailLoading, setMaterialDetailLoading] = useState(false)
+  const [materialDetailProgress, setMaterialDetailProgress] = useState(0)
+  const [materialDetailError, setMaterialDetailError] = useState('')
+  const [materialDetail, setMaterialDetail] = useState<DlvrReqDetail | null>(null)
+  const materialDetailRequestRef = useRef(0)
+  const materialDetailProgressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const materialDetailCompleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // 나라장터 대금지급·검사검수 문서 — 지급완료·검수 뱃지용 (세션 캐시 미러)
   const [payInsp, setPayInsp] = useState<Map<string, PayInspResult | null>>(() => new Map(payInspCache))
 
@@ -560,25 +609,68 @@ export default function ContractStatusPage() {
     return () => { cancelled = true }
   }, [materialGroups])
 
-  // 물품 행 계약명 클릭 — 납품요구의 연계 단가계약 딥링크를 해석해 새 탭으로 연다 (수불부 자재명 링크와 동일 경로)
-  const handleMaterialLink = async (no: string) => {
-    if (matLinkLoading) return
-    const cached = dlvrUrlCache.get(no)
-    if (cached) { window.open(cached, '_blank', 'noopener,noreferrer'); return }
-    setMatLinkLoading(no)
+  const clearMaterialDetailProgressTimers = useCallback(() => {
+    if (materialDetailProgressTimerRef.current) clearInterval(materialDetailProgressTimerRef.current)
+    if (materialDetailCompleteTimerRef.current) clearTimeout(materialDetailCompleteTimerRef.current)
+    materialDetailProgressTimerRef.current = null
+    materialDetailCompleteTimerRef.current = null
+  }, [])
+
+  const startMaterialDetailProgress = useCallback(() => {
+    clearMaterialDetailProgressTimers()
+    setMaterialDetailProgress(0)
+    materialDetailProgressTimerRef.current = setInterval(() => {
+      setMaterialDetailProgress(prev => Math.min(90, prev + Math.max(1, Math.ceil((90 - prev) * 0.12))))
+    }, 300)
+  }, [clearMaterialDetailProgressTimers])
+
+  const finishMaterialDetailProgress = useCallback((requestId: number) => {
+    if (materialDetailRequestRef.current !== requestId) return
+    clearMaterialDetailProgressTimers()
+    setMaterialDetailProgress(100)
+    materialDetailCompleteTimerRef.current = setTimeout(() => {
+      if (materialDetailRequestRef.current === requestId) setMaterialDetailLoading(false)
+      materialDetailCompleteTimerRef.current = null
+    }, 180)
+  }, [clearMaterialDetailProgressTimers])
+
+  useEffect(() => () => {
+    materialDetailRequestRef.current += 1
+    clearMaterialDetailProgressTimers()
+  }, [clearMaterialDetailProgressTimers])
+
+  // 물품 행 계약명 클릭 — 상위 조달청 단가계약이 아닌 실제 수요기관 납품요구 상세를 표시한다.
+  const openMaterialDetail = async (no: string) => {
+    const requestId = ++materialDetailRequestRef.current
+    startMaterialDetailProgress()
+    setMaterialDetailNo(no)
+    setMaterialDetail(null)
+    setMaterialDetailError('')
+    setMaterialDetailLoading(true)
+    setMaterialDetailOpen(true)
     try {
-      const res = await fetch(`/api/g2b/dlvr-req-url?no=${encodeURIComponent(no)}`)
+      const res = await fetch(`/api/g2b/dlvr-req?no=${encodeURIComponent(no)}`)
       const json = await res.json()
-      if (!res.ok || !json.success || !json.data?.url) {
-        throw new Error(json.error || '조달청 계약 페이지를 찾을 수 없습니다.')
+      if (!res.ok || !json.success || !json.data) {
+        throw new Error(json.error || '납품요구 상세를 불러오지 못했습니다.')
       }
-      dlvrUrlCache.set(no, json.data.url)
-      window.open(json.data.url, '_blank', 'noopener,noreferrer')
+      if (materialDetailRequestRef.current !== requestId) return
+      setMaterialDetail(json.data as DlvrReqDetail)
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : '조달청 계약 페이지를 찾을 수 없습니다.')
+      if (materialDetailRequestRef.current !== requestId) return
+      setMaterialDetailError(err instanceof Error ? err.message : '납품요구 상세를 불러오지 못했습니다.')
     } finally {
-      setMatLinkLoading(null)
+      finishMaterialDetailProgress(requestId)
     }
+  }
+
+  const closeMaterialDetail = () => {
+    // 닫힌 뒤 도착하거나 다음 클릭보다 늦게 도착한 응답이 모달 상태를 덮지 못하게 무효화한다.
+    materialDetailRequestRef.current += 1
+    clearMaterialDetailProgressTimers()
+    setMaterialDetailOpen(false)
+    setMaterialDetailLoading(false)
+    setMaterialDetailProgress(0)
   }
 
   // 차수별 등록 행을 계약 단위로 병합 — 한 계약 한 행, 차수 금차는 연도별 컬럼에 분산
@@ -615,15 +707,15 @@ export default function ContractStatusPage() {
   // 공식 API에 없는 데이터라 비공식 통합검색 엔드포인트를 쓴다 — 실패 시 뱃지만 표시되지 않는다 (2026-07-12 실호출 확인)
   useEffect(() => {
     const wants = new Map<string, { nm: string; inst: string }>()
-    const add = (title: string, inst: string) => {
-      const nm = payInspKeyword(title)
+    const add = (title: string, inst: string, specific = false) => {
+      const nm = payInspKeyword(title, specific)
       if (!nm) return
       const key = `${nm}|${inst}`
       if (!payInspCache.has(key)) wants.set(key, { nm, inst })
     }
     for (const g of materialGroups) {
       const info = dlvrInfos.get(g.dlvrReqNo)
-      add(info?.title || g.materialNames[0] || '', (info?.dminsttNm || '').trim())
+      add(info?.title || g.materialNames[0] || '', (info?.dminsttNm || '').trim(), true)
     }
     for (const g of groups) {
       add(g.repr.cntrct_nm, ((g.repr.dminstt_nm || '').split(',')[0] || '').trim())
@@ -1723,15 +1815,20 @@ export default function ContractStatusPage() {
                             <td style={{ maxWidth: nameW }} className="px-3 py-2 overflow-hidden sticky left-0 z-[1] bg-white group-hover:bg-gray-50 shadow-[inset_-1px_0_0_#e5e7eb]">
                               <button
                                 type="button"
-                                onClick={() => handleMaterialLink(g.dlvrReqNo)}
+                                onClick={() => openMaterialDetail(g.dlvrReqNo)}
                                 className="text-blue-600 hover:underline inline-flex items-center gap-1 max-w-full"
-                                title={`${title} — 조달청 계약 상세 열기`}
+                                title={`${title} — 실제 납품요구 상세 보기`}
                               >
                                 <TailTruncate text={title} />
-                                {matLinkLoading === g.dlvrReqNo ? (
-                                  <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                                {materialDetailLoading && materialDetailNo === g.dlvrReqNo ? (
+                                  <span className="inline-flex items-center gap-1 shrink-0" aria-label={`조회 진행률 ${materialDetailProgress}%`}>
+                                    <span className="w-10 h-1.5 overflow-hidden rounded-full bg-blue-100">
+                                      <span className="block h-full bg-blue-600 transition-[width] duration-300" style={{ width: `${materialDetailProgress}%` }} />
+                                    </span>
+                                    <span className="text-[10px] tabular-nums text-blue-500">{materialDetailProgress}%</span>
+                                  </span>
                                 ) : (
-                                  <ExternalLink className="h-3 w-3 shrink-0" />
+                                  <FileText className="h-3 w-3 shrink-0" />
                                 )}
                               </button>
                               {/* 자재명 목록이 끝에 오므로 앞쪽 생략 시 자재명이 보인다 (납품요구 번호는 title 툴팁으로 확인) */}
@@ -1812,6 +1909,204 @@ export default function ContractStatusPage() {
           )}
         </div>
       </main>
+
+      {/* 실제 수요기관 납품요구 상세 모달 */}
+      {materialDetailOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={closeMaterialDetail}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="material-detail-title"
+            className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[88vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between gap-3 shrink-0">
+              <div className="min-w-0">
+                <h3 id="material-detail-title" className="font-semibold text-sm sm:text-base truncate">납품요구 상세</h3>
+                <p className="text-xs text-blue-100 truncate">{materialDetailNo}</p>
+              </div>
+              <button type="button" onClick={closeMaterialDetail} className="p-1 text-blue-200 hover:text-white shrink-0" aria-label="닫기">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto">
+              {materialDetailLoading ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-16 text-sm text-gray-500">
+                  <div className="w-full max-w-xs" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={materialDetailProgress}>
+                    <div className="h-2.5 overflow-hidden rounded-full bg-gray-200">
+                      <div className="h-full rounded-full bg-blue-600 transition-[width] duration-300" style={{ width: `${materialDetailProgress}%` }} />
+                    </div>
+                    <p className="mt-2 text-center text-sm font-medium tabular-nums text-blue-600">{materialDetailProgress}%</p>
+                  </div>
+                  조달청에서 실제 납품요구 내역을 불러오는 중입니다.
+                </div>
+              ) : materialDetailError ? (
+                <div className="text-center py-12 px-4">
+                  <p className="text-sm text-red-600 mb-4">{materialDetailError}</p>
+                  <button
+                    type="button"
+                    onClick={() => openMaterialDetail(materialDetailNo)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    다시 조회
+                  </button>
+                </div>
+              ) : materialDetail ? (
+                <div className="space-y-4">
+                  <div className="rounded-lg border border-gray-200 overflow-hidden text-sm">
+                    <dl className="grid grid-cols-[7rem_minmax(0,1fr)] sm:grid-cols-[8rem_minmax(0,1fr)_8rem_minmax(0,1fr)]">
+                      <dt className="bg-gray-50 px-3 py-2 font-medium text-gray-600 border-b border-gray-200">건명</dt>
+                      <dd className="px-3 py-2 text-gray-900 border-b border-gray-200 sm:col-span-3 break-words">{materialDetail.title || '-'}</dd>
+                      <dt className="bg-gray-50 px-3 py-2 font-medium text-gray-600 border-b border-gray-200">납품요구번호</dt>
+                      <dd className="px-3 py-2 text-gray-900 border-b border-gray-200 break-all">{materialDetail.dlvrReqNo || materialDetailNo}</dd>
+                      <dt className="bg-gray-50 px-3 py-2 font-medium text-gray-600 border-b border-gray-200">수요기관</dt>
+                      <dd className="px-3 py-2 text-gray-900 border-b border-gray-200 break-words">{materialDetail.demandOrg || '-'}</dd>
+                      <dt className="bg-gray-50 px-3 py-2 font-medium text-gray-600 border-b border-gray-200">계약상대자</dt>
+                      <dd className="px-3 py-2 text-gray-900 border-b border-gray-200 sm:col-span-3 break-words">{materialDetail.supplier || '-'}</dd>
+                      <dt className="bg-gray-50 px-3 py-2 font-medium text-gray-600">업체 연락처</dt>
+                      <dd className="px-3 py-2 text-gray-900 sm:col-span-3 break-words">
+                        {materialDetail.supplierTel ? (
+                          <a
+                            href={`tel:${materialDetail.supplierTel.replace(/[^\d+]/g, '')}`}
+                            className="text-blue-600 hover:text-blue-700 hover:underline"
+                          >
+                            {materialDetail.supplierTel}
+                          </a>
+                        ) : '-'}
+                      </dd>
+                    </dl>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <h4 className="text-sm font-semibold text-gray-900">품목 내역</h4>
+                      <span className="text-xs text-gray-500">{materialDetail.items.length}건</span>
+                    </div>
+                    {materialDetail.items.length === 0 ? (
+                      <p className="py-8 text-center text-sm text-gray-400 border border-gray-200 rounded-lg">조회된 품목이 없습니다.</p>
+                    ) : (
+                      <div className="border border-gray-200 rounded-lg overflow-x-auto">
+                        <table className="w-full min-w-[840px] text-sm whitespace-nowrap">
+                          <thead>
+                            <tr className="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
+                              <th className="px-3 py-2 text-center font-medium">순번</th>
+                              <th className="px-3 py-2 text-left font-medium">품목</th>
+                              <th className="px-3 py-2 text-left font-medium">규격</th>
+                              <th className="px-3 py-2 text-right font-medium">수량</th>
+                              <th className="px-3 py-2 text-right font-medium">단가(원)</th>
+                              <th className="px-3 py-2 text-right font-medium">금액(원)</th>
+                              <th className="px-3 py-2 text-center font-medium">납품기한</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {materialDetail.items.map((item, idx) => (
+                              <tr key={`${item.sno}-${idx}`} className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
+                                <td className="px-3 py-2 text-center text-gray-500">{item.sno || idx + 1}</td>
+                                <td className="px-3 py-2 text-gray-900 max-w-[220px] truncate" title={item.name}>{item.name || '-'}</td>
+                                <td className="px-3 py-2 text-gray-600 max-w-[320px] truncate" title={item.spec}>{item.spec || '-'}</td>
+                                <td className="px-3 py-2 text-right tabular-nums">{item.qty.toLocaleString('ko-KR')}{item.unit ? ` ${item.unit}` : ''}</td>
+                                <td className="px-3 py-2 text-right tabular-nums">{formatAmt(item.unitPrice)}</td>
+                                <td className="px-3 py-2 text-right tabular-nums font-medium">{formatAmt(item.amt)}</td>
+                                <td className="px-3 py-2 text-center">{item.deadline || '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  {(() => {
+                    const pays = paysForDlvr(materialDetail.dlvrReqNo || materialDetailNo)
+                    if (pays.length === 0) return null
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <h4 className="text-sm font-semibold text-gray-900">지급완료 내역</h4>
+                          <span className="text-xs text-gray-500">{pays.length}건</span>
+                        </div>
+                        <div className="border border-gray-200 rounded-lg overflow-x-auto">
+                          <table className="w-full min-w-[760px] text-sm whitespace-nowrap">
+                            <thead>
+                              <tr className="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
+                                <th className="px-3 py-2 text-left font-medium">문서번호</th>
+                                <th className="px-3 py-2 text-left font-medium">명칭</th>
+                                <th className="px-3 py-2 text-center font-medium">지급일</th>
+                                <th className="px-3 py-2 text-right font-medium">금액(원)</th>
+                                <th className="px-3 py-2 text-left font-medium">수요기관</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {pays.map((pay) => (
+                                <tr key={pay.docNo} className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
+                                  <td className="px-3 py-2 text-gray-700 font-mono text-xs">{pay.docNo}</td>
+                                  <td className="px-3 py-2 text-gray-900 max-w-[260px] truncate" title={pay.name}>{pay.name || '-'}</td>
+                                  <td className="px-3 py-2 text-center text-gray-700">{pay.payDate || '-'}</td>
+                                  <td className="px-3 py-2 text-right text-gray-900 tabular-nums font-medium">{formatAmt(pay.amt)}</td>
+                                  <td className="px-3 py-2 text-gray-700 max-w-[260px] truncate" title={pay.dminsttNm}>{pay.dminsttNm || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {(() => {
+                    const insps = inspsForDlvr(materialDetail.dlvrReqNo || materialDetailNo)
+                    if (insps.length === 0) return null
+                    return (
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <h4 className="text-sm font-semibold text-gray-900">검사검수 완료 내역</h4>
+                          <span className="text-xs text-gray-500">{insps.length}건</span>
+                        </div>
+                        <div className="border border-gray-200 rounded-lg overflow-x-auto">
+                          <table className="w-full min-w-[760px] text-sm whitespace-nowrap">
+                            <thead>
+                              <tr className="bg-gray-50 text-xs text-gray-500 border-b border-gray-200">
+                                <th className="px-3 py-2 text-left font-medium">문서번호</th>
+                                <th className="px-3 py-2 text-left font-medium">명칭</th>
+                                <th className="px-3 py-2 text-center font-medium">검사일</th>
+                                <th className="px-3 py-2 text-right font-medium">금액(원)</th>
+                                <th className="px-3 py-2 text-left font-medium">수요기관</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {insps.map((insp) => (
+                                <tr key={insp.docNo} className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
+                                  <td className="px-3 py-2 text-gray-700 font-mono text-xs">{insp.docNo}</td>
+                                  <td className="px-3 py-2 text-gray-900 max-w-[260px] truncate" title={insp.name}>{insp.name || '-'}</td>
+                                  <td className="px-3 py-2 text-center text-gray-700">{insp.inspDate || '-'}</td>
+                                  <td className="px-3 py-2 text-right text-gray-900 tabular-nums font-medium">{formatAmt(insp.amt)}</td>
+                                  <td className="px-3 py-2 text-gray-700 max-w-[260px] truncate" title={insp.dminsttNm}>{insp.dminsttNm || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="px-4 py-3 border-t border-gray-200 flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={closeMaterialDetail}
+                className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 조달청 조회 모달 */}
       {isLookupOpen && (
