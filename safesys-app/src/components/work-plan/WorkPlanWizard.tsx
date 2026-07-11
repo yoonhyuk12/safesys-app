@@ -4,6 +4,7 @@
 
 import { useMemo, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, Download, Loader2, Map, Save, Sparkles, X } from 'lucide-react'
+import AiReviewStep from './AiReviewStep'
 import DeferredInfoStep from './DeferredInfoStep'
 import MapDrawingEditor from './MapDrawingEditor'
 import PlanTypeSelector from './PlanTypeSelector'
@@ -545,13 +546,13 @@ export default function WorkPlanWizard({
           />
         )}
         {step === 4 && (
-          <div className="flex min-h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-8 text-center">
-            <Sparkles className="mb-4 h-12 w-12 text-violet-400" />
-            <h3 className="text-lg font-bold text-gray-900">{STEPS[step - 1].label}</h3>
-            <p className="mt-2 max-w-md text-sm text-gray-500">
-              Phase 3에서 입력 내용을 바탕으로 위험요인과 안전대책 AI 초안을 생성하고 검토합니다.
-            </p>
-          </div>
+          <AiReviewStep
+            selectedTypes={selectedTypes}
+            formData={formData}
+            onChange={handleFormDataChange}
+            projectAddress={projectAddress}
+            scheduleCandidates={scheduleCandidates}
+          />
         )}
         {step === 5 && (
           <DeferredInfoStep selectedTypes={selectedTypes} formData={formData} onChange={handleFormDataChange} />

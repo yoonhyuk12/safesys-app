@@ -32,9 +32,9 @@
 
 ## Phase 3 — AI 초안
 - [x] `api/ai/work-plan/route.ts` — Gemini JSON 강제, 종류별 출력 스키마 (커밋 dd5425e, 요청/응답 스키마는 컨텍스트 노트 참조)
-- [ ] `AiReviewStep.tsx` — 생성 호출, 위험요인/개선대책·작업순서 편집 표
-- [ ] 4종 각각 생성 테스트(파싱 실패 폴백 포함)
-- [ ] tsc·lint 통과, 커밋
+- [x] `AiReviewStep.tsx` — 생성 호출, 위험요인/개선대책·작업순서 편집 표
+- [x] 4종 각각 생성 테스트(파싱 실패 폴백 포함) — 4종 통합 1회 호출로 검증(loading·heavy 위험표 3행, construction 작업순서 6단계·사전조사 5항목, electric 작업단계 3행)
+- [x] tsc·lint 통과, 커밋
 
 ## Phase 4 — PDF·마무리
 - [x] `work-plan-pdf-common.ts` — 결재란·기본정보·지도 섹션·체크리스트 표 조각 (커밋 942c701)

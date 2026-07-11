@@ -80,3 +80,10 @@
 - **원본 추출** — 바탕화면 원본 4종 PDF 1쪽을 pdfjs(scratchpad)로 텍스트·좌표 추출해 표지 구성(파란 개정 주석 좌상단, 중앙 제목 상자 29pt, [작업계획서 내용] 중앙 제목+행잉 인덴트 목록 15pt, 2-1·2-2 하단 좌측 파란 ※통합작성 12pt)을 확인했다. "(작성예시)" 표기는 실문서이므로 제외했다.
 - **구현** — 표지 고정 텍스트는 `constants.ts`의 `WORK_PLAN_COVERS`(PlanType별 headerNote/titleLines/sections/footnote), 렌더러는 `work-plan-pdf-common.ts`의 `coverPage(planType)`. 항목 6개 초과(전기 ⑩) 시 컴팩트 간격으로 자동 전환. 4개 빌더 모두 pages 배열 맨 앞에 표지를 추가했다.
 - **검증** — 임시 `/dev/cover-test` 페이지에서 210mm 폭으로 4종 표지를 렌더해 원본과 시각 대조 후 삭제. 대상 파일 ESLint·`npx tsc --noEmit` 통과.
+
+## 2026-07-11 Phase 3 완결 — AiReviewStep 배선
+
+- **구성** — `AiReviewStep.tsx` 신규, 마법사 4단계 자리표시자 교체. 생성 버튼(다시 생성 시 덮어쓰기 경고 표기) + 종류별 편집 섹션이며, 편집 UI는 생성 전에도 항상 formData에 직접 바인딩되어 수기 작성만으로도 진행 가능하다.
+- **요청 본문 소싱** — title은 첫 선택 종류의 폼, sharedWorkContent는 loading→construction→heavy 순 첫 존재 폼(전기 단독은 purposeAndContent 폴백), equipmentName은 loading 장비→construction 장비→heavy 기계명 순, surveyType·workMethod는 construction 폼, projectContext는 프로젝트 주소+공정표 공종 후보.
+- **결과 적용 규칙** — 값이 있을 때만 덮어씀(빈 응답이 기존 입력을 지우지 않음). construction의 surveyFindings는 CONSTRUCTION_SURVEY_ITEMS 인덱스 기준 surveyEntries로 변환하며 기존 photoUrl 보존. electric은 sharedWorkContent→purposeAndContent, electricWorkSteps→workSteps 매핑이고 API가 주는 electric riskControls는 폼에 대응 필드가 없어 의도적으로 무시한다.
+- **검증** — 대상 2개 파일 ESLint·전체 `npx tsc --noEmit` 통과. 로컬 개발 서버에 4종 통합 실호출 1회로 Gemini 생성·파싱 검증(loading·heavy 위험표 3행, construction 작업순서 6단계+사전조사 5항목, electric 작업단계 3행, 한국어 내용 품질 양호).
