@@ -95,9 +95,9 @@ export function approvalHeader(mainTitle: string, subTitle: string): string {
           <div style="font-size:14px; font-weight:bold; color:#555;">(${escapeHtml(subTitle)})</div>
         </td>
         <td rowspan="2" style="border:${BORDER}; background-color:#f2f2f2; font-weight:bold; text-align:center; padding:2px;">결<br/>재</td>
-        ${cell('담당', LABEL)}${cell('승인', LABEL)}
+        ${cell('담당', `${LABEL} height:16px; padding:1px 6px;`)}${cell('승인', `${LABEL} height:16px; padding:1px 6px;`)}
       </tr>
-      <tr>${cell('', `${VALUE} height:34px;`)}${cell('', `${VALUE} height:34px;`)}</tr>
+      <tr>${cell('', `${VALUE} height:54px;`)}${cell('', `${VALUE} height:54px;`)}</tr>
     </table>`
 }
 
