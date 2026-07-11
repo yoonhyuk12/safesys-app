@@ -3,7 +3,7 @@
 // AI 작업계획서의 6단계 작성·수정 흐름과 단계별 입력·저장 상태를 관리하는 마법사
 
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, Download, Loader2, Map, Save, Sparkles, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Download, Loader2, Map, RotateCcw, Save, Sparkles, X } from 'lucide-react'
 import AiReviewStep from './AiReviewStep'
 import DeferredInfoStep from './DeferredInfoStep'
 import MapDrawingEditor from './MapDrawingEditor'
@@ -291,6 +291,20 @@ export default function WorkPlanWizard({
 
   const canContinue = step !== 1 || selectedTypes.length > 0
 
+  // 작성 내용을 모두 비우고 1단계(서류 선택)부터 다시 시작한다
+  const resetAll = () => {
+    if (!window.confirm('작성 중인 내용을 모두 지우고 처음부터 다시 작성할까요?')) return
+    setStep(1)
+    setSelectedTypes([])
+    setFormData({})
+    setMapDrawing(null)
+    setCompositeSource(null)
+    setElectricAttachments({ drawingSource: null, drawingFileName: '', sitePhotoSource: null, sitePhotoFileName: '' })
+    setSaveError('')
+    setSaveSucceeded(false)
+    setDownloadError('')
+  }
+
   const markAsUnsaved = () => {
     setSaveSucceeded(false)
     setSaveError('')
@@ -487,9 +501,15 @@ export default function WorkPlanWizard({
           </div>
           <p className="text-xs text-gray-500">{project.project_name}</p>
         </div>
-        <button type="button" onClick={onClose} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="작성 닫기">
-          <X className="h-5 w-5" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button type="button" onClick={resetAll} className="flex items-center gap-1 rounded-lg px-2 py-2 text-xs font-semibold text-gray-500 hover:bg-red-50 hover:text-red-600" aria-label="전체 초기화">
+            <RotateCcw className="h-4 w-4" />
+            <span className="hidden sm:inline">전체 초기화</span>
+          </button>
+          <button type="button" onClick={onClose} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="작성 닫기">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
       <ol className="grid grid-cols-6 border-b border-gray-200 bg-gray-50 px-2 py-3 sm:px-6">
