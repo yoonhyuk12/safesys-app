@@ -11,6 +11,7 @@ import {
   toLoadingEquipmentPatch,
   type EquipmentCatalogItem,
 } from '@/lib/work-plan/equipment-catalog'
+import { RIGGING_STANDARD_SPECS } from '@/lib/work-plan/rigging-catalog'
 import type {
   LiftingCapacityReview,
   PlanType,
@@ -189,6 +190,29 @@ export default function DeferredInfoStep({ selectedTypes, formData, onChange }: 
               )
             })}
           </div>
+          {RIGGING_STANDARD_SPECS.filter((group) => rigging.tools.includes(group.tool)).map((group) => (
+            <div key={group.tool} className="mt-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-medium text-gray-500">{group.tool} 표준 규격</span>
+                {group.items.map((item) => {
+                  const active = Object.entries(item.patch).every(
+                    ([key, value]) => rigging[key as keyof RiggingCapacityReview] === value,
+                  )
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => updateRigging(type, item.patch)}
+                      className={`rounded-full border px-2.5 py-1 text-xs ${active ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-1 text-[11px] text-gray-400">{group.note}</p>
+            </div>
+          ))}
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="기타 줄걸이 용구" value={rigging.otherTool} onChange={(value) => updateRigging(type, { otherTool: value })} />
