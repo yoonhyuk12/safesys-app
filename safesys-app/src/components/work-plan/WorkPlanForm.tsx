@@ -5,6 +5,7 @@
 import { useState, type ReactNode } from 'react'
 import { CalendarRange, History, Loader2, Users } from 'lucide-react'
 import { fetchRecentTbm, type TbmCandidate } from '@/lib/ptw/recent-tbm'
+import { HEAVY_FIXING_METHODS, HEAVY_LOAD_SHAPE_EXAMPLES } from '@/lib/work-plan/constants'
 import type {
   CommonWorkPlanFields,
   PersonContact,
@@ -399,6 +400,28 @@ export default function WorkPlanForm({
     </>
   }
 
+  // 입력값을 쉼표 구분 목록으로 보고 선택 항목을 넣고 빼는 퀵 입력 버튼 행
+  const renderQuickFill = (options: readonly string[], value: string, onSelect: (next: string) => void) => {
+    const parts = value.split(',').map((part) => part.trim()).filter(Boolean)
+    return (
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
+        {options.map((option) => {
+          const selected = parts.includes(option)
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onSelect((selected ? parts.filter((part) => part !== option) : [...parts, option]).join(', '))}
+              className={`rounded-full border px-2.5 py-1 text-xs ${selected ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}
+            >
+              {option}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
   const renderHeavy = () => {
     const current = formData.heavy
     if (!current) return null
@@ -407,8 +430,14 @@ export default function WorkPlanForm({
       <Section title="중량물 정보">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="중량물 품명" value={current.load.itemName} onChange={(value) => updateNested('heavy', 'load', { itemName: value })} />
-          <Field label="형상" value={current.load.shape} placeholder="박스형 / 봉형 / 묶음형" onChange={(value) => updateNested('heavy', 'load', { shape: value })} />
-          <Field label="고정방법" value={current.load.fixingMethod} placeholder="체인 / 와이어로프 / 샤클" onChange={(value) => updateNested('heavy', 'load', { fixingMethod: value })} />
+          <div className="min-w-0">
+            <Field label="형상" value={current.load.shape} placeholder="박스형 / 봉형 / 묶음형" onChange={(value) => updateNested('heavy', 'load', { shape: value })} />
+            {renderQuickFill(HEAVY_LOAD_SHAPE_EXAMPLES, current.load.shape, (next) => updateNested('heavy', 'load', { shape: next }))}
+          </div>
+          <div className="min-w-0">
+            <Field label="고정방법" value={current.load.fixingMethod} placeholder="체인 / 와이어로프 / 샤클" onChange={(value) => updateNested('heavy', 'load', { fixingMethod: value })} />
+            {renderQuickFill(HEAVY_FIXING_METHODS, current.load.fixingMethod, (next) => updateNested('heavy', 'load', { fixingMethod: next }))}
+          </div>
         </div>
       </Section>
     </>
