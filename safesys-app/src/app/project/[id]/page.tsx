@@ -1273,6 +1273,15 @@ export default function ProjectDetailPage() {
                   pdcaCategory="P"
                   bottomLabel="사업"
                 />
+                <DocumentFolder
+                  title={'︵AI︶\n작업계획서'}
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  docCount={cardCounts.workPlans}
+                  onClick={() => router.push(`/project/${projectId}/work-plan`)}
+                  pdcaCategory="P"
+                />
               </div>
             </div>
             <div className="relative border-2 border-dashed border-white/60 rounded-lg p-4 pt-5 w-fit">
@@ -1423,15 +1432,6 @@ export default function ProjectDetailPage() {
                   isActive={false}
                   docCount={cardCounts.safeDocuments}
                   onClick={() => router.push(`/project/${projectId}/safe-documents`)}
-                  pdcaCategory="P"
-                />
-                <DocumentFolder
-                  title={'︵AI︶\n작업계획서'}
-                  year={new Date().getFullYear().toString()}
-                  isActive={false}
-                  projectId={projectId}
-                  docCount={cardCounts.workPlans}
-                  onClick={() => router.push(`/project/${projectId}/work-plan`)}
                   pdcaCategory="P"
                 />
                 <DocumentFolder
