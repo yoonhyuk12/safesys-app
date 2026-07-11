@@ -4,13 +4,24 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Download, FileText, Pencil, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Download, FileText, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import WorkPlanWizard from '@/components/work-plan/WorkPlanWizard'
 import { supabase } from '@/lib/supabase'
+import { downloadLoadingWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-loading-pdf'
+import { downloadConstructionWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-construction-pdf'
+import { downloadElectricWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-electric-pdf'
+import { downloadHeavyWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-heavy-pdf'
 import { PLAN_TYPE_OPTIONS } from '@/lib/work-plan/constants'
 import type { PlanType, WorkPlanProject, WorkPlanRecord, WorkPlanWorker } from '@/lib/work-plan/types'
+
+const workPlanPdfDownloaders: Record<PlanType, (record: WorkPlanRecord) => Promise<void>> = {
+  loading: downloadLoadingWorkPlanPdf,
+  construction: downloadConstructionWorkPlanPdf,
+  electric: downloadElectricWorkPlanPdf,
+  heavy: downloadHeavyWorkPlanPdf,
+}
 
 const planTypeName = (type: PlanType) =>
   PLAN_TYPE_OPTIONS.find((option) => option.value === type)?.shortTitle || type
@@ -88,6 +99,8 @@ export default function WorkPlanPage() {
   const [showWizard, setShowWizard] = useState(false)
   const [editingRecord, setEditingRecord] = useState<WorkPlanRecord | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState('')
 
   const loadData = useCallback(async () => {
     if (!projectId) return
@@ -160,7 +173,23 @@ export default function WorkPlanPage() {
     setRecords((current) => current.some((record) => record.id === savedRecord.id)
       ? current.map((record) => record.id === savedRecord.id ? savedRecord : record)
       : [savedRecord, ...current])
-    closeWizard()
+  }
+
+  const handleDownload = async (record: WorkPlanRecord, type: PlanType) => {
+    if (downloadingKey) return
+
+    const downloadKey = `${record.id}:${type}`
+    setDownloadingKey(downloadKey)
+    setDownloadError('')
+    try {
+      await workPlanPdfDownloaders[type](record)
+    } catch (downloadFailure: unknown) {
+      console.error('작업계획서 PDF 다운로드 실패.', { recordId: record.id, type, downloadFailure })
+      const message = downloadFailure instanceof Error ? downloadFailure.message : 'PDF 파일을 만들지 못했습니다.'
+      setDownloadError(`${planTypeName(type)} PDF 다운로드에 실패했습니다. ${message}`)
+    } finally {
+      setDownloadingKey(null)
+    }
   }
 
   const handleDelete = async (record: WorkPlanRecord) => {
@@ -210,6 +239,13 @@ export default function WorkPlanPage() {
           <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
             <p>{error}</p>
             <button type="button" onClick={loadData} className="mt-2 font-semibold text-amber-800 underline">다시 조회</button>
+          </div>
+        )}
+
+        {downloadError && (
+          <div role="alert" className="mb-4 flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <p>{downloadError}</p>
+            <button type="button" onClick={() => setDownloadError('')} className="shrink-0 font-semibold underline">닫기</button>
           </div>
         )}
 
@@ -265,7 +301,27 @@ export default function WorkPlanPage() {
                         <td className="px-4 py-3"><div className="flex flex-wrap gap-1">{record.plan_types.map((type) => <span key={type} className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">{planTypeName(type)}</span>)}</div></td>
                         <td className="whitespace-nowrap px-4 py-3 text-gray-600">{formatDate(record.work_start_date)} ~ {formatDate(record.work_end_date)}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-gray-600">{formatDate(record.created_at)}</td>
-                        <td className="px-4 py-3 text-center"><button type="button" disabled title="PDF 출력은 Phase 4에서 제공됩니다." className="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-400"><Download className="h-3.5 w-3.5" />PDF</button></td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="inline-flex flex-wrap justify-center gap-1">
+                            {record.plan_types.map((type) => {
+                              const downloadKey = `${record.id}:${type}`
+                              const isDownloading = downloadingKey === downloadKey
+                              return (
+                                <button
+                                  key={type}
+                                  type="button"
+                                  disabled={downloadingKey !== null}
+                                  onClick={() => handleDownload(record, type)}
+                                  className="inline-flex items-center gap-1 rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                  aria-label={`${record.title} ${planTypeName(type)} PDF 다운로드`}
+                                >
+                                  {isDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                                  {isDownloading ? '생성 중' : planTypeName(type)}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-center">
                           <div className="inline-flex items-center gap-1">
                             <button type="button" onClick={() => openEditWizard(record)} className="rounded-lg p-2 text-blue-600 hover:bg-blue-50 hover:text-blue-800" aria-label={`${record.title} 수정`}><Pencil className="h-4 w-4" /></button>
