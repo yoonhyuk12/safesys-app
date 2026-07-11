@@ -138,16 +138,17 @@ export const EQUIPMENT_CATALOG: EquipmentCatalogItem[] = [
   })),
 
   ...[
-    ['mobile-tadano-gr130nl', '13t급', '타다노', 'GR-130NL', 14.535, 2, 24.5, 22.5, 13, '최대 13t·13t/1.5m', 'https://www.tadano.com/japan/products/rt/gr-130nl-n/'],
-    ['mobile-tadano-gr250n', '25t급', '타다노', 'GR-250N', 25.495, 2.62, 31.3, 27.9, 25, '최대 25t·25t/3.5m', 'https://www.tadano.com/japan/products/rt/gr-250n/'],
-    ['mobile-kato-sr500l', '51t급', 'KATO', 'SR-500L', 33.97, 2.98, 35.6, 32, 51, '최대 51t·51t/2.5m', 'https://kato-works.co.jp/eng/products/roughter/pdf/C04131_SR-500L.pdf'],
-    ['mobile-tadano-gr700n', '70t급', '타다노', 'GR-700N', 41.295, 2.78, 45.2, 38, 70, '최대 70t·70t/2.3m', 'https://www.tadano.com/japan/products/rt/gr-700n/'],
-    ['mobile-tadano-gr1000n', '100t급', '타다노', 'GR-1000N', 41.295, 2.78, 48.7, 38, 100, '최대 100t·100t/2.0m', 'https://www.tadano.com/japan/products/rt/gr-1000n/'],
-  ].map(([id, sizeClass, manufacturer, model, operatingWeightTon, widthM, maxLiftingHeightM, maxWorkingRadiusM, maxRatedLoadTon, capacitySummary, sourceUrl]) => ({
+    ['mobile-tadano-gr130nl', '13t급', '타다노', 'GR-130NL', 14.535, 2, 3.8, 24.5, 22.5, 13, '최대 13t·13t/1.5m', 'https://www.tadano.com/japan/products/rt/gr-130nl-n/'],
+    ['mobile-tadano-gr250n', '25t급', '타다노', 'GR-250N', 25.495, 2.62, 5.1, 31.3, 27.9, 25, '최대 25t·25t/3.5m', 'https://www.tadano.com/japan/products/rt/gr-250n/'],
+    ['mobile-kato-sr500l', '51t급', 'KATO', 'SR-500L', 33.97, 2.98, undefined, 35.6, 32, 51, '최대 51t·51t/2.5m', 'https://kato-works.co.jp/eng/products/roughter/pdf/C04131_SR-500L.pdf'],
+    ['mobile-tadano-gr700n', '70t급', '타다노', 'GR-700N', 41.295, 2.78, 7.5, 45.2, 38, 70, '최대 70t·70t/2.1m', 'https://www.tadano.com/japan/lifting-equipment/rt/'],
+    ['mobile-tadano-gr1000n', '100t급', '타다노', 'GR-1000N', 41.295, 2.78, 7.5, 48.7, 38, 100, '최대 100t·100t/1.6m', 'https://www.tadano.com/japan/products/rt/gr-1000n/'],
+  ].map(([id, sizeClass, manufacturer, model, operatingWeightTon, widthM, minimumTurningRadiusM, maxLiftingHeightM, maxWorkingRadiusM, maxRatedLoadTon, capacitySummary, sourceUrl]) => ({
     id: id as string, category: 'mobileCrane' as const, sizeClass: sizeClass as string, manufacturer: manufacturer as string, model: model as string,
     sourceUrl: sourceUrl as string, sourceLabel: `${manufacturer} 공식 제품 제원`, sourceDate: SOURCE_DATE,
     applicablePlanTypes: ['loading' as const, 'heavy' as const], specs: {
       operatingWeightTon: operatingWeightTon as number, widthM: widthM as number,
+      minimumTurningRadiusM: minimumTurningRadiusM as number | undefined,
       maxLiftingHeightM: maxLiftingHeightM as number, maxWorkingRadiusM: maxWorkingRadiusM as number,
       maxRatedLoadTon: maxRatedLoadTon as number, capacitySummary: capacitySummary as string,
     }, warning: CRANE_WARNING,
