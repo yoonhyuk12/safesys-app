@@ -99,9 +99,9 @@ export function approvalHeader(mainTitle: string, subTitle: string, signatures?:
     dataUrl ? `<img src="${dataUrl}" alt="" style="display:block; margin:0 auto; width:76px; height:46px; object-fit:contain;" />` : ''
   return `
     <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
-      ${colgroup(12)}
+      <colgroup><col style="width:72%"/><col style="width:5%"/><col style="width:11.5%"/><col style="width:11.5%"/></colgroup>
       <tr>
-        <td colspan="9" rowspan="2" style="border:${BORDER}; text-align:center; padding:12px 6px;">
+        <td rowspan="2" style="border:${BORDER}; text-align:center; padding:12px 6px;">
           <div style="font-size:22px; font-weight:900;">${escapeHtml(mainTitle)}</div>
           <div style="font-size:14px; font-weight:bold; color:#555;">(${escapeHtml(subTitle)})</div>
         </td>
