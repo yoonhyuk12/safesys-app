@@ -9,9 +9,11 @@ export interface TbmCandidate {
   equipment_input: string | null
   address: string | null
   detail_address: string | null
+  reporter_name: string | null
+  reporter_contact: string | null
 }
 
-const TBM_SELECT = 'id, meeting_date, today_work, personnel_count, equipment_input, address, detail_address'
+const TBM_SELECT = 'id, meeting_date, today_work, personnel_count, equipment_input, address, detail_address, reporter_name, reporter_contact'
 
 export async function fetchRecentTbm(projectId: string, projectName?: string): Promise<TbmCandidate[]> {
   let { data } = await (supabase as any)
