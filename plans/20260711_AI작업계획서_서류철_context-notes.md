@@ -20,6 +20,15 @@
 - **요구 배경** — Phase 1 확인 후 사용자 요청. 장비 제원·검사·보험·줄걸이 절단하중처럼 작성자가 당장 확인하기 어려운 정보 때문에 작성이 막히면 안 된다. 해당 필드를 마법사 마지막 스텝으로 옮기고 전부 공란 허용, 재편집으로 나중에 채우는 방식으로 결정. 상세 분류는 `20260711_AI작업계획서_보완_지연입력.md`(구현된 types.ts 필드명 기준).
 - **공란 PDF 원칙** — placeholder 없이 원본 양식처럼 빈칸 출력. 출력 후 수기 기입과 동일한 효과라 공란 저장이 실무적으로 문제없음.
 
+## 2026-07-11 Phase 3 AI 라우트 구현 (Claude 세션) + 인수인계
+
+- **라우트 완료·커밋(dd5425e)** — `src/app/api/ai/work-plan/route.ts`. 검측 체크리스트 라우트와 동일한 Gemini 패턴(gemini-3.1-flash-lite 폴백 배열, GEMINI_API_KEY, responseMimeType json). 보완 1 이후 types.ts 기준으로 tsc·eslint 통과 확인됨.
+- **요청(POST JSON)** — `{ planTypes: PlanType[](필수), title(필수), sharedWorkContent?, workMethod?, equipmentName?, loadItemName?, surveyType?, projectContext?: { address?, workTypes?: string[] } }`. planTypes·title 없으면 400.
+- **응답** — `{ result: WorkPlanAiResult }` (types.ts의 `Partial<Record<PlanType, WorkPlanAiDraft>>`). 공통 sharedWorkContent·riskControls, construction은 workSequence(+surveyType 지정 시 항목 개수에 맞춘 surveyFindings), electric은 electricWorkSteps 추가. 배열 누락 시 빈 배열 보정.
+- **남은 배선** — AiReviewStep(마법사 AI 검토 스텝)에서 이 라우트 호출 + 편집 표 UI. 실패 시 빈 초안으로 수동 입력 가능해야 함.
+- **Phase 4 PDF 빌더** — Claude 세션에서 별도 에이전트로 `src/lib/reports/work-plan/` 5파일(공용+4종) 작성이 진행 중이었음. **커밋되어 있으면 검증 후 배선만, 커밋이 없거나 미완성 미커밋 파일만 있으면 폐기하고 본 계획서 6절+양식데이터 문서대로 새로 구현할 것.** 미커밋 파일을 그대로 신뢰하지 말 것.
+- **동시 작업 사고 기록** — 미추적 신규 파일이 git 정리로 삭제된 사고가 있었음. 신규 파일은 검증 즉시 커밋할 것.
+
 ## 2026-07-11 Phase 1 구현
 
 - **DB 연쇄 규칙 반영** — `work_plans` 추가와 함께 `merge_projects`의 FK 자식 테이블 가드를 23개로 갱신하고 병합 UPDATE 목록에 포함했다. 프로젝트 삭제 API도 `map_image_url`과 `site_photo_urls`를 수집해 Storage 파일을 정리한다.

@@ -31,7 +31,7 @@
 - [ ] tsc·lint 통과, 커밋
 
 ## Phase 3 — AI 초안
-- [ ] `api/ai/work-plan/route.ts` — Gemini JSON 강제, 종류별 출력 스키마
+- [x] `api/ai/work-plan/route.ts` — Gemini JSON 강제, 종류별 출력 스키마 (커밋 dd5425e, 요청/응답 스키마는 컨텍스트 노트 참조)
 - [ ] `AiReviewStep.tsx` — 생성 호출, 위험요인/개선대책·작업순서 편집 표
 - [ ] 4종 각각 생성 테스트(파싱 실패 폴백 포함)
 - [ ] tsc·lint 통과, 커밋
