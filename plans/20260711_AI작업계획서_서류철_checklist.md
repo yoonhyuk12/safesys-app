@@ -13,8 +13,7 @@
 - [ ] tsc·lint 통과, 커밋
 
 ## Phase 2 — 지도 드로잉
-- [ ] (사용자) 카카오 JavaScript 키 발급 + 도메인 등록(localhost:3000, safesys.vercel.app) + `NEXT_PUBLIC_KAKAO_MAP_APP_KEY` 로컬·Vercel env 추가
-- [ ] `MapDrawingEditor.tsx` — Kakao Maps SDK 로드, 위성(HYBRID) 기본 + 일반지도(ROADMAP) 토글, 프로젝트 좌표 중심
+- [ ] `MapDrawingEditor.tsx` — 전역 로드된 Kakao Maps SDK(layout.tsx) 사용, 위성(HYBRID) 기본 + 일반지도(ROADMAP) 토글, 프로젝트 좌표 중심 (기존 KakaoMap.tsx·SimpleProjectMap.tsx 패턴 참조)
 - [ ] 배경 소스 선택 UI — 카카오맵 / 현장 전경 사진 업로드(카메라·파일)
 - [ ] 화면 고정(지도 캡처) → 캔버스 오버레이 드로잉(장비·경로·유도자·지휘자·통제구역·표지판·라벨)
 - [ ] 벡터 JSON 저장 + 재편집 로드(배경 종류·지도 뷰 상태 포함)
