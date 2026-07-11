@@ -40,6 +40,26 @@ const CHAIN_BLOCK_SPECS: RiggingSpecItem[] = [0.5, 1, 1.5, 2, 3, 5].map((ratedTo
   patch: { safeLoadPerToolTon: ratedTon },
 }))
 
+// 훅 용구 이름 프리셋 — 무엇을 써야 할지 모를 때 제안하는 대표 용구
+export const HOOK_TOOL_PRESETS = ['샤클', '훅', '마스터링크', '아이볼트'] as const
+
+// 샤클 사용하중: 단조샤클(BC형) 호칭경(inch)별 사용하중 기준 (출처: 태진로프산업 taejin112.com, 2026-07-11 확인)
+const SHACKLE_SIZES = [
+  { fraction: '3/8', inch: 0.375, ton: 1 },
+  { fraction: '1/2', inch: 0.5, ton: 2 },
+  { fraction: '5/8', inch: 0.625, ton: 3.25 },
+  { fraction: '3/4', inch: 0.75, ton: 4.75 },
+  { fraction: '7/8', inch: 0.875, ton: 6.5 },
+  { fraction: '1', inch: 1, ton: 8.5 },
+]
+
+export const SHACKLE_SPECS: RiggingSpecItem[] = SHACKLE_SIZES.map(({ fraction, inch, ton }) => ({
+  label: `${fraction}″·${ton}t`,
+  patch: { hookTool: '샤클', hookDiameterInch: inch, hookSafeLoadTon: ton },
+}))
+
+export const SHACKLE_NOTE = '단조샤클(BC형) 호칭경별 사용하중 기준입니다. 제품 각인으로 확인하세요.'
+
 export const RIGGING_STANDARD_SPECS: RiggingSpecGroup[] = [
   {
     tool: '와이어로프',

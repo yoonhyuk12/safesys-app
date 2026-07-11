@@ -11,7 +11,13 @@ import {
   toLoadingEquipmentPatch,
   type EquipmentCatalogItem,
 } from '@/lib/work-plan/equipment-catalog'
-import { RIGGING_STANDARD_SPECS } from '@/lib/work-plan/rigging-catalog'
+import {
+  HOOK_TOOL_PRESETS,
+  RIGGING_STANDARD_SPECS,
+  SHACKLE_NOTE,
+  SHACKLE_SPECS,
+  type RiggingSpecItem,
+} from '@/lib/work-plan/rigging-catalog'
 import type {
   LiftingCapacityReview,
   PlanType,
@@ -73,6 +79,32 @@ function Section({ title, description, children }: { title: string; description?
       </div>
       {children}
     </section>
+  )
+}
+
+function quickChipClass(active: boolean) {
+  return `rounded-full border px-2.5 py-1 text-xs ${active ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`
+}
+
+// 표준 규격 항목 칩 목록 — 현재 값과 일치하는 항목을 선택 상태로 표시한다
+function SpecChipRow({ items, current, onApply }: {
+  items: RiggingSpecItem[]
+  current: RiggingCapacityReview
+  onApply: (patch: Partial<RiggingCapacityReview>) => void
+}) {
+  return (
+    <>
+      {items.map((item) => {
+        const active = Object.entries(item.patch).every(
+          ([key, value]) => current[key as keyof RiggingCapacityReview] === value,
+        )
+        return (
+          <button key={item.label} type="button" onClick={() => onApply(item.patch)} className={quickChipClass(active)}>
+            {item.label}
+          </button>
+        )
+      })}
+    </>
   )
 }
 
@@ -194,21 +226,7 @@ export default function DeferredInfoStep({ selectedTypes, formData, onChange }: 
             <div key={group.tool} className="mt-2">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-xs font-medium text-gray-500">{group.tool} 표준 규격</span>
-                {group.items.map((item) => {
-                  const active = Object.entries(item.patch).every(
-                    ([key, value]) => rigging[key as keyof RiggingCapacityReview] === value,
-                  )
-                  return (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => updateRigging(type, item.patch)}
-                      className={`rounded-full border px-2.5 py-1 text-xs ${active ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}
-                    >
-                      {item.label}
-                    </button>
-                  )
-                })}
+                <SpecChipRow items={group.items} current={rigging} onApply={(patch) => updateRigging(type, patch)} />
               </div>
               <p className="mt-1 text-[11px] text-gray-400">{group.note}</p>
             </div>
@@ -226,7 +244,29 @@ export default function DeferredInfoStep({ selectedTypes, formData, onChange }: 
               <option value="">선택 안 함</option><option>1줄걸이</option><option>2줄걸이</option><option>3줄걸이</option><option>4줄걸이</option>
             </select>
           </label>
-          <Field label="훅 용구" value={rigging.hookTool} onChange={(value) => updateRigging(type, { hookTool: value })} />
+          <div className="min-w-0">
+            <Field label="훅 용구" value={rigging.hookTool} onChange={(value) => updateRigging(type, { hookTool: value })} />
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {HOOK_TOOL_PRESETS.map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => updateRigging(type, { hookTool: preset })}
+                  className={quickChipClass(rigging.hookTool === preset)}
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+            {rigging.hookTool === '샤클' && (
+              <>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <SpecChipRow items={SHACKLE_SPECS} current={rigging} onApply={(patch) => updateRigging(type, patch)} />
+                </div>
+                <p className="mt-1 text-[11px] text-gray-400">{SHACKLE_NOTE}</p>
+              </>
+            )}
+          </div>
           <Field label="훅 직경" type="number" suffix="inch" value={rigging.hookDiameterInch} onChange={(value) => updateRigging(type, { hookDiameterInch: nullableNumber(value) })} />
           <Field label="훅 수량" type="number" value={rigging.hookQuantity} onChange={(value) => updateRigging(type, { hookQuantity: nullableNumber(value) })} />
           <Field label="훅 안전하중" type="number" suffix="ton" value={rigging.hookSafeLoadTon} onChange={(value) => updateRigging(type, { hookSafeLoadTon: nullableNumber(value) })} />
