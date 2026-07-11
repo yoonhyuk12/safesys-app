@@ -102,7 +102,12 @@ export default function EquipmentCatalogSelector({ planType, onSelect }: Equipme
           <select
             value={selectedItem?.id ?? ''}
             disabled={!selectedSizeClass}
-            onChange={(event) => setModelId(event.target.value)}
+            onChange={(event) => {
+              const nextModelId = event.target.value
+              setModelId(nextModelId)
+              const nextItem = modelItems.find((item) => item.id === nextModelId)
+              if (nextItem) onSelect(nextItem)
+            }}
             className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option value="">모델 선택</option>
@@ -114,14 +119,18 @@ export default function EquipmentCatalogSelector({ planType, onSelect }: Equipme
       </div>
 
       {selectedItem && (
-        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4" aria-live="polite">
+        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <p className="text-xs font-medium text-blue-700">{categoryLabel} · {selectedItem.sizeClass}</p>
               <h4 className="mt-0.5 font-bold text-gray-900">{getEquipmentDisplayName(selectedItem)}</h4>
             </div>
-            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600">출처 기준일 {selectedItem.sourceDate}</span>
+            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600">제원 확인일 {selectedItem.sourceDate}</span>
           </div>
+
+          <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800" role="status" aria-live="polite">
+            아래 입력란에 자동 적용했습니다. 필요하면 수정하세요.
+          </p>
 
           <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
             <div>
@@ -167,9 +176,9 @@ export default function EquipmentCatalogSelector({ planType, onSelect }: Equipme
           <button
             type="button"
             onClick={() => onSelect(selectedItem)}
-            className="mt-4 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:w-auto"
+            className="mt-4 w-full rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 sm:w-auto"
           >
-            제원 자동입력
+            제원 다시 적용
           </button>
         </div>
       )}
