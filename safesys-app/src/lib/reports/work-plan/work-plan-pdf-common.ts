@@ -84,12 +84,12 @@ export function dateRange(start: string | null | undefined, end: string | null |
 }
 
 // ── 결재란 + 제목 헤더 ──────────────────────────────────────
-// 담당=수급업체 / 승인=현장 소장, 서명칸은 빈칸.
+// 담당·승인 서명칸은 공란(출력 후 수기 결재).
 export function approvalHeader(mainTitle: string, subTitle: string): string {
   const inner = `
     <table style="width:100%; height:100%; border-collapse:collapse; table-layout:fixed;">
       <tr>${cell('담당', LABEL)}${cell('승인', LABEL)}</tr>
-      <tr>${cell('수급업체', `${VALUE} height:34px;`)}${cell('현장 소장', `${VALUE} height:34px;`)}</tr>
+      <tr>${cell('', `${VALUE} height:34px;`)}${cell('', `${VALUE} height:34px;`)}</tr>
     </table>`
   return `
     <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
