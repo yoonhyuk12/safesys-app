@@ -43,9 +43,9 @@ function buildMainAndSpec(form: NonNullable<WorkPlanRecord['form_data']['loading
       <tr>${cell('장비명', LABEL, 3)}${cell(escapeHtml(e.equipmentName), VALUE, 3)}${cell('차량/장비번호', LABEL, 3)}${cell(escapeHtml(e.registrationNumber), VALUE, 3)}</tr>
       <tr>${cell('모델명/생산년도', LABEL, 3)}${cell(escapeHtml(e.modelAndYear), VALUE, 3)}${cell('보험기간', LABEL, 3)}${cell(escapeHtml(e.insurancePeriod), VALUE, 3)}</tr>
       <tr>${cell('소유회사명', LABEL, 3)}${cell(escapeHtml(e.ownerCompany), VALUE, 3)}${cell('검사유효기간', LABEL, 3)}${cell(escapeHtml(e.inspectionValidity), VALUE, 3)}</tr>
-      <tr>${cell('차체 중량', LABEL, 3)}${cell(e.bodyWeightTon ? `${escapeHtml(e.bodyWeightTon)} ton` : '', VALUE, 3)}${cell('장비폭', LABEL, 3)}${cell(e.widthM ? `${escapeHtml(e.widthM)} m` : '', VALUE, 3)}</tr>
-      <tr>${cell('최소선회반경', LABEL, 3)}${cell(e.minimumTurningRadiusM ? `${escapeHtml(e.minimumTurningRadiusM)} m` : '', VALUE, 3)}${cell('최대인양높이', LABEL, 3)}${cell(e.maximumLiftingHeightM ? `${escapeHtml(e.maximumLiftingHeightM)} m` : '', VALUE, 3)}</tr>
-      <tr>${cell('작업반경', LABEL, 3)}${cell(e.workingRadiusM ? `${escapeHtml(e.workingRadiusM)} m` : '', VALUE, 3)}${cell('인양·운반하중', LABEL, 3)}${cell(escapeHtml(e.maxAndRatedLoadTon) || '최대( )t / 정격( )t', VALUE, 3)}</tr>
+      <tr>${cell('차체 중량', LABEL, 3)}${cell(e.bodyWeightTon ? `${escapeHtml(e.bodyWeightTon)} ton` : '&nbsp; ton', VALUE, 3)}${cell('장비폭', LABEL, 3)}${cell(e.widthM ? `${escapeHtml(e.widthM)} m` : '&nbsp; m', VALUE, 3)}</tr>
+      <tr>${cell('최소선회반경', LABEL, 3)}${cell(e.minimumTurningRadiusM ? `${escapeHtml(e.minimumTurningRadiusM)} m` : '&nbsp; m', VALUE, 3)}${cell('최대인양높이', LABEL, 3)}${cell(e.maximumLiftingHeightM ? `${escapeHtml(e.maximumLiftingHeightM)} m` : '&nbsp; m', VALUE, 3)}</tr>
+      <tr>${cell('작업반경', LABEL, 3)}${cell(e.workingRadiusM ? `${escapeHtml(e.workingRadiusM)} m` : '&nbsp; m', VALUE, 3)}${cell('인양·운반하중', LABEL, 3)}${cell(escapeHtml(e.maxAndRatedLoadTon) || '최대( )t / 정격( )t', VALUE, 3)}</tr>
     </table>
     ${liftingReviewTable(form.liftingReview)}
     ${riggingReviewTable(form.riggingReview)}`

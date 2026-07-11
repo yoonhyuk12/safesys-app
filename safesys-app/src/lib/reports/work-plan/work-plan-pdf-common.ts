@@ -96,7 +96,7 @@ export function approvalHeader(mainTitle: string, subTitle: string): string {
       <tr>
         <td colspan="9" style="border:${BORDER}; text-align:center; padding:12px 6px;">
           <div style="font-size:22px; font-weight:900;">${escapeHtml(mainTitle)}</div>
-          <div style="font-size:14px; font-weight:bold; color:#555;">[${escapeHtml(subTitle)}]</div>
+          <div style="font-size:14px; font-weight:bold; color:#555;">(${escapeHtml(subTitle)})</div>
         </td>
         <td style="border:${BORDER}; background-color:#f2f2f2; font-weight:bold; text-align:center; padding:2px;">결<br/>재</td>
         <td colspan="2" style="border:${BORDER}; padding:0;">${inner}</td>
@@ -114,10 +114,20 @@ const LEGEND_COLORS: Record<string, string> = {
   안전표지판: '#22aa22',
 }
 
+function legendSymbol(label: string, symbol: string): string {
+  if (label === '출입통제구역') {
+    return '<span style="display:inline-block; width:22px; height:16px; border:3px dashed #8000c0; border-radius:50%; box-sizing:border-box;"></span>'
+  }
+  if (label === '안전표지판') {
+    return '<span style="display:inline-block; width:12px; height:20px; background-color:#82d442;"></span>'
+  }
+  return `<span style="color:${LEGEND_COLORS[label] || '#000'}; font-size:15px;">${symbol}</span>`
+}
+
 function legendTable(): string {
   const rows = MAP_LEGEND.map(
     (l) =>
-      `<tr>${cell(`<span style="color:${LEGEND_COLORS[l.label] || '#000'}; font-size:15px;">${l.symbol}</span>`, VALUE)}${cell(escapeHtml(l.label), VALUE)}</tr>`
+      `<tr>${cell(legendSymbol(l.label, l.symbol), VALUE)}${cell(escapeHtml(l.label), VALUE)}</tr>`
   ).join('')
   return `
     <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
@@ -217,7 +227,7 @@ export function liftingReviewTable(review: LiftingCapacityReview | undefined): s
     ${sectionTitle('<건설기계 인양능력 검토>')}
     <table style="${TABLE}">
       ${colgroup(12)}
-      <tr>${cell('중량물 총 하중', LABEL, 3)}${cell(total ? `${total} ton` : '', `${VALUE} text-align:right;`, 3)}${cell('최대 양중능력', LABEL, 3)}${cell(capacity ? `${capacity} ton` : '', `${VALUE} text-align:right;`, 3)}</tr>
+      <tr>${cell('중량물 총 하중', LABEL, 3)}${cell(total ? `${total} ton` : '&nbsp; ton', `${VALUE} text-align:right;`, 3)}${cell('최대 양중능력', LABEL, 3)}${cell(capacity ? `${capacity} ton` : '&nbsp; ton', `${VALUE} text-align:right;`, 3)}</tr>
       ${notes}
       <tr>${cell('안전율', LABEL, 3)}${cell(`${escapeHtml(expr)} = ( ${pct} )% <b>※ ${escapeHtml(CAPACITY_WARNING)}</b>`, LEFT, 9)}</tr>
     </table>`
@@ -276,7 +286,7 @@ export function riggingReviewTable(r: RiggingCapacityReview | undefined): string
       ${colgroup(12)}
       <tr>${cell('줄걸이 용구', LABEL, 2)}${cell(toolBox, LEFT, 4)}${cell('줄걸이 규격', LABEL, 2)}${cell(spec, LEFT, 4)}</tr>
       <tr>${cell('줄걸이 방법', LABEL, 2)}${cell(methodBox, LEFT, 4)}${cell('고리걸이용구/규격', LABEL, 2)}${cell(hookSpec, LEFT, 4)}</tr>
-      <tr>${cell('줄걸이 절단하중', LABEL, 2)}${cell(breaking ? `${breaking} ton` : '', `${VALUE} text-align:right;`, 4)}${cell('줄걸이 안전하중', LABEL, 2)}${cell(safeLoad ? `${safeLoad} ton` : '', `${VALUE} text-align:right;`, 4)}</tr>
+      <tr>${cell('줄걸이 절단하중', LABEL, 2)}${cell(breaking ? `${breaking} ton` : '&nbsp; ton', `${VALUE} text-align:right;`, 4)}${cell('줄걸이 안전하중', LABEL, 2)}${cell(safeLoad ? `${safeLoad} ton` : '&nbsp; ton', `${VALUE} text-align:right;`, 4)}</tr>
       <tr>${cell('※ 줄걸이 절단하중 : 줄걸이 제조사별 구조계산서 등 제원 확인 후 기재', `${LEFT} font-size:11px;`, 12)}</tr>
       <tr>${cell(`※ ${escapeHtml(RIGGING_CAPACITY_FORMULA)} → 절단하중 ( ${breaking} ) × 줄걸이 수 ( ${count} ) ÷ ( 안전계수 ( ${sf} ) × 장력계수 ( ${tf} ) ) = ( ${safeLoad} ) ton`, `${LEFT} font-size:11px;`, 12)}</tr>
       <tr>

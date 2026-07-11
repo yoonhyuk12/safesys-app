@@ -50,7 +50,7 @@ function buildSpecPage(form: HeavyForm): string {
       ${colgroup(12)}
       <tr>${cell('품 명', LABEL, 3)}${cell(escapeHtml(l.itemName), VALUE, 3)}${cell('중량물 형상', LABEL, 3)}${cell(escapeHtml(l.shape), VALUE, 3)}</tr>
       <tr>${cell('중량물 규격', LABEL, 3)}${cell(escapeHtml(l.dimensions) || '(너비)×(길이)×(높이)', LEFT, 9)}</tr>
-      <tr>${cell('중량', LABEL, 3)}${cell(l.weightKg ? `${escapeHtml(l.weightKg)} kg` : '', VALUE, 3)}${cell('1회 운반중량', LABEL, 3)}${cell(l.transportWeightKg ? `${escapeHtml(l.transportWeightKg)} kg` : '', VALUE, 3)}</tr>
+      <tr>${cell('중량', LABEL, 3)}${cell(l.weightKg ? `${escapeHtml(l.weightKg)} kg` : '&nbsp; kg', VALUE, 3)}${cell('1회 운반중량', LABEL, 3)}${cell(l.transportWeightKg ? `${escapeHtml(l.transportWeightKg)} kg` : '&nbsp; kg', VALUE, 3)}</tr>
       <tr>${cell('고정방법', LABEL, 3)}${cell(escapeHtml(l.fixingMethod), LEFT, 9)}</tr>
     </table>
     ${sectionTitle('<기계제원(크레인 등)>')}
