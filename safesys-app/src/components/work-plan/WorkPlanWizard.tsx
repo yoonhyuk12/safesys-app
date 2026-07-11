@@ -492,11 +492,19 @@ export default function WorkPlanWizard({
           const number = index + 1
           const Icon = item.icon
           return (
-            <li key={item.label} className={`flex flex-col items-center gap-1 text-center ${number <= step ? 'text-blue-700' : 'text-gray-400'}`}>
-              <span className={`flex h-8 w-8 items-center justify-center rounded-full border ${number < step ? 'border-blue-600 bg-blue-600 text-white' : number === step ? 'border-blue-600 bg-white' : 'border-gray-300 bg-white'}`}>
-                {number < step ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
-              </span>
-              <span className="hidden text-xs font-medium sm:block">{item.label}</span>
+            <li key={item.label}>
+              <button
+                type="button"
+                onClick={() => setStep(number)}
+                disabled={isSaving || (number !== 1 && selectedTypes.length === 0)}
+                aria-current={number === step ? 'step' : undefined}
+                className={`flex w-full flex-col items-center gap-1 text-center disabled:cursor-not-allowed ${number <= step ? 'text-blue-700' : 'text-gray-400'} enabled:hover:text-blue-600`}
+              >
+                <span className={`flex h-8 w-8 items-center justify-center rounded-full border ${number < step ? 'border-blue-600 bg-blue-600 text-white' : number === step ? 'border-blue-600 bg-white' : 'border-gray-300 bg-white'}`}>
+                  {number < step ? <Check className="h-4 w-4" /> : <Icon className="h-4 w-4" />}
+                </span>
+                <span className="hidden text-xs font-medium sm:block">{item.label}</span>
+              </button>
             </li>
           )
         })}
