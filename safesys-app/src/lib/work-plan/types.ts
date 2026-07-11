@@ -165,6 +165,13 @@ export interface ElectricWorkStep {
   note: string
 }
 
+export interface WorkPlanElectricAttachments {
+  drawingSource: string | null
+  drawingFileName: string
+  sitePhotoSource: string | null
+  sitePhotoFileName: string
+}
+
 export interface ElectricWorkPlanFormData {
   planType: 'electric'
   title: string
