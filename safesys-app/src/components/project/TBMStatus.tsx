@@ -2486,7 +2486,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                           </div>
                         </th>
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-<div className="flex items-center justify-center gap-0.5" title="당일 총원(신규)">
+<div className="flex items-center justify-center gap-0.5" title="신규">
                             <Users className="h-3.5 w-3.5" />
                             <Star className="h-3 w-3" />
                           </div>
@@ -2654,7 +2654,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                           </div>
                         </th>
                         <th className="px-2 py-1 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-<div className="flex items-center justify-center gap-0.5" title="당일 총원(신규)">
+<div className="flex items-center justify-center gap-0.5" title="신규">
                             <Users className="h-3.5 w-3.5" />
                             <Star className="h-3 w-3" />
                           </div>
@@ -3140,22 +3140,22 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 본부명
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider whitespace-nowrap">
-                                <span className="hidden xl:inline">{currentQuarter}분기 공사중</span><span className="xl:hidden">{currentQuarter}Q</span><br /><span className="text-[10px]">(지구)</span>
+                                {currentQuarter}분기
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                TBM 실시<br /><span className="text-[10px]">(건)</span>
+                                TBM
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider cursor-pointer select-none hover:bg-gray-200/60" onClick={handleToggleRegular} onMouseEnter={handleRegularInfoEnter} onMouseLeave={handleRegularInfoLeave} title={showRegular ? undefined : '클릭하면 상시근로자로 전환'}>
                                 <span className="inline-flex items-center justify-center gap-1">{showRegular ? '상시근로자' : '누적 총원'}<ArrowLeftRight className="h-3 w-3 opacity-60" /></span><br /><span className="text-[10px]">{showRegular ? '(명)' : '(당해)'}</span>
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                당일 총원(신규)<br /><span className="text-[10px]">(명)</span>
+                                신규<br /><span className="text-[10px]">(명)</span>
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
                                 위험공종<br /><span className="text-[10px]">(건)</span>
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
-                                CCTV 설치<br /><span className="text-[10px]">(지구)</span>
+                                CCTV<br /><span className="text-[10px]">(지구)</span>
                               </th>
                               <th className="px-4 py-3 text-center text-xs font-medium text-gray-600 uppercase tracking-wider">
                                 도입율<br /><span className="text-[10px]">(%)</span>
@@ -3346,22 +3346,22 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                 지사
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200 whitespace-nowrap">
-                                <span className="hidden xl:inline">{currentQuarter}분기 공사중</span><span className="xl:hidden">{currentQuarter}Q</span><br /><span className="text-[10px]">(지구)</span>
+                                {currentQuarter}분기
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
-                                TBM 실시<br /><span className="text-[10px]">(건)</span>
+                                TBM
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200 cursor-pointer select-none hover:bg-gray-300" onClick={handleToggleRegular} onMouseEnter={handleRegularInfoEnter} onMouseLeave={handleRegularInfoLeave} title={showRegular ? undefined : '클릭하면 상시근로자로 전환'}>
                                 <span className="inline-flex items-center justify-center gap-1">{showRegular ? '상시근로자' : '누적 총원'}<ArrowLeftRight className="h-3 w-3 opacity-60" /></span><br /><span className="text-[10px]">{showRegular ? '(명)' : '(당해)'}</span>
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
-                                당일 총원(신규)<br /><span className="text-[10px]">(명)</span>
+                                신규<br /><span className="text-[10px]">(명)</span>
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
                                 위험공종<br /><span className="text-[10px]">(건)</span>
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
-                                CCTV 설치<br /><span className="text-[10px]">(지구)</span>
+                                CCTV<br /><span className="text-[10px]">(지구)</span>
                               </th>
                               <th className="px-4 text-center text-xs font-medium text-gray-700 uppercase tracking-wider bg-gray-200">
                                 도입율<br /><span className="text-[10px]">(%)</span>
