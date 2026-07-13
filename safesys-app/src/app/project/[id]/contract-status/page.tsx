@@ -258,21 +258,28 @@ const isSpecificPayInspCandidate = (value: string) => {
     && !PAY_INSP_GENERIC_WORDS.some(word => compact === word || compact.endsWith(word))
 }
 
-// 공사·용역은 기존 첫 단어를 유지하고, 물품은 괄호 품목명 또는 일반어를 제외한 최장 토큰으로 좁힌다
-const payInspKeyword = (title: string, specific = false): string => {
-  if (!specific) return title.split(/\s+/).find(word => word.length >= 2 && !/^\d/.test(word)) || ''
+// 공사·용역은 기존 첫 단어를 유지하고, 물품은 괄호 품목명 또는 일반어를 제외한 최장 토큰으로 좁힌다.
+// 흔한 품명(예: 신축관이음)은 통합검색이 전국 최신 100건만 반환해 대상 문서가 잘려 나가므로,
+// 지역명 등 다른 특정 토큰을 결합한 키워드를 먼저 반환한다 (통합검색은 토큰 AND 매칭 — 2026-07-13 실호출 확인)
+const payInspKeywords = (title: string, specific = false): string[] => {
+  if (!specific) {
+    const first = title.split(/\s+/).find(word => word.length >= 2 && !/^\d/.test(word)) || ''
+    return first ? [first] : []
+  }
 
   const parenthesized = [...title.matchAll(/\(([^()]*)\)/g)]
     .map(match => cleanPayInspCandidate(match[1]))
     .filter(isSpecificPayInspCandidate)
     .sort((a, b) => b.length - a.length)[0]
-  if (parenthesized) return parenthesized
-
-  return title.replace(/\([^()]*\)/g, ' ')
+  const wordTokens = title.replace(/\([^()]*\)/g, ' ')
     .split(/[\s,·/]+/)
     .map(cleanPayInspCandidate)
     .filter(isSpecificPayInspCandidate)
-    .sort((a, b) => b.length - a.length)[0] || ''
+    .sort((a, b) => b.length - a.length)
+  const primary = parenthesized || wordTokens[0] || ''
+  if (!primary) return []
+  const secondary = wordTokens.find(token => token !== primary)
+  return secondary ? [`${secondary} ${primary}`, primary] : [primary]
 }
 
 const materialDetailPayInspCache = new Map<string, PayInspResult>()
@@ -289,13 +296,13 @@ const fetchMaterialDetailPayInsp = async (no: string, title: string, demandOrg: 
   if (pending) return pending
 
   const request = (async () => {
-    const keyword = payInspKeyword(title, true)
-    if (keyword.length < 2) {
+    const keywords = payInspKeywords(title, true)
+    if (keywords.length === 0) {
       const empty = { pays: [], insps: [] }
       materialDetailPayInspCache.set(no, empty)
       return empty
     }
-    const loadExact = async (inst: string): Promise<PayInspResult> => {
+    const loadExact = async (keyword: string, inst: string): Promise<PayInspResult> => {
       const res = await fetch(
         `/api/g2b/pay-insp?nm=${encodeURIComponent(keyword)}${inst ? `&inst=${encodeURIComponent(inst)}` : ''}`
       )
@@ -308,8 +315,13 @@ const fetchMaterialDetailPayInsp = async (no: string, title: string, demandOrg: 
         insps: [...new Map(inspRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])).values()],
       }
     }
-    let exact = await loadExact(demandOrg)
-    if (demandOrg && exact.pays.length === 0 && exact.insps.length === 0) exact = await loadExact('')
+    // 결합 키워드로 먼저 좁혀 찾고, 문서 건명이 납품요구 건명과 달라 안 잡히면 단일 키워드로 재시도한다.
+    let exact: PayInspResult = { pays: [], insps: [] }
+    for (const keyword of keywords) {
+      exact = await loadExact(keyword, demandOrg)
+      if (demandOrg && exact.pays.length === 0 && exact.insps.length === 0) exact = await loadExact(keyword, '')
+      if (exact.pays.length > 0 || exact.insps.length > 0) break
+    }
     materialDetailPayInspCache.set(no, exact)
     return exact
   })().finally(() => {
@@ -854,12 +866,12 @@ export default function ContractStatusPage() {
   // 나라장터 대금지급(KG)·검사검수(NZ) 문서 배경 조회 — 사업명 키워드+수요기관으로 통합검색해 뱃지 데이터 확보.
   // 공식 API에 없는 데이터라 비공식 통합검색 엔드포인트를 쓴다 — 실패 시 뱃지만 표시되지 않는다 (2026-07-12 실호출 확인)
   useEffect(() => {
-    const wants = new Map<string, { nm: string; inst: string }>()
+    const wants = new Map<string, { nms: string[]; inst: string }>()
     const add = (title: string, inst: string, specific = false) => {
-      const nm = payInspKeyword(title, specific)
-      if (!nm) return
-      const key = `${nm}|${inst}`
-      if (!payInspCache.has(key)) wants.set(key, { nm, inst })
+      const nms = payInspKeywords(title, specific)
+      if (nms.length === 0) return
+      const key = `${nms[0]}|${inst}`
+      if (!payInspCache.has(key)) wants.set(key, { nms, inst })
     }
     for (const g of materialGroups) {
       // 성공한 조회 결과는 24시간 동안 서버 저장값을 사용해 화면 방문마다 다시 조회하지 않는다.
@@ -878,9 +890,16 @@ export default function ContractStatusPage() {
       for (let i = 0; i < entries.length; i += 2) {
         await Promise.all(entries.slice(i, i + 2).map(async ([key, w]) => {
           try {
-            const res = await fetch(`/api/g2b/pay-insp?nm=${encodeURIComponent(w.nm)}${w.inst ? `&inst=${encodeURIComponent(w.inst)}` : ''}`)
-            const json = await res.json()
-            payInspCache.set(key, res.ok && json.success ? (json.data as PayInspResult) : null)
+            // 결합 키워드로 먼저 좁혀 찾고, 문서가 안 잡히면 단일 키워드로 재시도한다.
+            let result: PayInspResult | null = null
+            for (const nm of w.nms) {
+              const res = await fetch(`/api/g2b/pay-insp?nm=${encodeURIComponent(nm)}${w.inst ? `&inst=${encodeURIComponent(w.inst)}` : ''}`)
+              const json = await res.json()
+              if (!res.ok || !json.success) { result = null; break }
+              result = json.data as PayInspResult
+              if ((result.pays?.length || 0) > 0 || (result.insps?.length || 0) > 0) break
+            }
+            payInspCache.set(key, result)
           } catch {
             payInspCache.set(key, null)
           }
@@ -918,7 +937,7 @@ export default function ContractStatusPage() {
     for (const g of materialGroups) {
       if (payInspSavedRef.current.has(g.dlvrReqNo)) continue
       const info = dlvrInfos.get(g.dlvrReqNo)
-      const nm = payInspKeyword(g.title || info?.title || g.materialNames[0] || '', true)
+      const nm = payInspKeywords(g.title || info?.title || g.materialNames[0] || '', true)[0] || ''
       const inst = (g.dminstt || info?.dminsttNm || '').trim()
       const cacheKey = `${nm}|${inst}`
       if (!nm || !payInspCache.has(cacheKey) || !payInspCache.get(cacheKey)) continue

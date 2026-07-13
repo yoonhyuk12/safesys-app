@@ -165,19 +165,23 @@ const isSpecificPayInspCandidate = (value: string) => {
     && !PAY_INSP_GENERIC_WORDS.some(word => compact === word || compact.endsWith(word))
 }
 
-// 넓은 첫 단어 대신 품목을 가장 잘 특정하는 괄호 내용 또는 최장 토큰을 선택한다
-const payInspKeyword = (title: string): string => {
+// 넓은 첫 단어 대신 품목을 가장 잘 특정하는 괄호 내용 또는 최장 토큰을 선택한다.
+// 흔한 품명(예: 신축관이음)은 통합검색이 전국 최신 100건만 반환해 대상 문서가 잘려 나가므로,
+// 지역명 등 다른 특정 토큰을 결합한 키워드를 먼저 반환한다 (통합검색은 토큰 AND 매칭 — 2026-07-13 실호출 확인)
+const payInspKeywords = (title: string): string[] => {
   const parenthesized = [...title.matchAll(/\(([^()]*)\)/g)]
     .map(match => cleanPayInspCandidate(match[1]))
     .filter(isSpecificPayInspCandidate)
     .sort((a, b) => b.length - a.length)[0]
-  if (parenthesized) return parenthesized
-
-  return title.replace(/\([^()]*\)/g, ' ')
+  const wordTokens = title.replace(/\([^()]*\)/g, ' ')
     .split(/[\s,·/]+/)
     .map(cleanPayInspCandidate)
     .filter(isSpecificPayInspCandidate)
-    .sort((a, b) => b.length - a.length)[0] || ''
+    .sort((a, b) => b.length - a.length)
+  const primary = parenthesized || wordTokens[0] || ''
+  if (!primary) return []
+  const secondary = wordTokens.find(token => token !== primary)
+  return secondary ? [`${secondary} ${primary}`, primary] : [primary]
 }
 
 const fetchDlvrPayInsp = async (no: string, title: string, demandOrg = ''): Promise<G2bPayInspDocs> => {
@@ -189,14 +193,14 @@ const fetchDlvrPayInsp = async (no: string, title: string, demandOrg = ''): Prom
   if (pending) return pending
 
   const request = (async () => {
-    const keyword = payInspKeyword(title)
-    if (keyword.length < 2) {
+    const keywords = payInspKeywords(title)
+    if (keywords.length === 0) {
       const current = dlvrPayInspCache.get(no) || { pays: [], insps: [] }
       dlvrPayInspCache.set(no, current)
       if (demandOrg) dlvrPayInspDemandScoped.add(no)
       return current
     }
-    const loadExact = async (inst: string): Promise<G2bPayInspDocs> => {
+    const loadExact = async (keyword: string, inst: string): Promise<G2bPayInspDocs> => {
       const res = await fetch(
         `/api/g2b/pay-insp?nm=${encodeURIComponent(keyword)}${inst ? `&inst=${encodeURIComponent(inst)}` : ''}`
       )
@@ -213,9 +217,14 @@ const fetchDlvrPayInsp = async (no: string, title: string, demandOrg = ''): Prom
         ).values()],
       }
     }
-    let exact = await loadExact(demandOrg)
-    // 수요기관 표기 차이로 누락될 수 있어 기관 필터 결과가 비면 전체 검색 후 납품요구번호 완전일치로 다시 좁힌다.
-    if (demandOrg && exact.pays.length === 0 && exact.insps.length === 0) exact = await loadExact('')
+    // 결합 키워드로 먼저 좁혀 찾고, 문서 건명이 납품요구 건명과 달라 안 잡히면 단일 키워드로 재시도한다.
+    let exact: G2bPayInspDocs = { pays: [], insps: [] }
+    for (const keyword of keywords) {
+      exact = await loadExact(keyword, demandOrg)
+      // 수요기관 표기 차이로 누락될 수 있어 기관 필터 결과가 비면 전체 검색 후 납품요구번호 완전일치로 다시 좁힌다.
+      if (demandOrg && exact.pays.length === 0 && exact.insps.length === 0) exact = await loadExact(keyword, '')
+      if (exact.pays.length > 0 || exact.insps.length > 0) break
+    }
     const merged = mergeDlvrPayInspDocs(dlvrPayInspCache.get(no) || { pays: [], insps: [] }, exact)
     dlvrPayInspCache.set(no, merged)
     if (demandOrg) dlvrPayInspDemandScoped.add(no)
