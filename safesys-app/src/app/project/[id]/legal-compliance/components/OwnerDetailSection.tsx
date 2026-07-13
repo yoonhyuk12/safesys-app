@@ -40,9 +40,17 @@ export default function OwnerDetailSection({
   onChange: (next: Detail) => void
 }) {
   const setSimple = (k: string, v: YN) => onChange({ ...value, [k]: v } as Detail)
-  const setGroup = (groupKey: 'coordinatorActivity' | 'implMeeting' | 'riskAssessment', fieldKey: string, v: YN) => {
+  const setGroup = (groupKey: 'coordinatorActivity' | 'riskAssessment', fieldKey: string, v: YN) => {
     const group = value[groupKey] as Record<string, YN>
     onChange({ ...value, [groupKey]: { ...group, [fieldKey]: v } })
+  }
+  // 이행점검회의 — 해당여부가 '부'면 이행여부는 의미가 없어 비운다
+  const setImplMeeting = (fieldKey: 'applicable' | 'implemented', v: YN) => {
+    const next =
+      fieldKey === 'applicable' && v === '부'
+        ? { applicable: '부' as YN, implemented: '' as YN }
+        : { ...value.implMeeting, [fieldKey]: v }
+    onChange({ ...value, implMeeting: next })
   }
   const setPermit = (patch: Partial<Detail['riskWorkPermit']>) =>
     onChange({ ...value, riskWorkPermit: { ...value.riskWorkPermit, ...patch } })
@@ -52,6 +60,11 @@ export default function OwnerDetailSection({
   }
   const setSmart = (patch: Partial<Detail['smartEquipment']>) =>
     onChange({ ...value, smartEquipment: { ...value.smartEquipment, ...patch } })
+
+  // 해당여부·도입여부가 '부'면 종속 항목 비활성화
+  const permitLocked = value.riskWorkPermit.applicable === '부'
+  const smartLocked = value.smartEquipment.adopted === '부'
+  const lockedInput = smartLocked ? 'cursor-not-allowed bg-gray-50 text-gray-400' : ''
 
   return (
     <div className="space-y-2.5">
@@ -71,14 +84,21 @@ export default function OwnerDetailSection({
 
       {/* 위험공종 작업허가제 */}
       <SubCard title="위험공종 작업허가제" tooltip={TOOLTIPS.riskWorkPermit}>
-        <YNRow label="해당여부" value={value.riskWorkPermit.applicable} onChange={(v) => setPermit({ applicable: v })} />
-        <div className="py-2">
+        <YNRow
+          label="해당여부"
+          value={value.riskWorkPermit.applicable}
+          onChange={(v) =>
+            setPermit(v === '부' ? { applicable: v, targetWorks: [], planConfirmed: '' } : { applicable: v })
+          }
+        />
+        <div className={`py-2 ${permitLocked ? 'opacity-40' : ''}`}>
           <div className="mb-1 text-xs text-gray-600">해당공종 (다중 선택)</div>
           <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
             {RISK_WORK_TYPES.map((w) => (
-              <label key={w.value} className="flex items-center gap-2 text-xs text-gray-700">
+              <label key={w.value} className={`flex items-center gap-2 text-xs text-gray-700 ${permitLocked ? 'cursor-not-allowed' : ''}`}>
                 <input
                   type="checkbox"
+                  disabled={permitLocked}
                   checked={value.riskWorkPermit.targetWorks.includes(w.value)}
                   onChange={() => toggleWork(w.value)}
                   className="h-3.5 w-3.5 rounded border-gray-300"
@@ -94,6 +114,7 @@ export default function OwnerDetailSection({
           label="작업계획서 작성·확인여부"
           value={value.riskWorkPermit.planConfirmed}
           onChange={(v) => setPermit({ planConfirmed: v })}
+          disabled={permitLocked}
         />
       </SubCard>
 
@@ -112,8 +133,13 @@ export default function OwnerDetailSection({
 
       {/* 안전관리실태 이행점검회의 */}
       <SubCard title="안전관리실태 이행점검회의" tooltip={TOOLTIPS.implMeeting}>
-        <YNRow label="해당여부" value={value.implMeeting.applicable} onChange={(v) => setGroup('implMeeting', 'applicable', v)} />
-        <YNRow label="이행여부" value={value.implMeeting.implemented} onChange={(v) => setGroup('implMeeting', 'implemented', v)} />
+        <YNRow label="해당여부" value={value.implMeeting.applicable} onChange={(v) => setImplMeeting('applicable', v)} />
+        <YNRow
+          label="이행여부"
+          value={value.implMeeting.implemented}
+          onChange={(v) => setImplMeeting('implemented', v)}
+          disabled={value.implMeeting.applicable === '부'}
+        />
       </SubCard>
 
       {/* 위험성평가 이행 점검 */}
@@ -132,24 +158,33 @@ export default function OwnerDetailSection({
       <SubCard title="스마트 안전장비의 운영" tooltip={TOOLTIPS.smartEquipment}>
         <div className="flex items-center justify-between gap-2 border-b border-gray-100 py-1.5">
           <span className="text-xs text-gray-700">도입 여부</span>
-          <YNToggle value={value.smartEquipment.adopted} onChange={(v) => setSmart({ adopted: v })} />
+          <YNToggle
+            value={value.smartEquipment.adopted}
+            onChange={(v) =>
+              setSmart(
+                v === '부'
+                  ? { adopted: v, costTotal: '', costIndustrial: '', costSafety: '', adoptedAt: '' }
+                  : { adopted: v }
+              )
+            }
+          />
         </div>
-        <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-2 sm:grid-cols-4">
+        <div className={`grid grid-cols-2 gap-x-3 gap-y-2 pt-2 sm:grid-cols-4 ${smartLocked ? 'opacity-40' : ''}`}>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-gray-500">정산액 합계(천원)</span>
-            <input type="text" inputMode="numeric" value={formatThousands(value.smartEquipment.costTotal)} onChange={(e) => setSmart({ costTotal: stripNonDigits(e.target.value) })} className={numInput} />
+            <input type="text" inputMode="numeric" disabled={smartLocked} value={formatThousands(value.smartEquipment.costTotal)} onChange={(e) => setSmart({ costTotal: stripNonDigits(e.target.value) })} className={`${numInput} ${lockedInput}`} />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-gray-500">산업안전보건관리비(천원)</span>
-            <input type="text" inputMode="numeric" value={formatThousands(value.smartEquipment.costIndustrial)} onChange={(e) => setSmart({ costIndustrial: stripNonDigits(e.target.value) })} className={numInput} />
+            <input type="text" inputMode="numeric" disabled={smartLocked} value={formatThousands(value.smartEquipment.costIndustrial)} onChange={(e) => setSmart({ costIndustrial: stripNonDigits(e.target.value) })} className={`${numInput} ${lockedInput}`} />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-gray-500">안전관리비(천원)</span>
-            <input type="text" inputMode="numeric" value={formatThousands(value.smartEquipment.costSafety)} onChange={(e) => setSmart({ costSafety: stripNonDigits(e.target.value) })} className={numInput} />
+            <input type="text" inputMode="numeric" disabled={smartLocked} value={formatThousands(value.smartEquipment.costSafety)} onChange={(e) => setSmart({ costSafety: stripNonDigits(e.target.value) })} className={`${numInput} ${lockedInput}`} />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-gray-500">도입시기(연월)</span>
-            <input type="month" value={value.smartEquipment.adoptedAt} onChange={(e) => setSmart({ adoptedAt: e.target.value })} className={numInput} />
+            <input type="month" disabled={smartLocked} value={value.smartEquipment.adoptedAt} onChange={(e) => setSmart({ adoptedAt: e.target.value })} className={`${numInput} ${lockedInput}`} />
           </label>
         </div>
       </SubCard>

@@ -17,7 +17,12 @@ export default function OwnerBasicSection({
 }) {
   const setField = (itemKey: keyof OwnerBasic, fieldKey: string, v: YN) => {
     const group = value[itemKey] as Record<string, YN>
-    onChange({ ...value, [itemKey]: { ...group, [fieldKey]: v } })
+    // 해당여부가 '부'면 종속 항목(이행·적정성·지정·통보 등)은 의미가 없어 비우고 비활성화한다
+    const nextGroup: Record<string, YN> =
+      fieldKey === 'applicable' && v === '부'
+        ? Object.fromEntries(Object.keys(group).map((k): [string, YN] => [k, k === 'applicable' ? '부' : '']))
+        : { ...group, [fieldKey]: v }
+    onChange({ ...value, [itemKey]: nextGroup })
   }
 
   return (
@@ -32,12 +37,19 @@ export default function OwnerBasicSection({
               <InfoTooltip text={TOOLTIPS[item.tooltip]} />
             </div>
             <div className="flex flex-wrap gap-x-5 gap-y-2">
-              {item.fields.map((f) => (
-                <div key={f.key} className="flex items-center gap-2">
-                  <span className="text-xs text-gray-600">{f.label}</span>
-                  <YNToggle value={group[f.key] ?? ''} onChange={(v) => setField(item.key, f.key, v)} />
-                </div>
-              ))}
+              {item.fields.map((f) => {
+                const locked = f.key !== 'applicable' && group.applicable === '부'
+                return (
+                  <div key={f.key} className={`flex items-center gap-2 ${locked ? 'opacity-40' : ''}`}>
+                    <span className="text-xs text-gray-600">{f.label}</span>
+                    <YNToggle
+                      value={group[f.key] ?? ''}
+                      onChange={(v) => setField(item.key, f.key, v)}
+                      disabled={locked}
+                    />
+                  </div>
+                )
+              })}
             </div>
           </div>
         )

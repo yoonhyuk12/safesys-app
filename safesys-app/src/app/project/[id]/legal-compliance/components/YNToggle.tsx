@@ -4,13 +4,22 @@
 import type { YN } from '../lib/constants'
 import InfoTooltip from './InfoTooltip'
 
-export default function YNToggle({ value, onChange }: { value: YN; onChange: (v: YN) => void }) {
-  const base = 'px-3 py-1 text-xs font-medium border transition-colors'
+export default function YNToggle({
+  value,
+  onChange,
+  disabled = false,
+}: {
+  value: YN
+  onChange: (v: YN) => void
+  disabled?: boolean
+}) {
+  const base = `px-3 py-1 text-xs font-medium border transition-colors ${disabled ? 'cursor-not-allowed' : ''}`
   return (
-    <span className="inline-flex shrink-0">
+    <span className={`inline-flex shrink-0 ${disabled ? 'opacity-40' : ''}`}>
       {/* 같은 값을 다시 누르면 미기재('')로 되돌린다 */}
       <button
         type="button"
+        disabled={disabled}
         onClick={() => onChange(value === '여' ? '' : '여')}
         className={`${base} rounded-l-md ${value === '여' ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white text-gray-500'}`}
       >
@@ -18,6 +27,7 @@ export default function YNToggle({ value, onChange }: { value: YN; onChange: (v:
       </button>
       <button
         type="button"
+        disabled={disabled}
         onClick={() => onChange(value === '부' ? '' : '부')}
         className={`${base} -ml-px rounded-r-md ${value === '부' ? 'border-red-500 bg-red-500 text-white' : 'border-gray-300 bg-white text-gray-500'}`}
       >
@@ -34,21 +44,23 @@ export function YNRow({
   tooltip,
   value,
   onChange,
+  disabled = false,
 }: {
   label: string
   period?: string
   tooltip?: string
   value: YN
   onChange: (v: YN) => void
+  disabled?: boolean
 }) {
   return (
     <div className="flex items-center justify-between gap-2 border-b border-gray-100 py-1.5 last:border-0">
-      <div className="flex min-w-0 items-center gap-1">
+      <div className={`flex min-w-0 items-center gap-1 ${disabled ? 'opacity-40' : ''}`}>
         <span className="text-xs text-gray-700">{label}</span>
         {period && <span className="text-[10px] text-gray-400">({period})</span>}
         {tooltip && <InfoTooltip text={tooltip} />}
       </div>
-      <YNToggle value={value} onChange={onChange} />
+      <YNToggle value={value} onChange={onChange} disabled={disabled} />
     </div>
   )
 }
