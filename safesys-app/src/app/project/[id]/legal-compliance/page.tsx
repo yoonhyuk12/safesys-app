@@ -47,7 +47,7 @@ export default function LegalCompliancePage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
-  const [refreshSource, setRefreshSource] = useState('basic')
+  const [refreshMenuOpen, setRefreshMenuOpen] = useState(false)
 
   // 저장된 점검표들의 공종 목록 (최근정보 가져오기 선택지)
   const savedDisciplines = useMemo(() => {
@@ -173,19 +173,20 @@ export default function LegalCompliancePage() {
   }, [fetchOverviewDefaults])
 
   // 최근정보 가져오기 — 기본정보 갱신 또는 선택한 공종의 최근 점검표 전체 불러오기
-  const handleRefreshDefaults = async () => {
+  const handleRefreshDefaults = async (source: string) => {
+    setRefreshMenuOpen(false)
     setRefreshing(true)
-    if (refreshSource === 'basic') {
+    if (source === 'basic') {
       // 서버 최신 기본정보로 사업개요의 자동 채움 필드만 갱신 (체크값·수동 입력 유지)
       const patch = await fetchOverviewDefaults()
       setFormData((prev) => ({ ...prev, overview: { ...prev.overview, ...patch } }))
     } else {
       // records는 연도·분기 내림차순 정렬 상태 — 해당 공종의 가장 최근 점검표를 복사
-      const latest = records.find((r) => r.form_data.overview.discipline === refreshSource)
+      const latest = records.find((r) => r.form_data.overview.discipline === source)
       if (latest) {
         setFormData(hydrateFormData(latest.form_data))
       } else {
-        alert(`${refreshSource} 공종의 저장된 점검표가 없습니다.`)
+        alert(`${source} 공종의 저장된 점검표가 없습니다.`)
       }
     }
     setRefreshing(false)
@@ -361,28 +362,47 @@ export default function LegalCompliancePage() {
                   </option>
                 ))}
               </select>
-              <select
-                value={refreshSource}
-                onChange={(e) => setRefreshSource(e.target.value)}
-                className="ml-auto rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-xs font-medium text-blue-700"
-                aria-label="가져올 정보 선택"
-              >
-                <option value="basic">프로젝트 기본정보</option>
-                {savedDisciplines.map((d) => (
-                  <option key={d} value={d}>
-                    최근 점검표({d})
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={handleRefreshDefaults}
-                disabled={refreshing}
-                className="flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-                {refreshing ? '가져오는 중…' : '최근정보 가져오기'}
-              </button>
+              <span className="relative ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setRefreshMenuOpen((v) => !v)}
+                  disabled={refreshing}
+                  className="flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                  {refreshing ? '가져오는 중…' : '최근정보 가져오기'}
+                </button>
+                {refreshMenuOpen && (
+                  <>
+                    {/* 바깥 클릭 시 닫힘 */}
+                    <div className="fixed inset-0 z-40" onClick={() => setRefreshMenuOpen(false)} />
+                    <div className="absolute right-0 top-[calc(100%+4px)] z-50 min-w-44 overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
+                      <button
+                        type="button"
+                        onClick={() => handleRefreshDefaults('basic')}
+                        className="block w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50"
+                      >
+                        프로젝트 기본정보
+                      </button>
+                      {savedDisciplines.length > 0 && (
+                        <div className="border-t border-gray-100 px-3 pb-0.5 pt-1.5 text-[10px] text-gray-400">
+                          공종별 최근 점검표
+                        </div>
+                      )}
+                      {savedDisciplines.map((d) => (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => handleRefreshDefaults(d)}
+                          className="block w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50"
+                        >
+                          {d}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </span>
             </div>
 
             {/* ① 사업개요 */}
