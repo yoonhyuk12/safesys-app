@@ -120,6 +120,13 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // 유형 힌트(공사/용역) — 호출측이 계약 유형을 아는 경우(계약현황 일괄 갱신) 해당 구분 오퍼레이션부터
+    // 조회해 선행 구분의 헛 호출을 줄인다. 힌트 구분에서 못 찾으면 기존 순서대로 나머지 구분도 시도한다
+    const divHint = request.nextUrl.searchParams.get('div')
+    const preferDiv = divHint === 'cnstwk' ? '공사' : divHint === 'servc' ? '용역' : ''
+    const orderByHint = (ops: ReadonlyArray<{ op: string; div: string }>) =>
+      preferDiv ? [...ops].sort((a, b) => Number(b.div === preferDiv) - Number(a.div === preferDiv)) : [...ops]
+
     // '번호-차수' 표기별 저장 규칙 (2026-07-06 실호출 확인)
     // — 구형 공고번호(숫자): '번호+차수2자리' 결합 저장 ("20221008901-000" → "2022100890100")
     // — 차세대 계약번호(R##TA 등): 결합 저장 ("R26TA01377926-01" → "R26TA0137792601")
@@ -194,7 +201,7 @@ export async function GET(request: NextRequest) {
     let lastErrorMsg = ''
     let result: { items: G2bRawContract[]; errorMsg?: string } = { items: [] }
     outer: for (const attempt of attempts) {
-      const ops = attempt.param === 'untyCntrctNo' ? UNTY_OPS : PPSSRCH_OPS
+      const ops = orderByHint(attempt.param === 'untyCntrctNo' ? UNTY_OPS : PPSSRCH_OPS)
       for (const g2bOp of ops) {
         result = await fetchContracts(apiKey, g2bOp.op, attempt.param, attempt.value)
         if (result.errorMsg) {

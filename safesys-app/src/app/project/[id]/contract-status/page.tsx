@@ -447,6 +447,14 @@ function buildMonths(from: string, to: string): Array<{ bgn: string; end: string
 
 const monthKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 
+// 업데이트 ②단계(신규 연차 탐색) 계획 — 그룹당 months 수만큼 월별 목록 조회를 수행
+interface RefreshScanPlan {
+  g: ContractGroup
+  inst: string
+  nm: string
+  months: Array<{ bgn: string; end: string }>
+}
+
 export default function ContractStatusPage() {
   const params = useParams()
   const router = useRouter()
@@ -507,6 +515,9 @@ export default function ContractStatusPage() {
   // 등록 건 일괄 갱신 (조달청 최신 계약정보 반영)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshProgress, setRefreshProgress] = useState({ done: 0, total: 0 })
+  // 업데이트 확인 모달 — 유형별 조회 횟수 안내와 대상 유형 선택 (null이면 닫힘)
+  const [refreshConfirm, setRefreshConfirm] = useState<{ targets: ContractRecord[]; scanPlans: RefreshScanPlan[] } | null>(null)
+  const [refreshTypes, setRefreshTypes] = useState<Set<'공사' | '용역'>>(new Set(['공사', '용역']))
   // 가로 스크롤 중 여부 — 스크롤 중에는 좌측 고정된 계약명 컬럼을 5글자 폭으로 접어 데이터 영역을 확보
   const [hScrolled, setHScrolled] = useState(false)
   // 계약명 컬럼 사용자 조정 폭(px) — 헤더 경계선 드래그로 설정. 설정되면 스크롤 자동 축소보다 우선하며 localStorage에 보존
@@ -1206,14 +1217,14 @@ export default function ContractStatusPage() {
   //    연차를 연도로만 표기하는 계약명은 총공사 일수 역산으로 탐색 시작월을 잡는다).
   // 연차별 차수 계약은 확정·통합·공고번호가 전부 달라(2026-07-07·07-12 실호출 확정) 어떤 번호 재조회로도
   // 다른 연차가 나오지 않는다 — 신규 연차 발견은 기간 목록 조회가 유일한 경로다.
-  const handleRefreshAll = async () => {
+  const openRefreshConfirm = () => {
     if (!user || refreshing) return
     const targets = records.filter((r) => r.cntrct_no || r.unty_cntrct_no)
 
     // 신규 연차 탐색 대상: 미등록 차수가 있는 계약 + 기관명 확보 가능.
     // ① 금차 합 < 총액 → 미등록 차수 존재(과거·미래 불문), ② 차수 번호 1..최대 중 빠진 번호 → 과거 연차 누락
     const nowKey = monthKey(new Date())
-    const scanPlans = groups.flatMap((g) => {
+    const scanPlans: RefreshScanPlan[] = groups.flatMap((g) => {
       const tot = g.repr.tot_cntrct_amt || 0
       const thtmSum = g.members.reduce((s, m) => s + (m.thtm_cntrct_amt || 0), 0)
       const ords = g.members.map((m) => iterOrdFromName(m.cntrct_nm))
@@ -1270,7 +1281,26 @@ export default function ContractStatusPage() {
       alert('갱신할 계약번호가 있는 등록 건이 없습니다.')
       return
     }
-    if (!confirm(`등록된 ${targets.length}건을 조달청 최신 계약정보로 갱신하고, 새로운 연차(차수) 계약이 있는지 확인할까요?`)) return
+    setRefreshTypes(new Set(['공사', '용역']))
+    setRefreshConfirm({ targets, scanPlans })
+  }
+
+  // 조회 소요 시간 실측치(2026-07-13, 개발서버→조달청 API) — 두 단계 모두 3건 동시 호출이라 배치당
+  // 최장 응답이 지배. ①단계 번호 재조회는 호출당 2.9~5.6초(유형 힌트로 하한 근접), ②단계 월별 목록 조회는 4.6~8.6초
+  const STEP1_SEC_PER_BATCH = 6
+  const STEP2_SEC_PER_BATCH = 9
+  const estimateRefreshSeconds = (targets: ContractRecord[], plans: RefreshScanPlan[]) =>
+    Math.ceil(
+      Math.ceil(targets.length / 3) * STEP1_SEC_PER_BATCH +
+      plans.reduce((s, p) => s + Math.ceil(p.months.length / 3), 0) * STEP2_SEC_PER_BATCH
+    )
+
+  const handleRefreshAll = async () => {
+    if (!user || refreshing || !refreshConfirm) return
+    const targets = refreshConfirm.targets.filter((r) => refreshTypes.has(r.contract_type))
+    const scanPlans = refreshConfirm.scanPlans.filter((p) => refreshTypes.has(p.g.repr.contract_type))
+    setRefreshConfirm(null)
+    if (targets.length === 0 && scanPlans.length === 0) return
     setRefreshing(true)
     setRefreshProgress({ done: 0, total: targets.length + scanPlans.reduce((s, p) => s + p.months.length, 0) })
     let updated = 0
@@ -1328,56 +1358,69 @@ export default function ContractStatusPage() {
     }
 
     try {
-      // ① 등록 건 번호 재조회 갱신 — 같은 차수의 변경계약(금액·기간 변경) 반영
-      for (const r of targets) {
-        try {
-          const no = r.unty_cntrct_no || r.cntrct_no || ''
-          const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}`)
-          const json = await res.json()
-          if (!res.ok || !json.success) throw new Error(json.error || '조회 실패')
-          const contracts: G2bContractResp[] = json.data?.contracts || []
-          if (contracts.length === 0) throw new Error('조회 결과 없음')
-
-          for (const c of contracts) {
-            const item = contractRespToItem(c)
-            if (isKnown(item)) {
-              const existing = findExistingRecord(c)
-              if (existing) {
-                const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
-                if (c.totCntrctAmt > 0) patch.tot_cntrct_amt = c.totCntrctAmt
-                if (c.thtmCntrctAmt > 0) patch.thtm_cntrct_amt = c.thtmCntrctAmt
-                if (c.cntrctCnclsDate) patch.cntrct_date = c.cntrctCnclsDate
-                if (c.cntrctPrd) patch.cntrct_prd = c.cntrctPrd
-                if (c.startDate) patch.start_date = c.startDate
-                if (c.endDate) patch.end_date = c.endDate
-                if (c.thtmEndDate) patch.thtm_end_date = c.thtmEndDate
-                if ((c.corpNms || []).length > 0) patch.corp_nm = c.corpNms.join(', ')
-                if ((c.dminsttNms || []).length > 0) patch.dminstt_nm = c.dminsttNms.join(', ')
-                if (c.untyCntrctNo) patch.unty_cntrct_no = c.untyCntrctNo
-                if (c.cntrctNo) patch.cntrct_no = c.cntrctNo
-                if (c.cntrctDtlInfoUrl || c.cntrctInfoUrl) patch.cntrct_info_url = c.cntrctDtlInfoUrl || c.cntrctInfoUrl
-
-                const { data, error } = await (supabase as any)
-                  .from('project_contracts')
-                  .update(patch)
-                  .eq('id', existing.id)
-                  .select('id')
-                if (error) throw error
-                if (data && data.length > 0) updated += 1
-              }
-            } else {
-              await insertItem(item)
-            }
+      const CONCURRENCY = 3
+      // ① 등록 건 번호 재조회 갱신 — 같은 차수의 변경계약(금액·기간 변경) 반영.
+      // 조달청 조회(건당 3~6초)가 시간을 지배하므로 3건 동시 호출하고, 유형(div) 힌트로 서버가 해당 구분
+      // 오퍼레이션부터 조회하게 한다. DB 반영·knownKeys 갱신은 중복 등록 경합이 없도록 배치 후 순차 처리
+      for (let i = 0; i < targets.length; i += CONCURRENCY) {
+        const fetched = await Promise.all(targets.slice(i, i + CONCURRENCY).map(async (r) => {
+          try {
+            const no = r.unty_cntrct_no || r.cntrct_no || ''
+            const div = r.contract_type === '용역' ? 'servc' : 'cnstwk'
+            const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}&div=${div}`)
+            const json = await res.json()
+            if (!res.ok || !json.success) throw new Error(json.error || '조회 실패')
+            const contracts: G2bContractResp[] = json.data?.contracts || []
+            if (contracts.length === 0) throw new Error('조회 결과 없음')
+            return { r, contracts }
+          } catch (err: unknown) {
+            failures.push(`${r.cntrct_nm} (${err instanceof Error ? err.message : '오류'})`)
+            return null
+          } finally {
+            setRefreshProgress((p) => ({ ...p, done: p.done + 1 }))
           }
-        } catch (err: unknown) {
-          failures.push(`${r.cntrct_nm} (${err instanceof Error ? err.message : '오류'})`)
-        } finally {
-          setRefreshProgress((p) => ({ ...p, done: p.done + 1 }))
+        }))
+        for (const result of fetched) {
+          if (!result) continue
+          try {
+            for (const c of result.contracts) {
+              const item = contractRespToItem(c)
+              if (isKnown(item)) {
+                const existing = findExistingRecord(c)
+                if (existing) {
+                  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+                  if (c.totCntrctAmt > 0) patch.tot_cntrct_amt = c.totCntrctAmt
+                  if (c.thtmCntrctAmt > 0) patch.thtm_cntrct_amt = c.thtmCntrctAmt
+                  if (c.cntrctCnclsDate) patch.cntrct_date = c.cntrctCnclsDate
+                  if (c.cntrctPrd) patch.cntrct_prd = c.cntrctPrd
+                  if (c.startDate) patch.start_date = c.startDate
+                  if (c.endDate) patch.end_date = c.endDate
+                  if (c.thtmEndDate) patch.thtm_end_date = c.thtmEndDate
+                  if ((c.corpNms || []).length > 0) patch.corp_nm = c.corpNms.join(', ')
+                  if ((c.dminsttNms || []).length > 0) patch.dminstt_nm = c.dminsttNms.join(', ')
+                  if (c.untyCntrctNo) patch.unty_cntrct_no = c.untyCntrctNo
+                  if (c.cntrctNo) patch.cntrct_no = c.cntrctNo
+                  if (c.cntrctDtlInfoUrl || c.cntrctInfoUrl) patch.cntrct_info_url = c.cntrctDtlInfoUrl || c.cntrctInfoUrl
+
+                  const { data, error } = await (supabase as any)
+                    .from('project_contracts')
+                    .update(patch)
+                    .eq('id', existing.id)
+                    .select('id')
+                  if (error) throw error
+                  if (data && data.length > 0) updated += 1
+                }
+              } else {
+                await insertItem(item)
+              }
+            }
+          } catch (err: unknown) {
+            failures.push(`${result.r.cntrct_nm} (${err instanceof Error ? err.message : '오류'})`)
+          }
         }
       }
 
       // ② 신규 연차(차수) 계약 탐색 — 최신 차수 체결월부터 이번 달까지 월별 목록 조회
-      const CONCURRENCY = 3
       for (const plan of scanPlans) {
         const div = plan.g.repr.contract_type === '용역' ? 'servc' : 'cnstwk'
         const nmParam = plan.nm ? `&nm=${encodeURIComponent(plan.nm)}` : ''
@@ -1617,7 +1660,7 @@ export default function ContractStatusPage() {
                 <span className="hidden sm:inline">엑셀 다운</span>
               </button>
               <button
-                onClick={handleRefreshAll}
+                onClick={openRefreshConfirm}
                 disabled={refreshing}
                 title="등록된 계약을 조달청 최신 정보로 갱신하고 새 연차(차수) 계약을 탐색해 추가"
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-white text-blue-700 rounded-lg hover:bg-blue-50 disabled:opacity-60"
@@ -1996,6 +2039,107 @@ export default function ContractStatusPage() {
           )}
         </div>
       </main>
+
+      {/* 업데이트 확인 모달 — 유형별 조달청 조회 횟수 안내와 대상 유형 선택 */}
+      {refreshConfirm && (() => {
+        const stats = (['공사', '용역'] as const).map((t) => {
+          const regCnt = refreshConfirm.targets.filter((r) => r.contract_type === t).length
+          const plans = refreshConfirm.scanPlans.filter((p) => p.g.repr.contract_type === t)
+          const scanCalls = plans.reduce((s, p) => s + p.months.length, 0)
+          return { t, regCnt, planCnt: plans.length, scanCalls, calls: regCnt + scanCalls }
+        })
+        const totalCalls = stats.filter((s) => refreshTypes.has(s.t)).reduce((s, x) => s + x.calls, 0)
+        const estSec = estimateRefreshSeconds(
+          refreshConfirm.targets.filter((r) => refreshTypes.has(r.contract_type)),
+          refreshConfirm.scanPlans.filter((p) => refreshTypes.has(p.g.repr.contract_type))
+        )
+        const estLabel = estSec >= 60 ? `약 ${Math.floor(estSec / 60)}분${estSec % 60 ? ` ${estSec % 60}초` : ''}` : `약 ${estSec}초`
+        const toggleType = (t: '공사' | '용역', on: boolean) =>
+          setRefreshTypes((prev) => {
+            const next = new Set(prev)
+            if (on) next.add(t)
+            else next.delete(t)
+            return next
+          })
+        return (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setRefreshConfirm(null)}>
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="refresh-confirm-title"
+              className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between shrink-0">
+                <h3 id="refresh-confirm-title" className="font-semibold text-sm sm:text-base">계약정보 업데이트</h3>
+                <button type="button" onClick={() => setRefreshConfirm(null)} className="p-1 text-blue-200 hover:text-white" aria-label="닫기">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="p-4 space-y-3 text-sm text-gray-700">
+                <p className="text-xs text-gray-500">
+                  등록 계약을 조달청 최신 정보로 재조회하고, 미등록 연차(차수) 계약을 월 단위 목록 조회로 탐색합니다.
+                  아래 숫자는 계약 건수가 아니라 조달청 조회 횟수입니다.
+                </p>
+                <div className="space-y-2">
+                  {stats.map((s) => (
+                    <label
+                      key={s.t}
+                      className={`flex items-start gap-2.5 rounded-lg border p-2.5 ${
+                        s.calls === 0
+                          ? 'border-gray-200 opacity-50'
+                          : refreshTypes.has(s.t)
+                            ? 'border-blue-300 bg-blue-50/60 cursor-pointer'
+                            : 'border-gray-200 cursor-pointer'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 accent-blue-600"
+                        checked={s.calls > 0 && refreshTypes.has(s.t)}
+                        disabled={s.calls === 0}
+                        onChange={(e) => toggleType(s.t, e.target.checked)}
+                      />
+                      <span className="min-w-0">
+                        <span className="font-medium text-gray-900">
+                          {s.t} <span className="font-normal text-gray-500">— 총 {s.calls}회</span>
+                        </span>
+                        <span className="block text-xs text-gray-500">
+                          등록 {s.regCnt}건 재조회 {s.regCnt}회
+                          {s.scanCalls > 0 ? ` + 연차 탐색 ${s.planCnt}건 월별 조회 ${s.scanCalls}회` : ''}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <p className="font-medium text-gray-900">
+                  총 {totalCalls}회 조회 예정
+                  {totalCalls > 0 && <span className="font-normal text-gray-500"> (예상 시간 {estLabel})</span>}
+                </p>
+                <p className="text-xs text-gray-400">물품(지급자재)은 이 업데이트 대상이 아니며 지급자재 원장에서 갱신됩니다.</p>
+                <p>진행하시겠습니까?</p>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setRefreshConfirm(null)}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRefreshAll}
+                    disabled={totalCalls === 0}
+                    className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    진행
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* 실제 수요기관 납품요구 상세 모달 */}
       {materialDetailOpen && (
