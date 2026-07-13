@@ -26,9 +26,13 @@ interface QualityMonthlyReportFormProps {
 const WORK_TYPE_PRESETS: { label: string; items: string[]; volume: string }[] = [
   { label: '콘크리트', items: ['슬럼프', '공기량', '염화물', '단위수량', '압축강도'], volume: '㎥' },
   { label: '토공', items: ['현장밀도', '함수비', '다짐'], volume: '㎥' },
-  { label: '강관동바리', items: ['인장하중\n(비계용)', '휨하중\n(강관조인트)', '인장하중\n(강관조인트)', '압축하중\n(강관조인트)'], volume: '㎥' },
+  { label: '강관서포트', items: ['평누름하중'], volume: '㎥' },
+  { label: '강관비계', items: ['인장하중\n(강관)', '휨하중\n(조인트)', '인장하중\n(조인트)', '압축하중\n(조인트)'], volume: '㎡' },
   { label: '시스템비계', items: ['압축하중\n(수직재)', '휨하중\n(수평재)', '압축하중\n(가새재)', '휨하중\n(트러스)', '압축하중\n(연결조인트)', '인장하중\n(연결조인트)'], volume: '㎡' },
 ]
+
+// 첫 행에 입력한 물량·횟수를 같은 공종 아래 행 전체로 전파하는 공종
+const FIRST_ROW_PROPAGATE_WORK_TYPES = ['강관서포트', '강관비계']
 
 // 시험 빈도 — 물량 N당 1회 (횟수 자동 계산, 소수점은 올림)
 const CONCRETE_VOLUME_PER_TEST = 120 // 콘크리트 전 항목
@@ -148,11 +152,11 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
       EARTHWORK_SYNC_FIELDS.includes(field) &&
       edited.workType === '토공' &&
       EARTHWORK_SYNC_ITEMS.includes(edited.testItem.trim())
-    // 강관동바리는 첫 행에 입력한 물량·횟수를 아래 시험항목 행 전체에 전파
+    // 강관서포트·강관비계는 첫 행에 입력한 물량·횟수를 같은 공종 아래 시험항목 행 전체에 전파
     const propagateSteelPipe =
       NUMERIC_FIELDS.includes(field) &&
-      edited.workType === '강관동바리' &&
-      formData.report_rows.findIndex((r) => r.workType === '강관동바리') === index
+      FIRST_ROW_PROPAGATE_WORK_TYPES.includes(edited.workType) &&
+      formData.report_rows.findIndex((r) => r.workType === edited.workType) === index
     const rows = formData.report_rows.map((row, i) => {
       const isTarget =
         i === index ||
@@ -160,7 +164,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
         (propagateEarthwork &&
           row.workType === '토공' &&
           (EARTHWORK_SYNC_ITEMS.includes(row.testItem.trim()) || VOLUME_FIELDS.includes(field))) ||
-        (propagateSteelPipe && row.workType === '강관동바리')
+        (propagateSteelPipe && row.workType === edited.workType)
       if (!isTarget) return row
       const updated = { ...row, [field]: value }
       // 물량 입력 시 횟수 자동 계산 (콘크리트 120㎥당 1회, 토공 현장밀도·함수비 1,000㎥당 1회, 올림)
