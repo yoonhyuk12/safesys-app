@@ -660,7 +660,7 @@ export default function ContractStatusPage() {
         const y = deadlineYear(m.dlvr_deadline) || '기타'
         g.yearAmts.set(y, (g.yearAmts.get(y) || 0) + amt)
       }
-      setMaterialGroups([...byNo.values()].sort((a, b) => b.totAmt - a.totAmt))
+      setMaterialGroups([...byNo.values()])
     } finally {
       setMatLoading(false)
     }
@@ -940,6 +940,20 @@ export default function ContractStatusPage() {
       return (a.repr.created_at || '').localeCompare(b.repr.created_at || '')
     })
   }, [groups])
+
+  // 지급자재는 화면에 표시하는 조달청 납품기한을 우선해 최신 기한순, 같은 기한은 계약금액 높은 순으로 정렬.
+  // 납품기한이 없는 건은 마지막에 두고, 모든 정렬값이 같으면 납품요구번호로 순서를 고정한다.
+  const sortedMaterialGroups = useMemo(() => {
+    return [...materialGroups].sort((a, b) => {
+      const aDeadline = dlvrInfos.get(a.dlvrReqNo)?.deadline || a.deadline || ''
+      const bDeadline = dlvrInfos.get(b.dlvrReqNo)?.deadline || b.deadline || ''
+      const deadline = bDeadline.localeCompare(aDeadline)
+      if (deadline !== 0) return deadline
+      const amt = b.totAmt - a.totAmt
+      if (amt !== 0) return amt
+      return a.dlvrReqNo.localeCompare(b.dlvrReqNo)
+    })
+  }, [materialGroups, dlvrInfos])
 
   const cnstwkCount = groups.filter((g) => g.repr.contract_type === '공사').length
   const servcCount = groups.length - cnstwkCount
@@ -1980,7 +1994,7 @@ export default function ContractStatusPage() {
                           </Link>
                         </>
                       )}
-                      {materialGroups.map((g) => {
+                      {sortedMaterialGroups.map((g) => {
                         const info = dlvrInfos.get(g.dlvrReqNo)
                         const title =
                           g.title ||
