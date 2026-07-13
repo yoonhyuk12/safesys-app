@@ -10,6 +10,7 @@ import {
   TOOLTIPS,
   formatThousands,
   stripNonDigits,
+  sumConstructionCost,
 } from '../lib/constants'
 import InfoTooltip from './InfoTooltip'
 
@@ -22,14 +23,22 @@ export default function OverviewSection({
   value: Overview
   onChange: (next: Overview) => void
 }) {
-  const set = <K extends keyof Overview>(k: K, v: Overview[K]) => onChange({ ...value, [k]: v })
+  const set = <K extends keyof Overview>(k: K, v: Overview[K]) => {
+    const next = { ...value, [k]: v }
+    // 순공사비·자재대가 바뀌면 총공사비 합계를 자동 계산 (둘 다 비면 기존 예산 자동채움값 유지)
+    if (k === 'costNet' || k === 'costMaterial') {
+      const total = sumConstructionCost(next.costNet, next.costMaterial)
+      if (total !== null) next.costTotal = total
+    }
+    onChange(next)
+  }
 
   // 컴포넌트가 아닌 함수 호출로 렌더한다 — 매 렌더마다 새 컴포넌트로 인식돼 입력 포커스가 풀리는 문제 방지
   // kind: 'date'=캘린더 선택, 'number'=천단위 콤마 표시(저장값은 숫자만)
   const field = (
     label: string,
     k: keyof Overview,
-    opts?: { kind?: 'date' | 'number'; tooltip?: string }
+    opts?: { kind?: 'date' | 'number'; tooltip?: string; readOnly?: boolean }
   ): ReactNode => (
     <label key={k} className="flex flex-col gap-1">
       <span className="flex items-center gap-1 text-xs font-medium text-gray-600">
@@ -39,11 +48,12 @@ export default function OverviewSection({
       <input
         type={opts?.kind === 'date' ? 'date' : 'text'}
         inputMode={opts?.kind === 'number' ? 'numeric' : undefined}
+        readOnly={opts?.readOnly}
         value={opts?.kind === 'number' ? formatThousands(value[k] as string) : (value[k] as string)}
         onChange={(e) =>
           set(k, (opts?.kind === 'number' ? stripNonDigits(e.target.value) : e.target.value) as Overview[typeof k])
         }
-        className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+        className={`rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none ${opts?.readOnly ? 'cursor-not-allowed bg-gray-50 text-gray-600' : ''}`}
       />
     </label>
   )
@@ -92,7 +102,7 @@ export default function OverviewSection({
       {field('착공(실착공)', 'dateActualStart', { kind: 'date' })}
       {field('준공(예정)', 'dateCompletion', { kind: 'date' })}
 
-      {field('총공사비 합계(백만원)', 'costTotal', { kind: 'number' })}
+      {field('총공사비 합계(백만원, 자동)', 'costTotal', { kind: 'number', readOnly: true })}
       {field('순공사비(백만원)', 'costNet', { kind: 'number' })}
       {field('자재대(백만원)', 'costMaterial', { kind: 'number' })}
       {field('산업안전보건관리비(천원)', 'budgetIndustrial', { kind: 'number', tooltip: TOOLTIPS.budgetIndustrial })}

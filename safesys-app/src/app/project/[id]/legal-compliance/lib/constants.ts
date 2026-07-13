@@ -252,6 +252,15 @@ export const CONTRACT_CHECK_ITEMS: ReadonlyArray<ContractCheckDef> = [
 export const formatThousands = (v: string): string => (v ? v.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '')
 export const stripNonDigits = (v: string): string => v.replace(/[^\d]/g, '')
 
+// 총공사비 합계(백만원) = 순공사비 + 자재대. 둘 다 비면 null → 기존 총공사비(예산 자동채움값) 유지
+export const sumConstructionCost = (net: string, material: string): string | null =>
+  net !== '' || material !== '' ? String((Number(net) || 0) + (Number(material) || 0)) : null
+
+// 대장 의무 대상 판정 임계 — 총 공사금액 50억원(= 5,000백만원) 이상
+export const LEDGER_THRESHOLD_MILLION = 5000
+export const isBelowLedgerThreshold = (costTotal: string): boolean =>
+  costTotal !== '' && Number(costTotal) < LEDGER_THRESHOLD_MILLION
+
 // 빈 form_data 생성 — 모든 여/부는 미기재(''), 구분 '시공' · 공종 '토목' 기본값
 export function createEmptyFormData(): LegalComplianceFormData {
   return {

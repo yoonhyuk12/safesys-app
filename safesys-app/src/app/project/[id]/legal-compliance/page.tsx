@@ -6,11 +6,14 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import type { Project } from '@/lib/projects'
-import { ArrowLeft, Plus, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, RefreshCw, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import {
   createEmptyFormData,
   hydrateFormData,
+  sumConstructionCost,
+  isBelowLedgerThreshold,
   DISCIPLINE_OPTIONS,
+  type YN,
   type LegalComplianceFormData,
   type LegalComplianceRecord,
 } from './lib/constants'
@@ -104,6 +107,43 @@ export default function LegalCompliancePage() {
     if (user && projectId) loadRecords()
   }, [user, projectId, loadRecords])
 
+  // 총공사비 50억(5,000백만원) 미만이면 기본·설계·공사 안전보건대장 해당여부를 '부'로 고정하고 종속 값을 비운다
+  const belowLedgerThreshold = isBelowLedgerThreshold(formData.overview.costTotal)
+  useEffect(() => {
+    if (!belowLedgerThreshold) return
+    // 해당여부만 '부', 나머지 필드는 '' — 각 대장의 타입을 보존하며 재구성
+    const forceNo = <T extends Record<string, YN>>(g: T): T =>
+      Object.fromEntries(Object.keys(g).map((fk) => [fk, fk === 'applicable' ? '부' : ''])) as T
+    const needsReset = (g: Record<string, YN>): boolean =>
+      g.applicable !== '부' || Object.keys(g).some((fk) => fk !== 'applicable' && g[fk] !== '')
+    setFormData((prev) => {
+      const ob = prev.ownerBasic
+      if (!needsReset(ob.basicLedger) && !needsReset(ob.designLedger) && !needsReset(ob.constructionLedger)) {
+        return prev
+      }
+      return {
+        ...prev,
+        ownerBasic: {
+          ...ob,
+          basicLedger: needsReset(ob.basicLedger) ? forceNo(ob.basicLedger) : ob.basicLedger,
+          designLedger: needsReset(ob.designLedger) ? forceNo(ob.designLedger) : ob.designLedger,
+          constructionLedger: needsReset(ob.constructionLedger) ? forceNo(ob.constructionLedger) : ob.constructionLedger,
+        },
+      }
+    })
+  }, [belowLedgerThreshold])
+
+  // 안전관리계획서 수립 비대상('부')이면 안전관리실태 이행점검회의 해당여부를 '부'로 종속시키고 이행여부를 비운다
+  const implMeetingLocked = formData.ownerBasic.safetyMgmtPlan.applicable === '부'
+  useEffect(() => {
+    if (!implMeetingLocked) return
+    setFormData((prev) => {
+      const im = prev.ownerDetail.implMeeting
+      if (im.applicable === '부' && im.implemented === '') return prev
+      return { ...prev, ownerDetail: { ...prev.ownerDetail, implMeeting: { applicable: '부', implemented: '' } } }
+    })
+  }, [implMeetingLocked])
+
   const handleBack = () => {
     if (view === 'form') {
       setView('list')
@@ -163,7 +203,10 @@ export default function LegalCompliancePage() {
   const startNew = useCallback(async () => {
     const fd = createEmptyFormData()
     const patch = await fetchOverviewDefaults()
-    fd.overview = { ...fd.overview, ...patch }
+    const merged = { ...fd.overview, ...patch }
+    const total = sumConstructionCost(merged.costNet, merged.costMaterial)
+    if (total !== null) merged.costTotal = total
+    fd.overview = merged
     setFormData(fd)
     setEditingRecord(null)
     setYear(new Date().getFullYear())
@@ -179,7 +222,13 @@ export default function LegalCompliancePage() {
     if (source === 'basic') {
       // 서버 최신 기본정보로 사업개요의 자동 채움 필드만 갱신 (체크값·수동 입력 유지)
       const patch = await fetchOverviewDefaults()
-      setFormData((prev) => ({ ...prev, overview: { ...prev.overview, ...patch } }))
+      setFormData((prev) => {
+        const merged = { ...prev.overview, ...patch }
+        // 순공사비·자재대가 있으면 총공사비는 그 합을 유지(예산값으로 덮어쓰지 않음)
+        const total = sumConstructionCost(merged.costNet, merged.costMaterial)
+        if (total !== null) merged.costTotal = total
+        return { ...prev, overview: merged }
+      })
     } else {
       // records는 연도·분기 내림차순 정렬 상태 — 해당 공종의 가장 최근 점검표를 복사
       const latest = records.find((r) => r.form_data.overview.discipline === source)
@@ -245,11 +294,6 @@ export default function LegalCompliancePage() {
       setSaving(false)
     }
   }
-
-  const yearOptions = (() => {
-    const y = new Date().getFullYear()
-    return [y + 1, y, y - 1, y - 2, y - 3]
-  })()
 
   if (authLoading || !user) return null
 
@@ -340,17 +384,27 @@ export default function LegalCompliancePage() {
           <div className="space-y-4">
             {/* 연도·분기 */}
             <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
-              <select
-                value={year}
-                onChange={(e) => setYear(Number(e.target.value))}
-                className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              >
-                {yearOptions.map((y) => (
-                  <option key={y} value={y}>
-                    {y}년
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-1 rounded-md border border-gray-300 bg-white py-0.5 pl-2 pr-1">
+                <span className="min-w-[44px] text-center text-sm tabular-nums">{year}년</span>
+                <div className="flex flex-col">
+                  <button
+                    type="button"
+                    onClick={() => setYear((y) => y + 1)}
+                    aria-label="다음 연도"
+                    className="text-gray-400 hover:text-gray-700"
+                  >
+                    <ChevronUp className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setYear((y) => y - 1)}
+                    aria-label="이전 연도"
+                    className="text-gray-400 hover:text-gray-700"
+                  >
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
               <select
                 value={quarter}
                 onChange={(e) => setQuarter(Number(e.target.value))}
@@ -420,6 +474,7 @@ export default function LegalCompliancePage() {
               <OwnerBasicSection
                 value={formData.ownerBasic}
                 onChange={(ownerBasic) => setFormData((prev) => ({ ...prev, ownerBasic }))}
+                budgetBelowThreshold={belowLedgerThreshold}
               />
             </section>
 
@@ -429,6 +484,9 @@ export default function LegalCompliancePage() {
               <OwnerDetailSection
                 value={formData.ownerDetail}
                 onChange={(ownerDetail) => setFormData((prev) => ({ ...prev, ownerDetail }))}
+                ledgerImplLocked={formData.ownerBasic.constructionLedger.applicable === '부'}
+                coordinatorLocked={formData.ownerBasic.coordinator.applicable === '부'}
+                implMeetingLocked={implMeetingLocked}
               />
             </section>
 

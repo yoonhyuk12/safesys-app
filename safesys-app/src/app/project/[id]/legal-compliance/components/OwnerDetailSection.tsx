@@ -17,10 +17,10 @@ import InfoTooltip from './InfoTooltip'
 
 type Detail = LegalComplianceFormData['ownerDetail']
 
-function SubCard({ title, tooltip, children }: { title: string; tooltip?: string; children: ReactNode }) {
+function SubCard({ title, tooltip, locked, children }: { title: string; tooltip?: string; locked?: boolean; children: ReactNode }) {
   return (
     <div className="rounded-md border border-gray-200 p-2.5">
-      <div className="mb-1.5 flex items-center gap-1">
+      <div className={`mb-1.5 flex items-center gap-1 ${locked ? 'opacity-40' : ''}`}>
         <span className="text-sm font-medium text-gray-800">{title}</span>
         {tooltip && <InfoTooltip text={tooltip} />}
       </div>
@@ -35,9 +35,15 @@ const numInput =
 export default function OwnerDetailSection({
   value,
   onChange,
+  ledgerImplLocked = false,
+  coordinatorLocked = false,
+  implMeetingLocked = false,
 }: {
   value: Detail
   onChange: (next: Detail) => void
+  ledgerImplLocked?: boolean
+  coordinatorLocked?: boolean
+  implMeetingLocked?: boolean
 }) {
   const setSimple = (k: string, v: YN) => onChange({ ...value, [k]: v } as Detail)
   const setRisk = (fieldKey: string, v: YN) =>
@@ -84,6 +90,7 @@ export default function OwnerDetailSection({
             tooltip={TOOLTIPS[item.tooltip]}
             value={value[item.key] as YN}
             onChange={(v) => setSimple(item.key, v)}
+            disabled={item.key === 'ledgerImplCheck' && ledgerImplLocked}
           />
         ))}
       </div>
@@ -125,7 +132,7 @@ export default function OwnerDetailSection({
       </SubCard>
 
       {/* 안전보건조정자 활동 */}
-      <SubCard title="안전보건조정자 활동" tooltip={TOOLTIPS.coordinatorActivity}>
+      <SubCard title="안전보건조정자 활동" tooltip={TOOLTIPS.coordinatorActivity} locked={coordinatorLocked}>
         {COORDINATOR_ACTIVITY_FIELDS.map((f) => (
           <YNRow
             key={f.key}
@@ -133,19 +140,24 @@ export default function OwnerDetailSection({
             period={f.period}
             value={(value.coordinatorActivity as Record<string, YN>)[f.key] ?? ''}
             onChange={(v) => setCoordinator(f.key, v)}
-            disabled={f.key !== 'multiDiscipline' && value.coordinatorActivity.multiDiscipline === '부'}
+            disabled={coordinatorLocked || (f.key !== 'multiDiscipline' && value.coordinatorActivity.multiDiscipline === '부')}
           />
         ))}
       </SubCard>
 
-      {/* 안전관리실태 이행점검회의 */}
-      <SubCard title="안전관리실태 이행점검회의" tooltip={TOOLTIPS.implMeeting}>
-        <YNRow label="해당여부" value={value.implMeeting.applicable} onChange={(v) => setImplMeeting('applicable', v)} />
+      {/* 안전관리실태 이행점검회의 — 안전관리계획서 비대상('부')이면 종속 '부'·잠금 */}
+      <SubCard title="안전관리실태 이행점검회의" tooltip={TOOLTIPS.implMeeting} locked={implMeetingLocked}>
+        <YNRow
+          label="해당여부"
+          value={implMeetingLocked ? '부' : value.implMeeting.applicable}
+          onChange={(v) => setImplMeeting('applicable', v)}
+          disabled={implMeetingLocked}
+        />
         <YNRow
           label="이행여부"
           value={value.implMeeting.implemented}
           onChange={(v) => setImplMeeting('implemented', v)}
-          disabled={value.implMeeting.applicable === '부'}
+          disabled={implMeetingLocked || value.implMeeting.applicable === '부'}
         />
       </SubCard>
 
