@@ -43,8 +43,13 @@ interface Material {
   dlvrSupplierTel?: string | null
   dlvrDeadline?: string | null
   dlvrTitle?: string | null // 저장된 납품요구 건명 — 있으면 조달청 건명 재조회 생략
+  dlvrDemandOrg?: string | null // 저장된 수요기관명 — 지급·검사검수 상세를 기본 조회와 병렬로 불러올 때 사용
   g2bInspDate?: string | null // 저장된 나라장터 검사검수 최신 일자
   g2bPayDate?: string | null // 저장된 나라장터 대금지급 최신 일자 — 있으면 지급·검수 재조회 생략
+  g2bPayTotal?: number | null // 저장된 대금지급 문서 합계금액
+  g2bPayDocCount?: number | null // 저장된 대금지급 문서 건수
+  g2bSettlementYear?: string | null // 90% 이상 지급 시 최종 지급문서 기준 정산연도
+  g2bPayInspCheckedAt?: string | null // 지급·검사검수 마지막 조회시각
 }
 
 interface MaterialRow {
@@ -148,6 +153,10 @@ const mergeDlvrPayInspDocs = (...results: G2bPayInspDocs[]): G2bPayInspDocs => (
 
 const PAY_INSP_GENERIC_WORDS = ['구매', '지급자재', '관급자재', '사업', '공사', '설치', '제조', '제작', '납품']
 const normalizeDlvrReqNo = (value: string) => value.replace(/\s+/g, '').toUpperCase().replace(/-\d{1,3}$/, '')
+const g2bDateYear = (value: string | null | undefined) => {
+  const year = (value || '').slice(0, 4)
+  return /^\d{4}$/.test(year) ? year : null
+}
 const cleanPayInspCandidate = (value: string) => value.replace(/[\[\]{}<>]/g, ' ').replace(/\s+/g, ' ').trim()
 const isSpecificPayInspCandidate = (value: string) => {
   const compact = value.replace(/[^0-9A-Za-z가-힣]/g, '')
@@ -374,6 +383,9 @@ export default function MaterialLedgerPage() {
   const [dlvrInsps, setDlvrInsps] = useState<G2bInspDoc[]>([])
   const [dlvrInspsLoading, setDlvrInspsLoading] = useState(false)
   const [dlvrInspsError, setDlvrInspsError] = useState('')
+  const [dlvrPayByNo, setDlvrPayByNo] = useState<Map<string, G2bPayDoc[]>>(
+    () => new Map([...dlvrPayInspCache].map(([no, docs]) => [no, docs.pays]))
+  )
   const [dlvrInspByNo, setDlvrInspByNo] = useState<Map<string, G2bInspDoc[]>>(
     () => new Map([...dlvrPayInspCache].map(([no, docs]) => [no, docs.insps]))
   )
@@ -573,13 +585,14 @@ export default function MaterialLedgerPage() {
     }
   }, [dlvrTitles])
 
-  // 계약 목록의 연계 납품요구 검사검수를 동시 2건씩 배경 조회한다. 실패는 캐시하지 않아 재방문 시 다시 시도한다.
-  // 지급 일자가 저장된 건(지급완료)은 재조회를 생략하고(배지는 저장값 표시), 조회로 확인된 일자는 write-back한다
+  // 계약 목록의 연계 납품요구 검사검수를 동시 2건씩 배경 조회한다. 성공 결과는 서버에 저장해 24시간 동안 재조회하지 않는다.
   useEffect(() => {
     const materialNamesByNo = new Map<string, string[]>()
     const titleKeyByNo = new Map<string, string>()
     const rawNosByNo = new Map<string, string[]>()
-    const storedByNo = new Map<string, { insp: string; pay: string }>()
+    const contractTotalByNo = new Map<string, number>()
+    const deadlineByNo = new Map<string, string>()
+    const storedByNo = new Map<string, { insp: string; pay: string; payTotal: number; payDocCount: number; settlementYear: string; checkedAt: string }>()
     for (const material of materials) {
       const rawNo = material.dlvrReqNo || material.rows.find(row => row.dlvrReqNo)?.dlvrReqNo || ''
       const no = normalizeDlvrReqNo(rawNo)
@@ -591,14 +604,27 @@ export default function MaterialLedgerPage() {
       const raws = rawNosByNo.get(no) || []
       if (!raws.includes(rawNo)) raws.push(rawNo)
       rawNosByNo.set(no, raws)
-      const cur = storedByNo.get(no) || { insp: '', pay: '' }
+      const cur = storedByNo.get(no) || { insp: '', pay: '', payTotal: 0, payDocCount: 0, settlementYear: '', checkedAt: '' }
       if (material.g2bInspDate && material.g2bInspDate > cur.insp) cur.insp = material.g2bInspDate
       if (material.g2bPayDate && material.g2bPayDate > cur.pay) cur.pay = material.g2bPayDate
+      if (material.g2bPayTotal != null && material.g2bPayTotal > cur.payTotal) cur.payTotal = material.g2bPayTotal
+      if (material.g2bPayDocCount != null && material.g2bPayDocCount > cur.payDocCount) cur.payDocCount = material.g2bPayDocCount
+      if (material.g2bSettlementYear) cur.settlementYear = material.g2bSettlementYear
+      if (material.g2bPayInspCheckedAt && material.g2bPayInspCheckedAt > cur.checkedAt) cur.checkedAt = material.g2bPayInspCheckedAt
       storedByNo.set(no, cur)
+      const contractAmt = material.rows.reduce((sum, row) => {
+        const rowNo = normalizeDlvrReqNo(row.dlvrReqNo || rawNo)
+        if (rowNo !== no) return sum
+        return sum + (parseFloat(stripComma(row.prdctAmt || '')) || 0) + (parseFloat(stripComma(row.feeAmt || '')) || 0)
+      }, 0)
+      contractTotalByNo.set(no, (contractTotalByNo.get(no) || 0) + contractAmt)
+      if (material.dlvrDeadline && material.dlvrDeadline > (deadlineByNo.get(no) || '')) deadlineByNo.set(no, material.dlvrDeadline)
     }
 
     const queue = [...materialNamesByNo.entries()].flatMap(([no, names]) => {
-      if (dlvrPayInspCache.has(no) || storedByNo.get(no)?.pay) return []
+      const checkedAt = storedByNo.get(no)?.checkedAt
+      const checkedAtMs = checkedAt ? Date.parse(checkedAt) : NaN
+      if (dlvrPayInspCache.has(no) || (Number.isFinite(checkedAtMs) && Date.now() - checkedAtMs < 24 * 60 * 60 * 1000)) return []
       const rawNo = titleKeyByNo.get(no) || no
       const fetchedTitle = dlvrTitles[rawNo]
       if (fetchedTitle === undefined) return []
@@ -607,6 +633,7 @@ export default function MaterialLedgerPage() {
       return title ? [{ no, title }] : []
     })
     if (queue.length === 0) {
+      setDlvrPayByNo(new Map([...dlvrPayInspCache].map(([no, docs]) => [no, docs.pays])))
       setDlvrInspByNo(new Map([...dlvrPayInspCache].map(([no, docs]) => [no, docs.insps])))
       return
     }
@@ -620,20 +647,33 @@ export default function MaterialLedgerPage() {
           try {
             const docs = await fetchDlvrPayInsp(target.no, target.title)
             if (!cancelled) {
+              setDlvrPayByNo(new Map([...dlvrPayInspCache].map(([no, docs2]) => [no, docs2.pays])))
               setDlvrInspByNo(new Map([...dlvrPayInspCache].map(([no, docs2]) => [no, docs2.insps])))
             }
-            // 저장이 안 된 일자는 조회 결과를 write-back — 다음 방문·다른 출처에서 재조회 생략
-            const lastInsp = docs.insps.reduce((mx, d) => (d.inspDate > mx ? d.inspDate : mx), '')
-            const lastPay = docs.pays.reduce((mx, d) => (d.payDate > mx ? d.payDate : mx), '')
+            // 최종 일자·지급문서 전체 합계·최종 지급문서 기준 정산연도를 함께 저장한다.
             const cur = storedByNo.get(target.no)
-            const patch: Record<string, string> = {}
+            const lastInsp = docs.insps.reduce((mx, d) => (d.inspDate > mx ? d.inspDate : mx), '') || cur?.insp || ''
+            const lastPay = docs.pays.reduce((mx, d) => (d.payDate > mx ? d.payDate : mx), '') || cur?.pay || ''
+            const payTotal = docs.pays.length > 0 ? docs.pays.reduce((sum, pay) => sum + pay.amt, 0) : (cur?.payTotal || 0)
+            const payDocCount = docs.pays.length > 0 ? docs.pays.length : (cur?.payDocCount || 0)
+            const completionYear = g2bDateYear(deadlineByNo.get(target.no))
+            const finalPayYear = g2bDateYear(lastPay)
+            const settlementYear = completionYear && finalPayYear && completionYear !== finalPayYear
+              && (contractTotalByNo.get(target.no) || 0) > 0
+              && payTotal >= (contractTotalByNo.get(target.no) || 0) * 0.9
+              ? finalPayYear
+              : null
+            const patch: Record<string, string | number | null> = {
+              g2b_pay_total: payTotal,
+              g2b_pay_doc_count: payDocCount,
+              g2b_settlement_year: settlementYear,
+              g2b_pay_insp_checked_at: new Date().toISOString(),
+            }
             if (lastInsp && lastInsp !== (cur?.insp || '')) patch.g2b_insp_date = lastInsp
             if (lastPay && lastPay !== (cur?.pay || '')) patch.g2b_pay_date = lastPay
-            if (Object.keys(patch).length > 0) {
-              await supabase.from('materials').update(patch)
-                .eq('project_id', projectId)
-                .in('dlvr_req_no', rawNosByNo.get(target.no) || [])
-            }
+            await supabase.from('materials').update(patch)
+              .eq('project_id', projectId)
+              .in('dlvr_req_no', rawNosByNo.get(target.no) || [])
           } catch {
             // 배경 조회 실패는 배지를 숨기고 캐시하지 않아 다음 방문에 재시도한다
           }
@@ -691,8 +731,13 @@ export default function MaterialLedgerPage() {
           dlvrSupplierTel: m.dlvr_supplier_tel || null,
           dlvrDeadline: m.dlvr_deadline || null,
           dlvrTitle: m.dlvr_title || null,
+          dlvrDemandOrg: m.dlvr_dminstt || null,
           g2bInspDate: m.g2b_insp_date || null,
-          g2bPayDate: m.g2b_pay_date || null
+          g2bPayDate: m.g2b_pay_date || null,
+          g2bPayTotal: m.g2b_pay_total == null ? null : Number(m.g2b_pay_total),
+          g2bPayDocCount: m.g2b_pay_doc_count == null ? null : Number(m.g2b_pay_doc_count),
+          g2bSettlementYear: m.g2b_settlement_year || null,
+          g2bPayInspCheckedAt: m.g2b_pay_insp_checked_at || null
         }
       })
       matList.sort((a: any, b: any) => (a.realOrder || 0) - (b.realOrder || 0))
@@ -1083,6 +1128,15 @@ export default function MaterialLedgerPage() {
             const maxDeadline = result.items.reduce((mx, i) => (i.deadline > mx ? i.deadline : mx), '')
             const inspDate = (fetched.payInsp?.insps || []).reduce((mx, d) => (d.inspDate > mx ? d.inspDate : mx), '')
             const payDate = (fetched.payInsp?.pays || []).reduce((mx, d) => (d.payDate > mx ? d.payDate : mx), '')
+            const payTotal = (fetched.payInsp?.pays || []).reduce((sum, pay) => sum + pay.amt, 0)
+            const productTotal = result.items.reduce((sum, item) => sum + (item.amt || 0), 0)
+            const contractTotal = productTotal + calcG2bFee(productTotal)
+            const completionYear = g2bDateYear(maxDeadline)
+            const finalPayYear = g2bDateYear(payDate)
+            const settlementYear = completionYear && finalPayYear && completionYear !== finalPayYear
+              && contractTotal > 0 && payTotal >= contractTotal * 0.9
+              ? finalPayYear
+              : null
             const { error: matErr } = await supabase.from('materials').update({
               dlvr_req_synced_at: new Date().toISOString(),
               dlvr_supplier: result.supplier || null,
@@ -1092,6 +1146,12 @@ export default function MaterialLedgerPage() {
               ...(maxDeadline ? { dlvr_deadline: maxDeadline } : {}),
               ...(inspDate ? { g2b_insp_date: inspDate } : {}),
               ...(payDate ? { g2b_pay_date: payDate } : {}),
+              ...(fetched.payInsp ? {
+                g2b_pay_total: payTotal,
+                g2b_pay_doc_count: fetched.payInsp.pays.length,
+                g2b_settlement_year: settlementYear,
+                g2b_pay_insp_checked_at: new Date().toISOString(),
+              } : {}),
             }).eq('id', reprMat.id)
             if (matErr) throw matErr
           }
@@ -1749,6 +1809,7 @@ export default function MaterialLedgerPage() {
       if (dlvrDetailRequestRef.current !== requestId) return
       setDlvrPays(exact.pays)
       setDlvrInsps(exact.insps)
+      setDlvrPayByNo(new Map([...dlvrPayInspCache].map(([cachedNo, docs]) => [cachedNo, docs.pays])))
       setDlvrInspByNo(new Map([...dlvrPayInspCache].map(([cachedNo, docs]) => [cachedNo, docs.insps])))
     } catch (err: unknown) {
       if (dlvrDetailRequestRef.current !== requestId) return
@@ -1770,6 +1831,21 @@ export default function MaterialLedgerPage() {
     const cachedDocs = dlvrPayInspCache.get(no)
     setDlvrPays(cachedDocs?.pays || [])
     setDlvrInsps(cachedDocs?.insps || [])
+    // 저장된 건명·수요기관으로 지급·검사검수를 먼저 조회해 기본 납품요구 조회와 병렬 처리한다.
+    const initialTitle = selectedMaterial?.dlvrTitle || selectedMaterial?.name || ''
+    if (initialTitle) {
+      void fetchDlvrPayInsp(no, initialTitle, selectedMaterial?.dlvrDemandOrg || '')
+        .then(exact => {
+          if (dlvrDetailRequestRef.current !== requestId) return
+          setDlvrPays(exact.pays)
+          setDlvrInsps(exact.insps)
+          setDlvrPayByNo(new Map([...dlvrPayInspCache].map(([cachedNo, docs]) => [cachedNo, docs.pays])))
+          setDlvrInspByNo(new Map([...dlvrPayInspCache].map(([cachedNo, docs]) => [cachedNo, docs.insps])))
+        })
+        .catch(() => {
+          // 기본 납품요구 조회 완료 뒤 수요기관 최신값으로 다시 조회한다.
+        })
+    }
     setDlvrInspsLoading(false)
     setDlvrInspsError('')
     setDlvrDetailLoading(true)
@@ -2936,6 +3012,10 @@ export default function MaterialLedgerPage() {
     </div>
   ) : null
 
+  const dlvrDetailStoredPayDate = selectedMaterial?.g2bPayDate
+    && normalizeDlvrReqNo(selectedMaterial.dlvrReqNo || '') === dlvrDetailNo
+    ? selectedMaterial.g2bPayDate : ''
+
   // 실제 수요기관 납품요구 상세 모달 — 조회만 수행하며 원장 데이터는 변경하지 않는다
   const dlvrDetailModalJsx = dlvrDetailOpen && selectedMaterial ? (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={closeDlvrDetail}>
@@ -2976,6 +3056,16 @@ export default function MaterialLedgerPage() {
                 <p className="mt-2 text-center text-sm font-medium tabular-nums text-blue-300">{dlvrDetailProgress}%</p>
               </div>
               조달청에서 실제 납품요구 내역을 불러오는 중입니다.
+              {dlvrDetailStoredPayDate && (
+                <div className="w-full max-w-sm rounded border border-emerald-500/40 bg-emerald-950/30 px-4 py-3 text-left">
+                  <p className="text-sm font-semibold text-emerald-200">지급완료</p>
+                  <p className="mt-1 text-xs text-emerald-100/70">
+                    나라장터 대금지급 확인일 {dlvrDetailStoredPayDate}
+                    {selectedMaterial.g2bPayDocCount ? ` · ${selectedMaterial.g2bPayDocCount}건` : ''}
+                    {selectedMaterial.g2bPayTotal ? ` · ${formatNumber(String(selectedMaterial.g2bPayTotal))}원` : ''}
+                  </p>
+                </div>
+              )}
             </div>
           ) : dlvrDetailError ? (
             <div className="text-center py-12 px-4">
@@ -3037,6 +3127,13 @@ export default function MaterialLedgerPage() {
                         </tr>
                       </thead>
                       <tbody>
+                        <tr className="bg-amber-950/30 border-b border-amber-800/50 font-semibold text-amber-100">
+                          <td colSpan={5} className="px-3 py-2 text-center text-xs">소계 ({dlvrDetail.items.length}건)</td>
+                          <td className="px-3 py-2 text-right tabular-nums">
+                            {formatNumber(String(dlvrDetail.items.reduce((sum, item) => sum + (item.amt ?? item.unitPrice * item.qty), 0)))}
+                          </td>
+                          <td className="px-3 py-2" />
+                        </tr>
                         {dlvrDetail.items.map((item, idx) => (
                           <tr key={`${item.sno}-${idx}`} className="border-b border-amber-900/30 last:border-b-0 hover:bg-white/5">
                             <td className="px-3 py-2 text-center text-amber-200/50">{item.sno || idx + 1}</td>
@@ -3064,6 +3161,36 @@ export default function MaterialLedgerPage() {
                 <p className="order-2 py-4 px-3 text-center text-sm text-red-400 border border-red-500/30 rounded bg-red-950/20">
                   {dlvrInspsError}
                 </p>
+              )}
+
+              {dlvrPays.length === 0 && dlvrDetailStoredPayDate && !dlvrInspsLoading && (
+                <div className="order-2">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <h4 className="text-sm font-semibold text-amber-100">지급완료 내역</h4>
+                    <span className="text-xs text-amber-200/50">저장된 확인 정보</span>
+                  </div>
+                  <div className="rounded border border-emerald-700/50 bg-emerald-950/20 px-4 py-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <p className="text-xs text-emerald-200/70">최종 지급일</p>
+                        <p className="mt-1 text-sm font-semibold text-emerald-100">{dlvrDetailStoredPayDate}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-emerald-200/70">지급문서</p>
+                        <p className="mt-1 text-sm font-semibold text-emerald-100">
+                          {selectedMaterial.g2bPayDocCount != null ? `${selectedMaterial.g2bPayDocCount}건` : '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-emerald-200/70">지급액 합계</p>
+                        <p className="mt-1 text-sm font-semibold text-emerald-100">
+                          {selectedMaterial.g2bPayTotal != null ? `${formatNumber(String(selectedMaterial.g2bPayTotal))}원` : '-'}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="mt-2 text-[11px] text-amber-200/50">문서별 지급금액과 문서번호는 나라장터 상세 조회 결과가 확인되면 함께 표시됩니다.</p>
+                  </div>
+                </div>
               )}
 
               {dlvrPays.length > 0 && (() => {
@@ -4179,11 +4306,19 @@ export default function MaterialLedgerPage() {
       a.dlvrReqNo.localeCompare(b.dlvrReqNo))
   const totalPrdctAmt = contractRows.reduce((s, r) => s + r.prdctAmt, 0)
   const totalFeeAmt = contractRows.reduce((s, r) => s + r.feeAmt, 0)
-  // 납품기한 연도(년차)별 그룹 — 소계 행을 해당 연도 계약들 바로 위에 표시.
-  // 최근년도가 맨 위(내림차순), 납품기한 없는 계약은 마지막에 소계 없이 배치.
-  const yearOfRow = (r: { mat: Material }) => {
-    const y = (r.mat.dlvrDeadline || '').slice(0, 4)
-    return /^\d{4}$/.test(y) ? y : ''
+  // 귀속연도별 그룹 — 90% 이상 지급완료 건은 최종 지급연도, 나머지는 납품기한 연도를 사용한다.
+  // 저장된 정산연도를 우선 활용하되 현재 세션에 지급문서가 있으면 최신 합계와 최종 지급일로 다시 계산한다.
+  const yearOfRow = (r: (typeof contractRows)[number]) => {
+    const pays = r.dlvrReqNo ? dlvrPayByNo.get(normalizeDlvrReqNo(r.dlvrReqNo)) || [] : []
+    const payTotal = pays.length > 0 ? pays.reduce((sum, pay) => sum + pay.amt, 0) : (r.mat.g2bPayTotal || 0)
+    const finalPayDate = pays.reduce((latest, pay) => pay.payDate > latest ? pay.payDate : latest, '') || r.mat.g2bPayDate || ''
+    const completionYear = g2bDateYear(r.mat.dlvrDeadline)
+    const finalPayYear = g2bDateYear(finalPayDate)
+    const calculatedYear = completionYear && finalPayYear && completionYear !== finalPayYear
+      && (r.prdctAmt + r.feeAmt) > 0 && payTotal >= (r.prdctAmt + r.feeAmt) * 0.9
+      ? finalPayYear
+      : null
+    return calculatedYear || (pays.length === 0 ? r.mat.g2bSettlementYear : null) || completionYear || ''
   }
   let contractSeq = 0
   const yearGroups = [...[...new Set(contractRows.map(yearOfRow).filter(Boolean))].sort().reverse(), '']
@@ -4739,14 +4874,22 @@ export default function MaterialLedgerPage() {
                         const mat = row.mat
                         const gemStyle = getMaterialGemStyle(mat.name, row.no - 1, mat.colorIndex)
                         const title = row.dlvrReqNo ? dlvrTitles[row.dlvrReqNo] : ''
+                        const rowPays = row.dlvrReqNo
+                          ? dlvrPayByNo.get(normalizeDlvrReqNo(row.dlvrReqNo)) || []
+                          : []
                         const rowInsps = row.dlvrReqNo
                           ? dlvrInspByNo.get(normalizeDlvrReqNo(row.dlvrReqNo)) || []
                           : []
-                        // 실시간 문서가 없어도 저장된 검사검수 일자(g2b_insp_date)가 있으면 배지를 표시한다
+                        // 실시간 문서가 없어도 저장된 지급·검사검수 일자가 있으면 배지를 표시한다
+                        const storedPayDate = row.dlvrReqNo && mat.g2bPayDate
+                          && normalizeDlvrReqNo(mat.dlvrReqNo || '') === normalizeDlvrReqNo(row.dlvrReqNo)
+                          ? mat.g2bPayDate : ''
                         const storedInspDate = row.dlvrReqNo && mat.g2bInspDate
                           && normalizeDlvrReqNo(mat.dlvrReqNo || '') === normalizeDlvrReqNo(row.dlvrReqNo)
                           ? mat.g2bInspDate : ''
+                        const lastPayDate = rowPays.reduce((latest, pay) => pay.payDate > latest ? pay.payDate : latest, '') || storedPayDate
                         const lastInspDate = rowInsps.reduce((latest, insp) => insp.inspDate > latest ? insp.inspDate : latest, '') || storedInspDate
+                        const paidSum = rowPays.reduce((sum, pay) => sum + pay.amt, 0)
                         return (
                           <tr
                             key={mat.id}
@@ -4764,11 +4907,18 @@ export default function MaterialLedgerPage() {
                                   <Loader2 className="inline-block h-3 w-3 ml-1.5 animate-spin text-amber-200/40 align-middle" />
                                 )}
                               </span>
-                              {(rowInsps.length > 0 || storedInspDate) && (
+                              {lastPayDate ? (
+                                <span
+                                  className="block w-fit mt-1 px-1.5 py-px rounded-full text-[10px] font-semibold bg-emerald-500 text-white whitespace-nowrap"
+                                  title={`나라장터 대금지급 ${lastPayDate}${paidSum > 0 ? ` · 누계 ${fmtAmt(paidSum)}원` : ''}${lastInspDate ? ` · 검사검수 ${lastInspDate}` : ''}`}
+                                >
+                                  지급완료
+                                </span>
+                              ) : lastInspDate ? (
                                 <span className="block w-fit mt-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-700/70 text-emerald-100 border border-emerald-500/40 whitespace-nowrap">
                                   검사검수 완료 · {lastInspDate || '-'}{rowInsps.length > 0 ? ` · ${rowInsps.length}건` : ''}
                                 </span>
-                              )}
+                              ) : null}
                             </td>
                             <td className="px-3 py-2 text-left text-xs text-amber-100/90 whitespace-nowrap" style={{ border: '1px solid #3a3a45' }}>
                               <span className={`inline-block w-2.5 h-2.5 rounded-sm mr-1.5 align-middle bg-gradient-to-br ${gemStyle.bg} border ${gemStyle.border}`} />

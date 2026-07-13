@@ -179,9 +179,13 @@ interface MaterialContractGroup {
   dminstt: string | null // 저장된 수요기관명
   rcptDate: string | null // 저장된 접수일
   inspDate: string | null // 저장된 나라장터 검사검수 일자
-  payDate: string | null // 저장된 나라장터 대금지급 일자 — 있으면 지급·검수 재조회 생략
+  payDate: string | null // 저장된 나라장터 최종 대금지급 일자
+  payTotal: number | null // 저장된 대금지급 문서 합계금액
+  payDocCount: number | null // 저장된 대금지급 문서 건수
+  settlementYear: string | null // 90% 이상 지급 시 최종 지급문서 기준 정산연도
+  payInspCheckedAt: string | null // 지급·검사검수 마지막 조회시각
   totAmt: number // 품대+조달수수료 합
-  yearAmts: Map<string, number> // 납품기한 연도 → 금액 합
+  yearAmts: Map<string, number> // 기본은 납품기한 연도, 정산조건 충족 시 최종 지급연도 → 금액 합
 }
 
 // /api/g2b/dlvr-req-info 응답 — 납품요구 요약(건명·업체·수요기관·접수일)
@@ -607,13 +611,14 @@ export default function ContractStatusPage() {
     try {
       const { data: mats } = await supabase
         .from('materials')
-        .select('id, name, dlvr_req_no, dlvr_supplier, dlvr_deadline, dlvr_title, dlvr_dminstt, dlvr_rcpt_date, g2b_insp_date, g2b_pay_date')
+        .select('id, name, dlvr_req_no, dlvr_supplier, dlvr_deadline, dlvr_title, dlvr_dminstt, dlvr_rcpt_date, g2b_insp_date, g2b_pay_date, g2b_pay_total, g2b_pay_doc_count, g2b_settlement_year, g2b_pay_insp_checked_at')
         .eq('project_id', projectId)
         .order('sort_order', { ascending: true })
       type MatRow = {
         id: string; name: string; dlvr_req_no: string | null; dlvr_supplier: string | null; dlvr_deadline: string | null
         dlvr_title: string | null; dlvr_dminstt: string | null; dlvr_rcpt_date: string | null
-        g2b_insp_date: string | null; g2b_pay_date: string | null
+        g2b_insp_date: string | null; g2b_pay_date: string | null; g2b_pay_total: number | null
+        g2b_pay_doc_count: number | null; g2b_settlement_year: string | null; g2b_pay_insp_checked_at: string | null
       }
       const matList: MatRow[] = mats || []
       if (matList.length === 0) { setMaterialGroups([]); return }
@@ -630,6 +635,7 @@ export default function ContractStatusPage() {
           g = {
             dlvrReqNo: no, materialNames: [], supplier: null, deadline: null,
             title: null, dminstt: null, rcptDate: null, inspDate: null, payDate: null,
+            payTotal: null, payDocCount: null, settlementYear: null, payInspCheckedAt: null,
             totAmt: 0, yearAmts: new Map(),
           }
           byNo.set(no, g)
@@ -645,6 +651,12 @@ export default function ContractStatusPage() {
         if (!g.rcptDate && m.dlvr_rcpt_date) g.rcptDate = m.dlvr_rcpt_date
         if (m.g2b_insp_date && (!g.inspDate || m.g2b_insp_date > g.inspDate)) g.inspDate = m.g2b_insp_date
         if (m.g2b_pay_date && (!g.payDate || m.g2b_pay_date > g.payDate)) g.payDate = m.g2b_pay_date
+        if (m.g2b_pay_total != null && (g.payTotal == null || m.g2b_pay_total > g.payTotal)) g.payTotal = m.g2b_pay_total
+        if (m.g2b_pay_doc_count != null && (g.payDocCount == null || m.g2b_pay_doc_count > g.payDocCount)) g.payDocCount = m.g2b_pay_doc_count
+        if (!g.settlementYear && m.g2b_settlement_year) g.settlementYear = m.g2b_settlement_year
+        if (m.g2b_pay_insp_checked_at && (!g.payInspCheckedAt || m.g2b_pay_insp_checked_at > g.payInspCheckedAt)) {
+          g.payInspCheckedAt = m.g2b_pay_insp_checked_at
+        }
       }
       for (const m of matList) if (m.dlvr_req_no) addMaterialMeta(ensure(m.dlvr_req_no), m)
       type EntryRow = { material_id: string; dlvr_req_no: string | null; prdct_amt: number | null; fee_amt: number | null }
@@ -846,7 +858,9 @@ export default function ContractStatusPage() {
       if (!payInspCache.has(key)) wants.set(key, { nm, inst })
     }
     for (const g of materialGroups) {
-      if (g.payDate) continue // 지급완료 일자가 저장된 건 — 뱃지는 저장값으로 표시하고 재조회 생략
+      // 성공한 조회 결과는 24시간 동안 서버 저장값을 사용해 화면 방문마다 다시 조회하지 않는다.
+      const checkedAt = g.payInspCheckedAt ? Date.parse(g.payInspCheckedAt) : NaN
+      if (Number.isFinite(checkedAt) && Date.now() - checkedAt < 24 * 60 * 60 * 1000) continue
       const info = dlvrInfos.get(g.dlvrReqNo)
       add(g.title || info?.title || g.materialNames[0] || '', (g.dminstt || info?.dminsttNm || '').trim(), true)
     }
@@ -893,25 +907,66 @@ export default function ContractStatusPage() {
     (no: string) => allInsps.filter((d) => d.dlvrReqNo && d.dlvrReqNo === no),
     [allInsps]
   )
-  // 나라장터 지급·검사검수 일자 write-back — 통합검색으로 확인된 문서 일자를 materials에 저장해
-  // 다음 방문부터 조회 없이 뱃지를 띄운다 (세션 중 건당 1회만 저장, 실패는 무시)
+  // 나라장터 지급·검사검수 결과 write-back — 최신 일자뿐 아니라 지급 합계·문서 수·정산연도를 저장한다.
+  // 최종 지급연도와 납품기한 연도가 다르고 지급 합계가 계약금액의 90% 이상이면 최종 지급문서 연도를 정산연도로 사용한다.
   const payInspSavedRef = useRef(new Set<string>())
   useEffect(() => {
     for (const g of materialGroups) {
       if (payInspSavedRef.current.has(g.dlvrReqNo)) continue
-      const lastPay = paysForDlvr(g.dlvrReqNo).reduce((d, p) => (p.payDate > d ? p.payDate : d), '')
-      const lastInsp = inspsForDlvr(g.dlvrReqNo).reduce((d, x) => (x.inspDate > d ? x.inspDate : d), '')
-      const patch: Record<string, string> = {}
+      const info = dlvrInfos.get(g.dlvrReqNo)
+      const nm = payInspKeyword(g.title || info?.title || g.materialNames[0] || '', true)
+      const inst = (g.dminstt || info?.dminsttNm || '').trim()
+      const cacheKey = `${nm}|${inst}`
+      if (!nm || !payInspCache.has(cacheKey) || !payInspCache.get(cacheKey)) continue
+
+      const pays = paysForDlvr(g.dlvrReqNo)
+      const insps = inspsForDlvr(g.dlvrReqNo)
+      const lastPay = pays.reduce((d, p) => (p.payDate > d ? p.payDate : d), '') || g.payDate || ''
+      const lastInsp = insps.reduce((d, x) => (x.inspDate > d ? x.inspDate : d), '') || g.inspDate || ''
+      const payTotal = pays.length > 0 ? pays.reduce((sum, pay) => sum + pay.amt, 0) : (g.payTotal || 0)
+      const payDocCount = pays.length > 0 ? pays.length : (g.payDocCount || 0)
+      const completionYear = deadlineYear(info?.deadline || g.deadline)
+      const finalPayYear = deadlineYear(lastPay)
+      const settlementYear = completionYear && finalPayYear && completionYear !== finalPayYear
+        && g.totAmt > 0 && payTotal >= g.totAmt * 0.9
+        ? finalPayYear
+        : null
+      const patch: Record<string, string | number | null> = {
+        g2b_pay_total: payTotal,
+        g2b_pay_doc_count: payDocCount,
+        g2b_settlement_year: settlementYear,
+        g2b_pay_insp_checked_at: new Date().toISOString(),
+      }
       if (lastPay && lastPay !== (g.payDate || '')) patch.g2b_pay_date = lastPay
       if (lastInsp && lastInsp !== (g.inspDate || '')) patch.g2b_insp_date = lastInsp
-      if (Object.keys(patch).length === 0) continue
       payInspSavedRef.current.add(g.dlvrReqNo)
       void (supabase as any).from('materials').update(patch)
         .eq('project_id', projectId)
         .eq('dlvr_req_no', g.dlvrReqNo)
         .then(() => {})
     }
-  }, [materialGroups, paysForDlvr, inspsForDlvr, projectId])
+  }, [materialGroups, dlvrInfos, paysForDlvr, inspsForDlvr, projectId])
+
+  // 이미 지급합계·최종 지급일이 저장된 건은 외부 재조회 없이 정산연도만 즉시 보정한다.
+  const settlementReconciledRef = useRef(new Set<string>())
+  useEffect(() => {
+    for (const g of materialGroups) {
+      if (settlementReconciledRef.current.has(g.dlvrReqNo)) continue
+      const completionYear = deadlineYear(dlvrInfos.get(g.dlvrReqNo)?.deadline || g.deadline)
+      const finalPayYear = deadlineYear(g.payDate)
+      const settlementYear = completionYear && finalPayYear && completionYear !== finalPayYear
+        && g.totAmt > 0 && (g.payTotal || 0) >= g.totAmt * 0.9
+        ? finalPayYear
+        : null
+      if (!settlementYear || settlementYear === g.settlementYear) continue
+      settlementReconciledRef.current.add(g.dlvrReqNo)
+      void (supabase as any).from('materials')
+        .update({ g2b_settlement_year: settlementYear })
+        .eq('project_id', projectId)
+        .eq('dlvr_req_no', g.dlvrReqNo)
+        .then(() => {})
+    }
+  }, [materialGroups, dlvrInfos, projectId])
   // 공사·용역 그룹 매칭 — 딥링크 ctrtNo·확정계약번호(차수 제외 기본번호 포함) 기준
   const paysForGroup = useCallback(
     (g: ContractGroup) => {
@@ -929,22 +984,63 @@ export default function ContractStatusPage() {
     [allPays]
   )
 
-  // 표 정렬: 공사 먼저 → 용역(소계행이 구분 연속 그룹핑에 의존), 그다음 총계약금액 내림차순 (사용자 지정 순서)
+  // 표 정렬: 공사 먼저 → 용역(소계행이 구분 연속 그룹핑에 의존). 공사는 총계약금액 내림차순,
+  // 용역은 계약완료일(최종 준공일) 내림차순 → 같으면 총계약금액 내림차순 (사용자 지정 순서)
   const sortedGroups = useMemo(() => {
     const typeOrder = (t: string) => (t === '공사' ? 0 : 1)
     return [...groups].sort((a, b) => {
       const t = typeOrder(a.repr.contract_type) - typeOrder(b.repr.contract_type)
       if (t !== 0) return t
+      // 같은 구분 내 정렬 — 용역은 계약완료일 내림차순 우선 (완료일 없는 건은 맨 뒤)
+      if (a.repr.contract_type === '용역') {
+        const end = (b.endDate || '').localeCompare(a.endDate || '')
+        if (end !== 0) return end
+      }
       const amt = (b.repr.tot_cntrct_amt || 0) - (a.repr.tot_cntrct_amt || 0)
       if (amt !== 0) return amt
       return (a.repr.created_at || '').localeCompare(b.repr.created_at || '')
     })
   }, [groups])
 
+  // 지급자재 귀속연도 — 납품기한 연도가 없으면 계약체결일에 해당하는 납품요구 접수일 연도로 귀속한다.
+  // 최종 지급연도와 계약완료일(납품기한) 연도가 다르고 지급문서 합계가 계약금액의 90% 이상이면
+  // 여러 지급문서 중 가장 마지막 지급일의 연도로 계약금액 전액을 귀속한다. 서버 저장값이 있으면 재조회 전에도 즉시 사용한다.
+  const accountedMaterialGroups = useMemo(() => {
+    return materialGroups.map(g => {
+      const info = dlvrInfos.get(g.dlvrReqNo)
+      const contractYear = deadlineYear(g.rcptDate || info?.rcptDate)
+      const baseYearAmts = new Map(g.yearAmts)
+      const unknownAmt = baseYearAmts.get('기타') || 0
+      const usesContractYear = !!contractYear && unknownAmt > 0
+      if (usesContractYear) {
+        baseYearAmts.delete('기타')
+        baseYearAmts.set(contractYear, (baseYearAmts.get(contractYear) || 0) + unknownAmt)
+      }
+      const pays = paysForDlvr(g.dlvrReqNo)
+      const payTotal = pays.length > 0 ? pays.reduce((sum, pay) => sum + pay.amt, 0) : (g.payTotal || 0)
+      const finalPayDate = pays.reduce((latest, pay) => pay.payDate > latest ? pay.payDate : latest, '') || g.payDate || ''
+      const completionYear = deadlineYear(info?.deadline || g.deadline)
+      const finalPayYear = deadlineYear(finalPayDate)
+      const calculatedYear = completionYear && finalPayYear && completionYear !== finalPayYear
+        && g.totAmt > 0 && payTotal >= g.totAmt * 0.9
+        ? finalPayYear
+        : null
+      const settlementYear = pays.length > 0 ? calculatedYear : (g.settlementYear || calculatedYear)
+      if (!settlementYear) return usesContractYear ? { ...g, yearAmts: baseYearAmts } : g
+      return {
+        ...g,
+        payTotal,
+        payDocCount: pays.length > 0 ? pays.length : g.payDocCount,
+        settlementYear,
+        yearAmts: new Map([[settlementYear, g.totAmt]]),
+      }
+    })
+  }, [materialGroups, dlvrInfos, paysForDlvr])
+
   // 지급자재는 화면에 표시하는 조달청 납품기한을 우선해 최신 기한순, 같은 기한은 계약금액 높은 순으로 정렬.
   // 납품기한이 없는 건은 마지막에 두고, 모든 정렬값이 같으면 납품요구번호로 순서를 고정한다.
   const sortedMaterialGroups = useMemo(() => {
-    return [...materialGroups].sort((a, b) => {
+    return [...accountedMaterialGroups].sort((a, b) => {
       const aDeadline = dlvrInfos.get(a.dlvrReqNo)?.deadline || a.deadline || ''
       const bDeadline = dlvrInfos.get(b.dlvrReqNo)?.deadline || b.deadline || ''
       const deadline = bDeadline.localeCompare(aDeadline)
@@ -953,7 +1049,7 @@ export default function ContractStatusPage() {
       if (amt !== 0) return amt
       return a.dlvrReqNo.localeCompare(b.dlvrReqNo)
     })
-  }, [materialGroups, dlvrInfos])
+  }, [accountedMaterialGroups, dlvrInfos])
 
   const cnstwkCount = groups.filter((g) => g.repr.contract_type === '공사').length
   const servcCount = groups.length - cnstwkCount
@@ -962,9 +1058,9 @@ export default function ContractStatusPage() {
   const yearCols = useMemo(() => {
     const s = new Set<string>()
     for (const g of groups) for (const y of g.yearAmts.keys()) s.add(y)
-    for (const g of materialGroups) for (const y of g.yearAmts.keys()) s.add(y)
+    for (const g of accountedMaterialGroups) for (const y of g.yearAmts.keys()) s.add(y)
     return [...s].sort((a, b) => (a === '기타' ? 1 : b === '기타' ? -1 : a.localeCompare(b)))
-  }, [groups, materialGroups])
+  }, [groups, accountedMaterialGroups])
   // 올해 연도 컬럼은 배경색으로 강조 (사용자 지정)
   const thisYear = String(new Date().getFullYear())
 
@@ -1803,7 +1899,7 @@ export default function ContractStatusPage() {
                 </thead>
                 <tbody>
                   {/* 총 합계행 — 제목행 바로 아래 (공사·용역 계약 + 물품 지급자재 합산) */}
-                  {renderTotalRow('총 합계', [...groups.map(toTotalItem), ...materialGroups.map(matToTotalItem)], 'bg-[#e2eefe]', 'bg-amber-100/60')}
+                  {renderTotalRow('총 합계', [...groups.map(toTotalItem), ...accountedMaterialGroups.map(matToTotalItem)], 'bg-[#e2eefe]', 'bg-amber-100/60')}
                   {sortedGroups.map((g, idx) => {
                     const r = g.repr
                     const isRep = isGroupRepresentative(g)
@@ -1981,7 +2077,7 @@ export default function ContractStatusPage() {
                     <>
                       {renderTotalRow(
                         '물품 소계',
-                        materialGroups.map(matToTotalItem),
+                        accountedMaterialGroups.map(matToTotalItem),
                         'bg-[#fcf9ff]',
                         'bg-amber-100/40',
                         <>
@@ -2044,7 +2140,7 @@ export default function ContractStatusPage() {
                                 const lastPay = pays.reduce((d, p) => (p.payDate > d ? p.payDate : d), '') || g.payDate || ''
                                 const lastInsp = insps.reduce((d, x) => (x.inspDate > d ? x.inspDate : d), '') || g.inspDate || ''
                                 if (!lastPay && !lastInsp) return null
-                                const paidSum = pays.reduce((s, p) => s + p.amt, 0)
+                                const paidSum = pays.length > 0 ? pays.reduce((s, p) => s + p.amt, 0) : (g.payTotal || 0)
                                 return (
                                   <span className="flex items-center gap-1">
                                     {lastPay ? (
@@ -2366,6 +2462,13 @@ export default function ContractStatusPage() {
                             </tr>
                           </thead>
                           <tbody>
+                            <tr className="bg-blue-50 border-b border-blue-100 font-semibold text-gray-700">
+                              <td colSpan={5} className="px-3 py-2 text-center text-xs">소계 ({materialDetail.items.length}건)</td>
+                              <td className="px-3 py-2 text-right tabular-nums">
+                                {formatAmt(materialDetail.items.reduce((sum, item) => sum + (item.amt || 0), 0))}
+                              </td>
+                              <td className="px-3 py-2" />
+                            </tr>
                             {materialDetail.items.map((item, idx) => (
                               <tr key={`${item.sno}-${idx}`} className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
                                 <td className="px-3 py-2 text-center text-gray-500">{item.sno || idx + 1}</td>
