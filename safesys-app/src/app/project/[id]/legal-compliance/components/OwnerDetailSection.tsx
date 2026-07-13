@@ -40,9 +40,15 @@ export default function OwnerDetailSection({
   onChange: (next: Detail) => void
 }) {
   const setSimple = (k: string, v: YN) => onChange({ ...value, [k]: v } as Detail)
-  const setGroup = (groupKey: 'coordinatorActivity' | 'riskAssessment', fieldKey: string, v: YN) => {
-    const group = value[groupKey] as Record<string, YN>
-    onChange({ ...value, [groupKey]: { ...group, [fieldKey]: v } })
+  const setRisk = (fieldKey: string, v: YN) =>
+    onChange({ ...value, riskAssessment: { ...value.riskAssessment, [fieldKey]: v } })
+  // 조정자 활동 — 복합공종 시행여부가 '부'면 회의·합동점검은 의미가 없어 비운다
+  const setCoordinator = (fieldKey: string, v: YN) => {
+    const next: Detail['coordinatorActivity'] =
+      fieldKey === 'multiDiscipline' && v === '부'
+        ? { multiDiscipline: '부', meeting: '', jointInspection: '' }
+        : { ...value.coordinatorActivity, [fieldKey]: v }
+    onChange({ ...value, coordinatorActivity: next })
   }
   // 이행점검회의 — 해당여부가 '부'면 이행여부는 의미가 없어 비운다
   const setImplMeeting = (fieldKey: 'applicable' | 'implemented', v: YN) => {
@@ -126,7 +132,8 @@ export default function OwnerDetailSection({
             label={f.label}
             period={f.period}
             value={(value.coordinatorActivity as Record<string, YN>)[f.key] ?? ''}
-            onChange={(v) => setGroup('coordinatorActivity', f.key, v)}
+            onChange={(v) => setCoordinator(f.key, v)}
+            disabled={f.key !== 'multiDiscipline' && value.coordinatorActivity.multiDiscipline === '부'}
           />
         ))}
       </SubCard>
@@ -149,7 +156,7 @@ export default function OwnerDetailSection({
             key={f.key}
             label={f.label}
             value={(value.riskAssessment as Record<string, YN>)[f.key] ?? ''}
-            onChange={(v) => setGroup('riskAssessment', f.key, v)}
+            onChange={(v) => setRisk(f.key, v)}
           />
         ))}
       </SubCard>
