@@ -198,7 +198,7 @@ export default function OwnerDetailSection({
             <input type="text" inputMode="numeric" disabled={smartLocked} value={formatThousands(value.smartEquipment.costIndustrial)} onChange={(e) => setSmart({ costIndustrial: stripNonDigits(e.target.value) })} className={`${numInput} ${lockedInput}`} />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] text-gray-500">안전관리비(천원)</span>
+            <span className="text-[11px] text-gray-500">건진법 안전관리비(천원)</span>
             <input type="text" inputMode="numeric" disabled={smartLocked} value={formatThousands(value.smartEquipment.costSafety)} onChange={(e) => setSmart({ costSafety: stripNonDigits(e.target.value) })} className={`${numInput} ${lockedInput}`} />
           </label>
           <label className="flex flex-col gap-1">

@@ -106,7 +106,7 @@ export default function OverviewSection({
       {field('순공사비(백만원)', 'costNet', { kind: 'number' })}
       {field('자재대(백만원)', 'costMaterial', { kind: 'number' })}
       {field('산업안전보건관리비(천원)', 'budgetIndustrial', { kind: 'number', tooltip: TOOLTIPS.budgetIndustrial })}
-      {field('안전관리비(천원)', 'budgetSafety', { kind: 'number', tooltip: TOOLTIPS.budgetSafety })}
+      {field('건진법 안전관리비(천원)', 'budgetSafety', { kind: 'number', tooltip: TOOLTIPS.budgetSafety })}
 
       <label className="flex flex-col gap-1">
         <span className="flex items-center gap-1 text-xs font-medium text-gray-600">
