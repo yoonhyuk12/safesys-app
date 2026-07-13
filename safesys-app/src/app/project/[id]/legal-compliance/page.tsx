@@ -1,7 +1,7 @@
 'use client'
 // 법적이행 확인(안전활동 점검표) 서류철 — 분기별 여/부 점검표 목록·작성/수정 페이지
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
@@ -10,6 +10,7 @@ import { ArrowLeft, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import {
   createEmptyFormData,
   hydrateFormData,
+  DISCIPLINE_OPTIONS,
   type LegalComplianceFormData,
   type LegalComplianceRecord,
 } from './lib/constants'
@@ -46,6 +47,15 @@ export default function LegalCompliancePage() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [refreshSource, setRefreshSource] = useState('basic')
+
+  // 저장된 점검표들의 공종 목록 (최근정보 가져오기 선택지)
+  const savedDisciplines = useMemo(() => {
+    const set = new Set(records.map((r) => r.form_data.overview.discipline).filter(Boolean))
+    const ordered = DISCIPLINE_OPTIONS.filter((d) => set.has(d))
+    const rest = [...set].filter((d) => !(DISCIPLINE_OPTIONS as readonly string[]).includes(d))
+    return [...ordered, ...rest]
+  }, [records])
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login')
@@ -162,11 +172,22 @@ export default function LegalCompliancePage() {
     setView('form')
   }, [fetchOverviewDefaults])
 
-  // 최근정보 가져오기 — 서버 최신 기본정보로 사업개요의 자동 채움 필드만 갱신 (체크값·수동 입력 유지)
+  // 최근정보 가져오기 — 기본정보 갱신 또는 선택한 공종의 최근 점검표 전체 불러오기
   const handleRefreshDefaults = async () => {
     setRefreshing(true)
-    const patch = await fetchOverviewDefaults()
-    setFormData((prev) => ({ ...prev, overview: { ...prev.overview, ...patch } }))
+    if (refreshSource === 'basic') {
+      // 서버 최신 기본정보로 사업개요의 자동 채움 필드만 갱신 (체크값·수동 입력 유지)
+      const patch = await fetchOverviewDefaults()
+      setFormData((prev) => ({ ...prev, overview: { ...prev.overview, ...patch } }))
+    } else {
+      // records는 연도·분기 내림차순 정렬 상태 — 해당 공종의 가장 최근 점검표를 복사
+      const latest = records.find((r) => r.form_data.overview.discipline === refreshSource)
+      if (latest) {
+        setFormData(hydrateFormData(latest.form_data))
+      } else {
+        alert(`${refreshSource} 공종의 저장된 점검표가 없습니다.`)
+      }
+    }
     setRefreshing(false)
   }
 
@@ -340,11 +361,24 @@ export default function LegalCompliancePage() {
                   </option>
                 ))}
               </select>
+              <select
+                value={refreshSource}
+                onChange={(e) => setRefreshSource(e.target.value)}
+                className="ml-auto rounded-md border border-blue-200 bg-blue-50 px-2 py-1.5 text-xs font-medium text-blue-700"
+                aria-label="가져올 정보 선택"
+              >
+                <option value="basic">프로젝트 기본정보</option>
+                {savedDisciplines.map((d) => (
+                  <option key={d} value={d}>
+                    최근 점검표({d})
+                  </option>
+                ))}
+              </select>
               <button
                 type="button"
                 onClick={handleRefreshDefaults}
                 disabled={refreshing}
-                className="ml-auto flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+                className="flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
                 {refreshing ? '가져오는 중…' : '최근정보 가져오기'}
