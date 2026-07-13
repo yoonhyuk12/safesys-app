@@ -3,7 +3,7 @@
 // 안전현황 '법적이행확인' 카드 뷰 — 본부→지사→프로젝트 3단 드릴다운 + 연도·분기별 안전활동점검표 엑셀 내보내기
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ScrollText, Download } from 'lucide-react'
+import { ArrowLeft, ScrollText, Download, ChevronUp, ChevronDown } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
@@ -281,23 +281,30 @@ const LegalComplianceView: React.FC<LegalComplianceViewProps> = ({ initialHq, in
     }
   }
 
-  const yearOptions = (() => {
-    const y = new Date().getFullYear()
-    return [y + 1, y, y - 1, y - 2, y - 3]
-  })()
-
-  // 연도·분기 select + 엑셀 다운 버튼 (모든 레벨 공통)
+  // 연도 스텝퍼·분기 select + 엑셀 다운 버튼 (모든 레벨 공통)
   const controls = (
-    <div className="flex items-center gap-2">
-      <select
-        value={year}
-        onChange={(e) => setYear(Number(e.target.value))}
-        className="rounded-md border border-gray-300 px-2 py-1 text-sm bg-white"
-      >
-        {yearOptions.map((y) => (
-          <option key={y} value={y}>{y}년</option>
-        ))}
-      </select>
+    <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center gap-1 rounded-md border border-gray-300 bg-white py-0.5 pl-2 pr-1">
+        <span className="min-w-[44px] text-center text-sm tabular-nums">{year}년</span>
+        <div className="flex flex-col">
+          <button
+            type="button"
+            onClick={() => setYear((y) => y + 1)}
+            aria-label="다음 연도"
+            className="text-gray-400 hover:text-gray-700"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setYear((y) => y - 1)}
+            aria-label="이전 연도"
+            className="text-gray-400 hover:text-gray-700"
+          >
+            <ChevronDown className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
       <select
         value={quarter}
         onChange={(e) => setQuarter(Number(e.target.value))}
@@ -357,8 +364,8 @@ const LegalComplianceView: React.FC<LegalComplianceViewProps> = ({ initialHq, in
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       <div className="px-2 py-2 sm:px-6 sm:py-4 border-b border-gray-200">
-        <div className="flex items-center justify-between gap-2">
-          <button onClick={handleBack} className="inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 transition-colors">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <button onClick={handleBack} className="inline-flex items-center gap-1 self-start text-sm text-gray-600 hover:text-gray-900 transition-colors">
             <ArrowLeft className="h-4 w-4" />
             {viewLevel === 'hq' ? '안전현황으로 돌아가기' : viewLevel === 'branch' ? '본부로 돌아가기' : '지사로 돌아가기'}
           </button>
@@ -370,7 +377,6 @@ const LegalComplianceView: React.FC<LegalComplianceViewProps> = ({ initialHq, in
         <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900">
           <ScrollText className="h-5 w-5 text-blue-600" />
           {title}
-          <span className="text-sm font-normal text-gray-500">{year}년 {quarter}분기</span>
         </h3>
 
         {loading ? (
@@ -442,13 +448,24 @@ const LegalComplianceView: React.FC<LegalComplianceViewProps> = ({ initialHq, in
                     const isContracted = rows.some((r) => r.formData.isContractedWork === '여')
                     const nonCompliance = rows.reduce((s, r) => s + countNonCompliance(r.formData), 0)
                     const updatedAt = rows.reduce<string>((m, r) => (r.updatedAt > m ? r.updatedAt : m), '')
+                    const name = p.project_name || '미지정'
+                    const mobileName = name.length > 3 ? `${name.slice(0, 3)}...` : name
                     return (
                       <tr
                         key={p.id}
-                        onClick={() => router.push(`/project/${p.id}/legal-compliance`)}
+                        onClick={() =>
+                          router.push(
+                            `/project/${p.id}/legal-compliance?returnUrl=${encodeURIComponent(
+                              `/safe/branch/${encodeURIComponent(selectedBranch)}/legal-compliance`
+                            )}`
+                          )
+                        }
                         className="hover:bg-blue-50/50 cursor-pointer transition-colors"
                       >
-                        <td className="px-3 py-3 text-sm font-medium text-blue-600 hover:text-blue-800 text-center border-r border-gray-200">{p.project_name || '미지정'}</td>
+                        <td className="px-3 py-3 text-sm font-medium text-blue-600 hover:text-blue-800 text-center border-r border-gray-200">
+                          <span className="sm:hidden">{mobileName}</span>
+                          <span className="hidden sm:inline">{name}</span>
+                        </td>
                         <td className="px-3 py-3 text-sm text-center text-gray-700 border-r border-gray-200">
                           {rows.length === 0
                             ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">미제출</span>
