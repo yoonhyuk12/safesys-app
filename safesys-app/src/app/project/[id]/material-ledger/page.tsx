@@ -182,7 +182,8 @@ const payInspKeyword = (title: string): string => {
 
 const fetchDlvrPayInsp = async (no: string, title: string, demandOrg = ''): Promise<G2bPayInspDocs> => {
   const cached = dlvrPayInspCache.get(no)
-  if (cached && (!demandOrg || dlvrPayInspDemandScoped.has(no))) return cached
+  const cachedHasDocs = !!cached && (cached.pays.length > 0 || cached.insps.length > 0)
+  if (cached && (cachedHasDocs || !demandOrg) && (!demandOrg || dlvrPayInspDemandScoped.has(no))) return cached
   const pendingKey = `${no}|${demandOrg ? 'demand' : 'background'}`
   const pending = dlvrPayInspPending.get(pendingKey)
   if (pending) return pending
@@ -195,21 +196,26 @@ const fetchDlvrPayInsp = async (no: string, title: string, demandOrg = ''): Prom
       if (demandOrg) dlvrPayInspDemandScoped.add(no)
       return current
     }
-    const res = await fetch(
-      `/api/g2b/pay-insp?nm=${encodeURIComponent(keyword)}${demandOrg ? `&inst=${encodeURIComponent(demandOrg)}` : ''}`
-    )
-    const json = await res.json()
-    if (!res.ok || !json.success) throw new Error(json.error || '지급·검사검수 내역을 불러오지 못했습니다.')
-    const payRows: G2bPayDoc[] = Array.isArray(json.data?.pays) ? json.data.pays : []
-    const inspRows: G2bInspDoc[] = Array.isArray(json.data?.insps) ? json.data.insps : []
-    const exact: G2bPayInspDocs = {
-      pays: [...new Map(
-        payRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])
-      ).values()],
-      insps: [...new Map(
-        inspRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])
-      ).values()],
+    const loadExact = async (inst: string): Promise<G2bPayInspDocs> => {
+      const res = await fetch(
+        `/api/g2b/pay-insp?nm=${encodeURIComponent(keyword)}${inst ? `&inst=${encodeURIComponent(inst)}` : ''}`
+      )
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error || '지급·검사검수 내역을 불러오지 못했습니다.')
+      const payRows: G2bPayDoc[] = Array.isArray(json.data?.pays) ? json.data.pays : []
+      const inspRows: G2bInspDoc[] = Array.isArray(json.data?.insps) ? json.data.insps : []
+      return {
+        pays: [...new Map(
+          payRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])
+        ).values()],
+        insps: [...new Map(
+          inspRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])
+        ).values()],
+      }
     }
+    let exact = await loadExact(demandOrg)
+    // 수요기관 표기 차이로 누락될 수 있어 기관 필터 결과가 비면 전체 검색 후 납품요구번호 완전일치로 다시 좁힌다.
+    if (demandOrg && exact.pays.length === 0 && exact.insps.length === 0) exact = await loadExact('')
     const merged = mergeDlvrPayInspDocs(dlvrPayInspCache.get(no) || { pays: [], insps: [] }, exact)
     dlvrPayInspCache.set(no, merged)
     if (demandOrg) dlvrPayInspDemandScoped.add(no)
@@ -4310,8 +4316,10 @@ export default function MaterialLedgerPage() {
   // 저장된 정산연도를 우선 활용하되 현재 세션에 지급문서가 있으면 최신 합계와 최종 지급일로 다시 계산한다.
   const yearOfRow = (r: (typeof contractRows)[number]) => {
     const pays = r.dlvrReqNo ? dlvrPayByNo.get(normalizeDlvrReqNo(r.dlvrReqNo)) || [] : []
-    const payTotal = pays.length > 0 ? pays.reduce((sum, pay) => sum + pay.amt, 0) : (r.mat.g2bPayTotal || 0)
-    const finalPayDate = pays.reduce((latest, pay) => pay.payDate > latest ? pay.payDate : latest, '') || r.mat.g2bPayDate || ''
+    const livePayTotal = pays.reduce((sum, pay) => sum + pay.amt, 0)
+    const payTotal = Math.max(livePayTotal, r.mat.g2bPayTotal || 0)
+    const liveFinalPayDate = pays.reduce((latest, pay) => pay.payDate > latest ? pay.payDate : latest, '')
+    const finalPayDate = liveFinalPayDate > (r.mat.g2bPayDate || '') ? liveFinalPayDate : (r.mat.g2bPayDate || '')
     const completionYear = g2bDateYear(r.mat.dlvrDeadline)
     const finalPayYear = g2bDateYear(finalPayDate)
     const calculatedYear = completionYear && finalPayYear && completionYear !== finalPayYear
@@ -4887,9 +4895,10 @@ export default function MaterialLedgerPage() {
                         const storedInspDate = row.dlvrReqNo && mat.g2bInspDate
                           && normalizeDlvrReqNo(mat.dlvrReqNo || '') === normalizeDlvrReqNo(row.dlvrReqNo)
                           ? mat.g2bInspDate : ''
-                        const lastPayDate = rowPays.reduce((latest, pay) => pay.payDate > latest ? pay.payDate : latest, '') || storedPayDate
+                        const liveLastPayDate = rowPays.reduce((latest, pay) => pay.payDate > latest ? pay.payDate : latest, '')
+                        const lastPayDate = liveLastPayDate > storedPayDate ? liveLastPayDate : storedPayDate
                         const lastInspDate = rowInsps.reduce((latest, insp) => insp.inspDate > latest ? insp.inspDate : latest, '') || storedInspDate
-                        const paidSum = rowPays.reduce((sum, pay) => sum + pay.amt, 0)
+                        const paidSum = Math.max(rowPays.reduce((sum, pay) => sum + pay.amt, 0), mat.g2bPayTotal || 0)
                         return (
                           <tr
                             key={mat.id}

@@ -284,7 +284,7 @@ const mergePayInspResults = (...results: PayInspResult[]): PayInspResult => ({
 
 const fetchMaterialDetailPayInsp = async (no: string, title: string, demandOrg: string): Promise<PayInspResult> => {
   const cached = materialDetailPayInspCache.get(no)
-  if (cached) return cached
+  if (cached && (cached.pays.length > 0 || cached.insps.length > 0)) return cached
   const pending = materialDetailPayInspPending.get(no)
   if (pending) return pending
 
@@ -295,17 +295,21 @@ const fetchMaterialDetailPayInsp = async (no: string, title: string, demandOrg: 
       materialDetailPayInspCache.set(no, empty)
       return empty
     }
-    const res = await fetch(
-      `/api/g2b/pay-insp?nm=${encodeURIComponent(keyword)}${demandOrg ? `&inst=${encodeURIComponent(demandOrg)}` : ''}`
-    )
-    const json = await res.json()
-    if (!res.ok || !json.success) throw new Error(json.error || '지급·검사검수 내역을 불러오지 못했습니다.')
-    const payRows: G2bPayDoc[] = Array.isArray(json.data?.pays) ? json.data.pays : []
-    const inspRows: G2bInspDoc[] = Array.isArray(json.data?.insps) ? json.data.insps : []
-    const exact = {
-      pays: [...new Map(payRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])).values()],
-      insps: [...new Map(inspRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])).values()],
+    const loadExact = async (inst: string): Promise<PayInspResult> => {
+      const res = await fetch(
+        `/api/g2b/pay-insp?nm=${encodeURIComponent(keyword)}${inst ? `&inst=${encodeURIComponent(inst)}` : ''}`
+      )
+      const json = await res.json()
+      if (!res.ok || !json.success) throw new Error(json.error || '지급·검사검수 내역을 불러오지 못했습니다.')
+      const payRows: G2bPayDoc[] = Array.isArray(json.data?.pays) ? json.data.pays : []
+      const inspRows: G2bInspDoc[] = Array.isArray(json.data?.insps) ? json.data.insps : []
+      return {
+        pays: [...new Map(payRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])).values()],
+        insps: [...new Map(inspRows.filter(doc => doc.dlvrReqNo === no).map(doc => [doc.docNo, doc])).values()],
+      }
     }
+    let exact = await loadExact(demandOrg)
+    if (demandOrg && exact.pays.length === 0 && exact.insps.length === 0) exact = await loadExact('')
     materialDetailPayInspCache.set(no, exact)
     return exact
   })().finally(() => {
@@ -1017,8 +1021,9 @@ export default function ContractStatusPage() {
         baseYearAmts.set(contractYear, (baseYearAmts.get(contractYear) || 0) + unknownAmt)
       }
       const pays = paysForDlvr(g.dlvrReqNo)
-      const payTotal = pays.length > 0 ? pays.reduce((sum, pay) => sum + pay.amt, 0) : (g.payTotal || 0)
-      const finalPayDate = pays.reduce((latest, pay) => pay.payDate > latest ? pay.payDate : latest, '') || g.payDate || ''
+      const payTotal = Math.max(pays.reduce((sum, pay) => sum + pay.amt, 0), g.payTotal || 0)
+      const liveFinalPayDate = pays.reduce((latest, pay) => pay.payDate > latest ? pay.payDate : latest, '')
+      const finalPayDate = liveFinalPayDate > (g.payDate || '') ? liveFinalPayDate : (g.payDate || '')
       const completionYear = deadlineYear(info?.deadline || g.deadline)
       const finalPayYear = deadlineYear(finalPayDate)
       const calculatedYear = completionYear && finalPayYear && completionYear !== finalPayYear
