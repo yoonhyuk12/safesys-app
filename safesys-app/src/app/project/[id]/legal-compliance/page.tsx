@@ -1,0 +1,398 @@
+'use client'
+// 법적이행 확인(안전활동 점검표) 서류철 — 분기별 여/부 점검표 목록·작성/수정 페이지
+
+import { useState, useEffect, useCallback } from 'react'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
+import { supabase } from '@/lib/supabase'
+import type { Project } from '@/lib/projects'
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import {
+  createEmptyFormData,
+  hydrateFormData,
+  type LegalComplianceFormData,
+  type LegalComplianceRecord,
+} from './lib/constants'
+import OverviewSection from './components/OverviewSection'
+import OwnerBasicSection from './components/OwnerBasicSection'
+import OwnerDetailSection from './components/OwnerDetailSection'
+import ContractSection from './components/ContractSection'
+import YNToggle from './components/YNToggle'
+
+// 원(BIGINT/문자열) 총공사비 후보 중 첫 유효값을 백만원 단위 문자열로 반올림
+const toMillionWon = (candidates: Array<number | null>): string => {
+  const won = candidates.find((v) => v != null && Number.isFinite(v) && v > 0)
+  return won != null ? String(Math.round(won / 1_000_000)) : ''
+}
+
+const currentQuarter = () => Math.floor(new Date().getMonth() / 3) + 1
+
+export default function LegalCompliancePage() {
+  const params = useParams()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { user, loading: authLoading } = useAuth()
+  const projectId = params.id as string
+
+  const [project, setProject] = useState<Project | null>(null)
+  const [records, setRecords] = useState<LegalComplianceRecord[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [view, setView] = useState<'list' | 'form'>('list')
+  const [editingRecord, setEditingRecord] = useState<LegalComplianceRecord | null>(null)
+  const [formData, setFormData] = useState<LegalComplianceFormData>(createEmptyFormData())
+  const [year, setYear] = useState(new Date().getFullYear())
+  const [quarter, setQuarter] = useState(currentQuarter())
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+
+  useEffect(() => {
+    if (!authLoading && !user) router.replace('/login')
+  }, [authLoading, user, router])
+
+  useEffect(() => {
+    if (!user || !projectId) return
+    const loadProject = async () => {
+      const { data } = await supabase
+        .from('projects')
+        .select(
+          'id, project_name, managing_hq, managing_branch, project_category, construction_start_date, construction_end_date, total_budget, g2b_tot_amt, representative_contract_id'
+        )
+        .eq('id', projectId)
+        .single()
+      if (data) setProject(data as Project)
+    }
+    loadProject()
+  }, [user, projectId])
+
+  const loadRecords = useCallback(async () => {
+    if (!projectId) return
+    setLoading(true)
+    setLoadError('')
+    const { data, error } = await (supabase as any)
+      .from('legal_compliance_checks')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('check_year', { ascending: false })
+      .order('check_quarter', { ascending: false })
+    if (error) {
+      setLoadError(
+        error.message?.includes('legal_compliance_checks')
+          ? '법적이행 확인 테이블이 준비되지 않았습니다. 데이터베이스 마이그레이션을 먼저 실행해주세요.'
+          : error.message
+      )
+    } else if (data) {
+      setRecords(
+        (data as LegalComplianceRecord[]).map((r) => ({ ...r, form_data: hydrateFormData(r.form_data) }))
+      )
+    }
+    setLoading(false)
+  }, [projectId])
+
+  useEffect(() => {
+    if (user && projectId) loadRecords()
+  }, [user, projectId, loadRecords])
+
+  const handleBack = () => {
+    if (view === 'form') {
+      setView('list')
+      return
+    }
+    const returnUrl = searchParams.get('returnUrl')
+    if (returnUrl) {
+      router.push(returnUrl)
+      return
+    }
+    router.push(`/project/${projectId}`)
+  }
+
+  // 새 점검표 — projects 기본정보와 대표계약으로 사업개요 자동 채움
+  const startNew = useCallback(async () => {
+    const fd = createEmptyFormData()
+    if (project) {
+      const ov = fd.overview
+      ov.hq = project.managing_hq || ''
+      ov.implementer = project.managing_branch || ''
+      ov.sector = project.project_category || ''
+      ov.districtName = project.project_name || ''
+      ov.dateActualStart = project.construction_start_date || ''
+      ov.dateCompletion = project.construction_end_date || ''
+
+      let contractTot: number | null = null
+      if (project.representative_contract_id) {
+        const { data: c } = await (supabase as any)
+          .from('project_contracts')
+          .select('start_date, tot_cntrct_amt')
+          .eq('id', project.representative_contract_id)
+          .single()
+        if (c) {
+          ov.dateContract = c.start_date || ''
+          contractTot = typeof c.tot_cntrct_amt === 'number' ? c.tot_cntrct_amt : null
+        }
+      }
+      const budgetNum =
+        project.total_budget && project.total_budget !== '' ? Number(project.total_budget) : null
+      ov.costTotal = toMillionWon([project.g2b_tot_amt ?? null, budgetNum, contractTot])
+    }
+    setFormData(fd)
+    setEditingRecord(null)
+    setYear(new Date().getFullYear())
+    setQuarter(currentQuarter())
+    setSaveError('')
+    setView('form')
+  }, [project])
+
+  const startEdit = (rec: LegalComplianceRecord) => {
+    setFormData(hydrateFormData(rec.form_data))
+    setEditingRecord(rec)
+    setYear(rec.check_year)
+    setQuarter(rec.check_quarter)
+    setSaveError('')
+    setView('form')
+  }
+
+  const handleDelete = async (rec: LegalComplianceRecord) => {
+    if (!confirm(`${rec.check_year}년 ${rec.check_quarter}분기 점검표를 삭제하시겠습니까?`)) return
+    const { error } = await (supabase as any).from('legal_compliance_checks').delete().eq('id', rec.id)
+    if (error) {
+      alert('삭제에 실패했습니다: ' + error.message)
+      return
+    }
+    loadRecords()
+  }
+
+  const handleSave = async () => {
+    if (!user) return
+    setSaving(true)
+    setSaveError('')
+    try {
+      if (editingRecord) {
+        const { error } = await (supabase as any)
+          .from('legal_compliance_checks')
+          .update({
+            check_year: year,
+            check_quarter: quarter,
+            form_data: formData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingRecord.id)
+        if (error) throw new Error(error.message)
+      } else {
+        const { error } = await (supabase as any).from('legal_compliance_checks').insert({
+          project_id: projectId,
+          created_by: user.id,
+          check_year: year,
+          check_quarter: quarter,
+          form_data: formData,
+        })
+        if (error) throw new Error(error.message)
+      }
+      await loadRecords()
+      setView('list')
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : '저장에 실패했습니다.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const yearOptions = (() => {
+    const y = new Date().getFullYear()
+    return [y + 1, y, y - 1, y - 2, y - 3]
+  })()
+
+  if (authLoading || !user) return null
+
+  const sectionTitle = (n: number, text: string) => (
+    <h2 className="mb-2 flex items-center gap-2 text-sm font-bold text-gray-800">
+      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[11px] text-white">{n}</span>
+      {text}
+    </h2>
+  )
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="px-4">
+          <div className="flex h-16 items-center gap-3">
+            <button onClick={handleBack} className="shrink-0 text-gray-400 hover:text-gray-600">
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-bold text-gray-900 sm:text-xl">법적이행 확인</h1>
+              {project && <p className="truncate text-xs text-gray-500">{project.project_name}</p>}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-3xl px-2 py-4 sm:px-4">
+        {view === 'list' ? (
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between bg-blue-600 px-4 py-3 text-white">
+              <h2 className="text-sm font-semibold sm:text-base">
+                안전활동 점검표
+                {records.length > 0 && <span className="ml-2 text-xs font-normal text-blue-100">{records.length}건</span>}
+              </h2>
+              <button
+                onClick={startNew}
+                className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50"
+              >
+                <Plus className="h-4 w-4" />
+                새 점검표 작성
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="p-8 text-center text-sm text-gray-500">불러오는 중…</div>
+            ) : loadError ? (
+              <div className="p-8 text-center text-sm text-red-600">{loadError}</div>
+            ) : records.length === 0 ? (
+              <div className="p-8 text-center text-sm text-gray-500">등록된 점검표가 없습니다.</div>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {records.map((rec) => (
+                  <li
+                    key={rec.id}
+                    onClick={() => startEdit(rec)}
+                    className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-gray-50"
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      <span className="text-sm font-semibold text-gray-900">
+                        {rec.check_year}년 {rec.check_quarter}분기
+                      </span>
+                      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] text-gray-600">
+                        {rec.form_data.overview.discipline || '공종 미지정'}
+                      </span>
+                      {rec.form_data.isContractedWork === '여' && (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-700">도급사업</span>
+                      )}
+                    </div>
+                    <span className="shrink-0 text-xs text-gray-400">
+                      {new Date(rec.updated_at).toLocaleDateString('ko-KR')}
+                    </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(rec)
+                      }}
+                      className="shrink-0 text-gray-300 hover:text-red-500"
+                      aria-label="삭제"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {/* 연도·분기 */}
+            <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+              <select
+                value={year}
+                onChange={(e) => setYear(Number(e.target.value))}
+                className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}년
+                  </option>
+                ))}
+              </select>
+              <select
+                value={quarter}
+                onChange={(e) => setQuarter(Number(e.target.value))}
+                className="rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                {[1, 2, 3, 4].map((q) => (
+                  <option key={q} value={q}>
+                    {q}분기
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* ① 사업개요 */}
+            <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              {sectionTitle(1, '사업개요')}
+              <OverviewSection
+                value={formData.overview}
+                onChange={(overview) => setFormData((prev) => ({ ...prev, overview }))}
+              />
+            </section>
+
+            {/* ② 안전활동 기본사항 */}
+            <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              {sectionTitle(2, '안전활동 기본사항')}
+              <OwnerBasicSection
+                value={formData.ownerBasic}
+                onChange={(ownerBasic) => setFormData((prev) => ({ ...prev, ownerBasic }))}
+              />
+            </section>
+
+            {/* ③ 안전활동 세부사항 */}
+            <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              {sectionTitle(3, '안전활동 세부사항')}
+              <OwnerDetailSection
+                value={formData.ownerDetail}
+                onChange={(ownerDetail) => setFormData((prev) => ({ ...prev, ownerDetail }))}
+              />
+            </section>
+
+            {/* ④ 도급사업 의무사항 */}
+            <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              {sectionTitle(4, '도급사업 의무사항')}
+              <div className="mb-2.5 flex items-center justify-between gap-2">
+                <span className="text-sm text-gray-700">도급사업 해당여부</span>
+                <YNToggle
+                  value={formData.isContractedWork}
+                  onChange={(v) => setFormData((prev) => ({ ...prev, isContractedWork: v }))}
+                />
+              </div>
+              {formData.isContractedWork === '여' ? (
+                <ContractSection
+                  value={formData.contractChecks}
+                  onChange={(contractChecks) => setFormData((prev) => ({ ...prev, contractChecks }))}
+                />
+              ) : (
+                <p className="text-xs text-gray-400">도급사업 해당여부를 &lsquo;여&rsquo;로 선택하면 의무사항 점검 항목이 표시됩니다.</p>
+              )}
+            </section>
+
+            {/* ⑤ 비고 */}
+            <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              {sectionTitle(5, '비고')}
+              <textarea
+                value={formData.remarks}
+                onChange={(e) => setFormData((prev) => ({ ...prev, remarks: e.target.value }))}
+                rows={3}
+                className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+                placeholder="특이사항을 입력하세요."
+              />
+            </section>
+
+            {saveError && <p className="text-center text-sm text-red-600">{saveError}</p>}
+
+            <div className="flex items-center justify-end gap-2 pb-8">
+              <button
+                onClick={() => setView('list')}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+              >
+                {saving ? '저장 중…' : editingRecord ? '수정 저장' : '저장'}
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  )
+}

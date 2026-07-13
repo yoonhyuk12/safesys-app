@@ -110,6 +110,7 @@ export default function ProjectDetailPage() {
   const [contractCount, setContractCount] = useState<number | null>(null)
   const [qualityMonthlyReportCount, setQualityMonthlyReportCount] = useState<number | null>(null)
   const [qualityTestRecordCount, setQualityTestRecordCount] = useState<number | null>(null)
+  const [legalComplianceCount, setLegalComplianceCount] = useState<number | null>(null)
   const [cardCounts, setCardCounts] = useState<Record<string, number>>({})
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
   const [openCabinet, setOpenCabinet] = useState<'시공' | '안전' | '품질' | '기타' | '발주청' | null>(null)
@@ -326,6 +327,19 @@ export default function ProjectDetailPage() {
       if (!countError) setQualityTestRecordCount(count ?? 0)
     }
     loadQualityTestRecordCount()
+  }, [user, projectId])
+
+  // 법적이행 확인(안전활동 점검표) 건수 조회 (서류철 카드 표시용)
+  useEffect(() => {
+    if (!user || !projectId) return
+    const loadLegalComplianceCount = async () => {
+      const { count, error: countError } = await (supabase as any)
+        .from('legal_compliance_checks')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+      if (!countError) setLegalComplianceCount(count ?? 0)
+    }
+    loadLegalComplianceCount()
   }, [user, projectId])
 
   // 외부 클릭 시 메뉴 닫기
@@ -1558,6 +1572,16 @@ export default function ProjectDetailPage() {
                   onClick={() => router.push(`/project/${projectId}/issue-management`)}
                   docCount={issueLedgerCount ?? undefined}
                   pdcaCategory="C"
+                />
+                <DocumentFolder
+                  title={'법적이행\n확인'}
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/legal-compliance`)}
+                  docCount={legalComplianceCount ?? undefined}
+                  pdcaCategory="C"
+                  bottomLabel="사업"
                 />
                 <DocumentFolder
                   title="안전점검 GPT"
