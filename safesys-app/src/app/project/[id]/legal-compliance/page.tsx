@@ -6,7 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import type { Project } from '@/lib/projects'
-import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Plus, RefreshCw, Trash2 } from 'lucide-react'
 import {
   createEmptyFormData,
   hydrateFormData,
@@ -45,6 +45,7 @@ export default function LegalCompliancePage() {
   const [quarter, setQuarter] = useState(currentQuarter())
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     if (!authLoading && !user) router.replace('/login')
@@ -106,41 +107,68 @@ export default function LegalCompliancePage() {
     router.push(`/project/${projectId}`)
   }
 
+  // projects·대표계약을 서버에서 새로 조회해 사업개요 자동 채움 값을 만든다 (수동 입력 필드는 건드리지 않음)
+  const fetchOverviewDefaults = useCallback(async (): Promise<
+    Partial<LegalComplianceFormData['overview']>
+  > => {
+    const { data } = await supabase
+      .from('projects')
+      .select(
+        'id, project_name, managing_hq, managing_branch, project_category, construction_start_date, construction_end_date, total_budget, g2b_tot_amt, representative_contract_id'
+      )
+      .eq('id', projectId)
+      .single()
+    if (!data) return {}
+    const proj = data as Project
+    setProject(proj)
+
+    const patch: Partial<LegalComplianceFormData['overview']> = {
+      hq: proj.managing_hq || '',
+      implementer: proj.managing_branch || '',
+      sector: proj.project_category || '',
+      districtName: proj.project_name || '',
+      dateActualStart: proj.construction_start_date || '',
+      dateCompletion: proj.construction_end_date || '',
+    }
+    let contractTot: number | null = null
+    if (proj.representative_contract_id) {
+      const { data: c } = await (supabase as any)
+        .from('project_contracts')
+        .select('start_date, tot_cntrct_amt')
+        .eq('id', proj.representative_contract_id)
+        .single()
+      if (c) {
+        if (c.start_date) patch.dateContract = c.start_date
+        contractTot = typeof c.tot_cntrct_amt === 'number' ? c.tot_cntrct_amt : null
+      }
+    }
+    const budgetNum =
+      proj.total_budget && proj.total_budget !== '' ? Number(proj.total_budget) : null
+    const costTotal = toMillionWon([proj.g2b_tot_amt ?? null, budgetNum, contractTot])
+    if (costTotal) patch.costTotal = costTotal
+    return patch
+  }, [projectId])
+
   // 새 점검표 — projects 기본정보와 대표계약으로 사업개요 자동 채움
   const startNew = useCallback(async () => {
     const fd = createEmptyFormData()
-    if (project) {
-      const ov = fd.overview
-      ov.hq = project.managing_hq || ''
-      ov.implementer = project.managing_branch || ''
-      ov.sector = project.project_category || ''
-      ov.districtName = project.project_name || ''
-      ov.dateActualStart = project.construction_start_date || ''
-      ov.dateCompletion = project.construction_end_date || ''
-
-      let contractTot: number | null = null
-      if (project.representative_contract_id) {
-        const { data: c } = await (supabase as any)
-          .from('project_contracts')
-          .select('start_date, tot_cntrct_amt')
-          .eq('id', project.representative_contract_id)
-          .single()
-        if (c) {
-          ov.dateContract = c.start_date || ''
-          contractTot = typeof c.tot_cntrct_amt === 'number' ? c.tot_cntrct_amt : null
-        }
-      }
-      const budgetNum =
-        project.total_budget && project.total_budget !== '' ? Number(project.total_budget) : null
-      ov.costTotal = toMillionWon([project.g2b_tot_amt ?? null, budgetNum, contractTot])
-    }
+    const patch = await fetchOverviewDefaults()
+    fd.overview = { ...fd.overview, ...patch }
     setFormData(fd)
     setEditingRecord(null)
     setYear(new Date().getFullYear())
     setQuarter(currentQuarter())
     setSaveError('')
     setView('form')
-  }, [project])
+  }, [fetchOverviewDefaults])
+
+  // 최근정보 가져오기 — 서버 최신 기본정보로 사업개요의 자동 채움 필드만 갱신 (체크값·수동 입력 유지)
+  const handleRefreshDefaults = async () => {
+    setRefreshing(true)
+    const patch = await fetchOverviewDefaults()
+    setFormData((prev) => ({ ...prev, overview: { ...prev.overview, ...patch } }))
+    setRefreshing(false)
+  }
 
   const startEdit = (rec: LegalComplianceRecord) => {
     setFormData(hydrateFormData(rec.form_data))
@@ -312,6 +340,15 @@ export default function LegalCompliancePage() {
                   </option>
                 ))}
               </select>
+              <button
+                type="button"
+                onClick={handleRefreshDefaults}
+                disabled={refreshing}
+                className="ml-auto flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                {refreshing ? '가져오는 중…' : '최근정보 가져오기'}
+              </button>
             </div>
 
             {/* ① 사업개요 */}
