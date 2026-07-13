@@ -5,9 +5,21 @@ import ExcelJS from 'exceljs'
 import type { LegalComplianceFormData } from '@/lib/legal-compliance/compliance-utils'
 import { RISK_WORK_ORDER } from '@/lib/legal-compliance/compliance-utils'
 
-const thin: ExcelJS.Border = { style: 'thin', color: { argb: 'FF000000' } }
+const thin: ExcelJS.Border = { style: 'thin', color: { argb: 'FF9AA5B1' } }
 const allBorders: Partial<ExcelJS.Borders> = { top: thin, bottom: thin, left: thin, right: thin }
-const headerFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEFEFEF' } }
+
+const solid = (argb: string): ExcelJS.Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } })
+
+// 헤더 밴드(대분류)별 색상 — band=밴드 행, light=그룹·리프 행
+interface BandColor { band: string; light: string }
+const COLOR_OVERVIEW: BandColor = { band: 'FFDDE3EA', light: 'FFF0F3F6' }
+const COLOR_BASIC: BandColor = { band: 'FFCFE0F5', light: 'FFE9F1FB' }
+const COLOR_DETAIL: BandColor = { band: 'FFD5EBD8', light: 'FFECF6EE' }
+const COLOR_EXTRA: BandColor = { band: 'FFF3E4C2', light: 'FFF9F1DC' }
+const SUBTOTAL_FILL = solid('FFFFF2CC')  // 계 행
+const ZEBRA_FILL = solid('FFF6F8FA')     // 짝수 데이터 행
+const NO_FILL = solid('FFFBE3E3')        // '부' 강조
+const NO_FONT_COLOR = 'FFC0392B'
 
 // 열 번호(1=A) ↔ 열 문자 변환
 const colLetter = (n: number): string => {
@@ -27,6 +39,7 @@ interface CellOpts {
   bold?: boolean
   size?: number
   fill?: ExcelJS.Fill
+  color?: string
   align?: Partial<ExcelJS.Alignment>
   numFmt?: string
   border?: boolean
@@ -35,7 +48,11 @@ interface CellOpts {
 const setCell = (ws: ExcelJS.Worksheet, addr: string, value: ExcelJS.CellValue, opts: CellOpts = {}) => {
   const cell = ws.getCell(addr)
   cell.value = value
-  cell.font = { size: opts.size ?? 9, bold: opts.bold ?? false }
+  cell.font = {
+    size: opts.size ?? 9,
+    bold: opts.bold ?? false,
+    ...(opts.color ? { color: { argb: opts.color } } : {}),
+  }
   if (opts.fill) cell.fill = opts.fill
   if (opts.numFmt) cell.numFmt = opts.numFmt
   if (opts.border !== false) cell.border = allBorders
@@ -311,35 +328,90 @@ const contractValue = (col: string, fd: LegalComplianceFormData): ExcelJS.CellVa
 }
 
 // 밴드(R2)·그룹(R3)·리프(R4) 3단 헤더 그리기. rowspanBands는 R2:R4 세로 병합할 단일 열 밴드.
+// 밴드별 색상으로 그룹·리프 행까지 옅은 톤을 입힌다.
 const drawHeader = (
   ws: ExcelJS.Worksheet,
   lastCol: string,
   title: string,
-  bands: Array<[string, string, string]>,
+  bands: Array<[string, string, string, BandColor]>,
   groups: GroupDef[],
-  rowspanBands: Array<[string, string]>
+  rowspanBands: Array<[string, string, BandColor]>
 ) => {
-  mergeSet(ws, `B1:${lastCol}1`, title, { bold: true, size: 14, border: false })
+  mergeSet(ws, `B1:${lastCol}1`, title, {
+    bold: true, size: 13, border: false, align: { horizontal: 'left' },
+  })
   ws.getRow(1).height = 30
-  for (const [s, e, label] of bands) {
-    mergeSet(ws, `${s}2:${e}2`, label, { bold: true, fill: headerFill, size: 10 })
+
+  // 열 → 소속 밴드의 옅은 색 (그룹·리프 행용)
+  const lightFor = (col: string): ExcelJS.Fill => {
+    const n = colNum(col)
+    for (const [s, e, , color] of bands) {
+      if (n >= colNum(s) && n <= colNum(e)) return solid(color.light)
+    }
+    return solid('FFF0F3F6')
   }
-  for (const [col, label] of rowspanBands) {
-    mergeSet(ws, `${col}2:${col}4`, label, { bold: true, fill: headerFill })
+
+  for (const [s, e, label, color] of bands) {
+    mergeSet(ws, `${s}2:${e}2`, label, { bold: true, fill: solid(color.band), size: 10 })
+  }
+  for (const [col, label, color] of rowspanBands) {
+    mergeSet(ws, `${col}2:${col}4`, label, { bold: true, fill: solid(color.band) })
   }
   for (const g of groups) {
     if (g.leaves && g.leaves.length > 0) {
-      mergeSet(ws, `${g.start}3:${g.end}3`, g.label, { bold: true, fill: headerFill })
+      mergeSet(ws, `${g.start}3:${g.end}3`, g.label, { bold: true, fill: lightFor(g.start) })
       for (const [col, leaf] of g.leaves) {
-        setCell(ws, `${col}4`, leaf, { bold: true, fill: headerFill, size: 8 })
+        setCell(ws, `${col}4`, leaf, { bold: true, fill: lightFor(col), size: 8 })
       }
     } else {
-      mergeSet(ws, `${g.start}3:${g.start}4`, g.label, { bold: true, fill: headerFill, size: 8 })
+      mergeSet(ws, `${g.start}3:${g.start}4`, g.label, { bold: true, fill: lightFor(g.start), size: 8 })
     }
   }
   ws.getRow(2).height = 22
   ws.getRow(3).height = 34
   ws.getRow(4).height = 30
+}
+
+// 계(소계) 행 — 5행. 금액 열은 합계, 여/부 열은 '여' 개수, ○ 열은 선택 개수, 지구명 열은 행 수.
+const addSubtotalRow = (
+  ws: ExcelJS.Worksheet,
+  lastCol: string,
+  list: LegalComplianceFormData[],
+  valueFn: (col: string, fd: LegalComplianceFormData) => ExcelJS.CellValue
+) => {
+  const r = 5
+  const last = colNum(lastCol)
+  for (let c = colNum('B'); c <= last; c++) {
+    const col = colLetter(c)
+    let v: ExcelJS.CellValue = ''
+    const opts: CellOpts = { bold: true, fill: SUBTOTAL_FILL }
+    if (col === 'B') {
+      v = '계'
+    } else if (col === 'F') {
+      v = list.length
+    } else if (NUM_COLS.has(col)) {
+      let sum = 0
+      let hasNum = false
+      for (const fd of list) {
+        const val = valueFn(col, fd)
+        if (typeof val === 'number') { sum += val; hasNum = true }
+      }
+      v = hasNum ? sum : ''
+      opts.numFmt = '#,##0'
+    } else {
+      let yes = 0
+      let mark = 0
+      for (const fd of list) {
+        const val = valueFn(col, fd)
+        if (val === '여') yes++
+        else if (val === '○') mark++
+      }
+      if (yes > 0) v = yes
+      else if (mark > 0) v = mark
+    }
+    setCell(ws, `${col}${r}`, v, opts)
+  }
+  ws.getRow(r).height = 18
 }
 
 // 열 너비 설정 — 텍스트 열은 넓게, 여/부 열은 좁게
@@ -351,83 +423,100 @@ const setColumnWidths = (ws: ExcelJS.Worksheet, lastCol: string, wideMap: Record
   }
 }
 
-// 시트1: 발주자 안전활동 점검표
-const addOwnerSheet = (wb: ExcelJS.Workbook, list: LegalComplianceFormData[]) => {
-  const ws = wb.addWorksheet('발주자 안전활동 점검표', {
-    pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
-  })
-  const lastCol = 'BS'
-  drawHeader(
-    ws,
-    lastCol,
-    '□ 건설현장 발주자의 안전활동 점검표',
-    [['B', 'S', '사업개요'], ['T', 'AK', '안전활동 기본사항'], ['AL', 'BQ', '안전활동 세부사항']],
-    [...OVERVIEW_GROUPS, ...OWNER_BASIC_GROUPS, ...OWNER_DETAIL_GROUPS],
-    [['BR', '도급사업\n해당여부'], ['BS', '비고']]
-  )
-  setColumnWidths(ws, lastCol, {
-    B: 6, C: 7, D: 7, E: 10, F: 8, G: 4.5, H: 4.5,
-    I: 7, J: 7, K: 7, L: 7, M: 7, N: 8, O: 8, P: 8, Q: 8, R: 8, S: 8, BQ: 7, BS: 20,
-  })
-
-  let r = 5
+// 데이터 행들 그리기 — 6행부터. 짝수 행 얼룩 배경, '부' 값은 붉은 강조.
+const drawDataRows = (
+  ws: ExcelJS.Worksheet,
+  lastCol: string,
+  list: LegalComplianceFormData[],
+  valueFn: (col: string, fd: LegalComplianceFormData) => ExcelJS.CellValue,
+  leftAlignCols: Set<string>,
+  emptyMessage: string
+) => {
+  let r = 6
   const last = colNum(lastCol)
   for (const fd of list) {
+    const zebra = (r - 6) % 2 === 1
     for (let c = colNum('B'); c <= last; c++) {
       const col = colLetter(c)
-      const val = c <= colNum('S') ? overviewValue(col, fd) : ownerValue(col, fd)
+      const val = valueFn(col, fd)
       const opts: CellOpts = {}
       if (NUM_COLS.has(col)) opts.numFmt = '#,##0'
-      if (col === 'E' || col === 'BS') opts.align = { horizontal: 'left' }
+      if (leftAlignCols.has(col)) opts.align = { horizontal: 'left' }
+      if (val === '부') {
+        opts.fill = NO_FILL
+        opts.color = NO_FONT_COLOR
+        opts.bold = true
+      } else if (zebra) {
+        opts.fill = ZEBRA_FILL
+      }
       setCell(ws, `${col}${r}`, val, opts)
     }
     ws.getRow(r).height = 18
     r++
   }
   if (list.length === 0) {
-    mergeSet(ws, `B${r}:${lastCol}${r}`, '해당 범위·분기에 등록된 점검표가 없습니다.', { align: { horizontal: 'center' } })
+    mergeSet(ws, `B${r}:${lastCol}${r}`, emptyMessage, { align: { horizontal: 'center' } })
   }
+}
+
+// 시트1: 발주자 안전활동 점검표
+const addOwnerSheet = (wb: ExcelJS.Workbook, list: LegalComplianceFormData[], subtitle: string) => {
+  const ws = wb.addWorksheet('발주자 안전활동 점검표', {
+    pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    views: [{ state: 'frozen', xSplit: 6, ySplit: 5 }],
+  })
+  const lastCol = 'BS'
+  const valueFn = (col: string, fd: LegalComplianceFormData) =>
+    colNum(col) <= colNum('S') ? overviewValue(col, fd) : ownerValue(col, fd)
+  drawHeader(
+    ws,
+    lastCol,
+    `□ 건설현장 발주자의 안전활동 점검표  —  ${subtitle}`,
+    [
+      ['B', 'S', '사업개요', COLOR_OVERVIEW],
+      ['T', 'AK', '안전활동 기본사항', COLOR_BASIC],
+      ['AL', 'BQ', '안전활동 세부사항', COLOR_DETAIL],
+    ],
+    [...OVERVIEW_GROUPS, ...OWNER_BASIC_GROUPS, ...OWNER_DETAIL_GROUPS],
+    [['BR', '도급사업\n해당여부', COLOR_EXTRA], ['BS', '비고', COLOR_EXTRA]]
+  )
+  setColumnWidths(ws, lastCol, {
+    B: 6, C: 7, D: 7, E: 10, F: 8, G: 4.5, H: 4.5,
+    I: 7, J: 7, K: 7, L: 7, M: 7, N: 8, O: 8, P: 8, Q: 8, R: 8, S: 8, BQ: 7, BS: 20,
+  })
+  addSubtotalRow(ws, lastCol, list, valueFn)
+  drawDataRows(ws, lastCol, list, valueFn, new Set(['E', 'BS']), '해당 범위·분기에 등록된 점검표가 없습니다.')
   return ws
 }
 
 // 시트2: 도급사업 안전활동 점검표 (isContractedWork==='여' 만)
-const addContractSheet = (wb: ExcelJS.Workbook, list: LegalComplianceFormData[]) => {
+const addContractSheet = (wb: ExcelJS.Workbook, list: LegalComplianceFormData[], subtitle: string) => {
   const ws = wb.addWorksheet('도급사업 안전활동 점검표', {
     pageSetup: { paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 },
+    views: [{ state: 'frozen', xSplit: 6, ySplit: 5 }],
   })
   const lastCol = 'AC'
+  const contracted = list.filter((fd) => fd.isContractedWork === '여')
+  const valueFn = (col: string, fd: LegalComplianceFormData) =>
+    colNum(col) <= colNum('S') ? overviewValue(col, fd) : contractValue(col, fd)
   drawHeader(
     ws,
     lastCol,
-    '□ 건설현장 도급사업 안전관리 점검표',
-    [['B', 'S', '사업개요'], ['T', 'AB', '도급사업 안전관리 의무사항']],
+    `□ 건설현장 도급사업 안전관리 점검표  —  ${subtitle}`,
+    [
+      ['B', 'S', '사업개요', COLOR_OVERVIEW],
+      ['T', 'AB', '도급사업 안전관리 의무사항', COLOR_BASIC],
+    ],
     [...OVERVIEW_GROUPS, ...CONTRACT_GROUPS],
-    [['AC', '비고']]
+    [['AC', '비고', COLOR_EXTRA]]
   )
   setColumnWidths(ws, lastCol, {
     B: 6, C: 7, D: 7, E: 10, F: 8, G: 4.5, H: 4.5,
     I: 7, J: 7, K: 7, L: 7, M: 7, N: 8, O: 8, P: 8, Q: 8, R: 8, S: 8,
     T: 8, U: 8, V: 9, W: 9, X: 9, Y: 10, Z: 10, AA: 10, AB: 9, AC: 18,
   })
-
-  const contracted = list.filter((fd) => fd.isContractedWork === '여')
-  let r = 5
-  const last = colNum(lastCol)
-  for (const fd of contracted) {
-    for (let c = colNum('B'); c <= last; c++) {
-      const col = colLetter(c)
-      const val = c <= colNum('S') ? overviewValue(col, fd) : contractValue(col, fd)
-      const opts: CellOpts = {}
-      if (NUM_COLS.has(col)) opts.numFmt = '#,##0'
-      if (col === 'E' || col === 'AC') opts.align = { horizontal: 'left' }
-      setCell(ws, `${col}${r}`, val, opts)
-    }
-    ws.getRow(r).height = 18
-    r++
-  }
-  if (contracted.length === 0) {
-    mergeSet(ws, `B${r}:${lastCol}${r}`, '도급사업 해당 점검표가 없습니다.', { align: { horizontal: 'center' } })
-  }
+  addSubtotalRow(ws, lastCol, contracted, valueFn)
+  drawDataRows(ws, lastCol, contracted, valueFn, new Set(['E', 'AC']), '도급사업 해당 점검표가 없습니다.')
   return ws
 }
 
@@ -439,8 +528,9 @@ export async function downloadLegalComplianceExcel(
   quarter: number
 ): Promise<void> {
   const wb = new ExcelJS.Workbook()
-  addOwnerSheet(wb, list)
-  addContractSheet(wb, list)
+  const subtitle = `${year}년 ${quarter}분기 · ${scopeLabel}`
+  addOwnerSheet(wb, list, subtitle)
+  addContractSheet(wb, list, subtitle)
   const filename = `안전활동점검표_${scopeLabel}_${year}년${quarter}분기.xlsx`
   await downloadWorkbook(wb, filename)
 }
