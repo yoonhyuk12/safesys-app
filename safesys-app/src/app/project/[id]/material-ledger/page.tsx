@@ -42,6 +42,9 @@ interface Material {
   dlvrSupplier?: string | null
   dlvrSupplierTel?: string | null
   dlvrDeadline?: string | null
+  dlvrTitle?: string | null // 저장된 납품요구 건명 — 있으면 조달청 건명 재조회 생략
+  g2bInspDate?: string | null // 저장된 나라장터 검사검수 최신 일자
+  g2bPayDate?: string | null // 저장된 나라장터 대금지급 최신 일자 — 있으면 지급·검수 재조회 생략
 }
 
 interface MaterialRow {
@@ -513,11 +516,18 @@ export default function MaterialLedgerPage() {
   })
   const titleFetchStarted = useRef<Set<string>>(new Set())
 
-  // 연계된 납품요구번호의 건명을 백그라운드로 채운다 (동시 3건, 실패는 자재명으로 대체)
+  // 연계된 납품요구번호의 건명을 채운다 — DB 저장값(dlvr_title)이 있으면 조회 없이 즉시 표시하고,
+  // 없는 건만 백그라운드 조회(동시 3건, 실패는 자재명으로 대체) 후 DB에 write-back해
+  // 다른 기기·출처(localhost/vercel)에서도 재조회 없이 공유되게 한다
   useEffect(() => {
+    const stored: Record<string, string> = {}
+    for (const m of materials) {
+      if (m.dlvrReqNo && m.dlvrTitle && dlvrTitles[m.dlvrReqNo] === undefined) stored[m.dlvrReqNo] = m.dlvrTitle
+    }
+    if (Object.keys(stored).length > 0) setDlvrTitles(prev => ({ ...stored, ...prev }))
     const nos = [...new Set(
       materials.map(m => m.dlvrReqNo || m.rows.find(r => r.dlvrReqNo)?.dlvrReqNo).filter((v): v is string => !!v)
-    )].filter(no => dlvrTitles[no] === undefined && !titleFetchStarted.current.has(no))
+    )].filter(no => stored[no] === undefined && dlvrTitles[no] === undefined && !titleFetchStarted.current.has(no))
     if (nos.length === 0) return
     nos.forEach(no => titleFetchStarted.current.add(no))
     const queue = [...nos]
@@ -527,14 +537,25 @@ export default function MaterialLedgerPage() {
           const no = queue.shift()
           if (!no) break
           let title = ''
+          let demandOrg = ''
           try {
             const res = await fetch(`/api/g2b/dlvr-req?no=${encodeURIComponent(no)}`)
             const json = await res.json()
-            if (res.ok && json.success && json.data?.title) title = String(json.data.title)
+            if (res.ok && json.success && json.data?.title) {
+              title = String(json.data.title)
+              demandOrg = String(json.data.demandOrg || '')
+            }
           } catch {
             // 건명은 부가 정보 — 실패하면 자재명으로 표시
           }
           setDlvrTitles(prev => ({ ...prev, [no]: title }))
+          if (title) {
+            const patch: Record<string, string> = { dlvr_title: title }
+            if (demandOrg) patch.dlvr_dminstt = demandOrg
+            await supabase.from('materials').update(patch)
+              .eq('project_id', projectId)
+              .eq('dlvr_req_no', no)
+          }
         }
       }))
     })()
@@ -552,10 +573,13 @@ export default function MaterialLedgerPage() {
     }
   }, [dlvrTitles])
 
-  // 계약 목록의 연계 납품요구 검사검수를 동시 2건씩 배경 조회한다. 실패는 캐시하지 않아 재방문 시 다시 시도한다
+  // 계약 목록의 연계 납품요구 검사검수를 동시 2건씩 배경 조회한다. 실패는 캐시하지 않아 재방문 시 다시 시도한다.
+  // 지급 일자가 저장된 건(지급완료)은 재조회를 생략하고(배지는 저장값 표시), 조회로 확인된 일자는 write-back한다
   useEffect(() => {
     const materialNamesByNo = new Map<string, string[]>()
     const titleKeyByNo = new Map<string, string>()
+    const rawNosByNo = new Map<string, string[]>()
+    const storedByNo = new Map<string, { insp: string; pay: string }>()
     for (const material of materials) {
       const rawNo = material.dlvrReqNo || material.rows.find(row => row.dlvrReqNo)?.dlvrReqNo || ''
       const no = normalizeDlvrReqNo(rawNo)
@@ -564,10 +588,17 @@ export default function MaterialLedgerPage() {
       names.push(material.name)
       materialNamesByNo.set(no, names)
       titleKeyByNo.set(no, rawNo)
+      const raws = rawNosByNo.get(no) || []
+      if (!raws.includes(rawNo)) raws.push(rawNo)
+      rawNosByNo.set(no, raws)
+      const cur = storedByNo.get(no) || { insp: '', pay: '' }
+      if (material.g2bInspDate && material.g2bInspDate > cur.insp) cur.insp = material.g2bInspDate
+      if (material.g2bPayDate && material.g2bPayDate > cur.pay) cur.pay = material.g2bPayDate
+      storedByNo.set(no, cur)
     }
 
     const queue = [...materialNamesByNo.entries()].flatMap(([no, names]) => {
-      if (dlvrPayInspCache.has(no)) return []
+      if (dlvrPayInspCache.has(no) || storedByNo.get(no)?.pay) return []
       const rawNo = titleKeyByNo.get(no) || no
       const fetchedTitle = dlvrTitles[rawNo]
       if (fetchedTitle === undefined) return []
@@ -587,9 +618,21 @@ export default function MaterialLedgerPage() {
           const target = queue.shift()
           if (!target) break
           try {
-            await fetchDlvrPayInsp(target.no, target.title)
+            const docs = await fetchDlvrPayInsp(target.no, target.title)
             if (!cancelled) {
-              setDlvrInspByNo(new Map([...dlvrPayInspCache].map(([no, docs]) => [no, docs.insps])))
+              setDlvrInspByNo(new Map([...dlvrPayInspCache].map(([no, docs2]) => [no, docs2.insps])))
+            }
+            // 저장이 안 된 일자는 조회 결과를 write-back — 다음 방문·다른 출처에서 재조회 생략
+            const lastInsp = docs.insps.reduce((mx, d) => (d.inspDate > mx ? d.inspDate : mx), '')
+            const lastPay = docs.pays.reduce((mx, d) => (d.payDate > mx ? d.payDate : mx), '')
+            const cur = storedByNo.get(target.no)
+            const patch: Record<string, string> = {}
+            if (lastInsp && lastInsp !== (cur?.insp || '')) patch.g2b_insp_date = lastInsp
+            if (lastPay && lastPay !== (cur?.pay || '')) patch.g2b_pay_date = lastPay
+            if (Object.keys(patch).length > 0) {
+              await supabase.from('materials').update(patch)
+                .eq('project_id', projectId)
+                .in('dlvr_req_no', rawNosByNo.get(target.no) || [])
             }
           } catch {
             // 배경 조회 실패는 배지를 숨기고 캐시하지 않아 다음 방문에 재시도한다
@@ -646,7 +689,10 @@ export default function MaterialLedgerPage() {
           dlvrReqNo: m.dlvr_req_no || null,
           dlvrSupplier: m.dlvr_supplier || null,
           dlvrSupplierTel: m.dlvr_supplier_tel || null,
-          dlvrDeadline: m.dlvr_deadline || null
+          dlvrDeadline: m.dlvr_deadline || null,
+          dlvrTitle: m.dlvr_title || null,
+          g2bInspDate: m.g2b_insp_date || null,
+          g2bPayDate: m.g2b_pay_date || null
         }
       })
       matList.sort((a: any, b: any) => (a.realOrder || 0) - (b.realOrder || 0))
@@ -880,7 +926,8 @@ export default function MaterialLedgerPage() {
       dlvrReqNo: data.dlvr_req_no || null,
       dlvrSupplier: data.dlvr_supplier || null,
       dlvrSupplierTel: data.dlvr_supplier_tel || null,
-      dlvrDeadline: data.dlvr_deadline || null
+      dlvrDeadline: data.dlvr_deadline || null,
+      dlvrTitle: data.dlvr_title || null
     }
   }
 
@@ -4695,7 +4742,11 @@ export default function MaterialLedgerPage() {
                         const rowInsps = row.dlvrReqNo
                           ? dlvrInspByNo.get(normalizeDlvrReqNo(row.dlvrReqNo)) || []
                           : []
-                        const lastInspDate = rowInsps.reduce((latest, insp) => insp.inspDate > latest ? insp.inspDate : latest, '')
+                        // 실시간 문서가 없어도 저장된 검사검수 일자(g2b_insp_date)가 있으면 배지를 표시한다
+                        const storedInspDate = row.dlvrReqNo && mat.g2bInspDate
+                          && normalizeDlvrReqNo(mat.dlvrReqNo || '') === normalizeDlvrReqNo(row.dlvrReqNo)
+                          ? mat.g2bInspDate : ''
+                        const lastInspDate = rowInsps.reduce((latest, insp) => insp.inspDate > latest ? insp.inspDate : latest, '') || storedInspDate
                         return (
                           <tr
                             key={mat.id}
@@ -4713,9 +4764,9 @@ export default function MaterialLedgerPage() {
                                   <Loader2 className="inline-block h-3 w-3 ml-1.5 animate-spin text-amber-200/40 align-middle" />
                                 )}
                               </span>
-                              {rowInsps.length > 0 && (
+                              {(rowInsps.length > 0 || storedInspDate) && (
                                 <span className="block w-fit mt-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-700/70 text-emerald-100 border border-emerald-500/40 whitespace-nowrap">
-                                  검사검수 완료 · {lastInspDate || '-'} · {rowInsps.length}건
+                                  검사검수 완료 · {lastInspDate || '-'}{rowInsps.length > 0 ? ` · ${rowInsps.length}건` : ''}
                                 </span>
                               )}
                             </td>
