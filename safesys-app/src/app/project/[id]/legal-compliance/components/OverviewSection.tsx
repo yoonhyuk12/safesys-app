@@ -3,7 +3,14 @@
 
 import type { ReactNode } from 'react'
 import type { LegalComplianceFormData } from '../lib/constants'
-import { DISCIPLINE_OPTIONS, PHASE_OPTIONS, SAFETY_PLAN_TARGETS, TOOLTIPS } from '../lib/constants'
+import {
+  DISCIPLINE_OPTIONS,
+  PHASE_OPTIONS,
+  SAFETY_PLAN_TARGETS,
+  TOOLTIPS,
+  formatThousands,
+  stripNonDigits,
+} from '../lib/constants'
 import InfoTooltip from './InfoTooltip'
 
 type Overview = LegalComplianceFormData['overview']
@@ -18,17 +25,24 @@ export default function OverviewSection({
   const set = <K extends keyof Overview>(k: K, v: Overview[K]) => onChange({ ...value, [k]: v })
 
   // 컴포넌트가 아닌 함수 호출로 렌더한다 — 매 렌더마다 새 컴포넌트로 인식돼 입력 포커스가 풀리는 문제 방지
-  const field = (label: string, k: keyof Overview, placeholder?: string, tooltip?: string): ReactNode => (
+  // kind: 'date'=캘린더 선택, 'number'=천단위 콤마 표시(저장값은 숫자만)
+  const field = (
+    label: string,
+    k: keyof Overview,
+    opts?: { kind?: 'date' | 'number'; tooltip?: string }
+  ): ReactNode => (
     <label key={k} className="flex flex-col gap-1">
       <span className="flex items-center gap-1 text-xs font-medium text-gray-600">
         {label}
-        {tooltip && <InfoTooltip text={tooltip} />}
+        {opts?.tooltip && <InfoTooltip text={opts.tooltip} />}
       </span>
       <input
-        type="text"
-        value={value[k] as string}
-        placeholder={placeholder}
-        onChange={(e) => set(k, e.target.value as Overview[typeof k])}
+        type={opts?.kind === 'date' ? 'date' : 'text'}
+        inputMode={opts?.kind === 'number' ? 'numeric' : undefined}
+        value={opts?.kind === 'number' ? formatThousands(value[k] as string) : (value[k] as string)}
+        onChange={(e) =>
+          set(k, (opts?.kind === 'number' ? stripNonDigits(e.target.value) : e.target.value) as Overview[typeof k])
+        }
         className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
       />
     </label>
@@ -72,17 +86,17 @@ export default function OverviewSection({
         </select>
       </label>
 
-      {field('기본조사 실시', 'dateBasicSurvey', '예: 19.06.20')}
-      {field('설계입찰 공고', 'dateDesignBid', '예: 22.10.12')}
-      {field('착공(계약서)', 'dateContract', 'YYYY-MM-DD')}
-      {field('착공(실착공)', 'dateActualStart', 'YYYY-MM-DD')}
-      {field('준공(예정)', 'dateCompletion', 'YYYY-MM-DD')}
+      {field('기본조사 실시', 'dateBasicSurvey', { kind: 'date' })}
+      {field('설계입찰 공고', 'dateDesignBid', { kind: 'date' })}
+      {field('착공(계약서)', 'dateContract', { kind: 'date' })}
+      {field('착공(실착공)', 'dateActualStart', { kind: 'date' })}
+      {field('준공(예정)', 'dateCompletion', { kind: 'date' })}
 
-      {field('총공사비 합계(백만원)', 'costTotal')}
-      {field('순공사비(백만원)', 'costNet')}
-      {field('자재대(백만원)', 'costMaterial')}
-      {field('산업안전보건관리비(천원)', 'budgetIndustrial', undefined, TOOLTIPS.budgetIndustrial)}
-      {field('안전관리비(천원)', 'budgetSafety', undefined, TOOLTIPS.budgetSafety)}
+      {field('총공사비 합계(백만원)', 'costTotal', { kind: 'number' })}
+      {field('순공사비(백만원)', 'costNet', { kind: 'number' })}
+      {field('자재대(백만원)', 'costMaterial', { kind: 'number' })}
+      {field('산업안전보건관리비(천원)', 'budgetIndustrial', { kind: 'number', tooltip: TOOLTIPS.budgetIndustrial })}
+      {field('안전관리비(천원)', 'budgetSafety', { kind: 'number', tooltip: TOOLTIPS.budgetSafety })}
 
       <label className="flex flex-col gap-1">
         <span className="flex items-center gap-1 text-xs font-medium text-gray-600">

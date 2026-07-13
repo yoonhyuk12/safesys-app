@@ -248,6 +248,10 @@ export const CONTRACT_CHECK_ITEMS: ReadonlyArray<ContractCheckDef> = [
   { key: 'infoProvision', label: '안전·보건에 관한 정보 제공', tooltip: 'infoProvision' },
 ]
 
+// 금액 입력 표시용 천단위 콤마 (저장값은 숫자만 유지)
+export const formatThousands = (v: string): string => (v ? v.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '')
+export const stripNonDigits = (v: string): string => v.replace(/[^\d]/g, '')
+
 // 빈 form_data 생성 — 모든 여/부는 미기재(''), 구분 '시공' · 공종 '토목' 기본값
 export function createEmptyFormData(): LegalComplianceFormData {
   return {

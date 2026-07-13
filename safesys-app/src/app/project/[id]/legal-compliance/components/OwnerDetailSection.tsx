@@ -9,6 +9,8 @@ import {
   RISK_ASSESSMENT_FIELDS,
   RISK_WORK_TYPES,
   TOOLTIPS,
+  formatThousands,
+  stripNonDigits,
 } from '../lib/constants'
 import YNToggle, { YNRow } from './YNToggle'
 import InfoTooltip from './InfoTooltip'
@@ -135,19 +137,19 @@ export default function OwnerDetailSection({
         <div className="grid grid-cols-2 gap-x-3 gap-y-2 pt-2 sm:grid-cols-4">
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-gray-500">정산액 합계(천원)</span>
-            <input type="text" value={value.smartEquipment.costTotal} onChange={(e) => setSmart({ costTotal: e.target.value })} className={numInput} />
+            <input type="text" inputMode="numeric" value={formatThousands(value.smartEquipment.costTotal)} onChange={(e) => setSmart({ costTotal: stripNonDigits(e.target.value) })} className={numInput} />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-gray-500">산업안전보건관리비(천원)</span>
-            <input type="text" value={value.smartEquipment.costIndustrial} onChange={(e) => setSmart({ costIndustrial: e.target.value })} className={numInput} />
+            <input type="text" inputMode="numeric" value={formatThousands(value.smartEquipment.costIndustrial)} onChange={(e) => setSmart({ costIndustrial: stripNonDigits(e.target.value) })} className={numInput} />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-gray-500">안전관리비(천원)</span>
-            <input type="text" value={value.smartEquipment.costSafety} onChange={(e) => setSmart({ costSafety: e.target.value })} className={numInput} />
+            <input type="text" inputMode="numeric" value={formatThousands(value.smartEquipment.costSafety)} onChange={(e) => setSmart({ costSafety: stripNonDigits(e.target.value) })} className={numInput} />
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-[11px] text-gray-500">도입시기(연월)</span>
-            <input type="text" value={value.smartEquipment.adoptedAt} placeholder="예: 23.09" onChange={(e) => setSmart({ adoptedAt: e.target.value })} className={numInput} />
+            <input type="month" value={value.smartEquipment.adoptedAt} onChange={(e) => setSmart({ adoptedAt: e.target.value })} className={numInput} />
           </label>
         </div>
       </SubCard>
