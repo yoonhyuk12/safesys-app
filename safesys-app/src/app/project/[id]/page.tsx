@@ -1574,16 +1574,6 @@ export default function ProjectDetailPage() {
                   pdcaCategory="C"
                 />
                 <DocumentFolder
-                  title={'법적이행\n확인'}
-                  year={new Date().getFullYear().toString()}
-                  isActive={false}
-                  projectId={projectId}
-                  onClick={() => router.push(`/project/${projectId}/legal-compliance`)}
-                  docCount={legalComplianceCount ?? undefined}
-                  pdcaCategory="C"
-                  bottomLabel="사업"
-                />
-                <DocumentFolder
                   title="안전점검 GPT"
                   year={new Date().getFullYear().toString()}
                   isActive={false}
@@ -1704,6 +1694,16 @@ export default function ProjectDetailPage() {
                   onClick={() => router.push(`/project/${projectId}/issue-management`)}
                   docCount={issueLedgerCount ?? undefined}
                   pdcaCategory="C"
+                />
+                <DocumentFolder
+                  title={'법적이행\n확인'}
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/legal-compliance`)}
+                  docCount={legalComplianceCount ?? undefined}
+                  pdcaCategory="C"
+                  bottomLabel="사업"
                 />
               </div>
             </div>
