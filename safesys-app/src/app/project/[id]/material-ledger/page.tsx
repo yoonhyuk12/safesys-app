@@ -396,6 +396,10 @@ export default function MaterialLedgerPage() {
   const [bulkDetails, setBulkDetails] = useState<G2bDlvrReq[]>([])
   const [bulkDetailLoading, setBulkDetailLoading] = useState(false)
 
+  // 조달청 전체 조회 — 연계된 납품요구 건 일괄 재조회로 변경 사항 반영
+  const [dlvrRefreshing, setDlvrRefreshing] = useState(false)
+  const [dlvrRefreshProgress, setDlvrRefreshProgress] = useState({ done: 0, total: 0 })
+
   // 지급자재 계약 현황 엑셀 다운로드
   const [contractExporting, setContractExporting] = useState(false)
   const [contractProgress, setContractProgress] = useState(0)
@@ -822,6 +826,8 @@ export default function MaterialLedgerPage() {
         sort_order: encodedSortOrder,
         dlvr_req_no: result.dlvrReqNo,
         dlvr_req_synced_at: new Date().toISOString(),
+        dlvr_title: result.title || null,
+        dlvr_dminstt: result.demandOrg || null,
         dlvr_supplier: result.supplier || null,
         dlvr_supplier_tel: result.supplierTel || null,
         dlvr_deadline: maxDeadline || null,
@@ -900,6 +906,166 @@ export default function MaterialLedgerPage() {
     if (m.dlvrReqNo) registeredDlvrNos.add(m.dlvrReqNo)
     for (const r of m.rows) {
       if (r.dlvrReqNo) registeredDlvrNos.add(r.dlvrReqNo)
+    }
+  }
+
+  // ── 조달청 전체 조회 — 연계된 납품요구 건을 일괄 재조회해 변경 사항 반영 ──
+  // 반영 규칙은 연계 모달(handleApplyLink)과 동일: 단가·품대·수수료·인도조건은 첫 연계 행에 갱신,
+  // 발주량 차이는 증감 행 추가(초과 반입 상태면 보류), 변경 차수로 추가된 새 품목은 대표 자재에 발주 행 추가
+  const handleDlvrRefreshAll = async () => {
+    if (dlvrRefreshing || bulkImporting || bulkLoading) return
+    const nos = [...registeredDlvrNos]
+    if (nos.length === 0) {
+      alert('조달청과 연계된 납품요구 건이 없습니다.')
+      return
+    }
+    if (!confirm(
+      `연계된 납품요구 ${nos.length}건을 조달청 최신 정보로 재조회해 변경 사항(발주량 증감·단가·납품기한·품목 추가)을 반영하고,\n` +
+      `건명·검사검수·대금지급 일자를 저장할까요?\n` +
+      `예상 시간 약 ${Math.ceil(nos.length / 3) * 12}초`
+    )) return
+    setDlvrRefreshing(true)
+    setDlvrRefreshProgress({ done: 0, total: nos.length })
+    let qtyAdjusted = 0
+    let infoUpdated = 0
+    let itemAdded = 0
+    const skippedOver: string[] = []
+    const failures: string[] = []
+
+    try {
+      // 상세 조회는 3건 동시, DB 반영은 순차 (증감 계산이 조회 시점 state 기준이라 순차가 안전)
+      const CONC = 3
+      const results: Array<{ no: string; data: G2bDlvrReq; payInsp: G2bPayInspDocs | null } | null> = []
+      for (let i = 0; i < nos.length; i += CONC) {
+        const batch = await Promise.all(nos.slice(i, i + CONC).map(async (no) => {
+          try {
+            const res = await fetch(`/api/g2b/dlvr-req?no=${encodeURIComponent(no)}`)
+            const json = await res.json()
+            if (!res.ok || !json.success) throw new Error(json.error || '조회 실패')
+            const data = json.data as G2bDlvrReq
+            // 검사검수·지급 일자 저장용 조회 (비공식 통합검색) — 실패해도 본 갱신은 진행
+            let payInsp: G2bPayInspDocs | null = null
+            try {
+              payInsp = await fetchDlvrPayInsp(no, data.title, data.demandOrg)
+            } catch {
+              payInsp = null
+            }
+            return { no, data, payInsp }
+          } catch (err: unknown) {
+            failures.push(`${no} (${err instanceof Error ? err.message : '조회 실패'})`)
+            return null
+          } finally {
+            setDlvrRefreshProgress(p => ({ ...p, done: p.done + 1 }))
+          }
+        }))
+        results.push(...batch)
+      }
+
+      for (const fetched of results) {
+        if (!fetched) continue
+        const { no, data: result } = fetched
+        try {
+          // 대표 자재 — 자재 자체가 이 번호로 연계된 것 우선, 없으면 행이 연계된 자재 (새 품목 행이 들어갈 곳)
+          const reprMat = materials.find(m => m.dlvrReqNo === no)
+            || materials.find(m => m.rows.some(r => r.dlvrReqNo === no))
+          for (const item of result.items) {
+            // (번호, 품목순번)으로 연계된 행 — 원 발주행과 증감 보정행 포함
+            const owner = materials.find(m => m.rows.some(r => r.dlvrReqNo === no && r.dlvrReqPrdctSno === item.sno))
+            const linkedRows = owner ? owner.rows.filter(r => r.dlvrReqNo === no && r.dlvrReqPrdctSno === item.sno) : []
+            if (!owner || linkedRows.length === 0) {
+              // 변경 차수로 추가된 새 품목 — 대표 자재에 발주 행 추가
+              if (item.qty > 0 && reprMat) {
+                const { error: insErr } = await supabase.from('material_ledger_entries').insert({
+                  material_id: reprMat.id,
+                  name_or_spec: formatG2bSpec(item),
+                  order_qty: item.qty || null,
+                  created_by: user?.id,
+                  dlvr_req_no: no,
+                  dlvr_req_prdct_sno: item.sno,
+                  dlvr_cndtn: item.cndtn || null,
+                  unit_price: item.unitPrice || null,
+                  prdct_amt: item.amt || null,
+                  fee_amt: calcG2bItemFee(result.items, item) || null,
+                })
+                if (insErr) throw insErr
+                itemAdded += 1
+              }
+              continue
+            }
+            // 단가·품대·수수료·인도조건 — 달라진 경우만 첫 연계 행에 갱신
+            const primary = linkedRows[0]
+            const fee = calcG2bItemFee(result.items, item) || 0
+            const infoChanged =
+              (parseFloat(primary.unitPrice || '') || 0) !== (item.unitPrice || 0) ||
+              (parseFloat(primary.prdctAmt || '') || 0) !== (item.amt || 0) ||
+              (parseFloat(primary.feeAmt || '') || 0) !== fee ||
+              (primary.dlvrCndtn || '') !== (item.cndtn || '')
+            if (infoChanged) {
+              const { error: updErr } = await supabase.from('material_ledger_entries').update({
+                dlvr_cndtn: item.cndtn || null,
+                unit_price: item.unitPrice || null,
+                prdct_amt: item.amt || null,
+                fee_amt: fee || null,
+              }).eq('id', primary.id)
+              if (updErr) throw updErr
+              infoUpdated += 1
+            }
+            // 발주량 증감 — 같은 규격 행들의 유효 발주량과 조달청 수량 차이를 증감 행으로 보정
+            const specRows = owner.rows.filter(r => r.nameOrSpec === primary.nameOrSpec)
+            const diff = Math.round((item.qty - calcEffectiveOrderQty(specRows)) * 1000) / 1000
+            if (diff !== 0) {
+              const passTotal = specRows.reduce((sum, r) => sum + (parseFloat(r.passQtyCurrent) || 0), 0)
+              if (passTotal > item.qty) {
+                skippedOver.push(`${owner.name} ${primary.nameOrSpec}`)
+              } else {
+                const { error: adjErr } = await supabase.from('material_ledger_entries').insert({
+                  material_id: owner.id,
+                  name_or_spec: primary.nameOrSpec,
+                  order_qty: diff,
+                  created_by: user?.id,
+                  dlvr_req_no: no,
+                  dlvr_req_prdct_sno: item.sno,
+                })
+                if (adjErr) throw adjErr
+                qtyAdjusted += 1
+              }
+            }
+          }
+          // 대표 자재의 건명·수요기관·공급업체·최종 납품기한·검사검수/지급 일자·동기화 시각 갱신
+          if (reprMat) {
+            const maxDeadline = result.items.reduce((mx, i) => (i.deadline > mx ? i.deadline : mx), '')
+            const inspDate = (fetched.payInsp?.insps || []).reduce((mx, d) => (d.inspDate > mx ? d.inspDate : mx), '')
+            const payDate = (fetched.payInsp?.pays || []).reduce((mx, d) => (d.payDate > mx ? d.payDate : mx), '')
+            const { error: matErr } = await supabase.from('materials').update({
+              dlvr_req_synced_at: new Date().toISOString(),
+              dlvr_supplier: result.supplier || null,
+              ...(result.title ? { dlvr_title: result.title } : {}),
+              ...(result.demandOrg ? { dlvr_dminstt: result.demandOrg } : {}),
+              ...(result.supplierTel ? { dlvr_supplier_tel: result.supplierTel } : {}),
+              ...(maxDeadline ? { dlvr_deadline: maxDeadline } : {}),
+              ...(inspDate ? { g2b_insp_date: inspDate } : {}),
+              ...(payDate ? { g2b_pay_date: payDate } : {}),
+            }).eq('id', reprMat.id)
+            if (matErr) throw matErr
+          }
+        } catch (err: unknown) {
+          console.error('전체 조회 반영 실패:', no, err)
+          failures.push(`${no} (반영 실패)`)
+        }
+      }
+
+      await loadData()
+      const changes = qtyAdjusted + infoUpdated + itemAdded
+      alert(
+        `전체 조회 완료 (납품요구 ${nos.length}건)\n` +
+        (changes === 0
+          ? '변경 사항이 없습니다.'
+          : `- 발주량 증감 보정: ${qtyAdjusted}행\n- 단가·수수료·인도조건 갱신: ${infoUpdated}행\n- 새 품목 행 추가: ${itemAdded}행`) +
+        (skippedOver.length ? `\n\n초과 반입 상태라 발주량 보정을 보류한 규격 ${skippedOver.length}건:\n- ${skippedOver.slice(0, 5).join('\n- ')}` : '') +
+        (failures.length ? `\n\n실패 ${failures.length}건:\n- ${failures.slice(0, 5).join('\n- ')}${failures.length > 5 ? '\n…' : ''}` : '')
+      )
+    } finally {
+      setDlvrRefreshing(false)
     }
   }
 
@@ -3951,13 +4117,19 @@ export default function MaterialLedgerPage() {
   }
 
   // 계약(자재) 단위 목록 행 — 엑셀 계약 현황 양식처럼 계약별로 집계하고, 세부 규격은 상세에서 확인
-  const contractRows = materials.map(m => ({
-    mat: m,
-    dlvrReqNo: m.dlvrReqNo || m.rows.find(r => r.dlvrReqNo)?.dlvrReqNo || '',
-    prdctAmt: m.rows.reduce((s, r) => s + (parseFloat(stripComma(r.prdctAmt || '')) || 0), 0),
-    feeAmt: m.rows.reduce((s, r) => s + (parseFloat(stripComma(r.feeAmt || '')) || 0), 0),
-    cndtn: [...new Set(m.rows.map(r => r.dlvrCndtn).filter(Boolean))].join(', '),
-  }))
+  const contractRows = materials
+    .map(m => ({
+      mat: m,
+      dlvrReqNo: m.dlvrReqNo || m.rows.find(r => r.dlvrReqNo)?.dlvrReqNo || '',
+      prdctAmt: m.rows.reduce((s, r) => s + (parseFloat(stripComma(r.prdctAmt || '')) || 0), 0),
+      feeAmt: m.rows.reduce((s, r) => s + (parseFloat(stripComma(r.feeAmt || '')) || 0), 0),
+      cndtn: [...new Set(m.rows.map(r => r.dlvrCndtn).filter(Boolean))].join(', '),
+    }))
+    // 최신 납품기한을 먼저 표시하고, 기한이 같으면 품대와 수수료를 합친 계약금액이 큰 순서로 표시.
+    .sort((a, b) =>
+      (b.mat.dlvrDeadline || '').localeCompare(a.mat.dlvrDeadline || '') ||
+      (b.prdctAmt + b.feeAmt) - (a.prdctAmt + a.feeAmt) ||
+      a.dlvrReqNo.localeCompare(b.dlvrReqNo))
   const totalPrdctAmt = contractRows.reduce((s, r) => s + r.prdctAmt, 0)
   const totalFeeAmt = contractRows.reduce((s, r) => s + r.feeAmt, 0)
   // 납품기한 연도(년차)별 그룹 — 소계 행을 해당 연도 계약들 바로 위에 표시.
@@ -4120,6 +4292,35 @@ export default function MaterialLedgerPage() {
             >
               {dashboardView === 'table' ? <LayoutGrid className="h-4 w-4" /> : <Table className="h-4 w-4" />}
               <span className="hidden sm:inline">{dashboardView === 'table' ? '슬롯 보기' : '표 보기'}</span>
+            </button>
+
+            {/* 조달청 연계 건 전체 조회 — 등록된 납품요구의 변경 사항 반영 */}
+            <button
+              onClick={handleDlvrRefreshAll}
+              disabled={dlvrRefreshing}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium transition-all hover:scale-105 shrink-0 disabled:opacity-60"
+              style={{
+                background: 'linear-gradient(180deg, #5a4a30 0%, #3a2a18 100%)',
+                border: '2px solid #6a5a40',
+                borderRadius: '6px',
+                color: '#f5d78e',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,215,0,0.2)',
+                fontFamily: 'serif'
+              }}
+              title="연계된 납품요구 건을 조달청 최신 정보로 재조회해 변경 사항(발주량 증감·단가·납품기한·품목 추가)을 반영"
+            >
+              {dlvrRefreshing ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="hidden sm:inline">{dlvrRefreshProgress.done}/{dlvrRefreshProgress.total}</span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  <span className="hidden sm:inline">전체 조회</span>
+                  <span className="sm:hidden">조회</span>
+                </>
+              )}
             </button>
 
             {/* 지급자재 계약 현황 엑셀 다운로드 */}

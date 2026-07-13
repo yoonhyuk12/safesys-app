@@ -175,6 +175,11 @@ interface MaterialContractGroup {
   materialNames: string[] // 소속 자재명 (건명 조회 실패 시 계약명 폴백)
   supplier: string | null // 수불부 저장 계약업체명 (조달청 배경 조회 값이 있으면 그 값 우선)
   deadline: string | null // 자재별 납품기한 최댓값
+  title: string | null // 저장된 납품요구 건명 (dlvr_title) — 있으면 조달청 요약 재조회 생략
+  dminstt: string | null // 저장된 수요기관명
+  rcptDate: string | null // 저장된 접수일
+  inspDate: string | null // 저장된 나라장터 검사검수 일자
+  payDate: string | null // 저장된 나라장터 대금지급 일자 — 있으면 지급·검수 재조회 생략
   totAmt: number // 품대+조달수수료 합
   yearAmts: Map<string, number> // 납품기한 연도 → 금액 합
 }
@@ -602,10 +607,14 @@ export default function ContractStatusPage() {
     try {
       const { data: mats } = await supabase
         .from('materials')
-        .select('id, name, dlvr_req_no, dlvr_supplier, dlvr_deadline')
+        .select('id, name, dlvr_req_no, dlvr_supplier, dlvr_deadline, dlvr_title, dlvr_dminstt, dlvr_rcpt_date, g2b_insp_date, g2b_pay_date')
         .eq('project_id', projectId)
         .order('sort_order', { ascending: true })
-      type MatRow = { id: string; name: string; dlvr_req_no: string | null; dlvr_supplier: string | null; dlvr_deadline: string | null }
+      type MatRow = {
+        id: string; name: string; dlvr_req_no: string | null; dlvr_supplier: string | null; dlvr_deadline: string | null
+        dlvr_title: string | null; dlvr_dminstt: string | null; dlvr_rcpt_date: string | null
+        g2b_insp_date: string | null; g2b_pay_date: string | null
+      }
       const matList: MatRow[] = mats || []
       if (matList.length === 0) { setMaterialGroups([]); return }
       const { data: entries } = await supabase
@@ -618,7 +627,11 @@ export default function ContractStatusPage() {
       const ensure = (no: string): MaterialContractGroup => {
         let g = byNo.get(no)
         if (!g) {
-          g = { dlvrReqNo: no, materialNames: [], supplier: null, deadline: null, totAmt: 0, yearAmts: new Map() }
+          g = {
+            dlvrReqNo: no, materialNames: [], supplier: null, deadline: null,
+            title: null, dminstt: null, rcptDate: null, inspDate: null, payDate: null,
+            totAmt: 0, yearAmts: new Map(),
+          }
           byNo.set(no, g)
         }
         return g
@@ -627,6 +640,11 @@ export default function ContractStatusPage() {
         if (!g.materialNames.includes(m.name)) g.materialNames.push(m.name)
         if (!g.supplier && m.dlvr_supplier) g.supplier = m.dlvr_supplier
         if (m.dlvr_deadline && (!g.deadline || m.dlvr_deadline > g.deadline)) g.deadline = m.dlvr_deadline
+        if (!g.title && m.dlvr_title) g.title = m.dlvr_title
+        if (!g.dminstt && m.dlvr_dminstt) g.dminstt = m.dlvr_dminstt
+        if (!g.rcptDate && m.dlvr_rcpt_date) g.rcptDate = m.dlvr_rcpt_date
+        if (m.g2b_insp_date && (!g.inspDate || m.g2b_insp_date > g.inspDate)) g.inspDate = m.g2b_insp_date
+        if (m.g2b_pay_date && (!g.payDate || m.g2b_pay_date > g.payDate)) g.payDate = m.g2b_pay_date
       }
       for (const m of matList) if (m.dlvr_req_no) addMaterialMeta(ensure(m.dlvr_req_no), m)
       type EntryRow = { material_id: string; dlvr_req_no: string | null; prdct_amt: number | null; fee_amt: number | null }
@@ -651,9 +669,13 @@ export default function ContractStatusPage() {
   useEffect(() => { if (user && projectId) loadMaterials() }, [user, projectId, loadMaterials])
 
   // 납품요구 요약(건명·업체·접수일·수요기관) 배경 보강 — DB에 없는 표시 항목만 조달청에서 채운다.
-  // 캐시에 없는 번호만 4건씩 병렬 조회하고, 실패 건은 자재명 폴백으로 표시한다
+  // 건명·수요기관·접수일이 모두 저장된 건은 재조회를 생략하고, 조회 성공 건은 materials에 write-back해
+  // 다음 방문부터는 저장값으로 바로 표시한다. 캐시에 없는 번호만 4건씩 병렬 조회, 실패 건은 자재명 폴백
   useEffect(() => {
-    const nos = materialGroups.map((g) => g.dlvrReqNo).filter((no) => !dlvrInfoCache.has(no))
+    const nos = materialGroups
+      .filter((g) => !(g.title && g.dminstt && g.rcptDate))
+      .map((g) => g.dlvrReqNo)
+      .filter((no) => !dlvrInfoCache.has(no))
     if (nos.length === 0) return
     let cancelled = false
     const run = async () => {
@@ -663,7 +685,19 @@ export default function ContractStatusPage() {
           try {
             const res = await fetch(`/api/g2b/dlvr-req-info?no=${encodeURIComponent(no)}`)
             const json = await res.json()
-            dlvrInfoCache.set(no, res.ok && json.success ? (json.data as DlvrReqInfo) : null)
+            const info = res.ok && json.success ? (json.data as DlvrReqInfo) : null
+            dlvrInfoCache.set(no, info)
+            if (info) {
+              const patch: Record<string, string> = {}
+              if (info.title) patch.dlvr_title = info.title
+              if (info.dminsttNm) patch.dlvr_dminstt = info.dminsttNm
+              if (info.rcptDate) patch.dlvr_rcpt_date = info.rcptDate
+              if (Object.keys(patch).length > 0) {
+                await (supabase as any).from('materials').update(patch)
+                  .eq('project_id', projectId)
+                  .eq('dlvr_req_no', no)
+              }
+            }
           } catch {
             dlvrInfoCache.set(no, null)
           }
@@ -673,7 +707,7 @@ export default function ContractStatusPage() {
     }
     run()
     return () => { cancelled = true }
-  }, [materialGroups])
+  }, [materialGroups, projectId])
 
   const clearMaterialDetailProgressTimers = useCallback(() => {
     if (materialDetailProgressTimerRef.current) clearInterval(materialDetailProgressTimerRef.current)
@@ -812,8 +846,9 @@ export default function ContractStatusPage() {
       if (!payInspCache.has(key)) wants.set(key, { nm, inst })
     }
     for (const g of materialGroups) {
+      if (g.payDate) continue // 지급완료 일자가 저장된 건 — 뱃지는 저장값으로 표시하고 재조회 생략
       const info = dlvrInfos.get(g.dlvrReqNo)
-      add(info?.title || g.materialNames[0] || '', (info?.dminsttNm || '').trim(), true)
+      add(g.title || info?.title || g.materialNames[0] || '', (g.dminstt || info?.dminsttNm || '').trim(), true)
     }
     for (const g of groups) {
       add(g.repr.cntrct_nm, ((g.repr.dminstt_nm || '').split(',')[0] || '').trim())
@@ -858,6 +893,25 @@ export default function ContractStatusPage() {
     (no: string) => allInsps.filter((d) => d.dlvrReqNo && d.dlvrReqNo === no),
     [allInsps]
   )
+  // 나라장터 지급·검사검수 일자 write-back — 통합검색으로 확인된 문서 일자를 materials에 저장해
+  // 다음 방문부터 조회 없이 뱃지를 띄운다 (세션 중 건당 1회만 저장, 실패는 무시)
+  const payInspSavedRef = useRef(new Set<string>())
+  useEffect(() => {
+    for (const g of materialGroups) {
+      if (payInspSavedRef.current.has(g.dlvrReqNo)) continue
+      const lastPay = paysForDlvr(g.dlvrReqNo).reduce((d, p) => (p.payDate > d ? p.payDate : d), '')
+      const lastInsp = inspsForDlvr(g.dlvrReqNo).reduce((d, x) => (x.inspDate > d ? x.inspDate : d), '')
+      const patch: Record<string, string> = {}
+      if (lastPay && lastPay !== (g.payDate || '')) patch.g2b_pay_date = lastPay
+      if (lastInsp && lastInsp !== (g.inspDate || '')) patch.g2b_insp_date = lastInsp
+      if (Object.keys(patch).length === 0) continue
+      payInspSavedRef.current.add(g.dlvrReqNo)
+      void (supabase as any).from('materials').update(patch)
+        .eq('project_id', projectId)
+        .eq('dlvr_req_no', g.dlvrReqNo)
+        .then(() => {})
+    }
+  }, [materialGroups, paysForDlvr, inspsForDlvr, projectId])
   // 공사·용역 그룹 매칭 — 딥링크 ctrtNo·확정계약번호(차수 제외 기본번호 포함) 기준
   const paysForGroup = useCallback(
     (g: ContractGroup) => {
@@ -1929,6 +1983,7 @@ export default function ContractStatusPage() {
                       {materialGroups.map((g) => {
                         const info = dlvrInfos.get(g.dlvrReqNo)
                         const title =
+                          g.title ||
                           info?.title ||
                           (g.materialNames.length > 1
                             ? `${g.materialNames[0]} 외 ${g.materialNames.length - 1}종`
@@ -1967,20 +2022,21 @@ export default function ContractStatusPage() {
                                 className="block text-[11px] text-gray-400"
                                 title={`납품요구 ${g.dlvrReqNo} · ${g.materialNames.join(', ')}`}
                               />
-                              {/* 나라장터 대금지급·검사검수 문서 뱃지 — 지급 문서가 있으면 검수까지 끝난 것이므로 지급완료를 우선 표시 */}
+                              {/* 나라장터 대금지급·검사검수 문서 뱃지 — 지급 문서가 있으면 검수까지 끝난 것이므로 지급완료를 우선 표시.
+                                  실시간 문서가 없어도 저장된 일자(g2b_pay_date·g2b_insp_date)가 있으면 그 값으로 표시한다 */}
                               {(() => {
                                 const pays = paysForDlvr(g.dlvrReqNo)
                                 const insps = inspsForDlvr(g.dlvrReqNo)
-                                if (pays.length === 0 && insps.length === 0) return null
-                                const lastPay = pays.reduce((d, p) => (p.payDate > d ? p.payDate : d), '')
+                                const lastPay = pays.reduce((d, p) => (p.payDate > d ? p.payDate : d), '') || g.payDate || ''
+                                const lastInsp = insps.reduce((d, x) => (x.inspDate > d ? x.inspDate : d), '') || g.inspDate || ''
+                                if (!lastPay && !lastInsp) return null
                                 const paidSum = pays.reduce((s, p) => s + p.amt, 0)
-                                const lastInsp = insps.reduce((d, x) => (x.inspDate > d ? x.inspDate : d), '')
                                 return (
                                   <span className="flex items-center gap-1">
-                                    {pays.length > 0 ? (
+                                    {lastPay ? (
                                       <span
                                         className="px-1.5 py-px rounded-full text-[10px] font-semibold bg-emerald-500 text-white"
-                                        title={`나라장터 대금지급 ${lastPay} · 누계 ${formatAmt(paidSum)}원${lastInsp ? ` · 검사검수 ${lastInsp}` : ''}`}
+                                        title={`나라장터 대금지급 ${lastPay}${paidSum > 0 ? ` · 누계 ${formatAmt(paidSum)}원` : ''}${lastInsp ? ` · 검사검수 ${lastInsp}` : ''}`}
                                       >
                                         지급완료
                                       </span>
@@ -2006,10 +2062,10 @@ export default function ContractStatusPage() {
                                 {g.yearAmts.has(y) ? formatAmt(g.yearAmts.get(y)) : '-'}
                               </td>
                             ))}
-                            <td className="px-3 py-2">{shortDate(info?.rcptDate)}</td>
+                            <td className="px-3 py-2">{shortDate(info?.rcptDate || g.rcptDate)}</td>
                             <td className="px-3 py-2">{deadline ? `~ ${shortDate(deadline)}` : '-'}</td>
-                            <td className="px-3 py-2 max-w-[200px] xl:max-w-none truncate" title={info?.dminsttNm || ''}>
-                              {info?.dminsttNm || '-'}
+                            <td className="px-3 py-2 max-w-[200px] xl:max-w-none truncate" title={info?.dminsttNm || g.dminstt || ''}>
+                              {info?.dminsttNm || g.dminstt || '-'}
                             </td>
                             <td className="px-3 py-2" />
                           </tr>
