@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { X, AlertTriangle } from 'lucide-react'
-import { Project } from '@/lib/projects'
+import { getProjectRelatedCounts, Project, ProjectRelatedCounts } from '@/lib/projects'
 
 interface ProjectDeleteModalProps {
   isOpen: boolean
@@ -21,13 +21,51 @@ const ProjectDeleteModal: React.FC<ProjectDeleteModalProps> = ({
 }) => {
   const [confirmText, setConfirmText] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
+  const [relatedCounts, setRelatedCounts] = useState<ProjectRelatedCounts | null>(null)
+  const [countsLoading, setCountsLoading] = useState(false)
+  const [countsError, setCountsError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
+
+  useEffect(() => {
+    let isCurrent = true
+
+    if (!isOpen || !project) {
+      setRelatedCounts(null)
+      setCountsError(null)
+      setCountsLoading(false)
+      return () => {
+        isCurrent = false
+      }
+    }
+
+    setConfirmText('')
+    setRelatedCounts(null)
+    setCountsError(null)
+    setCountsLoading(true)
+
+    void getProjectRelatedCounts(project.id).then((result) => {
+      if (!isCurrent) return
+
+      if (result.success && result.counts) {
+        setRelatedCounts(result.counts)
+      } else {
+        setCountsError(result.error || '연관 입력정보 조회에 실패했습니다.')
+      }
+      setCountsLoading(false)
+    })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [isOpen, project?.id, retryKey])
 
   if (!isOpen || !project) return null
 
   const isConfirmValid = confirmText === '삭제'
+  const isCountsReady = !countsLoading && !countsError && relatedCounts !== null
 
   const handleConfirm = async () => {
-    if (!isConfirmValid) return
+    if (!isConfirmValid || !isCountsReady) return
 
     setIsDeleting(true)
     try {
@@ -93,6 +131,58 @@ const ProjectDeleteModal: React.FC<ProjectDeleteModalProps> = ({
             </div>
           </div>
 
+          <div className="border border-gray-200 rounded-lg p-4 mb-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm font-medium text-gray-900">연관 입력정보</p>
+                <p className="text-xs text-gray-500 mt-0.5">프로젝트 기본정보는 제외한 건수입니다.</p>
+              </div>
+              {relatedCounts && (
+                <p className="text-lg font-bold text-red-600">총 {relatedCounts.total.toLocaleString()}건</p>
+              )}
+            </div>
+
+            {countsLoading && (
+              <div className="flex items-center justify-center py-5 text-sm text-gray-500">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-500 mr-2" />
+                입력정보 건수를 확인하고 있습니다...
+              </div>
+            )}
+
+            {countsError && (
+              <div className="bg-red-50 rounded-md p-3 text-center">
+                <p className="text-sm text-red-700 mb-2">{countsError}</p>
+                <button
+                  type="button"
+                  onClick={() => setRetryKey((value) => value + 1)}
+                  className="px-3 py-1.5 text-xs font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50"
+                >
+                  다시 시도
+                </button>
+              </div>
+            )}
+
+            {relatedCounts && (
+              relatedCounts.total === 0 ? (
+                <p className="py-3 text-sm text-center text-gray-600">등록된 연관 입력정보가 없습니다.</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    ['안전·점검', relatedCounts.safety],
+                    ['근로자', relatedCounts.workers],
+                    ['작업·TBM', relatedCounts.work],
+                    ['품질·자재·계약', relatedCounts.business],
+                  ].map(([label, count]) => (
+                    <div key={label} className="bg-gray-50 rounded-md px-3 py-2 flex items-center justify-between">
+                      <span className="text-xs text-gray-600">{label}</span>
+                      <span className="text-sm font-semibold text-gray-900">{Number(count).toLocaleString()}건</span>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
+          </div>
+
           <div className="mb-6">
             <label htmlFor="confirmText" className="block text-sm font-medium text-gray-700 mb-2">
               삭제를 확인하려면 <span className="font-bold text-red-600">"삭제"</span>를 입력하세요:
@@ -103,7 +193,7 @@ const ProjectDeleteModal: React.FC<ProjectDeleteModalProps> = ({
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
               placeholder="삭제"
-              disabled={isDeleting}
+              disabled={isDeleting || !isCountsReady}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
               autoComplete="off"
             />
@@ -123,7 +213,7 @@ const ProjectDeleteModal: React.FC<ProjectDeleteModalProps> = ({
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={!isConfirmValid || isDeleting}
+            disabled={!isConfirmValid || !isCountsReady || isDeleting}
             className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isDeleting ? (
@@ -141,4 +231,4 @@ const ProjectDeleteModal: React.FC<ProjectDeleteModalProps> = ({
   )
 }
 
-export default ProjectDeleteModal 
+export default ProjectDeleteModal

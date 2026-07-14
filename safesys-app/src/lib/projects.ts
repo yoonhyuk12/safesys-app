@@ -63,6 +63,14 @@ export interface Project {
   }
 }
 
+export type ProjectRelatedCounts = {
+  total: number
+  safety: number
+  workers: number
+  work: number
+  business: number
+}
+
 export interface CreateProjectData {
   project_name: string
   managing_hq: string
@@ -504,6 +512,37 @@ export async function deleteProject(projectId: string): Promise<{ success: boole
   } catch (error) {
     console.error('Delete project error:', error)
     return { success: false, error: '프로젝트 삭제 중 오류가 발생했습니다.' }
+  }
+}
+
+// 프로젝트 삭제 전 사용자 입력 연관 데이터 건수 조회
+export async function getProjectRelatedCounts(projectId: string): Promise<{
+  success: boolean
+  counts?: ProjectRelatedCounts
+  error?: string
+}> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+
+    if (!session) {
+      return { success: false, error: '로그인이 필요합니다.' }
+    }
+
+    const response = await fetch(`/api/projects/${projectId}/related-counts`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      cache: 'no-store',
+    })
+    const result = await response.json()
+
+    if (!response.ok || !result.success) {
+      return { success: false, error: result.error || '연관 입력정보 조회에 실패했습니다.' }
+    }
+
+    return { success: true, counts: result.counts }
+  } catch (error) {
+    console.error('Get project related counts error:', error)
+    return { success: false, error: '연관 입력정보 조회 중 오류가 발생했습니다.' }
   }
 }
 
