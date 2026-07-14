@@ -1,4 +1,4 @@
-// 사업현황 품질시험 카드의 본부별→지사별→프로젝트별 실시대장 등록 건수 드릴다운 뷰
+// 사업현황 품질시험 카드의 본부별→지사별→프로젝트별 3종 서류 등록 건수 드릴다운 뷰
 'use client'
 
 import React, { useState, useMemo } from 'react'
@@ -17,9 +17,18 @@ interface BusinessQualityTestViewProps {
 interface AggStats {
   projectCount: number
   testCount: number
+  verificationCount: number
+  summaryCount: number
+  hqUnsignedCount: number
 }
 
-const emptyStats = (): AggStats => ({ projectCount: 0, testCount: 0 })
+const emptyStats = (): AggStats => ({
+  projectCount: 0,
+  testCount: 0,
+  verificationCount: 0,
+  summaryCount: 0,
+  hqUnsignedCount: 0,
+})
 
 type ViewLevel = 'hq' | 'branch' | 'project'
 
@@ -54,6 +63,9 @@ const BusinessQualityTestView: React.FC<BusinessQualityTestViewProps> = ({
       const existing = stats.get(hq) || emptyStats()
       existing.projectCount += 1
       existing.testCount += tc.test_count
+      existing.verificationCount += tc.verification_count
+      existing.summaryCount += tc.summary_count
+      existing.hqUnsignedCount += tc.hq_unsigned_count
       stats.set(hq, existing)
     })
     return stats
@@ -70,6 +82,9 @@ const BusinessQualityTestView: React.FC<BusinessQualityTestViewProps> = ({
         const existing = stats.get(branch) || emptyStats()
         existing.projectCount += 1
         existing.testCount += tc.test_count
+        existing.verificationCount += tc.verification_count
+        existing.summaryCount += tc.summary_count
+        existing.hqUnsignedCount += tc.hq_unsigned_count
         stats.set(branch, existing)
       })
     return stats
@@ -122,6 +137,9 @@ const BusinessQualityTestView: React.FC<BusinessQualityTestViewProps> = ({
       (acc, curr) => ({
         projectCount: acc.projectCount + curr.projectCount,
         testCount: acc.testCount + curr.testCount,
+        verificationCount: acc.verificationCount + curr.verificationCount,
+        summaryCount: acc.summaryCount + curr.summaryCount,
+        hqUnsignedCount: acc.hqUnsignedCount + curr.hqUnsignedCount,
       }),
       emptyStats()
     )
@@ -181,6 +199,9 @@ const BusinessQualityTestView: React.FC<BusinessQualityTestViewProps> = ({
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">본부명</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트수</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">등록 건수</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">확인시험 건수</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총괄표 건수</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">본부 미서명 건수</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -192,6 +213,15 @@ const BusinessQualityTestView: React.FC<BusinessQualityTestViewProps> = ({
                       <td className="px-3 py-2 text-sm text-center text-sky-800">{subtotal.projectCount}개</td>
                       <td className="px-3 py-2 text-sm text-center text-sky-800">
                         {subtotal.testCount > 0 ? `${subtotal.testCount.toLocaleString()}건` : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-center text-sky-800">
+                        {subtotal.verificationCount > 0 ? `${subtotal.verificationCount.toLocaleString()}건` : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-center text-sky-800">
+                        {subtotal.summaryCount > 0 ? `${subtotal.summaryCount.toLocaleString()}건` : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-center text-sky-800">
+                        {subtotal.hqUnsignedCount > 0 ? `${subtotal.hqUnsignedCount.toLocaleString()}건` : '-'}
                       </td>
                     </tr>
                   )
@@ -207,10 +237,13 @@ const BusinessQualityTestView: React.FC<BusinessQualityTestViewProps> = ({
                         </span>
                       </td>
                       <td className="px-3 py-3 text-sm text-center">{countBadge(stats.testCount)}</td>
+                      <td className="px-3 py-3 text-sm text-center">{countBadge(stats.verificationCount)}</td>
+                      <td className="px-3 py-3 text-sm text-center">{countBadge(stats.summaryCount)}</td>
+                      <td className="px-3 py-3 text-sm text-center">{countBadge(stats.hqUnsignedCount)}</td>
                     </tr>
                   ))}
                 {hqStats.size === 0 && (
-                  <tr><td colSpan={3} className="px-4 py-8 text-center text-sm text-gray-500">등록된 프로젝트가 없습니다.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">등록된 프로젝트가 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
@@ -232,13 +265,21 @@ const BusinessQualityTestView: React.FC<BusinessQualityTestViewProps> = ({
               </span>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div
+            className="overflow-x-auto overscroll-x-contain"
+            role="region"
+            aria-label="지사별 품질시험 대장 제출현황"
+            tabIndex={0}
+          >
+            <table className="w-max min-w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">지사명</th>
+                  <th className="sticky left-0 z-20 w-20 min-w-20 max-w-20 bg-gray-50 px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider sm:static sm:w-auto sm:min-w-0 sm:max-w-none sm:px-3">지사명</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트수</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">등록 건수</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">확인시험 건수</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총괄표 건수</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">본부 미서명 건수</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -246,10 +287,19 @@ const BusinessQualityTestView: React.FC<BusinessQualityTestViewProps> = ({
                   const subtotal = subtotalOf(branchStats)
                   return (
                     <tr className="bg-sky-50/70 font-semibold border-b-2 border-sky-200">
-                      <td className="px-3 py-2 text-sm text-center text-sky-800">소계</td>
+                      <td className="sticky left-0 z-10 w-20 min-w-20 max-w-20 bg-sky-50 px-2 py-2 text-sm text-center text-sky-800 sm:static sm:w-auto sm:min-w-0 sm:max-w-none sm:px-3">소계</td>
                       <td className="px-3 py-2 text-sm text-center text-sky-800">{subtotal.projectCount}개</td>
                       <td className="px-3 py-2 text-sm text-center text-sky-800">
                         {subtotal.testCount > 0 ? `${subtotal.testCount.toLocaleString()}건` : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-center text-sky-800">
+                        {subtotal.verificationCount > 0 ? `${subtotal.verificationCount.toLocaleString()}건` : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-center text-sky-800">
+                        {subtotal.summaryCount > 0 ? `${subtotal.summaryCount.toLocaleString()}건` : '-'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-center text-sky-800">
+                        {subtotal.hqUnsignedCount > 0 ? `${subtotal.hqUnsignedCount.toLocaleString()}건` : '-'}
                       </td>
                     </tr>
                   )
@@ -257,18 +307,26 @@ const BusinessQualityTestView: React.FC<BusinessQualityTestViewProps> = ({
                 {Array.from(branchStats.entries())
                   .sort((a, b) => b[1].testCount - a[1].testCount)
                   .map(([branch, stats]) => (
-                    <tr key={branch} onClick={() => handleBranchClick(branch)} className="hover:bg-sky-50/50 cursor-pointer transition-colors">
-                      <td className="px-3 py-3 text-sm font-medium text-gray-900 text-center">{branch}</td>
+                    <tr key={branch} onClick={() => handleBranchClick(branch)} className="group hover:bg-sky-50/50 cursor-pointer transition-colors">
+                      <td className="sticky left-0 z-10 w-20 min-w-20 max-w-20 bg-white px-2 py-3 text-center text-sm font-medium text-gray-900 transition-colors group-hover:bg-sky-50 sm:static sm:w-auto sm:min-w-0 sm:max-w-none sm:px-3">
+                        <span className="sm:hidden" title={branch}>
+                          {branch.length > 3 ? `${branch.slice(0, 3)}...` : branch}
+                        </span>
+                        <span className="hidden sm:inline">{branch}</span>
+                      </td>
                       <td className="px-3 py-3 text-sm text-center">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                           {stats.projectCount}개
                         </span>
                       </td>
                       <td className="px-3 py-3 text-sm text-center">{countBadge(stats.testCount)}</td>
+                      <td className="px-3 py-3 text-sm text-center">{countBadge(stats.verificationCount)}</td>
+                      <td className="px-3 py-3 text-sm text-center">{countBadge(stats.summaryCount)}</td>
+                      <td className="px-3 py-3 text-sm text-center">{countBadge(stats.hqUnsignedCount)}</td>
                     </tr>
                   ))}
                 {branchStats.size === 0 && (
-                  <tr><td colSpan={3} className="px-4 py-8 text-center text-sm text-gray-500">해당 본부에 프로젝트가 없습니다.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">해당 본부에 프로젝트가 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
@@ -296,6 +354,9 @@ const BusinessQualityTestView: React.FC<BusinessQualityTestViewProps> = ({
                 <tr>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트명</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">등록 건수</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">확인시험 건수</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">총괄표 건수</th>
+                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">본부 미서명 건수</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -304,6 +365,21 @@ const BusinessQualityTestView: React.FC<BusinessQualityTestViewProps> = ({
                   <td className="px-3 py-2 text-sm text-center text-sky-800">
                     {projectList.reduce((s, p) => s + p.test_count, 0) > 0
                       ? `${projectList.reduce((s, p) => s + p.test_count, 0).toLocaleString()}건`
+                      : '-'}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-center text-sky-800">
+                    {projectList.reduce((s, p) => s + p.verification_count, 0) > 0
+                      ? `${projectList.reduce((s, p) => s + p.verification_count, 0).toLocaleString()}건`
+                      : '-'}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-center text-sky-800">
+                    {projectList.reduce((s, p) => s + p.summary_count, 0) > 0
+                      ? `${projectList.reduce((s, p) => s + p.summary_count, 0).toLocaleString()}건`
+                      : '-'}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-center text-sky-800">
+                    {projectList.reduce((s, p) => s + p.hq_unsigned_count, 0) > 0
+                      ? `${projectList.reduce((s, p) => s + p.hq_unsigned_count, 0).toLocaleString()}건`
                       : '-'}
                   </td>
                 </tr>
@@ -320,10 +396,13 @@ const BusinessQualityTestView: React.FC<BusinessQualityTestViewProps> = ({
                       <span className="hidden sm:inline">{p.project_name}</span>
                     </td>
                     <td className="px-3 py-3 text-sm text-center">{countBadge(p.test_count)}</td>
+                    <td className="px-3 py-3 text-sm text-center">{countBadge(p.verification_count)}</td>
+                    <td className="px-3 py-3 text-sm text-center">{countBadge(p.summary_count)}</td>
+                    <td className="px-3 py-3 text-sm text-center">{countBadge(p.hq_unsigned_count)}</td>
                   </tr>
                 ))}
                 {projectList.length === 0 && (
-                  <tr><td colSpan={2} className="px-4 py-8 text-center text-sm text-gray-500">해당 지사에 프로젝트가 없습니다.</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500">해당 지사에 프로젝트가 없습니다.</td></tr>
                 )}
               </tbody>
             </table>

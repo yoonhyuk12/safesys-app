@@ -2619,9 +2619,12 @@ export interface QualityTestCountByProject {
   managing_hq: string
   managing_branch: string
   test_count: number
+  verification_count: number
+  summary_count: number
+  hq_unsigned_count: number
 }
 
-// 사용자 권한/선택 본부·지사 범위의 프로젝트별 품질시험 실시대장 등록 건수를 집계한다.
+// 사용자 권한/선택 본부·지사 범위의 프로젝트별 품질시험 3종 서류 등록 건수를 집계한다.
 export async function getQualityTestCountsByUserBranch(
   userProfile: UserProfile,
   selectedHq?: string,
@@ -2679,31 +2682,57 @@ export async function getQualityTestCountsByUserBranch(
 
     const projectIds = activeProjects.map(p => p.id)
 
-    // quality_test_records 테이블에서 프로젝트별 건수 집계
-    const { data: records, error: recordError } = await supabase
-      .from('quality_test_records')
-      .select('project_id')
-      .in('project_id', projectIds)
+    const [recordResult, verificationResult, summaryResult, hqUnsignedResult] = await Promise.all([
+      supabase
+        .from('quality_test_records')
+        .select('project_id')
+        .in('project_id', projectIds),
+      supabase
+        .from('quality_verification_requests')
+        .select('project_id')
+        .in('project_id', projectIds),
+      supabase
+        .from('quality_summary_reports')
+        .select('project_id')
+        .in('project_id', projectIds),
+      supabase
+        .from('quality_summary_reports')
+        .select('project_id')
+        .in('project_id', projectIds)
+        .or('confirmer_signature.is.null,confirmer_signature.eq.'),
+    ])
 
-    if (recordError) {
-      console.error('품질시험 실시대장 조회 오류:', recordError)
-      return { success: false, error: recordError.message }
+    if (recordResult.error || verificationResult.error || summaryResult.error || hqUnsignedResult.error) {
+      const queryError = recordResult.error || verificationResult.error || summaryResult.error || hqUnsignedResult.error
+      console.error('품질시험 서류 조회 오류:', queryError)
+      return { success: false, error: queryError?.message }
     }
 
-    const countMap = new Map<string, number>()
-      ; (records || []).forEach(r => {
-        countMap.set(r.project_id, (countMap.get(r.project_id) || 0) + 1)
+    const buildCountMap = (rows: { project_id: string }[] | null) => {
+      const countMap = new Map<string, number>()
+      ; (rows || []).forEach(row => {
+        countMap.set(row.project_id, (countMap.get(row.project_id) || 0) + 1)
       })
+      return countMap
+    }
+
+    const testCountMap = buildCountMap(recordResult.data)
+    const verificationCountMap = buildCountMap(verificationResult.data)
+    const summaryCountMap = buildCountMap(summaryResult.data)
+    const hqUnsignedCountMap = buildCountMap(hqUnsignedResult.data)
 
     const testCounts: QualityTestCountByProject[] = activeProjects.map(p => ({
       project_id: p.id,
       project_name: p.project_name,
       managing_hq: p.managing_hq,
       managing_branch: p.managing_branch,
-      test_count: countMap.get(p.id) || 0,
+      test_count: testCountMap.get(p.id) || 0,
+      verification_count: verificationCountMap.get(p.id) || 0,
+      summary_count: summaryCountMap.get(p.id) || 0,
+      hq_unsigned_count: hqUnsignedCountMap.get(p.id) || 0,
     }))
 
-    if (DEBUG_LOGS) console.log(`품질시험 실시대장 등록현황 조회 완료: ${testCounts.length}개 프로젝트`)
+    if (DEBUG_LOGS) console.log(`품질시험 서류 등록현황 조회 완료: ${testCounts.length}개 프로젝트`)
     return { success: true, testCounts }
 
   } catch (error: any) {
