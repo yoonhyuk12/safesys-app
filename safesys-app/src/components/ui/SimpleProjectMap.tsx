@@ -7,6 +7,7 @@ import type { TBMRecord } from '@/lib/tbm'
 import NavigationSelector from './NavigationSelector'
 import { computeProgressRate } from '@/lib/work-daily-report/work-daily-report-types'
 import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
+import { useWeatherWarningLayer } from './useWeatherWarningLayer'
 
 export interface SimpleProjectMarker {
   id: string
@@ -221,6 +222,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
   const [showTBMMarkers, setShowTBMMarkersRaw] = useState<boolean>(stored?.showTBMMarkers ?? false)
   const [tbmDataLoaded, setTbmDataLoaded] = useState<boolean>(false) // TBM 데이터 로드 여부
   const [showOfficeMarkers, setShowOfficeMarkersRaw] = useState<boolean>(stored?.showOfficeMarkers ?? true)
+  const [showWeatherWarnings, setShowWeatherWarningsRaw] = useState<boolean>(stored?.showWeatherWarnings ?? true)
 
   const saveVisibility = (patch: Record<string, boolean>) => {
     try {
@@ -235,6 +237,9 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
   const setShowUninspectedBranch = (v: boolean) => { setShowUninspectedBranchRaw(v); saveVisibility({ showUninspectedBranch: v }) }
   const setShowTBMMarkers = (v: boolean) => { setShowTBMMarkersRaw(v); saveVisibility({ showTBMMarkers: v }) }
   const setShowOfficeMarkers = (v: boolean) => { setShowOfficeMarkersRaw(v); saveVisibility({ showOfficeMarkers: v }) }
+  const setShowWeatherWarnings = (v: boolean) => { setShowWeatherWarningsRaw(v); saveVisibility({ showWeatherWarnings: v }) }
+
+  const weatherWarnings = useWeatherWarningLayer(map, showWeatherWarnings)
 
   // TBM이 on 상태로 복원된 경우 마운트 시 자동 로드
   useEffect(() => {
@@ -1465,6 +1470,32 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
               <Maximize2 className="h-5 w-5 text-gray-700" />
             )}
           </button>
+
+          {/* 데스크톱 기상특보 레이어 토글 */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowWeatherWarnings(!showWeatherWarnings)
+            }}
+            className={`legend-desktop hidden items-center gap-1.5 bg-white/95 hover:bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 shadow-lg text-xs transition-all duration-200 hover:shadow-xl ${!showWeatherWarnings ? 'opacity-50' : ''}`}
+            title={showWeatherWarnings && weatherWarnings.error ? weatherWarnings.error : '기상특보 표시'}
+          >
+            {showWeatherWarnings && weatherWarnings.loading && weatherWarnings.count === 0 ? (
+              <div className="animate-spin h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+            ) : (
+              <span className="inline-block w-3 h-3 rounded-sm border border-blue-700" style={{ backgroundColor: '#3B82F6', opacity: 0.65 }}></span>
+            )}
+            <span className="text-gray-700 whitespace-nowrap">
+              기상특보 <span className="font-semibold">
+                ({showWeatherWarnings && weatherWarnings.loading && weatherWarnings.count === 0
+                  ? '로딩중...'
+                  : showWeatherWarnings && weatherWarnings.error
+                    ? '오류'
+                    : `${weatherWarnings.count}개`})
+              </span>
+            </span>
+          </button>
         </div>
       )}
 
@@ -1661,6 +1692,26 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
             <Activity className="w-4 h-4 text-[#DC2626]" />
           )}
           <span className="text-[9px] font-semibold text-gray-700">({tbmRecords?.length || 0})</span>
+        </button>
+
+        {/* 기상특보 */}
+        <button
+          onClick={() => setShowWeatherWarnings(!showWeatherWarnings)}
+          className={`flex items-center gap-1 px-1 py-0.5 rounded transition-all ${!showWeatherWarnings ? 'opacity-40 grayscale' : 'hover:bg-gray-100'}`}
+          title={showWeatherWarnings && weatherWarnings.error ? weatherWarnings.error : '기상특보'}
+        >
+          {showWeatherWarnings && weatherWarnings.loading && weatherWarnings.count === 0 ? (
+            <div className="w-4 h-4 flex items-center justify-center">
+              <div className="animate-spin h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+            </div>
+          ) : (
+            <AlertTriangle className="w-4 h-4 text-[#2563EB]" />
+          )}
+          <span className="text-[9px] font-semibold text-gray-700">
+            ({showWeatherWarnings && weatherWarnings.loading && weatherWarnings.count === 0
+              ? '…'
+              : showWeatherWarnings && weatherWarnings.error ? '!' : weatherWarnings.count})
+          </span>
         </button>
       </div>
 
