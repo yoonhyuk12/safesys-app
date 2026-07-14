@@ -2749,6 +2749,7 @@ export interface QualityReportStatusByProject {
   report_count: number // 누적 제출 건수
   current_month_submitted: boolean // 이번 달 보고서 제출 여부
   latest_report_label: string // 최근 제출 연월 표시 (예: '26.07'), 없으면 ''
+  submitted_year_months: string[] // 제출 연월 목록 (YYYY-MM)
 }
 
 // 사용자 권한/선택 본부·지사 범위의 프로젝트별 품질시험 월례보고서 제출 현황을 집계한다.
@@ -2825,15 +2826,21 @@ export async function getQualityMonthlyReportStatusByUserBranch(
     const currentMonth = now.getMonth() + 1
 
     // 프로젝트별 집계: 누적 건수, 이번 달 제출 여부, 최근 제출 연월
-    const statMap = new Map<string, { count: number; currentSubmitted: boolean; latestYm: number }>()
+    const statMap = new Map<string, { count: number; currentSubmitted: boolean; latestYm: number; submittedYearMonths: Set<string> }>()
     ;(reports || []).forEach((r: any) => {
-      const existing = statMap.get(r.project_id) || { count: 0, currentSubmitted: false, latestYm: 0 }
+      const existing = statMap.get(r.project_id) || {
+        count: 0,
+        currentSubmitted: false,
+        latestYm: 0,
+        submittedYearMonths: new Set<string>(),
+      }
       existing.count += 1
       if (r.report_year === currentYear && r.report_month === currentMonth) {
         existing.currentSubmitted = true
       }
       const ym = r.report_year * 100 + r.report_month
       if (ym > existing.latestYm) existing.latestYm = ym
+      existing.submittedYearMonths.add(`${r.report_year}-${String(r.report_month).padStart(2, '0')}`)
       statMap.set(r.project_id, existing)
     })
 
@@ -2849,6 +2856,7 @@ export async function getQualityMonthlyReportStatusByUserBranch(
         latest_report_label: stat && stat.latestYm > 0
           ? `${String(Math.floor(stat.latestYm / 100)).slice(-2)}.${String(stat.latestYm % 100).padStart(2, '0')}`
           : '',
+        submitted_year_months: stat ? Array.from(stat.submittedYearMonths).sort() : [],
       }
     })
 

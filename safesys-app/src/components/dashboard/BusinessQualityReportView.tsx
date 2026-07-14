@@ -2,7 +2,7 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { ArrowLeft, FlaskConical, Building } from 'lucide-react'
+import { ArrowLeft, FlaskConical, Building, ChevronDown, ChevronUp } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import type { QualityReportStatusByProject } from '@/lib/projects'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
@@ -17,10 +17,16 @@ interface BusinessQualityReportViewProps {
 
 interface AggStats {
   projectCount: number
-  submittedCount: number
+  monthlySubmittedCounts: number[]
 }
 
-const emptyStats = (): AggStats => ({ projectCount: 0, submittedCount: 0 })
+const MONTHS = Array.from({ length: 12 }, (_, index) => index + 1)
+
+const emptyStats = (): AggStats => ({ projectCount: 0, monthlySubmittedCounts: MONTHS.map(() => 0) })
+
+const hasMonthlySubmission = (status: QualityReportStatusByProject, year: number, month: number) => (
+  status.submitted_year_months.includes(`${year}-${String(month).padStart(2, '0')}`)
+)
 
 // 지사명으로 소속 본부를 역추적 (수불부/보고서에서 복귀 시 지사 → 본부 복원용)
 const findHqOfBranch = (branch: string): string | null => {
@@ -43,15 +49,26 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
     initialBranch ? findHqOfBranch(initialBranch) : null
   )
   const [selectedBranchForDetail, setSelectedBranchForDetail] = useState<string | null>(initialBranch)
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
+  const today = new Date()
+  const currentYear = today.getFullYear()
+  const currentMonth = today.getMonth() + 1
 
-  const currentMonthLabel = `${new Date().getMonth() + 1}월`
+  const isCurrentMonthColumn = (month: number) => (
+    selectedYear === currentYear && month === currentMonth
+  )
 
   const totalStats = useMemo(() => {
-    return reportStatuses.reduce((acc, s) => ({
-      projectCount: acc.projectCount + 1,
-      submittedCount: acc.submittedCount + (s.current_month_submitted ? 1 : 0),
-    }), emptyStats())
-  }, [reportStatuses])
+    return reportStatuses.reduce((acc, status) => {
+      acc.projectCount += 1
+      MONTHS.forEach(month => {
+        if (hasMonthlySubmission(status, selectedYear, month)) {
+          acc.monthlySubmittedCounts[month - 1] += 1
+        }
+      })
+      return acc
+    }, emptyStats())
+  }, [reportStatuses, selectedYear])
 
   // 본부별 통계 — HEADQUARTERS_OPTIONS 순서 유지, 없는 본부는 뒤에
   const hqStats = useMemo(() => {
@@ -61,11 +78,15 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
       const hq = s.managing_hq || '미지정'
       const existing = stats.get(hq) || emptyStats()
       existing.projectCount += 1
-      if (s.current_month_submitted) existing.submittedCount += 1
+      MONTHS.forEach(month => {
+        if (hasMonthlySubmission(s, selectedYear, month)) {
+          existing.monthlySubmittedCounts[month - 1] += 1
+        }
+      })
       stats.set(hq, existing)
     })
     return stats
-  }, [reportStatuses])
+  }, [reportStatuses, selectedYear])
 
   // 지사별 통계 (본부 선택 시)
   const branchStats = useMemo(() => {
@@ -78,24 +99,30 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
         const branch = s.managing_branch || '미지정'
         const existing = stats.get(branch) || emptyStats()
         existing.projectCount += 1
-        if (s.current_month_submitted) existing.submittedCount += 1
+        MONTHS.forEach(month => {
+          if (hasMonthlySubmission(s, selectedYear, month)) {
+            existing.monthlySubmittedCounts[month - 1] += 1
+          }
+        })
         stats.set(branch, existing)
       })
     return stats
-  }, [reportStatuses, selectedHqForDetail])
+  }, [reportStatuses, selectedHqForDetail, selectedYear])
 
-  // 프로젝트 목록 (지사 선택 시) — 미제출 먼저, 그다음 이름순
+  // 프로젝트 목록 (지사 선택 시) — 선택 연도 제출월이 적은 순, 그다음 이름순
   const projectList = useMemo(() => {
     if (!selectedBranchForDetail) return []
     return reportStatuses
       .filter(s => s.managing_branch === selectedBranchForDetail)
       .sort((a, b) => {
-        if (a.current_month_submitted !== b.current_month_submitted) {
-          return a.current_month_submitted ? 1 : -1
+        const aSubmittedCount = MONTHS.filter(month => hasMonthlySubmission(a, selectedYear, month)).length
+        const bSubmittedCount = MONTHS.filter(month => hasMonthlySubmission(b, selectedYear, month)).length
+        if (aSubmittedCount !== bSubmittedCount) {
+          return aSubmittedCount - bSubmittedCount
         }
         return a.project_name.localeCompare(b.project_name, 'ko-KR')
       })
-  }, [reportStatuses, selectedBranchForDetail])
+  }, [reportStatuses, selectedBranchForDetail, selectedYear])
 
   const handleBack = () => {
     if (viewLevel === 'project') {
@@ -120,28 +147,51 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
     setViewLevel('project')
   }
 
-  // 소계/행 공용 셀 — 제출·미제출 뱃지
-  const renderSubmitCells = (stats: AggStats) => (
+  // 소계/행 공용 셀 — 월별 제출 프로젝트 수
+  const renderMonthlyCells = (stats: AggStats, highlightCurrentMonth = false) => (
     <>
-      <td className="px-3 py-3 text-sm text-center">
-        {stats.submittedCount > 0 ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-            {stats.submittedCount}개
-          </span>
-        ) : (
-          <span className="text-gray-400">-</span>
-        )}
-      </td>
-      <td className="px-3 py-3 text-sm text-center">
-        {stats.projectCount - stats.submittedCount > 0 ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
-            {stats.projectCount - stats.submittedCount}개
-          </span>
-        ) : (
-          <span className="text-gray-400">-</span>
-        )}
-      </td>
+      {stats.monthlySubmittedCounts.map((count, index) => {
+        const month = MONTHS[index]
+        const isHighlighted = highlightCurrentMonth && isCurrentMonthColumn(month)
+        return (
+          <td key={month} className={`px-3 py-3 text-sm text-center ${isHighlighted ? 'bg-amber-50' : ''}`}>
+            {count > 0 ? (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                {count}개
+              </span>
+            ) : (
+              <span className="text-gray-400">-</span>
+            )}
+          </td>
+        )
+      })}
     </>
+  )
+
+  const renderYearSelector = () => (
+    <div className="flex items-center gap-2" aria-label="조회 연도 선택">
+      <span className="min-w-14 text-center text-sm font-semibold text-emerald-700">{selectedYear}년</span>
+      <div className="flex flex-col overflow-hidden rounded border border-emerald-200 bg-white">
+        <button
+          type="button"
+          onClick={() => setSelectedYear(year => year + 1)}
+          className="px-1.5 py-0.5 text-emerald-600 hover:bg-emerald-100 transition-colors"
+          aria-label={`${selectedYear + 1}년 보기`}
+          title="다음 연도"
+        >
+          <ChevronUp className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={() => setSelectedYear(year => year - 1)}
+          className="border-t border-emerald-200 px-1.5 py-0.5 text-emerald-600 hover:bg-emerald-100 transition-colors"
+          aria-label={`${selectedYear - 1}년 보기`}
+          title="이전 연도"
+        >
+          <ChevronDown className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
   )
 
   if (loading) {
@@ -175,7 +225,7 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
           </h2>
         </div>
         <div className="ml-auto text-sm text-gray-300">
-          {currentMonthLabel} 제출 {totalStats.submittedCount}/{totalStats.projectCount}개
+          {selectedYear}년 월별 제출현황
         </div>
       </div>
 
@@ -186,9 +236,9 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Building className="h-4 w-4 text-emerald-600" />
-                <span className="text-sm font-medium text-emerald-800">본부별 {currentMonthLabel} 제출현황</span>
+                <span className="text-sm font-medium text-emerald-800">본부별 제출현황</span>
               </div>
-              <span className="text-sm text-emerald-600 font-semibold">제출 {totalStats.submittedCount}/{totalStats.projectCount}개</span>
+              {renderYearSelector()}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -197,8 +247,9 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
                 <tr>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">본부명</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트수</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{currentMonthLabel} 제출</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">미제출</th>
+                  {MONTHS.map(month => (
+                    <th key={month} className="min-w-16 px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{month}월</th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -206,7 +257,7 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
                 <tr className="bg-emerald-50/70 font-semibold border-b-2 border-emerald-200">
                   <td className="px-3 py-2 text-sm text-center text-emerald-800">소계</td>
                   <td className="px-3 py-2 text-sm text-center text-emerald-800">{totalStats.projectCount}개</td>
-                  {renderSubmitCells(totalStats)}
+                  {renderMonthlyCells(totalStats)}
                 </tr>
                 {Array.from(hqStats.entries())
                   .filter(([, stats]) => stats.projectCount > 0)
@@ -218,11 +269,11 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
                           {stats.projectCount}개
                         </span>
                       </td>
-                      {renderSubmitCells(stats)}
+                      {renderMonthlyCells(stats)}
                     </tr>
                   ))}
                 {Array.from(hqStats.values()).every(s => s.projectCount === 0) && (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">등록된 프로젝트가 없습니다.</td></tr>
+                  <tr><td colSpan={14} className="px-4 py-8 text-center text-sm text-gray-500">등록된 프로젝트가 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
@@ -237,27 +288,30 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Building className="h-4 w-4 text-emerald-600" />
-                <span className="text-sm font-medium text-emerald-800">{selectedHqForDetail} - 지사별 {currentMonthLabel} 제출현황</span>
+                <span className="text-sm font-medium text-emerald-800">{selectedHqForDetail} - 지사별 제출현황</span>
               </div>
-              {(() => {
-                const subtotal = Array.from(branchStats.values()).reduce((acc, curr) => ({
-                  projectCount: acc.projectCount + curr.projectCount,
-                  submittedCount: acc.submittedCount + curr.submittedCount,
-                }), emptyStats())
-                return (
-                  <span className="text-sm text-emerald-600 font-semibold">제출 {subtotal.submittedCount}/{subtotal.projectCount}개</span>
-                )
-              })()}
+              {renderYearSelector()}
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div
+            className="overflow-x-auto overscroll-x-contain"
+            role="region"
+            aria-label="지사별 월례보고 제출현황"
+            tabIndex={0}
+          >
+            <table className="w-max min-w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">지사명</th>
+                  <th className="sticky left-0 z-20 w-20 min-w-20 max-w-20 bg-gray-50 px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider sm:static sm:w-auto sm:min-w-0 sm:max-w-none sm:px-3">지사명</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트수</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{currentMonthLabel} 제출</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">미제출</th>
+                  {MONTHS.map(month => (
+                    <th
+                      key={month}
+                      className={`min-w-16 px-3 py-3 text-center text-xs font-medium uppercase tracking-wider ${isCurrentMonthColumn(month) ? 'bg-amber-100 text-amber-800' : 'text-gray-500'}`}
+                    >
+                      {month}월
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -265,31 +319,38 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
                 {(() => {
                   const subtotal = Array.from(branchStats.values()).reduce((acc, curr) => ({
                     projectCount: acc.projectCount + curr.projectCount,
-                    submittedCount: acc.submittedCount + curr.submittedCount,
+                    monthlySubmittedCounts: acc.monthlySubmittedCounts.map((count, index) => (
+                      count + curr.monthlySubmittedCounts[index]
+                    )),
                   }), emptyStats())
                   return (
                     <tr className="bg-emerald-50/70 font-semibold border-b-2 border-emerald-200">
-                      <td className="px-3 py-2 text-sm text-center text-emerald-800">소계</td>
+                      <td className="sticky left-0 z-10 w-20 min-w-20 max-w-20 bg-emerald-50 px-2 py-2 text-sm text-center text-emerald-800 sm:static sm:w-auto sm:min-w-0 sm:max-w-none sm:px-3">소계</td>
                       <td className="px-3 py-2 text-sm text-center text-emerald-800">{subtotal.projectCount}개</td>
-                      {renderSubmitCells(subtotal)}
+                      {renderMonthlyCells(subtotal, true)}
                     </tr>
                   )
                 })()}
                 {Array.from(branchStats.entries())
                   .filter(([, stats]) => stats.projectCount > 0)
                   .map(([branch, stats]) => (
-                    <tr key={branch} onClick={() => handleBranchClick(branch)} className="hover:bg-emerald-50/50 cursor-pointer transition-colors">
-                      <td className="px-3 py-3 text-sm font-medium text-gray-900 text-center">{branch}</td>
+                    <tr key={branch} onClick={() => handleBranchClick(branch)} className="group hover:bg-emerald-50/50 cursor-pointer transition-colors">
+                      <td className="sticky left-0 z-10 w-20 min-w-20 max-w-20 bg-white px-2 py-3 text-center text-sm font-medium text-gray-900 transition-colors group-hover:bg-emerald-50 sm:static sm:w-auto sm:min-w-0 sm:max-w-none sm:px-3">
+                        <span className="sm:hidden" title={branch}>
+                          {branch.length > 3 ? `${branch.slice(0, 3)}...` : branch}
+                        </span>
+                        <span className="hidden sm:inline">{branch}</span>
+                      </td>
                       <td className="px-3 py-3 text-sm text-center">
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                           {stats.projectCount}개
                         </span>
                       </td>
-                      {renderSubmitCells(stats)}
+                      {renderMonthlyCells(stats, true)}
                     </tr>
                   ))}
                 {Array.from(branchStats.values()).every(s => s.projectCount === 0) && (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">해당 본부에 프로젝트가 없습니다.</td></tr>
+                  <tr><td colSpan={14} className="px-4 py-8 text-center text-sm text-gray-500">해당 본부에 프로젝트가 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
@@ -306,9 +367,7 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
                 <FlaskConical className="h-4 w-4 text-emerald-600" />
                 <span className="text-sm font-medium text-emerald-800">{selectedBranchForDetail} - 프로젝트별 제출현황</span>
               </div>
-              <span className="text-sm text-emerald-600 font-semibold">
-                제출 {projectList.filter(p => p.current_month_submitted).length}/{projectList.length}개
-              </span>
+              {renderYearSelector()}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -316,7 +375,9 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트명</th>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{currentMonthLabel} 제출</th>
+                  {MONTHS.map(month => (
+                    <th key={month} className="min-w-16 px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{month}월</th>
+                  ))}
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">최근 제출월</th>
                   <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">누적</th>
                 </tr>
@@ -330,17 +391,17 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
                       </span>
                       <span className="hidden sm:inline">{p.project_name}</span>
                     </td>
-                    <td className="px-3 py-3 text-sm text-center">
-                      {p.current_month_submitted ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
-                          제출
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                          미제출
-                        </span>
-                      )}
-                    </td>
+                    {MONTHS.map(month => (
+                      <td key={month} className="px-3 py-3 text-sm text-center">
+                        {hasMonthlySubmission(p, selectedYear, month) ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                            제출
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                    ))}
                     <td className="px-3 py-3 text-sm text-center text-gray-600">
                       {p.latest_report_label || <span className="text-gray-400">-</span>}
                     </td>
@@ -350,7 +411,7 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
                   </tr>
                 ))}
                 {projectList.length === 0 && (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">해당 지사에 프로젝트가 없습니다.</td></tr>
+                  <tr><td colSpan={15} className="px-4 py-8 text-center text-sm text-gray-500">해당 지사에 프로젝트가 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
