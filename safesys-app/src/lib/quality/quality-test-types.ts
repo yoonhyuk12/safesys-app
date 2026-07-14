@@ -6,6 +6,7 @@ export type TestVerdict = '' | '합격' | '불합격' | '재시험'
 // 시험·검사구분 입력 제안값 — '확인시험'이면 총괄표 ⑤ 확인시험 실적으로 집계
 export const TEST_CATEGORY_OPTIONS = ['자체(관리)시험', '의뢰(수탁)시험', '확인시험']
 export const VERIFICATION_CATEGORY = '확인시험'
+export const COMMISSIONED_TEST_CATEGORY = '의뢰(수탁)시험'
 
 // ── 1) 품질검사 실시대장 (별지 제42호서식) — 대장 1행
 export interface QualityTestRecordFormData {
@@ -60,16 +61,12 @@ export const createEmptyQualityTestRecord = (
   ...defaults,
 })
 
-// 한 제출건 안에서 여러 건 등록되는 항목별 필드 (시험·검사 종목 ~ 건설사업관리기술인 확인)
+// 한 제출건 안에서 여러 건 등록되는 항목별 필드 (시험·검사 종목 ~ 시험 결과 판정)
 export interface QualityTestItemFields {
   test_item: string
   test_standard: string
   test_result: string
   result_verdict: TestVerdict
-  quality_engineer_name: string
-  quality_engineer_signature: string
-  supervision_engineer_name: string
-  supervision_engineer_signature: string
 }
 
 export const createEmptyQualityTestItem = (
@@ -79,14 +76,10 @@ export const createEmptyQualityTestItem = (
   test_standard: '',
   test_result: '',
   result_verdict: '합격',
-  quality_engineer_name: '',
-  quality_engineer_signature: '',
-  supervision_engineer_name: '',
-  supervision_engineer_signature: '',
   ...defaults,
 })
 
-// 한 제출건에서 항목들이 공유하는 필드 (연월일 ~ 시험·검사 장소, 비고)
+// 한 제출건에서 항목들이 공유하는 필드 (연월일 ~ 시험·검사 장소, 기술인 성명·서명, 비고)
 export type QualityTestCommonFields = Omit<
   QualityTestRecordFormData,
   keyof QualityTestItemFields | 'serial_no'
@@ -102,6 +95,10 @@ export const createEmptyQualityTestCommon = (
   supplier_factory: '',
   test_place: '',
   photo_url: '',
+  quality_engineer_name: '',
+  quality_engineer_signature: '',
+  supervision_engineer_name: '',
+  supervision_engineer_signature: '',
   note: '',
   ...defaults,
 })
@@ -238,7 +235,7 @@ export const createEmptyQualitySummary = (
   report_date: new Date().toISOString().split('T')[0],
   construction_period: '',
   progress_rate: '',
-  settlement_rows: [createEmptySettlementRow()],
+  settlement_rows: ['레미콘', '토공'].map((work_type) => ({ ...createEmptySettlementRow(), work_type })),
   quality_rows: [createEmptyQualityPerformanceRow()],
   verification_rows: [createEmptyVerificationPerformanceRow()],
   writer_affiliation: '',
@@ -265,38 +262,67 @@ export const settlementCumulative = (row: SettlementRow): string => {
   return String(Math.round(sum * 1000) / 1000)
 }
 
-// 실시대장 레코드를 (공종, 시험·검사 종목) 단위로 집계해 총괄표 ④·⑤ 행을 만든다.
-// 기존 행의 계획 횟수·비고·확인시험구분은 (공종, 종목)이 일치하면 보존한다.
+// ④는 전체 시험을, ⑤는 확인시험·수탁시험을 공종별로 묶고 슈미트해머는 별도 행으로 집계한다.
+// 기존 행의 계획 횟수·비고는 (공종, 합쳐진 종목명, 확인시험구분)이 일치하면 보존한다.
 export const aggregatePerformanceRows = (
   records: QualityTestRecord[],
   existingQualityRows: QualityPerformanceRow[] = [],
   existingVerificationRows: VerificationPerformanceRow[] = []
 ): { quality_rows: QualityPerformanceRow[]; verification_rows: VerificationPerformanceRow[] } => {
   interface Tally {
-    done: number
-    pass: number
-    fail: number
-    retest: number
+    testItems: string[]
+    verdicts: Map<string, TestVerdict>
+    verificationType: string
   }
-  // 키는 JSON 배열 문자열 — 공종·종목에 어떤 문자가 있어도 안전하게 복원 가능
-  const tally = (recs: QualityTestRecord[]): Map<string, Tally> => {
+
+  type TestGroup = 'general' | 'schmidt'
+  const getTestGroup = (testItem: string): TestGroup =>
+    testItem.trim() === '슈미트해머' ? 'schmidt' : 'general'
+  const getVerificationType = (testCategory: string): string =>
+    testCategory === VERIFICATION_CATEGORY
+      ? '공사감독'
+      : testCategory === COMMISSIONED_TEST_CATEGORY
+        ? '건설엔지니어링사업자'
+        : ''
+
+  const verdictPriority: Record<TestVerdict, number> = {
+    '': 0,
+    '합격': 1,
+    '재시험': 2,
+    '불합격': 3,
+  }
+
+  // 일반시험 종목은 최초 등장 순서로 합치고 슈미트해머만 같은 공종 안에서 분리한다.
+  const tally = (recs: QualityTestRecord[], separateVerificationTypes = false): Map<string, Tally> => {
     const map = new Map<string, Tally>()
     recs.forEach((rec) => {
-      const key = JSON.stringify([rec.work_type, rec.test_item])
-      const t = map.get(key) ?? { done: 0, pass: 0, fail: 0, retest: 0 }
-      const next: Tally = {
-        done: t.done + 1,
-        pass: t.pass + (rec.result_verdict === '합격' ? 1 : 0),
-        fail: t.fail + (rec.result_verdict === '불합격' ? 1 : 0),
-        retest: t.retest + (rec.result_verdict === '재시험' ? 1 : 0),
+      const testItem = rec.test_item.trim()
+      const testGroup = getTestGroup(testItem)
+      const verificationType = separateVerificationTypes ? getVerificationType(rec.test_category) : ''
+      const key = JSON.stringify([rec.work_type, testGroup, verificationType])
+      const current = map.get(key) ?? {
+        testItems: [],
+        verdicts: new Map<string, TestVerdict>(),
+        verificationType,
       }
-      map.set(key, next)
+      if (testItem && !current.testItems.includes(testItem)) current.testItems.push(testItem)
+      const submissionKey = rec.serial_no == null ? `record:${rec.id}` : `serial:${rec.serial_no}`
+      const previousVerdict = current.verdicts.get(submissionKey) ?? ''
+      if (verdictPriority[rec.result_verdict] > verdictPriority[previousVerdict]) {
+        current.verdicts.set(submissionKey, rec.result_verdict)
+      } else if (!current.verdicts.has(submissionKey)) {
+        current.verdicts.set(submissionKey, previousVerdict)
+      }
+      map.set(key, current)
     })
     return map
   }
 
-  const verificationRecords = records.filter((r) => r.test_category === VERIFICATION_CATEGORY)
-  const qualityRecords = records.filter((r) => r.test_category !== VERIFICATION_CATEGORY)
+  const verificationRecords = records.filter(
+    (record) =>
+      record.test_category === VERIFICATION_CATEGORY ||
+      record.test_category === COMMISSIONED_TEST_CATEGORY
+  )
 
   const buildRows = <T extends QualityPerformanceRow>(
     map: Map<string, Tally>,
@@ -304,24 +330,44 @@ export const aggregatePerformanceRows = (
     createEmpty: () => T
   ): T[] =>
     Array.from(map.entries()).map(([key, t]) => {
-      const [work_type, test_item] = JSON.parse(key) as [string, string]
-      const prev = existing.find((row) => row.work_type === work_type && row.test_item === test_item)
+      const [work_type, testGroup] = JSON.parse(key) as [string, TestGroup, string]
+      const test_item = t.testItems.join(', ')
+      const exactPrevious = existing.find(
+        (row) =>
+          row.work_type === work_type &&
+          row.test_item === test_item &&
+          (!t.verificationType ||
+            !('verification_type' in row) ||
+            row.verification_type === t.verificationType)
+      )
+      const sameGroupRows = existing.filter(
+        (row) =>
+          row.work_type === work_type &&
+          getTestGroup(row.test_item) === testGroup &&
+          (!t.verificationType ||
+            !('verification_type' in row) ||
+            row.verification_type === t.verificationType)
+      )
+      // 종목 union이 달라져도 기존 그룹 행이 하나뿐이면 사용자가 입력한 계획·비고를 이어받는다.
+      const prev = exactPrevious ?? (sameGroupRows.length === 1 ? sameGroupRows[0] : undefined)
+      const verdicts = Array.from(t.verdicts.values())
       return {
         ...createEmpty(),
         ...(prev ?? {}),
         work_type,
         test_item,
-        done: String(t.done),
-        pass: String(t.pass),
-        fail: String(t.fail),
-        retest: String(t.retest),
-      }
+        ...(t.verificationType ? { verification_type: t.verificationType } : {}),
+        done: String(verdicts.length),
+        pass: String(verdicts.filter((verdict) => verdict === '합격').length),
+        fail: String(verdicts.filter((verdict) => verdict === '불합격').length),
+        retest: String(verdicts.filter((verdict) => verdict === '재시험').length),
+      } as T
     })
 
   return {
-    quality_rows: buildRows(tally(qualityRecords), existingQualityRows, createEmptyQualityPerformanceRow),
+    quality_rows: buildRows(tally(records), existingQualityRows, createEmptyQualityPerformanceRow),
     verification_rows: buildRows(
-      tally(verificationRecords),
+      tally(verificationRecords, true),
       existingVerificationRows,
       createEmptyVerificationPerformanceRow
     ),

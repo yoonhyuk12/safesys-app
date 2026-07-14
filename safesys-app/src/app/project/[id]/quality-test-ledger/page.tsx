@@ -18,10 +18,10 @@ import QualityVerificationRequestsTab from '@/components/project/quality/Quality
 
 type TabKey = 'records' | 'summary' | 'verification'
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'summary', label: '성과총괄표' },
+const TABS: { key: TabKey; label: string; badge?: string }[] = [
   { key: 'records', label: '실시대장' },
-  { key: 'verification', label: '확인시험 의뢰서' },
+  { key: 'summary', label: '성과총괄표' },
+  { key: 'verification', label: '확인시험 의뢰서', badge: '미사용' },
 ]
 
 export default function QualityTestLedgerPage() {
@@ -38,7 +38,6 @@ export default function QualityTestLedgerPage() {
   } | null>(null)
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
   const [activeTab, setActiveTab] = useState<TabKey>('records')
-  const [openSummaryId, setOpenSummaryId] = useState<string | null>(null)
 
   const handleBack = () => {
     // 진입 경로를 returnUrl 쿼리로 받은 경우 그 위치로 정확히 복귀.
@@ -144,13 +143,18 @@ export default function QualityTestLedgerPage() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === tab.key
                   ? 'border-amber-600 text-amber-700 bg-amber-50'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
             >
               {tab.label}
+              {tab.badge && (
+                <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-gray-600">
+                  {tab.badge}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -161,15 +165,6 @@ export default function QualityTestLedgerPage() {
             userId={user.id}
             projectName={project?.project_name || ''}
             supervisorName={project?.supervisor_name || ''}
-            constructionPeriod={constructionPeriod}
-            currentProgressRate={currentProgressRate}
-            ownerCompanyName={projectOwner?.company_name || ''}
-            supervisorBranch={project?.managing_branch || ''}
-            supervisorPosition={project?.supervisor_position || ''}
-            onOpenSummary={(id) => {
-              setOpenSummaryId(id)
-              setActiveTab('summary')
-            }}
           />
         )}
         {activeTab === 'summary' && (
@@ -183,8 +178,6 @@ export default function QualityTestLedgerPage() {
             supervisorPosition={project?.supervisor_position || ''}
             supervisorName={project?.supervisor_name || ''}
             ownerCompanyName={projectOwner?.company_name || ''}
-            openReportId={openSummaryId}
-            onOpenReportConsumed={() => setOpenSummaryId(null)}
           />
         )}
         {activeTab === 'verification' && (

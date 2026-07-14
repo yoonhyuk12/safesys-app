@@ -197,10 +197,28 @@ export async function downloadQualitySummaryExcel(
   ]
   const signatureCells: { signature: string; row: number }[] = []
   signers.forEach((signer) => {
-    mergeSet(ws, `A${r}:B${r}`, signer.label, { size: 10, bold: true, border: false, align: { horizontal: 'left' } })
-    mergeSet(ws, `C${r}:D${r}`, `소속 : ${signer.affiliation || ''}`, { size: 10, border: false, align: { horizontal: 'left' } })
-    mergeSet(ws, `E${r}:F${r}`, `직위 : ${signer.position || ''}`, { size: 10, border: false, align: { horizontal: 'left' } })
-    mergeSet(ws, `G${r}:I${r}`, `성명 : ${signer.name || ''}      (인)`, { size: 10, border: false, align: { horizontal: 'left' } })
+    const singleLineAlign = { horizontal: 'left' as const, wrapText: false, shrinkToFit: true }
+    setCell(ws, `A${r}`, signer.label, {
+      size: 10,
+      bold: true,
+      border: false,
+      align: singleLineAlign,
+    })
+    mergeSet(ws, `B${r}:D${r}`, `소속 : ${signer.affiliation || ''}`, {
+      size: 10,
+      border: false,
+      align: singleLineAlign,
+    })
+    mergeSet(ws, `E${r}:G${r}`, `직위 : ${signer.position || ''}`, {
+      size: 10,
+      border: false,
+      align: singleLineAlign,
+    })
+    mergeSet(ws, `H${r}:I${r}`, `성명 : ${signer.name || ''}      (인)`, {
+      size: 10,
+      border: false,
+      align: singleLineAlign,
+    })
     if (signer.signature) signatureCells.push({ signature: signer.signature, row: r })
     ws.getRow(r).height = 24
     r++

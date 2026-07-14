@@ -56,6 +56,15 @@ interface SignerField {
   sig: SignKey
 }
 
+const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string' && message) return message
+  }
+  return '알 수 없는 오류'
+}
+
 const SIGNERS: SignerField[] = [
   { label: '작성자', roleHint: '건설업자', aff: 'writer_affiliation', pos: 'writer_position', name: 'writer_name', sig: 'writer_signature' },
   { label: '검토자', roleHint: '품질시험업무담당자', aff: 'reviewer_affiliation', pos: 'reviewer_position', name: 'reviewer_name', sig: 'reviewer_signature' },
@@ -82,6 +91,7 @@ export default function QualitySummaryTab({
   const [editingReportId, setEditingReportId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [aggregating, setAggregating] = useState(false)
+  const [aggregateNotice, setAggregateNotice] = useState('')
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [activeSignKey, setActiveSignKey] = useState<SignKey | null>(null)
 
@@ -114,10 +124,12 @@ export default function QualitySummaryTab({
     setShowForm(false)
     setFormData(null)
     setEditingReportId(null)
+    setAggregateNotice('')
   }
 
   const handleAddClick = () => {
     setEditingReportId(null)
+    setAggregateNotice('')
     setFormData(
       createEmptyQualitySummary({
         construction_period: constructionPeriod,
@@ -132,7 +144,7 @@ export default function QualitySummaryTab({
     setShowForm(true)
   }
 
-  const handleSelectReport = async (report: QualitySummaryReport) => {
+  const handleSelectReport = (report: QualitySummaryReport) => {
     const { id, project_id, created_by, created_at, updated_at, ...fields } = report
     void id; void project_id; void created_by; void created_at; void updated_at
     const savedQualityRows =
@@ -144,36 +156,17 @@ export default function QualitySummaryTab({
         ? fields.verification_rows
         : [createEmptyVerificationPerformanceRow()]
 
-    // 하위 실시대장 기준으로 ④·⑤를 기본 집계 — 조회 실패나 0건이면 저장된 값을 그대로 둔다 (레거시 보호)
-    let qualityRows = savedQualityRows
-    let verificationRows = savedVerificationRows
-    try {
-      const { data, error } = await (supabase as any)
-        .from('quality_test_records')
-        .select('*')
-        .eq('summary_id', report.id)
-      if (!error && data) {
-        const children = data as QualityTestRecord[]
-        if (children.length > 0) {
-          const aggregated = aggregatePerformanceRows(children, savedQualityRows, savedVerificationRows)
-          if (aggregated.quality_rows.length > 0) qualityRows = aggregated.quality_rows
-          if (aggregated.verification_rows.length > 0) verificationRows = aggregated.verification_rows
-        }
-      }
-    } catch {
-      // 집계만 생략하고 저장된 폼 데이터는 아래에서 채운다
-    }
-
     setFormData({
       ...createEmptyQualitySummary(),
       ...fields,
       settlement_rows: Array.isArray(fields.settlement_rows) && fields.settlement_rows.length > 0
         ? fields.settlement_rows
         : [createEmptySettlementRow()],
-      quality_rows: qualityRows,
-      verification_rows: verificationRows,
+      quality_rows: savedQualityRows,
+      verification_rows: savedVerificationRows,
     })
     setEditingReportId(report.id)
+    setAggregateNotice('')
     setShowForm(true)
   }
 
@@ -240,31 +233,22 @@ export default function QualitySummaryTab({
     }
   }
 
-  // 실시대장 레코드에서 ④·⑤ 실적 자동집계 (계획·비고·확인시험구분 입력값은 보존)
-  const handleAggregate = async () => {
+  // 프로젝트의 모든 실시대장 기록을 ④·⑤ 실적으로 집계한다. 계획·비고 입력값은 보존한다.
+  const handleAggregateAll = async () => {
     if (!formData) return
     setAggregating(true)
+    setAggregateNotice('')
     try {
-      // 수정 중인 총괄표가 있으면 그 하위 기록만 집계 — 없으면(0건) 프로젝트 전체로 폴백
-      let records: QualityTestRecord[] = []
-      if (editingReportId) {
-        const { data: childData, error: childError } = await (supabase as any)
-          .from('quality_test_records')
-          .select('*')
-          .eq('summary_id', editingReportId)
-        if (childError) throw childError
-        records = (childData ?? []) as QualityTestRecord[]
-      }
+      const { data, error } = await (supabase as any)
+        .from('quality_test_records')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('serial_no', { ascending: true })
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      const records = (data ?? []) as QualityTestRecord[]
       if (records.length === 0) {
-        const { data, error } = await (supabase as any)
-          .from('quality_test_records')
-          .select('*')
-          .eq('project_id', projectId)
-        if (error) throw error
-        records = (data ?? []) as QualityTestRecord[]
-      }
-      if (records.length === 0) {
-        alert('집계할 실시대장 기록이 없습니다. 실시대장 탭에서 먼저 기록을 등록해주세요.')
+        setAggregateNotice('집계할 실시대장 기록이 없습니다.')
         return
       }
       const { quality_rows, verification_rows } = aggregatePerformanceRows(
@@ -278,9 +262,10 @@ export default function QualitySummaryTab({
         verification_rows:
           verification_rows.length > 0 ? verification_rows : [createEmptyVerificationPerformanceRow()],
       })
+      const submissionCount = new Set(records.map((record) => record.serial_no ?? record.id)).size
+      setAggregateNotice(`실시대장 전체 ${submissionCount}개 제출건을 누계에 반영했습니다.`)
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : '알 수 없는 오류'
-      alert('자동집계 실패: ' + message)
+      setAggregateNotice('자동집계 실패: ' + getErrorMessage(err))
     } finally {
       setAggregating(false)
     }
@@ -479,18 +464,28 @@ export default function QualitySummaryTab({
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-gray-50 text-gray-600">
+                      <th className={thCls}></th>
                       <th className={thCls}>공종</th>
                       <th className={thCls}>계획량(㎥)</th>
                       <th className={thCls}>전회까지</th>
                       <th className={thCls}>금회</th>
                       <th className={thCls}>누계</th>
                       <th className={thCls}>비고</th>
-                      <th className={thCls}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {formData.settlement_rows.map((row, i) => (
                       <tr key={i} className="border-t border-gray-100">
+                        <td className="p-1 text-center">
+                          <button
+                            type="button"
+                            onClick={() => set('settlement_rows', formData.settlement_rows.filter((_, idx) => idx !== i))}
+                            className="p-0.5 text-gray-400 hover:text-red-600"
+                            title="행 삭제"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </td>
                         <td className="p-1 min-w-[90px]">
                           <input value={row.work_type} onChange={(e) => updateSettlementRow(i, 'work_type', e.target.value)} className={cellInputCls} />
                         </td>
@@ -507,16 +502,6 @@ export default function QualitySummaryTab({
                         <td className="p-1 min-w-[80px]">
                           <input value={row.note} onChange={(e) => updateSettlementRow(i, 'note', e.target.value)} className={cellInputCls} />
                         </td>
-                        <td className="p-1 text-center">
-                          <button
-                            type="button"
-                            onClick={() => set('settlement_rows', formData.settlement_rows.filter((_, idx) => idx !== i))}
-                            className="p-0.5 text-gray-400 hover:text-red-600"
-                            title="행 삭제"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -525,25 +510,35 @@ export default function QualitySummaryTab({
             </div>
 
             {/* 4·5 실적 — 자동집계 */}
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-gray-500">
-                ④·⑤ 실적은 실시대장 기록에서 자동집계할 수 있습니다 (계획·비고는 직접 입력).
-              </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs text-gray-500">
+                  실시대장 전체 제출건의 ④·⑤ 실적 누계를 자동으로 반영합니다 (계획·비고는 직접 입력).
+                </p>
+                {aggregateNotice && (
+                  <p className="mt-1 text-xs font-medium text-blue-700" aria-live="polite">
+                    {aggregateNotice}
+                  </p>
+                )}
+              </div>
               <button
                 type="button"
-                onClick={handleAggregate}
+                onClick={handleAggregateAll}
                 disabled={aggregating}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 shrink-0"
+                className="flex shrink-0 items-center gap-1 self-start rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50 sm:self-auto"
               >
                 <Calculator className="h-3.5 w-3.5" />
-                {aggregating ? '집계 중...' : '실시대장에서 자동집계'}
+                {aggregating ? '집계 중...' : '실시대장 전체 자동집계'}
               </button>
             </div>
 
             {/* 4. 품질검사 종류 및 실적 */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <h3 className="text-sm font-semibold text-gray-700">4. 품질검사 종류 및 실적</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-gray-700">4. 품질검사 종류 및 실적</h3>
+                  <span className="text-xs text-gray-500">전체 시험 합계 · 확인시험 포함</span>
+                </div>
                 <button
                   type="button"
                   onClick={() => set('quality_rows', [...formData.quality_rows, createEmptyQualityPerformanceRow()])}
@@ -605,7 +600,10 @@ export default function QualitySummaryTab({
             {/* 5. 확인시험 종류 및 실적 */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <h3 className="text-sm font-semibold text-gray-700">5. 확인시험 종류 및 실적</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold text-gray-700">5. 확인시험 종류 및 실적</h3>
+                  <span className="text-xs text-gray-500">확인시험 · 수탁시험 집계</span>
+                </div>
                 <button
                   type="button"
                   onClick={() =>

@@ -24,7 +24,15 @@ export async function downloadQualityTestLedgerExcel(
       fitToPage: true,
       fitToWidth: 1,
       fitToHeight: 0,
+      printTitlesRow: '1:4',
       margins: { left: 0.4, right: 0.4, top: 0.6, bottom: 0.6, header: 0.3, footer: 0.3 },
+    },
+    headerFooter: {
+      differentFirst: false,
+      differentOddEven: false,
+      firstFooter: '&C&P',
+      oddFooter: '&C&P',
+      evenFooter: '&C&P',
     },
   })
 
@@ -108,12 +116,23 @@ export async function downloadQualityTestLedgerExcel(
   const signatureCells: { signature: string | undefined; col: number; row: number }[] = []
   for (let i = 0; i < rowCount; i++) {
     const record = records[i]
-    setCell(ws, `A${r}`, record ? (record.serial_no ?? i + 1) : '', { size: 9, align: { horizontal: 'center' } })
-    setCell(ws, `B${r}`, record?.test_date || '', { size: 9, align: { horizontal: 'center' } })
-    setCell(ws, `C${r}`, record?.test_category || '', { size: 9, align: { horizontal: 'center' } })
-    setCell(ws, `D${r}`, record?.target_material || '', { size: 9, align: { horizontal: 'center' } })
-    setCell(ws, `E${r}`, record?.supplier_factory || '', { size: 9, align: { horizontal: 'center' } })
-    setCell(ws, `F${r}`, record?.test_place || '', { size: 9, align: { horizontal: 'center' } })
+    const previous = records[i - 1]
+    const isSameSerial =
+      record?.serial_no !== null &&
+      record?.serial_no !== undefined &&
+      previous?.serial_no === record.serial_no
+    const getDisplayValue = (
+      field: 'test_date' | 'test_category' | 'target_material' | 'supplier_factory' | 'test_place'
+    ) => (isSameSerial && previous?.[field] === record?.[field] ? '' : record?.[field] || '')
+    setCell(ws, `A${r}`, record ? (isSameSerial ? '' : (record.serial_no ?? i + 1)) : '', {
+      size: 9,
+      align: { horizontal: 'center' },
+    })
+    setCell(ws, `B${r}`, getDisplayValue('test_date'), { size: 9, align: { horizontal: 'center' } })
+    setCell(ws, `C${r}`, getDisplayValue('test_category'), { size: 9, align: { horizontal: 'center' } })
+    setCell(ws, `D${r}`, getDisplayValue('target_material'), { size: 9, align: { horizontal: 'center' } })
+    setCell(ws, `E${r}`, getDisplayValue('supplier_factory'), { size: 9, align: { horizontal: 'center' } })
+    setCell(ws, `F${r}`, getDisplayValue('test_place'), { size: 9, align: { horizontal: 'center' } })
     setCell(ws, `G${r}`, record?.test_item || '', { size: 9, align: { horizontal: 'center' } })
     setCell(ws, `H${r}`, record?.test_standard || '', { size: 9, align: { horizontal: 'center' } })
     setCell(ws, `I${r}`, record?.test_result || '', { size: 9, align: { horizontal: 'center' } })
