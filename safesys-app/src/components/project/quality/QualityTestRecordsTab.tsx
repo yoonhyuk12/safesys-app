@@ -845,6 +845,14 @@ export default function QualityTestRecordsTab({
                 <p className="text-gray-500 text-sm">
                   등록된 시험·검사 기록이 없습니다. 추가 버튼으로 대장 행을 등록합니다.
                 </p>
+                <button
+                  type="button"
+                  onClick={handleAddClick}
+                  className="mt-4 inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  추가
+                </button>
               </div>
             ) : (
               <div className="overflow-x-auto">
