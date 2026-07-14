@@ -36,6 +36,7 @@ interface QualitySummaryTabProps {
   ownerCompanyName?: string // 프로젝트 소유자 회사명 — 작성자 소속 기본값
   openReportId?: string | null // 실시대장 탭에서 열도록 요청된 총괄표 id
   onOpenReportConsumed?: () => void // 요청 소비 후 호출 — 상위에서 openReportId 초기화
+  onUnreadRejectionCountChange?: (count: number) => void // 미확인 반려 건수 변경 알림
 }
 
 const inputCls =
@@ -85,6 +86,7 @@ export default function QualitySummaryTab({
   ownerCompanyName = '',
   openReportId = null,
   onOpenReportConsumed,
+  onUnreadRejectionCountChange,
 }: QualitySummaryTabProps) {
   const [reports, setReports] = useState<QualitySummaryReport[]>([])
   const [loading, setLoading] = useState(true)
@@ -110,9 +112,15 @@ export default function QualitySummaryTab({
       .select('*')
       .eq('project_id', projectId)
       .order('report_date', { ascending: false })
-    if (!error && data) setReports(data as QualitySummaryReport[])
+    if (!error && data) {
+      const loadedReports = data as QualitySummaryReport[]
+      setReports(loadedReports)
+      onUnreadRejectionCountChange?.(
+        loadedReports.filter((report) => report.rejected_at && !report.rejection_read_at).length
+      )
+    }
     setLoading(false)
-  }, [projectId])
+  }, [onUnreadRejectionCountChange, projectId])
 
   useEffect(() => {
     loadReports()
@@ -429,7 +437,20 @@ export default function QualitySummaryTab({
                   >
                     <td className="px-2 py-2 text-center whitespace-nowrap">{report.report_date || '-'}</td>
                     <td className="px-2 py-2 text-center whitespace-nowrap">{report.progress_rate || '-'}</td>
-                    <td className="px-2 py-2 text-center whitespace-nowrap">{report.writer_name || '-'}</td>
+                    <td className="px-2 py-2 text-center whitespace-nowrap">
+                      <span className="inline-flex items-center justify-center gap-1.5">
+                        <span>{report.writer_name || '-'}</span>
+                        {report.rejected_at && !report.rejection_read_at && (
+                          <span
+                            className="inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                            title="미확인 반려 1건"
+                            aria-label="미확인 반려 1건"
+                          >
+                            1
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td className="px-2 py-2 text-center">
                       <button
                         onClick={(e) => {

@@ -38,6 +38,7 @@ export default function QualityTestLedgerPage() {
   } | null>(null)
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
   const [activeTab, setActiveTab] = useState<TabKey>('records')
+  const [summaryUnreadRejectionCount, setSummaryUnreadRejectionCount] = useState(0)
 
   const handleBack = () => {
     // 진입 경로를 returnUrl 쿼리로 받은 경우 그 위치로 정확히 복귀.
@@ -76,6 +77,28 @@ export default function QualityTestLedgerPage() {
       }
     }
     loadProject()
+  }, [user, projectId])
+
+  // 성과총괄표 탭이 열리기 전에도 미확인 반려 건수를 표시한다.
+  useEffect(() => {
+    if (!user || !projectId) return
+
+    let cancelled = false
+    const loadSummaryUnreadRejectionCount = async () => {
+      const { count, error } = await (supabase as any)
+        .from('quality_summary_reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+        .not('rejected_at', 'is', null)
+        .is('rejection_read_at', null)
+
+      if (!cancelled && !error) setSummaryUnreadRejectionCount(count ?? 0)
+    }
+
+    loadSummaryUnreadRejectionCount()
+    return () => {
+      cancelled = true
+    }
   }, [user, projectId])
 
   // 작업일보의 수동 입력 공정률 기준점 로드 — 성과총괄표 "공정(%)" 기본값 계산용
@@ -149,10 +172,19 @@ export default function QualityTestLedgerPage() {
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
               }`}
             >
-              {tab.label}
+              <span>{tab.label}</span>
               {tab.badge && (
                 <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-gray-600">
                   {tab.badge}
+                </span>
+              )}
+              {tab.key === 'summary' && summaryUnreadRejectionCount > 0 && (
+                <span
+                  className="inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
+                  title={`미확인 반려 ${summaryUnreadRejectionCount}건`}
+                  aria-label={`미확인 반려 ${summaryUnreadRejectionCount}건`}
+                >
+                  {summaryUnreadRejectionCount}
                 </span>
               )}
             </button>
@@ -179,6 +211,7 @@ export default function QualityTestLedgerPage() {
             supervisorPosition={project?.supervisor_position || ''}
             supervisorName={project?.supervisor_name || ''}
             ownerCompanyName={projectOwner?.company_name || ''}
+            onUnreadRejectionCountChange={setSummaryUnreadRejectionCount}
           />
         )}
         {activeTab === 'verification' && (
