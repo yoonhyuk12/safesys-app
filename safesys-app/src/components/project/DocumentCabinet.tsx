@@ -12,6 +12,8 @@ interface DocumentCabinetProps {
   receded?: boolean // 다른 캐비넷이 열려 있어 뒤로 물러난(축소·어두워진) 상태
   onClick?: () => void
   pendingCount?: number // 미조치 건수 — 있으면 닫힌 문틈에 라벨이 튀어나옴
+  pendingVariant?: 'red' | 'blue' // 라벨 색상 (기본값은 기존 빨간색)
+  pendingLabel?: string // 라벨 문구 (기본값은 기존 "미조치")
 }
 
 // 내부 선반에 꽂힌 서류철 스파인 (서류철 색상 팔레트와 동일 계열)
@@ -76,7 +78,17 @@ const COLOR_THEMES: Record<CabinetColor, CabinetTheme> = {
   },
 }
 
-const DocumentCabinet: React.FC<DocumentCabinetProps> = ({ title, titleSuffix, color, isOpen = false, receded = false, onClick, pendingCount = 0 }) => {
+const DocumentCabinet: React.FC<DocumentCabinetProps> = ({
+  title,
+  titleSuffix,
+  color,
+  isOpen = false,
+  receded = false,
+  onClick,
+  pendingCount = 0,
+  pendingVariant = 'red',
+  pendingLabel = '미조치',
+}) => {
   const theme = COLOR_THEMES[color]
 
   return (
@@ -243,15 +255,15 @@ const DocumentCabinet: React.FC<DocumentCabinetProps> = ({ title, titleSuffix, c
           {/* 미조치 라벨 — 닫힌 문틈에 끼여 튀어나온 모양 */}
           {!isOpen && pendingCount > 0 && (
             <div
-              className="absolute left-1/2 top-[24%] z-10 flex items-center whitespace-nowrap pl-1 pr-1.5 lg:pl-1.5 lg:pr-2 py-[1px] lg:py-[2px] bg-red-500 text-white text-[9px] lg:text-xs font-bold rounded-r-md border border-white/80"
+              className={`absolute left-1/2 top-[24%] z-10 flex items-center whitespace-nowrap pl-1 pr-1.5 lg:pl-1.5 lg:pr-2 py-[1px] lg:py-[2px] text-white text-[9px] lg:text-xs font-bold rounded-r-md border border-white/80 ${pendingVariant === 'blue' ? 'bg-blue-500' : 'bg-red-500'}`}
               style={{
                 transform: 'rotate(-6deg)',
                 transformOrigin: 'left center',
                 boxShadow: '2px 2px 4px rgba(0,0,0,0.45)',
               }}
-              title="미조치 항목 있음"
+              title={`${pendingLabel} 항목 있음`}
             >
-              미조치 {pendingCount}
+              {pendingLabel} {pendingCount}
             </div>
           )}
         </div>

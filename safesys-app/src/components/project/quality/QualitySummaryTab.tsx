@@ -26,6 +26,7 @@ import {
 interface QualitySummaryTabProps {
   projectId: string
   userId: string
+  currentUserRole?: '발주청' | '감리단' | '시공사'
   projectName: string
   constructionPeriod: string // "YYYY-MM-DD ~ YYYY-MM-DD" (없으면 '')
   currentProgressRate?: string // 현재 공정률(%) — 새 총괄표 기본값
@@ -74,6 +75,7 @@ const SIGNERS: SignerField[] = [
 export default function QualitySummaryTab({
   projectId,
   userId,
+  currentUserRole,
   projectName,
   constructionPeriod,
   currentProgressRate = '',
@@ -94,6 +96,12 @@ export default function QualitySummaryTab({
   const [aggregateNotice, setAggregateNotice] = useState('')
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [activeSignKey, setActiveSignKey] = useState<SignKey | null>(null)
+  const [rejectionSaving, setRejectionSaving] = useState(false)
+
+  const activeReport = editingReportId
+    ? reports.find((report) => report.id === editingReportId)
+    : undefined
+  const canReject = currentUserRole === '발주청' || currentUserRole === '감리단'
 
   const loadReports = useCallback(async () => {
     setLoading(true)
@@ -145,8 +153,21 @@ export default function QualitySummaryTab({
   }
 
   const handleSelectReport = (report: QualitySummaryReport) => {
-    const { id, project_id, created_by, created_at, updated_at, ...fields } = report
-    void id; void project_id; void created_by; void created_at; void updated_at
+    const {
+      id,
+      project_id,
+      created_by,
+      rejection_reason,
+      rejected_at,
+      rejected_by,
+      rejection_read_at,
+      rejection_read_by,
+      created_at,
+      updated_at,
+      ...fields
+    } = report
+    void id; void project_id; void created_by; void rejection_reason; void rejected_at; void rejected_by
+    void rejection_read_at; void rejection_read_by; void created_at; void updated_at
     const savedQualityRows =
       Array.isArray(fields.quality_rows) && fields.quality_rows.length > 0
         ? fields.quality_rows
@@ -230,6 +251,50 @@ export default function QualitySummaryTab({
       alert('엑셀 생성 실패: ' + message)
     } finally {
       setDownloadingId(null)
+    }
+  }
+
+  const handleReject = async () => {
+    if (!editingReportId || !canReject || rejectionSaving) return
+
+    const reason = window.prompt('반려 사유를 입력해주세요.')
+    if (reason === null) return
+    if (!reason.trim()) {
+      alert('반려 사유를 입력해주세요.')
+      return
+    }
+
+    setRejectionSaving(true)
+    try {
+      const { error } = await (supabase as any).rpc('reject_quality_summary_report', {
+        p_report_id: editingReportId,
+        p_reason: reason.trim(),
+      })
+      if (error) throw error
+      set('reviewer_signature', '')
+      await loadReports()
+      alert('작성자에게 반려 통보했습니다.')
+    } catch (err: unknown) {
+      alert('반려 통보 실패: ' + getErrorMessage(err))
+    } finally {
+      setRejectionSaving(false)
+    }
+  }
+
+  const handleReadRejection = async () => {
+    if (!editingReportId || rejectionSaving) return
+
+    setRejectionSaving(true)
+    try {
+      const { error } = await (supabase as any).rpc('read_quality_summary_rejection', {
+        p_report_id: editingReportId,
+      })
+      if (error) throw error
+      await loadReports()
+    } catch (err: unknown) {
+      alert('반려 통보 확인 실패: ' + getErrorMessage(err))
+    } finally {
+      setRejectionSaving(false)
     }
   }
 
@@ -673,6 +738,22 @@ export default function QualitySummaryTab({
             {/* 작성자·검토자·확인자 */}
             <div>
               <h3 className="text-sm font-semibold text-gray-700 mb-1.5">작성자·검토자·확인자</h3>
+              {activeReport?.rejected_at && !activeReport.rejection_read_at && activeReport.created_by === userId && (
+                <div className="mb-3 flex flex-col gap-2 rounded-lg border border-blue-300 bg-blue-50 p-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-semibold">반려 통보가 도착했습니다.</p>
+                    <p className="mt-0.5 whitespace-pre-wrap text-xs text-blue-800">{activeReport.rejection_reason}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleReadRejection}
+                    disabled={rejectionSaving}
+                    className="shrink-0 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    확인
+                  </button>
+                </div>
+              )}
               <div className="space-y-2">
                 {SIGNERS.map((signer) => {
                   const affKey = signer.aff
@@ -705,7 +786,7 @@ export default function QualitySummaryTab({
                         placeholder="성명"
                         className={inputCls}
                       />
-                      <div>
+                      <div className="flex flex-wrap items-center gap-2">
                         {formData[signer.sig] ? (
                           <button type="button" onClick={() => setActiveSignKey(signer.sig)} title="다시 서명">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -722,6 +803,16 @@ export default function QualitySummaryTab({
                             className="px-3 py-1.5 text-sm rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
                           >
                             서명
+                          </button>
+                        )}
+                        {signer.sig === 'reviewer_signature' && editingReportId && canReject && (
+                          <button
+                            type="button"
+                            onClick={handleReject}
+                            disabled={rejectionSaving}
+                            className="rounded border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                          >
+                            {rejectionSaving ? '처리 중...' : '반려 통보'}
                           </button>
                         )}
                       </div>

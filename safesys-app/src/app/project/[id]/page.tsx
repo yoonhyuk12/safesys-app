@@ -110,6 +110,7 @@ export default function ProjectDetailPage() {
   const [contractCount, setContractCount] = useState<number | null>(null)
   const [qualityMonthlyReportCount, setQualityMonthlyReportCount] = useState<number | null>(null)
   const [qualityTestRecordCount, setQualityTestRecordCount] = useState<number | null>(null)
+  const [qualityRejectionCount, setQualityRejectionCount] = useState(0)
   const [legalComplianceCount, setLegalComplianceCount] = useState<number | null>(null)
   const [cardCounts, setCardCounts] = useState<Record<string, number>>({})
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
@@ -327,6 +328,21 @@ export default function ProjectDetailPage() {
       if (!countError) setQualityTestRecordCount(count ?? 0)
     }
     loadQualityTestRecordCount()
+  }, [user, projectId])
+
+  // 품질검사 성과총괄표 미확인 반려 건수 조회 (품질 캐비넷·서류철 표시용)
+  useEffect(() => {
+    if (!user || !projectId) return
+    const loadQualityRejectionCount = async () => {
+      const { count, error: countError } = await (supabase as any)
+        .from('quality_summary_reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('project_id', projectId)
+        .not('rejected_at', 'is', null)
+        .is('rejection_read_at', null)
+      if (!countError) setQualityRejectionCount(count ?? 0)
+    }
+    loadQualityRejectionCount()
   }, [user, projectId])
 
   // 법적이행 확인(안전활동 점검표) 건수 조회 (서류철 카드 표시용)
@@ -1228,7 +1244,9 @@ export default function ProjectDetailPage() {
                     key={name}
                     title={name}
                     titleSuffix={name === '시공' && constructionProgress !== null ? `(${constructionProgress}%)` : undefined}
-                    pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) + (managerPendingCount || 0) : undefined}
+                    pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) + (managerPendingCount || 0) : name === '품질' ? qualityRejectionCount : undefined}
+                    pendingVariant={name === '품질' ? 'blue' : 'red'}
+                    pendingLabel={name === '품질' ? '반려' : '미조치'}
                     color={name === '시공' ? 'blue' : name === '안전' ? 'green' : name === '품질' ? 'amber' : name === '기타' ? 'slate' : 'purple'}
                     isOpen={openCabinet === name}
                     receded={openCabinet !== null && openCabinet !== name}
@@ -1384,6 +1402,8 @@ export default function ProjectDetailPage() {
                   isActive={false}
                   projectId={projectId}
                   docCount={qualityTestRecordCount ?? undefined}
+                  badgeCount={qualityRejectionCount}
+                  badgeVariant="blue"
                   onClick={() => router.push(`/project/${projectId}/quality-test-ledger`)}
                   pdcaCategory="C"
                   bottomLabel="품질"

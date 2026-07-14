@@ -21,6 +21,7 @@ interface ClientListViewProps {
   onProjectHandover: (project: Project) => void
   onProjectIsActiveJsonChange: (project: Project, json: { q1: boolean; q2: boolean; q3: boolean; q4: boolean; completed: boolean }) => void
   isHeadOfficeUser?: boolean  // 본사 소속 사용자 여부
+  qualityRejectionCounts?: Record<string, number>
 }
 
 const ClientListView: React.FC<ClientListViewProps> = ({
@@ -37,7 +38,8 @@ const ClientListView: React.FC<ClientListViewProps> = ({
   onProjectStatusChange,
   onProjectHandover,
   onProjectIsActiveJsonChange,
-  isHeadOfficeUser = false
+  isHeadOfficeUser = false,
+  qualityRejectionCounts,
 }) => {
   // 펼치기/접기 상태 관리
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
@@ -140,6 +142,7 @@ const ClientListView: React.FC<ClientListViewProps> = ({
         onProjectStatusChange={onProjectStatusChange}
         onProjectHandover={onProjectHandover}
         onProjectIsActiveJsonChange={onProjectIsActiveJsonChange}
+        qualityRejectionCounts={qualityRejectionCounts}
       />
     )
   }
@@ -185,6 +188,7 @@ const ClientListView: React.FC<ClientListViewProps> = ({
                   onProjectStatusChange={onProjectStatusChange}
                   onProjectHandover={onProjectHandover}
                   onProjectIsActiveJsonChange={onProjectIsActiveJsonChange}
+                  qualityRejectionCounts={qualityRejectionCounts}
                 />
               )}
             </div>

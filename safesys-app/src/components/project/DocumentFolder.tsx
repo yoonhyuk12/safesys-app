@@ -20,6 +20,7 @@ interface DocumentFolderProps {
   isPending?: boolean // 준비중 상태
   isAncientDocument?: boolean // 고대 문서 스타일 (디아블로 테마)
   badgeCount?: number // 우측 상단 뱃지 숫자
+  badgeVariant?: 'red' | 'blue' // 뱃지 색상 (기본값은 기존 빨간색)
   docCount?: number // 서류명 하단 건수 표시 (예: (2))
   pdcaCategory?: 'P' | 'D' | 'C' | 'A' // PDCA 그룹 색상
   bottomLabel?: string // 하단 라벨 커스텀 (기본: "안전")
@@ -38,6 +39,7 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
   isPending = false,
   isAncientDocument = false,
   badgeCount,
+  badgeVariant = 'red',
   docCount,
   pdcaCategory,
   bottomLabel
@@ -262,7 +264,7 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
 
         {/* 뱃지 */}
         {badgeCount != null && badgeCount > 0 && (
-          <div className="absolute -top-4 -right-2 lg:-top-5 lg:-right-3 z-20 flex items-center justify-center min-w-5 h-5 lg:min-w-6 lg:h-6 px-1 bg-red-500 text-white text-xs lg:text-sm font-bold rounded-full shadow-lg border-2 border-white">
+          <div className={`absolute -top-4 -right-2 lg:-top-5 lg:-right-3 z-20 flex items-center justify-center min-w-5 h-5 lg:min-w-6 lg:h-6 px-1 text-white text-xs lg:text-sm font-bold rounded-full shadow-lg border-2 border-white ${badgeVariant === 'blue' ? 'bg-blue-500' : 'bg-red-500'}`}>
             {badgeCount}
           </div>
         )}
@@ -641,7 +643,7 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
 
       {/* 뱃지 */}
       {badgeCount != null && badgeCount > 0 && (
-        <div className="absolute -top-4 -right-2 lg:-top-5 lg:-right-3 z-20 flex items-center justify-center min-w-5 h-5 lg:min-w-6 lg:h-6 px-1 bg-red-500 text-white text-xs lg:text-sm font-bold rounded-full shadow-lg border-2 border-white">
+        <div className={`absolute -top-4 -right-2 lg:-top-5 lg:-right-3 z-20 flex items-center justify-center min-w-5 h-5 lg:min-w-6 lg:h-6 px-1 text-white text-xs lg:text-sm font-bold rounded-full shadow-lg border-2 border-white ${badgeVariant === 'blue' ? 'bg-blue-500' : 'bg-red-500'}`}>
           {badgeCount}
         </div>
       )}
@@ -649,4 +651,4 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
   )
 }
 
-export default DocumentFolder 
+export default DocumentFolder

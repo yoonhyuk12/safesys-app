@@ -36,6 +36,7 @@ interface ProjectCardProps {
   hqPendingCount?: number // 본부 불시점검 미조치 건수
   safetyPendingCount?: number // 안전점검 관리대장 미조치 건수
   managerPendingCount?: number // 관리자점검 미완료(서명/사진) 건수
+  qualityRejectionCount?: number // 품질 성과총괄표 미확인 반려 건수
 }
 
 const ProjectCard: React.FC<ProjectCardProps> = ({
@@ -63,7 +64,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   isDragOver = false,
   hqPendingCount,
   safetyPendingCount,
-  managerPendingCount
+  managerPendingCount,
+  qualityRejectionCount,
 }) => {
   // showQuarters가 명시되지 않으면 canEditQuarters 값 사용 (기존 동작 유지)
   const shouldShowQuarters = showQuarters !== undefined ? showQuarters : canEditQuarters
@@ -649,6 +651,13 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         </div>
       )}
 
+      {/* 품질 성과총괄표 미확인 반려 뱃지 */}
+      {(qualityRejectionCount || 0) > 0 && (
+        <div className="absolute -top-2 -left-2 z-20 flex min-w-6 h-6 items-center justify-center rounded-full border-2 border-white bg-blue-500 px-1.5 text-xs font-bold text-white shadow-lg" title="품질 성과총괄표 미확인 반려">
+          {qualityRejectionCount}
+        </div>
+      )}
+
       {/* 우측 상단 뱃지: 공유 또는 인계 필요 */}
       {(isShared || handoverRequired) && (
         <div className="absolute top-2 right-2 z-20">
@@ -862,4 +871,4 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   )
 }
 
-export default ProjectCard 
+export default ProjectCard

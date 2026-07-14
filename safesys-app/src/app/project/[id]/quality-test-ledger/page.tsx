@@ -25,7 +25,7 @@ const TABS: { key: TabKey; label: string; badge?: string }[] = [
 ]
 
 export default function QualityTestLedgerPage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, userProfile, loading: authLoading } = useAuth()
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
@@ -171,6 +171,7 @@ export default function QualityTestLedgerPage() {
           <QualitySummaryTab
             projectId={projectId}
             userId={user.id}
+            currentUserRole={userProfile?.role}
             projectName={project?.project_name || ''}
             constructionPeriod={constructionPeriod}
             currentProgressRate={currentProgressRate}

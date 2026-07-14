@@ -201,6 +201,11 @@ export interface QualitySummaryReport extends QualitySummaryFormData {
   id: string
   project_id: string
   created_by: string | null
+  rejection_reason: string | null
+  rejected_at: string | null
+  rejected_by: string | null
+  rejection_read_at: string | null
+  rejection_read_by: string | null
   created_at: string
   updated_at: string
 }

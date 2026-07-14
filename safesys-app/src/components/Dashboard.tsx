@@ -77,6 +77,7 @@ const Dashboard: React.FC = () => {
   const [hqPendingCounts, setHqPendingCounts] = useState<Record<string, number>>({})
   const [safetyPendingCounts, setSafetyPendingCounts] = useState<Record<string, number>>({})
   const [managerPendingCounts, setManagerPendingCounts] = useState<Record<string, number>>({})
+  const [qualityRejectionCounts, setQualityRejectionCounts] = useState<Record<string, number>>({})
   const [heatWaveChecks, setHeatWaveChecks] = useState<HeatWaveCheck[]>([])
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const now = new Date()
@@ -1545,6 +1546,21 @@ const Dashboard: React.FC = () => {
           }
         })
         setManagerPendingCounts(mCounts)
+      }
+
+      const { data: qualityRejections } = await (supabase as any)
+        .from('quality_summary_reports')
+        .select('project_id')
+        .in('project_id', projectIds)
+        .not('rejected_at', 'is', null)
+        .is('rejection_read_at', null)
+
+      if (qualityRejections) {
+        const qCounts: Record<string, number> = {}
+        qualityRejections.forEach((report: { project_id: string }) => {
+          qCounts[report.project_id] = (qCounts[report.project_id] || 0) + 1
+        })
+        setQualityRejectionCounts(qCounts)
       }
     } catch (err) {
       console.error('미조치 건수 집계 실패:', err)
@@ -4241,6 +4257,7 @@ const Dashboard: React.FC = () => {
                                     isDragOver={dragOverProjectId === project.id}
                                     hqPendingCount={hqPendingCounts[project.id]}
                                     safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
+                                    qualityRejectionCount={qualityRejectionCounts[project.id]}
                                   />
                                 ))}
                               </div>
@@ -4373,6 +4390,7 @@ const Dashboard: React.FC = () => {
                                     isDragOver={dragOverProjectId === project.id}
                                     hqPendingCount={hqPendingCounts[project.id]}
                                     safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
+                                    qualityRejectionCount={qualityRejectionCounts[project.id]}
                                   />
                                 ))}
                               </div>
@@ -4529,6 +4547,7 @@ const Dashboard: React.FC = () => {
                                       isDragOver={dragOverProjectId === project.id}
                                       hqPendingCount={hqPendingCounts[project.id]}
                                       safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
+                                      qualityRejectionCount={qualityRejectionCounts[project.id]}
                                     />
                                   ))}
                                 </div>
@@ -4585,6 +4604,7 @@ const Dashboard: React.FC = () => {
                         isDragOver={dragOverProjectId === project.id}
                         hqPendingCount={hqPendingCounts[project.id]}
                         safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
+                        qualityRejectionCount={qualityRejectionCounts[project.id]}
                       />
                     ))}
                   </div>
@@ -4619,6 +4639,7 @@ const Dashboard: React.FC = () => {
       hqPendingCounts={hqPendingCounts}
       safetyPendingCounts={safetyPendingCounts}
       managerPendingCounts={managerPendingCounts}
+      qualityRejectionCounts={qualityRejectionCounts}
     />
   )
 
@@ -5022,4 +5043,4 @@ const Dashboard: React.FC = () => {
   )
 }
 
-export default Dashboard 
+export default Dashboard
