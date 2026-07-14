@@ -1,5 +1,5 @@
 'use client'
-// 프로젝트의 현재 주소에 발효 중인 기상특보를 캐비넷용 소형 스티커로 표시한다.
+// 프로젝트의 현재 주소에 발효 중인 기상특보를 캐비넷 문용 세로 LED 전광판으로 표시한다.
 
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -80,26 +80,41 @@ export default function WeatherWarningStickers({
   if (!primary) return null
 
   const remainingCount = data.warnings.length - 1
+  const warningLabel = `${primary.type}${primary.level}`
+  const isAlert = primary.level === '경보'
+  const ledColor = isAlert ? '#ff4b3e' : '#ffd43b'
+  const frameColor = isAlert ? '#7f1d1d' : '#92400e'
   return (
     <span
-      className="relative flex min-w-0 shrink-0 items-center"
+      className="relative inline-flex min-w-[14px] lg:min-w-[20px] shrink-0 flex-col items-center overflow-hidden rounded-[3px] border px-[2px] py-1 lg:px-1 lg:py-1.5"
       aria-label={details}
       title={details}
+      style={{
+        backgroundColor: '#070908',
+        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.12) 0.55px, transparent 0.7px)',
+        backgroundSize: '3px 3px',
+        borderColor: frameColor,
+        boxShadow: `inset 0 0 0 1px rgba(255,255,255,0.08), inset 0 0 6px rgba(0,0,0,0.95), 0 1px 3px rgba(0,0,0,0.55), 0 0 4px ${ledColor}55`,
+        backfaceVisibility: 'hidden',
+      }}
     >
       <span
-        className="-rotate-2 whitespace-nowrap rounded-[2px] border px-0.5 py-[1px] text-[6px] lg:px-1 lg:text-[8px] font-extrabold leading-none text-white"
+        className="relative z-[1] flex flex-col items-center gap-[2px] lg:gap-[3px] text-[7px] sm:text-[8px] lg:text-[11px] font-black leading-[0.92] animate-pulse motion-reduce:animate-none"
         style={{
-          backgroundColor: primary.style.fillColor,
-          borderColor: primary.style.strokeColor,
-          boxShadow: primary.level === '경보'
-            ? `0 0 0 1px ${primary.style.strokeColor}, 1px 1px 2px rgba(0,0,0,0.35)`
-            : '1px 1px 2px rgba(0,0,0,0.3)',
+          color: ledColor,
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+          textShadow: `0 0 2px ${ledColor}, 0 0 5px ${ledColor}, 0 0 8px ${ledColor}99`,
         }}
       >
-        {primary.type}{primary.level}
+        {Array.from(warningLabel).map((character, index) => (
+          <span key={`${character}-${index}`} aria-hidden="true">{character}</span>
+        ))}
       </span>
       {remainingCount > 0 && (
-        <span className="absolute -right-2 -top-1 shrink-0 rounded-full bg-gray-800 px-0.5 text-[6px] lg:text-[8px] font-bold leading-tight text-white shadow-sm">
+        <span
+          className="relative z-[1] mt-1 border-t border-white/15 pt-0.5 text-[6px] lg:text-[8px] font-black leading-none animate-pulse motion-reduce:animate-none"
+          style={{ color: ledColor, textShadow: `0 0 3px ${ledColor}` }}
+        >
           +{remainingCount}
         </span>
       )}

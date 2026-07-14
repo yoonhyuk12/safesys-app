@@ -122,14 +122,14 @@ const DocumentCabinet: React.FC<DocumentCabinetProps> = ({
       >
         {/* 상단 명판 */}
         <div
-          className="flex items-center justify-center gap-1 px-0.5 py-1.5 lg:gap-1.5 lg:py-2"
+          className="flex items-center justify-center py-1.5 lg:py-2"
           style={{
             background: theme.topGradient,
             borderBottom: `2px solid ${theme.frame}`,
           }}
         >
           <div
-            className={`shrink-0 bg-white border border-gray-300 rounded-[2px] py-0.5 flex items-baseline justify-center ${titleSuffix || weatherLocation ? 'px-1.5 lg:px-2.5' : 'px-2.5 lg:px-4'}`}
+            className={`bg-white border border-gray-300 rounded-[2px] py-0.5 flex items-baseline justify-center ${titleSuffix ? 'px-1.5 lg:px-2.5' : 'px-2.5 lg:px-4'}`}
             style={{ boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.15)' }}
           >
             <span
@@ -147,13 +147,6 @@ const DocumentCabinet: React.FC<DocumentCabinetProps> = ({
               </span>
             )}
           </div>
-          {weatherLocation && (
-            <WeatherWarningStickers
-              address={weatherLocation.address}
-              latitude={weatherLocation.latitude}
-              longitude={weatherLocation.longitude}
-            />
-          )}
         </div>
 
         {/* 양문 도어 + 내부 */}
@@ -238,6 +231,20 @@ const DocumentCabinet: React.FC<DocumentCabinetProps> = ({
                   }}
                 >
                   5대 안전수칙
+                </div>
+              )}
+
+              {/* 안전 캐비넷 우측 문 기상특보 LED 전광판 */}
+              {title === '안전' && side === 'right' && weatherLocation && (
+                <div
+                  className="absolute left-[58%] top-[52%] z-10 -translate-x-1/2 -translate-y-1/2"
+                  style={{ backfaceVisibility: 'hidden' }}
+                >
+                  <WeatherWarningStickers
+                    address={weatherLocation.address}
+                    latitude={weatherLocation.latitude}
+                    longitude={weatherLocation.longitude}
+                  />
                 </div>
               )}
 
