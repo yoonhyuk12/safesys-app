@@ -14,6 +14,8 @@ import { downloadQualityMonthlyReportPdf } from '@/lib/reports/quality-monthly-r
 import {
   QualityMonthlyReportFormData,
   QualityMonthlyReportRecord,
+  QualityMonthlyTestActualSource,
+  applyQualityTestActuals,
   carryOverRows,
   createEmptyRow,
   normalizeRows,
@@ -29,6 +31,8 @@ export default function QualityMonthlyReportPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [projectOwner, setProjectOwner] = useState<{ full_name?: string } | null>(null)
   const [records, setRecords] = useState<QualityMonthlyReportRecord[]>([])
+  const [qualityTestRecords, setQualityTestRecords] = useState<QualityMonthlyTestActualSource[]>([])
+  const [qualityTestError, setQualityTestError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   const [showForm, setShowForm] = useState(false)
@@ -79,18 +83,45 @@ export default function QualityMonthlyReportPage() {
   const loadRecords = useCallback(async () => {
     if (!projectId) return
     setLoading(true)
-    const { data, error } = await (supabase as any)
-      .from('quality_monthly_reports')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('report_year', { ascending: false })
-      .order('report_month', { ascending: false })
-    if (!error && data) {
+    const [monthlyResult, qualityTestResult] = await Promise.all([
+      (supabase as any)
+        .from('quality_monthly_reports')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('report_year', { ascending: false })
+        .order('report_month', { ascending: false }),
+      (supabase as any)
+        .from('quality_test_records')
+        .select('id, serial_no, test_date, test_category, work_type, test_item')
+        .eq('project_id', projectId)
+        .order('test_date', { ascending: true })
+        .order('serial_no', { ascending: true }),
+    ])
+    const loadedQualityTests = qualityTestResult.error
+      ? []
+      : (qualityTestResult.data as QualityMonthlyTestActualSource[] | null) ?? []
+    setQualityTestRecords(loadedQualityTests)
+    setQualityTestError(
+      qualityTestResult.error
+        ? '품질시험 실시대장을 불러오지 못해 시험실적을 자동 반영할 수 없습니다. 새로고침 후 다시 시도해주세요.'
+        : null
+    )
+    if (!monthlyResult.error && monthlyResult.data) {
       setRecords(
-        (data as QualityMonthlyReportRecord[]).map((r) => ({
-          ...r,
-          report_rows: normalizeRows(r.report_rows),
-        }))
+        (monthlyResult.data as QualityMonthlyReportRecord[]).map((record) => {
+          const reportRows = normalizeRows(record.report_rows)
+          return {
+            ...record,
+            report_rows: qualityTestResult.error
+              ? reportRows
+              : applyQualityTestActuals(
+                  reportRows,
+                  loadedQualityTests,
+                  record.report_year,
+                  record.report_month
+                ),
+          }
+        })
       )
     }
     setLoading(false)
@@ -117,26 +148,37 @@ export default function QualityMonthlyReportPage() {
       year = latest.report_month === 12 ? latest.report_year + 1 : latest.report_year
       month = latest.report_month === 12 ? 1 : latest.report_month + 1
     }
+    const reportRows = latest ? carryOverRows(latest.report_rows) : [createEmptyRow()]
     setFormData({
       report_year: year,
       report_month: month,
       district_name: project?.project_name || latest?.district_name || '',
       author_name: latest?.author_name || projectOwner?.full_name || '',
       confirmer_name: latest?.confirmer_name || project?.supervisor_name || '',
-      report_rows: latest ? carryOverRows(latest.report_rows) : [createEmptyRow()],
+      report_rows: qualityTestError
+        ? reportRows
+        : applyQualityTestActuals(reportRows, qualityTestRecords, year, month),
     })
     setShowForm(true)
   }
 
   // 목록 항목 클릭 → 수정 모드
   const handleSelectRecord = (record: QualityMonthlyReportRecord) => {
+    const reportRows = normalizeRows(record.report_rows)
     setFormData({
       report_year: record.report_year,
       report_month: record.report_month,
       district_name: record.district_name || '',
       author_name: record.author_name || '',
       confirmer_name: record.confirmer_name || '',
-      report_rows: normalizeRows(record.report_rows),
+      report_rows: qualityTestError
+        ? reportRows
+        : applyQualityTestActuals(
+            reportRows,
+            qualityTestRecords,
+            record.report_year,
+            record.report_month
+          ),
     })
     setEditingRecordId(record.id)
     setShowForm(true)
@@ -145,6 +187,10 @@ export default function QualityMonthlyReportPage() {
   // 저장/수정
   const handleSave = async () => {
     if (!user || !formData) return
+    if (qualityTestError) {
+      alert(qualityTestError)
+      return
+    }
 
     // 프로젝트별 월 1건 — 클라이언트 사전 중복 확인 (DB UNIQUE 제약과 동일 규칙)
     const duplicate = records.find(
@@ -182,6 +228,22 @@ export default function QualityMonthlyReportPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleFormChange = (nextFormData: QualityMonthlyReportFormData) => {
+    setFormData(
+      qualityTestError
+        ? nextFormData
+        : {
+            ...nextFormData,
+            report_rows: applyQualityTestActuals(
+              nextFormData.report_rows,
+              qualityTestRecords,
+              nextFormData.report_year,
+              nextFormData.report_month
+            ),
+          }
+    )
   }
 
   // 삭제
@@ -375,9 +437,14 @@ export default function QualityMonthlyReportPage() {
                 </div>
 
                 <div className="p-3 sm:p-4 space-y-4">
+                  {qualityTestError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                      {qualityTestError}
+                    </div>
+                  )}
                   <QualityMonthlyReportForm
                     formData={formData}
-                    onChange={setFormData}
+                    onChange={handleFormChange}
                     isEditing={!!editingRecordId}
                   />
 
@@ -404,7 +471,7 @@ export default function QualityMonthlyReportPage() {
                     </button>
                     <button
                       onClick={handleSave}
-                      disabled={saving}
+                      disabled={saving || !!qualityTestError}
                       className="px-6 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                     >
                       {saving ? '저장 중...' : editingRecordId ? '수정' : '저장'}

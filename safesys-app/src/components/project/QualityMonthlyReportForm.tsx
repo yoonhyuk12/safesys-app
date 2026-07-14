@@ -69,6 +69,12 @@ const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm t
 const TH_CLASS = 'border border-gray-300 bg-gray-100 px-1.5 py-1.5 text-xs font-semibold text-gray-700 whitespace-nowrap'
 const TD_CLASS = 'border border-gray-300 px-1 py-1'
 const CALC_TD_CLASS = 'border border-gray-300 px-1.5 py-1 bg-blue-50 text-sm text-blue-900 text-right whitespace-nowrap'
+const ACTUAL_TD_CLASS = 'border border-gray-300 px-1.5 py-1 bg-amber-50 text-sm text-amber-900 text-right whitespace-nowrap'
+
+const formatActualCount = (value: string, unit: string): string => {
+  const count = parseNum(value)
+  return count !== null ? formatNum(count) + unit : '-'
+}
 
 // 입력값 폭에 맞춰 늘어나는 인풋 — 같은 서체의 투명 사이저를 겹쳐 컬럼 폭이 데이터 최대폭을 따라가게 함
 function SizedInput({
@@ -397,16 +403,10 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                     <SizedInput value={row.monthVolume} minWidthClass="min-w-20" alignRight onChange={(v) => updateRow(index, 'monthVolume', v)} />
                   </td>
                   <td className={CALC_TD_CLASS}>{d.monthTotal !== null ? formatNum(d.monthTotal) + countUnit : '-'}</td>
-                  <td className={`${TD_CLASS} bg-amber-50/50`}>
-                    <SizedInput value={row.monthQualityTest} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'monthQualityTest', v)} />
-                  </td>
+                  <td className={ACTUAL_TD_CLASS}>{formatActualCount(row.monthQualityTest, countUnit)}</td>
                   <td className={CALC_TD_CLASS}>{d.monthConfirmSubtotal !== null ? formatNum(d.monthConfirmSubtotal) + countUnit : '-'}</td>
-                  <td className={`${TD_CLASS} bg-amber-50/50`}>
-                    <SizedInput value={row.monthExpertConfirm} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'monthExpertConfirm', v)} />
-                  </td>
-                  <td className={`${TD_CLASS} bg-amber-50/50`}>
-                    <SizedInput value={row.monthOtherConfirm} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'monthOtherConfirm', v)} />
-                  </td>
+                  <td className={ACTUAL_TD_CLASS}>{formatActualCount(row.monthExpertConfirm, countUnit)}</td>
+                  <td className={ACTUAL_TD_CLASS}>{formatActualCount(row.monthOtherConfirm, countUnit)}</td>
                   {/* 금월까지 누계 — 직전 보고서 이월 누계 + 금월 실적 자동 합산 (읽기 전용) */}
                   <td className={CALC_TD_CLASS}>{d.cumulVolume !== null ? formatNum(d.cumulVolume) + volumeUnit : '-'}</td>
                   <td className={CALC_TD_CLASS}>{d.cumulTotal !== null ? formatNum(d.cumulTotal) + countUnit : '-'}</td>
@@ -438,7 +438,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
           행 추가
         </button>
         <p className="text-xs text-gray-400">
-          ※ 확인시험 소계, 계(①+②), 누계, 시공잔량은 자동 계산되어 PDF 양식에 반영됩니다.
+          ※ 시험실적은 실시대장의 일련번호 기준으로 자동 반영되며, 확인시험 소계·계(①+②)·누계·시공잔량도 자동 계산되어 PDF 양식에 반영됩니다.
         </p>
       </div>
     </div>

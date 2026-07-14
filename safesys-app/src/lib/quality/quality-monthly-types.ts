@@ -35,6 +35,15 @@ export interface QualityMonthlyReportRecord extends QualityMonthlyReportFormData
   updated_at: string
 }
 
+export interface QualityMonthlyTestActualSource {
+  id: string
+  serial_no: number | null
+  test_date: string | null
+  test_category: string
+  work_type: string
+  test_item: string
+}
+
 export function createEmptyRow(): QualityMonthlyReportRow {
   return {
     workType: '',
@@ -52,6 +61,98 @@ export function createEmptyRow(): QualityMonthlyReportRow {
     nextMonthPlan: '',
     nextMonthPlanCount: '',
   }
+}
+
+type QualityMonthlyActualField =
+  | 'monthQualityTest'
+  | 'monthExpertConfirm'
+  | 'monthOtherConfirm'
+  | 'prevCumulQualityTest'
+  | 'prevCumulExpertConfirm'
+  | 'prevCumulOtherConfirm'
+
+const QUALITY_MONTHLY_ACTUAL_FIELDS: QualityMonthlyActualField[] = [
+  'monthQualityTest',
+  'monthExpertConfirm',
+  'monthOtherConfirm',
+  'prevCumulQualityTest',
+  'prevCumulExpertConfirm',
+  'prevCumulOtherConfirm',
+]
+
+const normalizeActualLabel = (value: string): string => value.trim().replace(/\s+/g, ' ')
+
+const actualRowKey = (workType: string, testItem: string): string =>
+  JSON.stringify([normalizeActualLabel(workType), normalizeActualLabel(testItem)])
+
+const actualFieldFor = (
+  testCategory: string,
+  isReportMonth: boolean
+): QualityMonthlyActualField => {
+  if (testCategory === '의뢰(수탁)시험') {
+    return isReportMonth ? 'monthExpertConfirm' : 'prevCumulExpertConfirm'
+  }
+  if (testCategory === '확인시험') {
+    return isReportMonth ? 'monthOtherConfirm' : 'prevCumulOtherConfirm'
+  }
+  return isReportMonth ? 'monthQualityTest' : 'prevCumulQualityTest'
+}
+
+// 실시대장의 일련번호를 기준으로 보고 연월의 시험실적 6개 필드를 새로 집계한다.
+export function applyQualityTestActuals(
+  rows: QualityMonthlyReportRow[],
+  records: QualityMonthlyTestActualSource[],
+  reportYear: number,
+  reportMonth: number
+): QualityMonthlyReportRow[] {
+  const monthStart = `${reportYear}-${String(reportMonth).padStart(2, '0')}-01`
+  const nextMonthYear = reportMonth === 12 ? reportYear + 1 : reportYear
+  const nextMonth = reportMonth === 12 ? 1 : reportMonth + 1
+  const nextMonthStart = `${nextMonthYear}-${String(nextMonth).padStart(2, '0')}-01`
+  const tallies = new Map<string, Map<QualityMonthlyActualField, Set<string>>>()
+  const sourceLabels = new Map<string, { workType: string; testItem: string }>()
+
+  records.forEach((record) => {
+    const testDate = record.test_date?.slice(0, 10)
+    if (!testDate || testDate >= nextMonthStart) return
+
+    const key = actualRowKey(record.work_type, record.test_item)
+    const field = actualFieldFor(record.test_category, testDate >= monthStart)
+    const serialKey = record.serial_no === null ? `record:${record.id}` : `serial:${record.serial_no}`
+    const rowTally = tallies.get(key) ?? new Map<QualityMonthlyActualField, Set<string>>()
+    const serials = rowTally.get(field) ?? new Set<string>()
+    serials.add(serialKey)
+    rowTally.set(field, serials)
+    tallies.set(key, rowTally)
+    if (!sourceLabels.has(key)) {
+      sourceLabels.set(key, {
+        workType: normalizeActualLabel(record.work_type),
+        testItem: normalizeActualLabel(record.test_item),
+      })
+    }
+  })
+
+  const applyTally = (row: QualityMonthlyReportRow): QualityMonthlyReportRow => {
+    const tally = tallies.get(actualRowKey(row.workType, row.testItem))
+    return QUALITY_MONTHLY_ACTUAL_FIELDS.reduce(
+      (nextRow, field) => {
+        const count = tally?.get(field)?.size ?? 0
+        return { ...nextRow, [field]: count ? String(count) : '' }
+      },
+      { ...row }
+    )
+  }
+
+  const existingKeys = new Set(rows.map((row) => actualRowKey(row.workType, row.testItem)))
+  const appendedRows = Array.from(sourceLabels.entries())
+    .filter(([key]) => !existingKeys.has(key))
+    .map(([, labels]) => applyTally({
+      ...createEmptyRow(),
+      workType: labels.workType,
+      testItem: labels.testItem,
+    }))
+
+  return [...rows.map(applyTally), ...appendedRows]
 }
 
 // "1,200㎥" 같은 단위 포함 입력에서 앞쪽 숫자만 추출. 숫자가 없으면 null.
