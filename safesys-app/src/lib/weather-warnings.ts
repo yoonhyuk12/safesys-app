@@ -54,6 +54,17 @@ export interface WeatherWarningsResponse {
   }
 }
 
+export interface WeatherWarningWithStyle extends WeatherWarning {
+  style: WeatherWarningStyle
+}
+
+export interface WeatherWarningLocationResponse {
+  regionNames: string[]
+  warnings: WeatherWarningWithStyle[]
+  updatedAt: string
+  approximate: boolean
+}
+
 export interface ParsedWeatherWarningRegion {
   regionId: string
   regionName: string

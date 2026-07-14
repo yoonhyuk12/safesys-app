@@ -1,5 +1,5 @@
-// 기상청 현재 특보와 공개 행정경계를 결합해 지도용 GeoJSON을 반환한다.
-import { NextResponse } from 'next/server'
+// 기상청 현재 특보와 공개 행정경계를 결합해 지도 GeoJSON 또는 위치별 경량 응답을 반환한다.
+import { NextRequest, NextResponse } from 'next/server'
 import { getKmaHubKey } from '@/lib/kma-auth'
 import {
   getWeatherWarningStyle,
@@ -9,6 +9,7 @@ import {
   removeWeatherSubdivision,
   type ParsedWeatherWarningRegion,
   type WeatherWarningGeometry,
+  type WeatherWarningLocationResponse,
   type WeatherWarningRegion,
 } from '@/lib/weather-warnings'
 
@@ -60,6 +61,12 @@ interface BoundaryWarningGroup {
   warningGroups: ParsedWeatherWarningRegion['warnings'][]
   displayName: string
   approximate: boolean
+}
+
+interface LocationBoundaryMatch {
+  sgg: BoundaryFeature | null
+  sido: BoundaryFeature | null
+  source: 'address' | 'coordinates'
 }
 
 function buildArcGisQueryUrl(layer: BoundaryLayer, params: Record<string, string>): string {
@@ -123,6 +130,92 @@ async function fetchBoundaryAttributes(layer: BoundaryLayer): Promise<BoundaryFe
       normalizedBaseName: cityBaseName(name),
     }]
   })
+}
+
+function addressCompact(value: string): string {
+  return value.replace(/\([^)]*\)/g, '').replace(/\s+/g, '')
+}
+
+function findAddressBoundary(
+  address: string,
+  sggBoundaries: BoundaryFeature[],
+  sidoBoundaries: BoundaryFeature[],
+): LocationBoundaryMatch | null {
+  const compact = addressCompact(address)
+  if (!compact) return null
+
+  const sidoMatches = sidoBoundaries.filter((boundary) => compact.includes(addressCompact(boundary.name)))
+  const sido = sidoMatches.length === 1 ? sidoMatches[0] : null
+  const sggMatches = sggBoundaries
+    .filter((boundary) => compact.includes(addressCompact(boundary.name)))
+    .filter((boundary) => !sido || sameProvince(boundary.parentName, sido.name))
+    .sort((left, right) => addressCompact(right.name).length - addressCompact(left.name).length)
+
+  if (sggMatches.length > 0) {
+    const longestLength = addressCompact(sggMatches[0].name).length
+    const longestMatches = sggMatches.filter((boundary) => addressCompact(boundary.name).length === longestLength)
+    if (longestMatches.length === 1) {
+      const sgg = longestMatches[0]
+      const parentSido = sido ?? sidoBoundaries.find((boundary) => sameProvince(boundary.name, sgg.parentName)) ?? null
+      return { sgg, sido: parentSido, source: 'address' }
+    }
+  }
+
+  return sido ? { sgg: null, sido, source: 'address' } : null
+}
+
+async function fetchBoundaryAtPoint(
+  layer: BoundaryLayer,
+  latitude: number,
+  longitude: number,
+): Promise<BoundaryFeature | null> {
+  const outFields = layer === 'sgg'
+    ? 'objectid,sig_cd,sig_kor_nm,ctprvn_cd,ctp_kor_nm'
+    : 'objectid,ctprvn_cd,ctp_kor_nm'
+  const url = buildArcGisQueryUrl(layer, {
+    geometry: `${longitude},${latitude}`,
+    geometryType: 'esriGeometryPoint',
+    inSR: '4326',
+    spatialRel: 'esriSpatialRelIntersects',
+    outFields,
+    returnGeometry: 'false',
+    f: 'json',
+  })
+  const data = await fetchJson<ArcGisAttributeResponse>(url, `ArcGIS ${layer.toUpperCase()} 위치`)
+  const attributes = data.features?.[0]?.attributes
+  if (!attributes) return null
+
+  const objectId = Number(stringProperty(attributes, 'objectid'))
+  const name = stringProperty(attributes, layer === 'sgg' ? 'sig_kor_nm' : 'ctp_kor_nm')
+  const parentName = layer === 'sgg' ? stringProperty(attributes, 'ctp_kor_nm') : name
+  if (!Number.isInteger(objectId) || !name) return null
+  return {
+    layer,
+    objectId,
+    name,
+    parentName,
+    normalizedName: normalizeWeatherRegionName(name),
+    normalizedBaseName: cityBaseName(name),
+  }
+}
+
+async function findLocationBoundary(
+  address: string,
+  latitude: number | null,
+  longitude: number | null,
+  sggBoundaries: BoundaryFeature[],
+  sidoBoundaries: BoundaryFeature[],
+): Promise<LocationBoundaryMatch | null> {
+  const addressMatch = findAddressBoundary(address, sggBoundaries, sidoBoundaries)
+  if (addressMatch?.sgg) return addressMatch
+  if (latitude !== null && longitude !== null) {
+    const [sgg, sido] = await Promise.all([
+      fetchBoundaryAtPoint('sgg', latitude, longitude),
+      fetchBoundaryAtPoint('sido', latitude, longitude),
+    ])
+    if (sgg || sido) return { sgg, sido, source: 'coordinates' }
+  }
+  return addressMatch
 }
 
 function provinceGroup(name: string): string {
@@ -380,13 +473,69 @@ async function fetchKmaWarnings(): Promise<ReturnType<typeof parseKmaWarningRows
   return parsed
 }
 
-export async function GET() {
+function locationCoordinate(searchParams: URLSearchParams, name: 'lat' | 'lng'): number | null {
+  const value = searchParams.get(name)
+  if (!value?.trim()) return null
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return null
+  if (name === 'lat' && (parsed < 32 || parsed > 40)) return null
+  if (name === 'lng' && (parsed < 123 || parsed > 133)) return null
+  return parsed
+}
+
+async function buildLocationResponse(
+  parsed: ReturnType<typeof parseKmaWarningRows>,
+  sggBoundaries: BoundaryFeature[],
+  sidoBoundaries: BoundaryFeature[],
+  address: string,
+  latitude: number | null,
+  longitude: number | null,
+): Promise<WeatherWarningLocationResponse> {
+  const location = await findLocationBoundary(address, latitude, longitude, sggBoundaries, sidoBoundaries)
+  if (!location) {
+    return { regionNames: [], warnings: [], updatedAt: new Date().toISOString(), approximate: true }
+  }
+
+  const matched = groupMatches(parsed.regions, sggBoundaries, sidoBoundaries)
+  const locationGroups = matched.groups.filter((group) => {
+    const target = group.layer === 'sgg' ? location.sgg : location.sido
+    return target !== null && group.boundaries.some((boundary) => boundary.objectId === target.objectId)
+  })
+  const warnings = mergeWeatherWarnings(locationGroups.map((group) => mergeWeatherWarnings(group.warningGroups)))
+
+  return {
+    regionNames: Array.from(new Set(locationGroups.map((group) => group.displayName))).sort((a, b) => a.localeCompare(b, 'ko')),
+    warnings: warnings.map((warning) => ({ ...warning, style: getWeatherWarningStyle([warning]) })),
+    updatedAt: new Date().toISOString(),
+    approximate: locationGroups.some((group) => group.approximate),
+  }
+}
+
+export async function GET(request: NextRequest) {
   try {
+    const locationScope = request.nextUrl.searchParams.get('scope') === 'location'
+    const address = request.nextUrl.searchParams.get('address')?.trim().slice(0, 250) ?? ''
+    const latitude = locationCoordinate(request.nextUrl.searchParams, 'lat')
+    const longitude = locationCoordinate(request.nextUrl.searchParams, 'lng')
+    if (locationScope && !address && (latitude === null || longitude === null)) {
+      return NextResponse.json(
+        { error: '위치 특보 조회에는 주소 또는 좌표가 필요합니다.' },
+        { status: 400, headers: { 'Cache-Control': 'no-store' } },
+      )
+    }
+
     const [parsed, sggBoundaries, sidoBoundaries] = await Promise.all([
       fetchKmaWarnings(),
       fetchBoundaryAttributes('sgg'),
       fetchBoundaryAttributes('sido'),
     ])
+    if (locationScope) {
+      const response = await buildLocationResponse(parsed, sggBoundaries, sidoBoundaries, address, latitude, longitude)
+      return NextResponse.json(response, {
+        headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=300' },
+      })
+    }
+
     const matched = groupMatches(parsed.regions, sggBoundaries, sidoBoundaries)
     const sggIds = matched.groups.filter((group) => group.layer === 'sgg').flatMap((group) => group.boundaries.map((item) => item.objectId))
     const sidoIds = matched.groups.filter((group) => group.layer === 'sido').flatMap((group) => group.boundaries.map((item) => item.objectId))

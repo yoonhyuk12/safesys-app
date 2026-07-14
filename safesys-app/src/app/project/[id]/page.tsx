@@ -1247,6 +1247,11 @@ export default function ProjectDetailPage() {
                     pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) + (managerPendingCount || 0) : name === '품질' ? qualityRejectionCount : undefined}
                     pendingVariant={name === '품질' ? 'blue' : 'red'}
                     pendingLabel={name === '품질' ? '반려' : '미조치'}
+                    weatherLocation={name === '안전' ? {
+                      address: project.actual_work_address || project.site_address,
+                      latitude: project.latitude,
+                      longitude: project.longitude,
+                    } : undefined}
                     color={name === '시공' ? 'blue' : name === '안전' ? 'green' : name === '품질' ? 'amber' : name === '기타' ? 'slate' : 'purple'}
                     isOpen={openCabinet === name}
                     receded={openCabinet !== null && openCabinet !== name}

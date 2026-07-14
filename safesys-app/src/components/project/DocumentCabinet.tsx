@@ -1,6 +1,7 @@
 'use client'
 
 import React from 'react'
+import WeatherWarningStickers from '@/components/project/WeatherWarningStickers'
 
 type CabinetColor = 'blue' | 'green' | 'amber' | 'purple' | 'slate'
 
@@ -14,6 +15,11 @@ interface DocumentCabinetProps {
   pendingCount?: number // 미조치 건수 — 있으면 닫힌 문틈에 라벨이 튀어나옴
   pendingVariant?: 'red' | 'blue' // 라벨 색상 (기본값은 기존 빨간색)
   pendingLabel?: string // 라벨 문구 (기본값은 기존 "미조치")
+  weatherLocation?: {
+    address?: string | null
+    latitude?: number | null
+    longitude?: number | null
+  }
 }
 
 // 내부 선반에 꽂힌 서류철 스파인 (서류철 색상 팔레트와 동일 계열)
@@ -88,6 +94,7 @@ const DocumentCabinet: React.FC<DocumentCabinetProps> = ({
   pendingCount = 0,
   pendingVariant = 'red',
   pendingLabel = '미조치',
+  weatherLocation,
 }) => {
   const theme = COLOR_THEMES[color]
 
@@ -115,14 +122,14 @@ const DocumentCabinet: React.FC<DocumentCabinetProps> = ({
       >
         {/* 상단 명판 */}
         <div
-          className="flex items-center justify-center py-1.5 lg:py-2"
+          className="flex items-center justify-center gap-1 px-0.5 py-1.5 lg:gap-1.5 lg:py-2"
           style={{
             background: theme.topGradient,
             borderBottom: `2px solid ${theme.frame}`,
           }}
         >
           <div
-            className={`bg-white border border-gray-300 rounded-[2px] py-0.5 flex items-baseline justify-center ${titleSuffix ? 'px-1.5 lg:px-2.5' : 'px-2.5 lg:px-4'}`}
+            className={`shrink-0 bg-white border border-gray-300 rounded-[2px] py-0.5 flex items-baseline justify-center ${titleSuffix || weatherLocation ? 'px-1.5 lg:px-2.5' : 'px-2.5 lg:px-4'}`}
             style={{ boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.15)' }}
           >
             <span
@@ -140,6 +147,13 @@ const DocumentCabinet: React.FC<DocumentCabinetProps> = ({
               </span>
             )}
           </div>
+          {weatherLocation && (
+            <WeatherWarningStickers
+              address={weatherLocation.address}
+              latitude={weatherLocation.latitude}
+              longitude={weatherLocation.longitude}
+            />
+          )}
         </div>
 
         {/* 양문 도어 + 내부 */}
