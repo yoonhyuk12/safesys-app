@@ -3,7 +3,7 @@
 // 확인시험 의뢰서 탭 (별지 제4호서식) — 의뢰서 목록·작성·수정·삭제·엑셀 출력
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Download, X, Trash2, FileText, FileDown } from 'lucide-react'
+import { Plus, Download, X, Trash2, FileText, FileDown, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignatureModal from '@/components/project/SignatureModal'
@@ -20,12 +20,14 @@ interface QualityVerificationRequestsTabProps {
   projectName: string
   managingBranch: string
   ownerCompanyName: string
-  ownerFullName: string
+  supervisorName: string
+  siteAddress: string
 }
 
 const inputCls =
   'w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
+const TEST_ITEM_PRESETS = ['콘크리트', '슈미트해머', '토공'] as const
 
 // 프로젝트명에서 지구명 추출 (첫 단어의 "…지구"까지, 최대 4글자) — 의뢰번호 접두어용
 const deriveDistrictPrefix = (projectName?: string): string => {
@@ -42,7 +44,8 @@ export default function QualityVerificationRequestsTab({
   projectName,
   managingBranch,
   ownerCompanyName,
-  ownerFullName,
+  supervisorName,
+  siteAddress,
 }: QualityVerificationRequestsTabProps) {
   const [records, setRecords] = useState<QualityVerificationRequestRecord[]>([])
   const [loading, setLoading] = useState(true)
@@ -52,6 +55,7 @@ export default function QualityVerificationRequestsTab({
   const [saving, setSaving] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [signOpen, setSignOpen] = useState(false)
+  const [testItemsOpen, setTestItemsOpen] = useState(false)
 
   const loadRecords = useCallback(async () => {
     setLoading(true)
@@ -72,20 +76,24 @@ export default function QualityVerificationRequestsTab({
     setShowForm(false)
     setFormData(null)
     setEditingRecordId(null)
+    setTestItemsOpen(false)
   }
 
-  // 추가 시작 — 의뢰번호(지구명의뢰-순번)·공사명·발주자·시공자·보냄 기본값 채움
+  // 추가 시작 — 프로젝트 정보와 확인시험 의뢰서 기본 문구를 신규 폼에만 채움
   const handleAddClick = () => {
     setEditingRecordId(null)
     const prefix = deriveDistrictPrefix(projectName)
     setFormData(
       createEmptyVerificationRequest({
         request_no: `${prefix}의뢰-${records.length + 1}`,
-        receiver: '공사 사무소장',
-        sender: ownerFullName,
+        receiver: '경기본부 기반사업부장',
+        sender: supervisorName,
+        reference: '품질담당',
         construction_name: projectName,
         client_name: managingBranch ? `한국농어촌공사 ${managingBranch}` : '한국농어촌공사',
         contractor_name: ownerCompanyName,
+        purpose: '공사감독 확인시험',
+        etc_note: siteAddress,
       })
     )
     setShowForm(true)
@@ -216,6 +224,14 @@ export default function QualityVerificationRequestsTab({
           <div className="p-8 text-center">
             <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
             <p className="text-gray-500 text-sm">등록된 확인시험 의뢰서가 없습니다. 추가 버튼으로 등록합니다.</p>
+            <button
+              type="button"
+              onClick={handleAddClick}
+              className="mt-4 inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+            >
+              <Plus className="h-4 w-4" />
+              추가
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -319,18 +335,18 @@ export default function QualityVerificationRequestsTab({
                   type="text"
                   value={formData.receiver}
                   onChange={(e) => set('receiver', e.target.value)}
-                  placeholder="공사 사무소장"
+                  placeholder="경기본부 기반사업부장"
                   className={inputCls}
                 />
               </div>
               <div>
-                <label className={labelCls}>보냄 (인 또는 서명)</label>
+                <label className={labelCls}>보냄 (공사감독명 및 서명)</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="text"
                     value={formData.sender}
                     onChange={(e) => set('sender', e.target.value)}
-                    placeholder="성명"
+                    placeholder="공사감독명"
                     className={`${inputCls} max-w-[180px]`}
                   />
                   {formData.sender_signature ? (
@@ -401,13 +417,63 @@ export default function QualityVerificationRequestsTab({
               </div>
               <div className="col-span-2 sm:col-span-4">
                 <label className={labelCls}>확인시험 항목 *</label>
-                <input
-                  type="text"
-                  value={formData.test_items}
-                  onChange={(e) => set('test_items', e.target.value)}
-                  placeholder="예: 다짐도 시험, 콘크리트 압축강도"
-                  className={inputCls}
-                />
+                <div
+                  className="relative"
+                  onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) setTestItemsOpen(false)
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Escape') setTestItemsOpen(false)
+                  }}
+                >
+                  <input
+                    type="text"
+                    role="combobox"
+                    aria-expanded={testItemsOpen}
+                    aria-controls="quality-test-item-presets"
+                    aria-autocomplete="list"
+                    value={formData.test_items}
+                    onChange={(e) => set('test_items', e.target.value)}
+                    onFocus={() => setTestItemsOpen(true)}
+                    placeholder="확인시험 항목을 입력하거나 선택"
+                    className={`${inputCls} pr-10`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setTestItemsOpen((open) => !open)}
+                    aria-label="확인시험 항목 프리셋 열기"
+                    aria-expanded={testItemsOpen}
+                    aria-haspopup="listbox"
+                    className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-500 hover:text-gray-700"
+                  >
+                    <ChevronDown className={`h-4 w-4 transition-transform ${testItemsOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {testItemsOpen && (
+                    <div
+                      id="quality-test-item-presets"
+                      role="listbox"
+                      className="absolute left-0 right-0 z-20 mt-1 overflow-hidden rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+                    >
+                      {TEST_ITEM_PRESETS.map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          role="option"
+                          aria-selected={formData.test_items === preset}
+                          onClick={() => {
+                            set('test_items', preset)
+                            setTestItemsOpen(false)
+                          }}
+                          className={`block w-full px-3 py-2 text-left text-sm hover:bg-amber-50 ${
+                            formData.test_items === preset ? 'bg-amber-50 font-medium text-amber-700' : 'text-gray-700'
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div>
                 <label className={labelCls}>확인시험예정일</label>

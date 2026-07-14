@@ -18,10 +18,10 @@ import QualityVerificationRequestsTab from '@/components/project/quality/Quality
 
 type TabKey = 'records' | 'summary' | 'verification'
 
-const TABS: { key: TabKey; label: string; badge?: string }[] = [
+const TABS: { key: TabKey; label: string }[] = [
   { key: 'records', label: '실시대장' },
   { key: 'summary', label: '성과총괄표' },
-  { key: 'verification', label: '확인시험 의뢰서', badge: '미사용' },
+  { key: 'verification', label: '확인시험 의뢰서' },
 ]
 
 export default function QualityTestLedgerPage() {
@@ -34,7 +34,6 @@ export default function QualityTestLedgerPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [projectOwner, setProjectOwner] = useState<{
     company_name?: string
-    full_name?: string
   } | null>(null)
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
   const [activeTab, setActiveTab] = useState<TabKey>('records')
@@ -69,7 +68,7 @@ export default function QualityTestLedgerPage() {
         if (createdBy) {
           const { data: ownerProfile } = await supabase
             .from('user_profiles')
-            .select('company_name, full_name')
+            .select('company_name')
             .eq('id', createdBy)
             .single()
           if (ownerProfile) setProjectOwner(ownerProfile)
@@ -173,11 +172,6 @@ export default function QualityTestLedgerPage() {
               }`}
             >
               <span>{tab.label}</span>
-              {tab.badge && (
-                <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold text-gray-600">
-                  {tab.badge}
-                </span>
-              )}
               {tab.key === 'summary' && summaryUnreadRejectionCount > 0 && (
                 <span
                   className="inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
@@ -221,7 +215,8 @@ export default function QualityTestLedgerPage() {
             projectName={project?.project_name || ''}
             managingBranch={project?.managing_branch || ''}
             ownerCompanyName={projectOwner?.company_name || ''}
-            ownerFullName={projectOwner?.full_name || ''}
+            supervisorName={project?.supervisor_name || ''}
+            siteAddress={[project?.site_address, project?.site_address_detail].filter(Boolean).join(' ')}
           />
         )}
       </main>
