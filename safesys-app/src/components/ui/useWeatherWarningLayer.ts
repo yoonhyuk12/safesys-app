@@ -1,16 +1,25 @@
 'use client'
 // 카카오 지도에서 기상특보 폴리곤과 대화형 지역 라벨의 생명주기를 관리한다.
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   formatWeatherWarningTime,
   getWeatherWarningLabel,
+  getWeatherWarningStyle,
   type WeatherWarningRegion,
   type WeatherWarningsResponse,
 } from '@/lib/weather-warnings'
 
+export interface WeatherWarningTypeOption {
+  type: string
+  regionCount: number
+  color: string
+}
+
 interface WeatherWarningLayerState {
   count: number
+  totalCount: number
+  types: WeatherWarningTypeOption[]
   loading: boolean
   error: string | null
 }
@@ -130,14 +139,18 @@ function regionPolygons(region: WeatherWarningRegion): number[][][][] {
     : region.geometry.coordinates
 }
 
-export function useWeatherWarningLayer(map: any, enabled: boolean): WeatherWarningLayerState {
+export function useWeatherWarningLayer(
+  map: any,
+  enabled: boolean,
+  selectedTypes: string[] | null = null,
+): WeatherWarningLayerState {
   const [data, setData] = useState<WeatherWarningsResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const dataRef = useRef<WeatherWarningsResponse | null>(null)
 
   useEffect(() => {
-    if (!map || !enabled) {
+    if (!map) {
       setLoading(false)
       return
     }
@@ -184,15 +197,48 @@ export function useWeatherWarningLayer(map: any, enabled: boolean): WeatherWarni
       controller?.abort()
       window.clearInterval(refreshTimer)
     }
-  }, [map, enabled])
+  }, [map])
+
+  const types = useMemo<WeatherWarningTypeOption[]>(() => {
+    if (!data) return []
+    const warningsByType = new Map<string, { regionIds: Set<string>; warnings: WeatherWarningRegion['warnings'] }>()
+
+    for (const region of data.regions) {
+      for (const warning of region.warnings) {
+        const current = warningsByType.get(warning.type) ?? { regionIds: new Set<string>(), warnings: [] }
+        current.regionIds.add(region.regionId)
+        current.warnings.push(warning)
+        warningsByType.set(warning.type, current)
+      }
+    }
+
+    return Array.from(warningsByType, ([type, value]) => ({
+      type,
+      regionCount: value.regionIds.size,
+      color: getWeatherWarningStyle(value.warnings).fillColor,
+    }))
+  }, [data])
+
+  const visibleRegions = useMemo<WeatherWarningRegion[]>(() => {
+    if (!data) return []
+    if (selectedTypes === null) return data.regions
+    const selected = new Set(selectedTypes)
+
+    return data.regions.flatMap((region) => {
+      const warnings = region.warnings.filter((warning) => selected.has(warning.type))
+      return warnings.length > 0
+        ? [{ ...region, warnings, style: getWeatherWarningStyle(warnings) }]
+        : []
+    })
+  }, [data, selectedTypes])
 
   useEffect(() => {
-    if (!map || !enabled || !data || typeof window.kakao === 'undefined') return
+    if (!map || !enabled || visibleRegions.length === 0 || typeof window.kakao === 'undefined') return
     const kakao = (window as any).kakao
     const polygons: any[] = []
     const labels: any[] = []
 
-    for (const region of data.regions) {
+    for (const region of visibleRegions) {
       for (const polygonCoordinates of regionPolygons(region)) {
         const paths = polygonCoordinates.map((ring) =>
           ring.map(([lng, lat]) => new kakao.maps.LatLng(lat, lng))
@@ -200,12 +246,12 @@ export function useWeatherWarningLayer(map: any, enabled: boolean): WeatherWarni
         if (paths.length === 0 || paths[0].length < 3) continue
         const polygon = new kakao.maps.Polygon({
           path: paths.length === 1 ? paths[0] : paths,
-          strokeWeight: 2,
+          strokeWeight: 1,
           strokeColor: region.style.strokeColor,
-          strokeOpacity: 0.9,
+          strokeOpacity: 0.65,
           strokeStyle: 'solid',
           fillColor: region.style.fillColor,
-          fillOpacity: region.style.fillOpacity,
+          fillOpacity: Math.min(region.style.fillOpacity, 0.16),
         })
         polygon.setMap(map)
         if (typeof polygon.setZIndex === 'function') polygon.setZIndex(-10)
@@ -217,14 +263,14 @@ export function useWeatherWarningLayer(map: any, enabled: boolean): WeatherWarni
         position: new kakao.maps.LatLng(region.center.lat, region.center.lng),
         xAnchor: 0.5,
         yAnchor: 0.5,
-        zIndex: 2,
+        zIndex: -1,
       })
       label.setMap(map)
       labels.push(label)
     }
 
     const updateLabelVisibility = () => {
-      const labelMap = map.getLevel() <= 10 ? map : null
+      const labelMap = map.getLevel() <= 8 ? map : null
       labels.forEach((label) => label.setMap(labelMap))
     }
     updateLabelVisibility()
@@ -237,7 +283,13 @@ export function useWeatherWarningLayer(map: any, enabled: boolean): WeatherWarni
       polygons.forEach((polygon) => polygon.setMap(null))
       labels.forEach((label) => label.setMap(null))
     }
-  }, [map, enabled, data])
+  }, [map, enabled, visibleRegions])
 
-  return { count: data?.regions.length ?? 0, loading, error }
+  return {
+    count: visibleRegions.length,
+    totalCount: data?.regions.length ?? 0,
+    types,
+    loading,
+    error,
+  }
 }

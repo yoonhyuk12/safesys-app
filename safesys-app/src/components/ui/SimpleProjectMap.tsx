@@ -1,13 +1,13 @@
 'use client'
 
 import React, { useEffect, useRef, useState, useCallback } from 'react'
-import { Building2, Maximize2, Minimize2, Hammer, Building, AlertTriangle, ClipboardList, Activity, Home, LocateFixed } from 'lucide-react'
+import { Building2, Maximize2, Minimize2, Hammer, Building, AlertTriangle, ClipboardList, Activity, Home, LocateFixed, ChevronDown } from 'lucide-react'
 import { getCurrentYearQuarterOptions } from '@/lib/constants'
 import type { TBMRecord } from '@/lib/tbm'
 import NavigationSelector from './NavigationSelector'
 import { computeProgressRate } from '@/lib/work-daily-report/work-daily-report-types'
 import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
-import { useWeatherWarningLayer } from './useWeatherWarningLayer'
+import { useWeatherWarningLayer, type WeatherWarningTypeOption } from './useWeatherWarningLayer'
 
 export interface SimpleProjectMarker {
   id: string
@@ -110,6 +110,131 @@ const InactiveExcavatorIcon = ({ className, style }: { className?: string, style
     <path d="M20 4L4 20" stroke="currentColor" strokeWidth="2.5" />
   </svg>
 )
+
+interface WeatherWarningControlProps {
+  compact?: boolean
+  enabled: boolean
+  open: boolean
+  loading: boolean
+  error: string | null
+  count: number
+  totalCount: number
+  types: WeatherWarningTypeOption[]
+  selectedTypes: string[] | null
+  onToggleOpen: () => void
+  onToggleEnabled: () => void
+  onSelectAll: () => void
+  onToggleType: (type: string) => void
+}
+
+// 기상특보 레이어의 전체 표시와 특보 종류별 복수 선택을 제공한다.
+const WeatherWarningControl = ({
+  compact = false,
+  enabled,
+  open,
+  loading,
+  error,
+  count,
+  totalCount,
+  types,
+  selectedTypes,
+  onToggleOpen,
+  onToggleEnabled,
+  onSelectAll,
+  onToggleType,
+}: WeatherWarningControlProps) => {
+  const allSelected = selectedTypes === null
+    || (types.length > 0 && types.every((option) => selectedTypes.includes(option.type)))
+  const title = enabled && error ? error : '기상특보 레이어 선택'
+
+  return (
+    <div className="relative" data-weather-warning-control>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation()
+          onToggleOpen()
+        }}
+        className={compact
+          ? `flex items-center gap-1 px-1 py-0.5 rounded transition-all ${!enabled ? 'opacity-40 grayscale' : 'hover:bg-gray-100'}`
+          : `flex items-center gap-1.5 bg-white/95 hover:bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 shadow-lg text-xs transition-all duration-200 hover:shadow-xl ${!enabled ? 'opacity-60' : ''}`}
+        title={title}
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        {enabled && loading && totalCount === 0 ? (
+          <div className="h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        ) : compact ? (
+          <AlertTriangle className="w-4 h-4 text-[#2563EB]" />
+        ) : (
+          <span className="inline-block w-3 h-3 rounded-sm border border-blue-700 bg-blue-500 opacity-65" />
+        )}
+        <span className={compact ? 'text-[9px] font-semibold text-gray-700' : 'text-gray-700 whitespace-nowrap'}>
+          {compact ? `(${error ? '!' : count})` : (
+            <>기상특보 <span className="font-semibold">({loading && totalCount === 0 ? '로딩중...' : error ? '오류' : `${count}개`})</span></>
+          )}
+        </span>
+        <ChevronDown className={`${compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className={`absolute z-[80] w-56 rounded-lg border border-gray-200 bg-white p-2 text-xs text-gray-700 shadow-xl ${compact ? 'bottom-0 left-full ml-2' : 'top-full left-0 mt-2'}`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <label className="flex cursor-pointer items-center justify-between gap-3 rounded px-2 py-2 hover:bg-gray-50">
+            <span className="font-semibold">기상특보 표시</span>
+            <input type="checkbox" checked={enabled} onChange={onToggleEnabled} className="h-4 w-4 accent-blue-600" />
+          </label>
+          <div className="my-1 h-px bg-gray-200" />
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={allSelected}
+            onClick={onSelectAll}
+            className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-gray-50"
+          >
+            <span
+              aria-hidden="true"
+              className={`flex h-3.5 w-3.5 items-center justify-center rounded-sm border text-[10px] leading-none ${allSelected ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white'}`}
+            >
+              {allSelected ? '✓' : ''}
+            </span>
+            <span className="flex-1 font-medium">전체</span>
+            <span className="text-gray-500">{totalCount}개 지역</span>
+          </button>
+          {types.map((option) => {
+            const checked = allSelected || (selectedTypes?.includes(option.type) ?? false)
+            return (
+              <button
+                key={option.type}
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={checked}
+                onClick={() => onToggleType(option.type)}
+                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left hover:bg-gray-50"
+              >
+                <span
+                  aria-hidden="true"
+                  className={`flex h-3.5 w-3.5 items-center justify-center rounded-sm border text-[10px] leading-none ${checked ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 bg-white'}`}
+                >
+                  {checked ? '✓' : ''}
+                </span>
+                <span className="h-2.5 w-2.5 rounded-sm border border-black/10" style={{ backgroundColor: option.color }} />
+                <span className="flex-1">{option.type}</span>
+                <span className="text-gray-500">{option.regionCount}개</span>
+              </button>
+            )
+          })}
+          {!loading && types.length === 0 && !error && (
+            <p className="px-2 py-2 text-gray-500">현재 발효 중인 특보가 없습니다.</p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
   projects,
@@ -223,8 +348,12 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
   const [tbmDataLoaded, setTbmDataLoaded] = useState<boolean>(false) // TBM 데이터 로드 여부
   const [showOfficeMarkers, setShowOfficeMarkersRaw] = useState<boolean>(stored?.showOfficeMarkers ?? true)
   const [showWeatherWarnings, setShowWeatherWarningsRaw] = useState<boolean>(stored?.showWeatherWarnings ?? true)
+  const [selectedWeatherWarningTypes, setSelectedWeatherWarningTypesRaw] = useState<string[] | null>(
+    Array.isArray(stored?.selectedWeatherWarningTypes) ? stored.selectedWeatherWarningTypes : null
+  )
+  const [weatherWarningMenuOpen, setWeatherWarningMenuOpen] = useState(false)
 
-  const saveVisibility = (patch: Record<string, boolean>) => {
+  const saveVisibility = (patch: Record<string, boolean | string[] | null>) => {
     try {
       const current = getStoredVisibility() ?? {}
       localStorage.setItem(MAP_VISIBILITY_KEY, JSON.stringify({ ...current, ...patch }))
@@ -238,8 +367,40 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
   const setShowTBMMarkers = (v: boolean) => { setShowTBMMarkersRaw(v); saveVisibility({ showTBMMarkers: v }) }
   const setShowOfficeMarkers = (v: boolean) => { setShowOfficeMarkersRaw(v); saveVisibility({ showOfficeMarkers: v }) }
   const setShowWeatherWarnings = (v: boolean) => { setShowWeatherWarningsRaw(v); saveVisibility({ showWeatherWarnings: v }) }
+  const setSelectedWeatherWarningTypes = (v: string[] | null) => {
+    setSelectedWeatherWarningTypesRaw(v)
+    saveVisibility({ selectedWeatherWarningTypes: v })
+  }
 
-  const weatherWarnings = useWeatherWarningLayer(map, showWeatherWarnings)
+  const weatherWarnings = useWeatherWarningLayer(map, showWeatherWarnings, selectedWeatherWarningTypes)
+  const allWeatherWarningTypesSelected = selectedWeatherWarningTypes === null
+    || (weatherWarnings.types.length > 0
+      && weatherWarnings.types.every((option) => selectedWeatherWarningTypes.includes(option.type)))
+  const toggleAllWeatherWarningTypes = () => {
+    setSelectedWeatherWarningTypes(allWeatherWarningTypesSelected ? [] : null)
+  }
+  const toggleWeatherWarningType = (type: string) => {
+    const availableTypes = weatherWarnings.types.map((option) => option.type)
+    const next = selectedWeatherWarningTypes === null
+      ? availableTypes.filter((availableType) => availableType !== type)
+      : selectedWeatherWarningTypes.includes(type)
+        ? selectedWeatherWarningTypes.filter((selectedType) => selectedType !== type)
+        : [...selectedWeatherWarningTypes, type]
+    const selected = new Set(next)
+    setSelectedWeatherWarningTypes(availableTypes.every((availableType) => selected.has(availableType)) ? null : next)
+  }
+
+  useEffect(() => {
+    if (!weatherWarningMenuOpen) return
+    const closeMenu = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Element && !target.closest('[data-weather-warning-control]')) {
+        setWeatherWarningMenuOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', closeMenu)
+    return () => document.removeEventListener('pointerdown', closeMenu)
+  }, [weatherWarningMenuOpen])
 
   // TBM이 on 상태로 복원된 경우 마운트 시 자동 로드
   useEffect(() => {
@@ -943,7 +1104,8 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
         const marker = new (window as any).kakao.maps.Marker({
           position: markerPosition,
           title: project.name,
-          image: normalMarkerImage
+          image: normalMarkerImage,
+          zIndex: 30
         })
 
         // 공사중/미공사중 마커 표시/숨김
@@ -961,7 +1123,8 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           const hqMarker = new (window as any).kakao.maps.Marker({
             position: markerPosition,
             title: `${project.name} (본부 미점검)`,
-            image: hqMarkerImage
+            image: hqMarkerImage,
+            zIndex: 30
           })
 
           hqMarker.setMap(map)
@@ -984,13 +1147,13 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           const kakao = (window as any).kakao
           kakao.maps.event.addListener(hqMarker, 'mouseover', () => {
             hqMarker.setImage(hqMarkerImageLarge)
-            hqMarker.setZIndex(10)
+            hqMarker.setZIndex(35)
             if (supervisorTooltip) supervisorTooltip.setMap(map)
           })
           kakao.maps.event.addListener(hqMarker, 'mouseout', () => {
             setTimeout(() => {
               hqMarker.setImage(hqMarkerImage)
-              hqMarker.setZIndex(5)
+              hqMarker.setZIndex(30)
               if (supervisorTooltip) supervisorTooltip.setMap(null)
             }, 100)
           })
@@ -1015,7 +1178,8 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           const branchMarker = new (window as any).kakao.maps.Marker({
             position: markerPosition,
             title: `${project.name} (지사 미점검)`,
-            image: branchMarkerImage
+            image: branchMarkerImage,
+            zIndex: 30
           })
 
           branchMarker.setMap(map)
@@ -1037,13 +1201,13 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           const kakao = (window as any).kakao
           kakao.maps.event.addListener(branchMarker, 'mouseover', () => {
             branchMarker.setImage(branchMarkerImageLarge)
-            branchMarker.setZIndex(10)
+            branchMarker.setZIndex(35)
             if (supervisorTooltip) supervisorTooltip.setMap(map)
           })
           kakao.maps.event.addListener(branchMarker, 'mouseout', () => {
             setTimeout(() => {
               branchMarker.setImage(branchMarkerImage)
-              branchMarker.setZIndex(5)
+              branchMarker.setZIndex(30)
               if (supervisorTooltip) supervisorTooltip.setMap(null)
             }, 100)
           })
@@ -1111,14 +1275,14 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
             hoverTimeout = null
           }
           marker.setImage(largeMarkerImage)
-          marker.setZIndex(5)
+          marker.setZIndex(35)
           if (supervisorTooltip) supervisorTooltip.setMap(map)
         }
 
         const removeHoverEffect = () => {
           hoverTimeout = setTimeout(() => {
             marker.setImage(normalMarkerImage)
-            marker.setZIndex(1)
+            marker.setZIndex(30)
             if (supervisorTooltip) supervisorTooltip.setMap(null)
           }, 100)
         }
@@ -1167,7 +1331,8 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           const tbmMarker = new (window as any).kakao.maps.Marker({
             position: tbmMarkerPosition,
             title: tbmRecord.project_name,
-            image: tbmNormalMarkerImage
+            image: tbmNormalMarkerImage,
+            zIndex: 40
           })
 
           tbmMarker.setMap(map)
@@ -1293,13 +1458,13 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
           const kakao = (window as any).kakao
           kakao.maps.event.addListener(tbmMarker, 'mouseover', () => {
             tbmMarker.setImage(tbmLargeMarkerImage)
-            tbmMarker.setZIndex(10)
+            tbmMarker.setZIndex(45)
             if (tbmTooltip) tbmTooltip.setMap(map)
           })
           kakao.maps.event.addListener(tbmMarker, 'mouseout', () => {
             setTimeout(() => {
               tbmMarker.setImage(tbmNormalMarkerImage)
-              tbmMarker.setZIndex(5)
+              tbmMarker.setZIndex(40)
               if (tbmTooltip) tbmTooltip.setMap(null)
             }, 100)
           })
@@ -1338,19 +1503,27 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
     console.log(`📊 활성 프로젝트: ${activeCount}개, 비활성: ${inactiveCount}개`)
   }, [map, filteredProjects, selectedQuarter, isProjectActiveInQuarter, showActiveMarkers, showInactiveMarkers, showUninspectedHQ, showUninspectedBranch, hasHeadquartersInspectionInQuarter, hasManagerInspectionInQuarter, tbmRecords, showTBMMarkers, progressRates])
 
-  // 지도 초기 범위 조정 (프로젝트 및 TBM 마커 포함)
-  useEffect(() => {
-    if (!map) return
-
+  const visibleMapPoints = React.useMemo(() => {
     const allPoints: Array<{ lat: number; lng: number }> = []
 
-    // 프로젝트 순회하며 마커 생성
+    // 실제로 표시되는 프로젝트 마커만 지도 범위에 포함
     filteredProjects.forEach((project) => {
-      allPoints.push({ lat: project.lat, lng: project.lng })
+      const isActiveInQuarter = isProjectActiveInQuarter(project, selectedQuarter)
+      const isMainMarkerVisible = isActiveInQuarter ? showActiveMarkers : showInactiveMarkers
+      const isHeadquartersMarkerVisible = isActiveInQuarter
+        && !hasHeadquartersInspectionInQuarter(project.id, selectedQuarter)
+        && showUninspectedHQ
+      const isBranchMarkerVisible = isActiveInQuarter
+        && !hasManagerInspectionInQuarter(project.id, selectedQuarter)
+        && showUninspectedBranch
+
+      if (isMainMarkerVisible || isHeadquartersMarkerVisible || isBranchMarkerVisible) {
+        allPoints.push({ lat: project.lat, lng: project.lng })
+      }
     })
 
-    // TBM 마커 위치 추가
-    if (tbmRecords && tbmRecords.length > 0) {
+    // TBM 레이어가 켜진 경우에만 TBM 마커 위치 추가
+    if (showTBMMarkers && tbmRecords && tbmRecords.length > 0) {
       tbmRecords.forEach(tbmRecord => {
         if (tbmRecord.latitude && tbmRecord.longitude) {
           allPoints.push({ lat: tbmRecord.latitude, lng: tbmRecord.longitude })
@@ -1358,7 +1531,12 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
       })
     }
 
-    if (allPoints.length === 0) return
+    return allPoints
+  }, [filteredProjects, selectedQuarter, isProjectActiveInQuarter, showActiveMarkers, showInactiveMarkers, showUninspectedHQ, showUninspectedBranch, hasHeadquartersInspectionInQuarter, hasManagerInspectionInQuarter, tbmRecords, showTBMMarkers])
+
+  // 특보 상태와 무관하게 실제 표시 중인 프로젝트·TBM 마커만 지도 범위에 포함한다.
+  useEffect(() => {
+    if (!map || visibleMapPoints.length === 0) return
 
     // 사용자가 현재위치로 이동한 경우 지도 범위 자동 조정 건너뛰기
     if (userCenteredRef.current) {
@@ -1366,21 +1544,26 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
     }
 
     // 모든 마커가 보이도록 지도 범위 조정
-    if (allPoints.length > 1) {
+    let boundsTimer: ReturnType<typeof setTimeout> | null = null
+    if (visibleMapPoints.length > 1) {
       const bounds = new (window as any).kakao.maps.LatLngBounds()
-      allPoints.forEach(point => {
+      visibleMapPoints.forEach(point => {
         bounds.extend(new (window as any).kakao.maps.LatLng(point.lat, point.lng))
       })
-      setTimeout(() => {
+      boundsTimer = setTimeout(() => {
         map.setBounds(bounds, 50, 50, 50, 50)
       }, 100)
-    } else if (allPoints.length === 1) {
-      const point = allPoints[0]
+    } else {
+      const point = visibleMapPoints[0]
       const center = new (window as any).kakao.maps.LatLng(point.lat, point.lng)
       map.setCenter(center)
       map.setLevel(3)
     }
-  }, [map, filteredProjects, tbmRecords])
+
+    return () => {
+      if (boundsTimer) clearTimeout(boundsTimer)
+    }
+  }, [map, visibleMapPoints])
 
   return (
     <div
@@ -1471,31 +1654,23 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
             )}
           </button>
 
-          {/* 데스크톱 기상특보 레이어 토글 */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowWeatherWarnings(!showWeatherWarnings)
-            }}
-            className={`legend-desktop hidden items-center gap-1.5 bg-white/95 hover:bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 shadow-lg text-xs transition-all duration-200 hover:shadow-xl ${!showWeatherWarnings ? 'opacity-50' : ''}`}
-            title={showWeatherWarnings && weatherWarnings.error ? weatherWarnings.error : '기상특보 표시'}
-          >
-            {showWeatherWarnings && weatherWarnings.loading && weatherWarnings.count === 0 ? (
-              <div className="animate-spin h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-            ) : (
-              <span className="inline-block w-3 h-3 rounded-sm border border-blue-700" style={{ backgroundColor: '#3B82F6', opacity: 0.65 }}></span>
-            )}
-            <span className="text-gray-700 whitespace-nowrap">
-              기상특보 <span className="font-semibold">
-                ({showWeatherWarnings && weatherWarnings.loading && weatherWarnings.count === 0
-                  ? '로딩중...'
-                  : showWeatherWarnings && weatherWarnings.error
-                    ? '오류'
-                    : `${weatherWarnings.count}개`})
-              </span>
-            </span>
-          </button>
+          {/* 데스크톱 기상특보 레이어 선택 */}
+          <div className="legend-desktop hidden">
+            <WeatherWarningControl
+              enabled={showWeatherWarnings}
+              open={weatherWarningMenuOpen}
+              loading={weatherWarnings.loading}
+              error={weatherWarnings.error}
+              count={weatherWarnings.count}
+              totalCount={weatherWarnings.totalCount}
+              types={weatherWarnings.types}
+              selectedTypes={selectedWeatherWarningTypes}
+              onToggleOpen={() => setWeatherWarningMenuOpen((current) => !current)}
+              onToggleEnabled={() => setShowWeatherWarnings(!showWeatherWarnings)}
+              onSelectAll={toggleAllWeatherWarningTypes}
+              onToggleType={toggleWeatherWarningType}
+            />
+          </div>
         </div>
       )}
 
@@ -1695,24 +1870,21 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
         </button>
 
         {/* 기상특보 */}
-        <button
-          onClick={() => setShowWeatherWarnings(!showWeatherWarnings)}
-          className={`flex items-center gap-1 px-1 py-0.5 rounded transition-all ${!showWeatherWarnings ? 'opacity-40 grayscale' : 'hover:bg-gray-100'}`}
-          title={showWeatherWarnings && weatherWarnings.error ? weatherWarnings.error : '기상특보'}
-        >
-          {showWeatherWarnings && weatherWarnings.loading && weatherWarnings.count === 0 ? (
-            <div className="w-4 h-4 flex items-center justify-center">
-              <div className="animate-spin h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-            </div>
-          ) : (
-            <AlertTriangle className="w-4 h-4 text-[#2563EB]" />
-          )}
-          <span className="text-[9px] font-semibold text-gray-700">
-            ({showWeatherWarnings && weatherWarnings.loading && weatherWarnings.count === 0
-              ? '…'
-              : showWeatherWarnings && weatherWarnings.error ? '!' : weatherWarnings.count})
-          </span>
-        </button>
+        <WeatherWarningControl
+          compact
+          enabled={showWeatherWarnings}
+          open={weatherWarningMenuOpen}
+          loading={weatherWarnings.loading}
+          error={weatherWarnings.error}
+          count={weatherWarnings.count}
+          totalCount={weatherWarnings.totalCount}
+          types={weatherWarnings.types}
+          selectedTypes={selectedWeatherWarningTypes}
+          onToggleOpen={() => setWeatherWarningMenuOpen((current) => !current)}
+          onToggleEnabled={() => setShowWeatherWarnings(!showWeatherWarnings)}
+          onSelectAll={toggleAllWeatherWarningTypes}
+          onToggleType={toggleWeatherWarningType}
+        />
       </div>
 
       {/* 현재위치 버튼 - 우측 하단 */}
