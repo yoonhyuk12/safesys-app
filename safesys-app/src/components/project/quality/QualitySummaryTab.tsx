@@ -135,7 +135,7 @@ export default function QualitySummaryTab({
   const activeReport = editingReportId
     ? reports.find((report) => report.id === editingReportId)
     : undefined
-  const canReject = currentUserRole === '발주청' || currentUserRole === '감리단'
+  const canReject = currentUserRole === '발주청'
 
   const loadReports = useCallback(async () => {
     setLoading(true)
@@ -348,11 +348,23 @@ export default function QualitySummaryTab({
 
     setRejectionSaving(true)
     try {
-      const { error } = await (supabase as any).rpc('reject_quality_summary_report', {
-        p_report_id: editingReportId,
-        p_reason: reason.trim(),
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      if (!session?.access_token) throw new Error('로그인이 필요합니다.')
+
+      const response = await fetch('/api/quality-summary/reject', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ report_id: editingReportId, reason: reason.trim() }),
       })
-      if (error) throw error
+      const result = await response.json().catch(() => ({})) as { success?: boolean; error?: string }
+      if (!response.ok || result.success !== true) {
+        throw new Error(result.error || '성과총괄표 반려 처리에 실패했습니다.')
+      }
+
       set('reviewer_signature', '')
       await loadReports()
       alert('작성자에게 반려 통보했습니다.')
@@ -891,14 +903,21 @@ export default function QualitySummaryTab({
                             서명
                           </button>
                         )}
-                        {signer.sig === 'reviewer_signature' && editingReportId && canReject && (
+                        {signer.sig === 'reviewer_signature' && editingReportId && (
                           <button
                             type="button"
                             onClick={handleReject}
-                            disabled={rejectionSaving}
-                            className="rounded border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                            disabled={!canReject || rejectionSaving}
+                            title={
+                              !canReject
+                                ? '반려 통보는 발주청 소속만 처리할 수 있습니다.'
+                                : activeReport?.rejected_at
+                                  ? '반려 사유를 변경해 다시 통보할 수 있습니다.'
+                                  : undefined
+                            }
+                            className="rounded border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                           >
-                            {rejectionSaving ? '처리 중...' : '반려 통보'}
+                            {rejectionSaving ? '처리 중...' : activeReport?.rejected_at ? '반려 통보됨' : '반려 통보'}
                           </button>
                         )}
                       </div>
