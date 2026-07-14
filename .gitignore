@@ -32,3 +32,6 @@ safesys-app/nul
 # Temporary files
 safesys-app/addresses.txt
 safesys-app/temp_read_excel.js
+
+# Local Netlify folder
+.netlify
