@@ -181,13 +181,17 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         title: '지급자재 수불부 (감독 확인 서명)',
         table: 'material_ledger_entries',
         signColumn: 'supervisor_confirm',
-        selectColumns: 'id, receive_date, release_date, name_or_spec, receive_qty, materials!inner(project_id, name, unit)',
+        selectColumns: 'id, receive_date, release_date, name_or_spec, receive_qty, order_qty, materials!inner(project_id, name, unit)',
         orderColumn: 'receive_date',
         projectScope: { joinTable: 'materials' },
         hasUpdatedAt: false,
         toItem: (r) => {
           const mat = (r.materials ?? {}) as { name?: string; unit?: string }
-          const qty = r.receive_qty != null ? `수령 ${String(r.receive_qty)}${str(mat.unit)}` : ''
+          const qty = r.receive_qty != null
+            ? `반입 ${Number(r.receive_qty).toLocaleString('ko-KR')}${str(mat.unit)}`
+            : r.order_qty != null
+              ? `발주 ${Number(r.order_qty).toLocaleString('ko-KR')}${str(mat.unit)}`
+              : ''
           return {
             date: str(r.receive_date) || str(r.release_date),
             label: [str(mat.name), str(r.name_or_spec), qty].filter(Boolean).join(' · '),
