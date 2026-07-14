@@ -48,6 +48,38 @@ const thCls = 'px-1.5 py-1.5 text-center whitespace-nowrap font-medium'
 
 type SignKey = 'writer_signature' | 'reviewer_signature' | 'confirmer_signature'
 
+type SignerTextDefaults = Pick<
+  QualitySummaryFormData,
+  | 'writer_affiliation'
+  | 'writer_position'
+  | 'writer_name'
+  | 'reviewer_affiliation'
+  | 'reviewer_position'
+  | 'reviewer_name'
+  | 'confirmer_affiliation'
+  | 'confirmer_position'
+  | 'confirmer_name'
+>
+
+const getSignerTextDefaults = (
+  latestReport: QualitySummaryReport | undefined,
+  projectDefaults: SignerTextDefaults
+): SignerTextDefaults => {
+  if (!latestReport) return projectDefaults
+
+  return {
+    writer_affiliation: latestReport.writer_affiliation,
+    writer_position: latestReport.writer_position,
+    writer_name: latestReport.writer_name,
+    reviewer_affiliation: latestReport.reviewer_affiliation,
+    reviewer_position: latestReport.reviewer_position,
+    reviewer_name: latestReport.reviewer_name,
+    confirmer_affiliation: latestReport.confirmer_affiliation,
+    confirmer_position: latestReport.confirmer_position,
+    confirmer_name: latestReport.confirmer_name,
+  }
+}
+
 // 작성자·검토자·확인자 입력 필드 매핑 (별지 2호 기입요령 ③④⑤)
 interface SignerField {
   label: string
@@ -112,6 +144,7 @@ export default function QualitySummaryTab({
       .select('*')
       .eq('project_id', projectId)
       .order('report_date', { ascending: false })
+      .order('created_at', { ascending: false })
     if (!error && data) {
       const loadedReports = data as QualitySummaryReport[]
       setReports(loadedReports)
@@ -143,21 +176,29 @@ export default function QualitySummaryTab({
     setAggregateNotice('')
   }
 
-  const handleAddClick = () => {
+  const handleAddClick = async () => {
+    if (aggregating) return
     setEditingReportId(null)
     setAggregateNotice('')
-    setFormData(
-      createEmptyQualitySummary({
-        construction_period: constructionPeriod,
-        progress_rate: currentProgressRate,
-        writer_affiliation: ownerCompanyName,
-        writer_position: '품질관리자',
-        confirmer_affiliation: supervisorBranch,
-        confirmer_position: supervisorPosition,
-        confirmer_name: supervisorName,
-      })
-    )
+    const signerDefaults = getSignerTextDefaults(reports[0], {
+      writer_affiliation: ownerCompanyName,
+      writer_position: '품질관리자',
+      writer_name: '',
+      reviewer_affiliation: '',
+      reviewer_position: '',
+      reviewer_name: '',
+      confirmer_affiliation: supervisorBranch,
+      confirmer_position: supervisorPosition,
+      confirmer_name: supervisorName,
+    })
+    const newFormData = createEmptyQualitySummary({
+      construction_period: constructionPeriod,
+      progress_rate: currentProgressRate,
+      ...signerDefaults,
+    })
+    setFormData(newFormData)
     setShowForm(true)
+    await runAggregation(newFormData)
   }
 
   const handleSelectReport = (report: QualitySummaryReport) => {
@@ -262,6 +303,39 @@ export default function QualitySummaryTab({
     }
   }
 
+  // 프로젝트의 모든 실시대장 기록을 조회해 ④·⑤ 실적으로 집계한다. 계획·비고 입력값은 보존한다.
+  const queryAndAggregateAll = async (sourceFormData: QualitySummaryFormData) => {
+    const { data, error } = await (supabase as any)
+      .from('quality_test_records')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('serial_no', { ascending: true })
+      .order('created_at', { ascending: true })
+    if (error) throw error
+    const records = (data ?? []) as QualityTestRecord[]
+    if (records.length === 0) {
+      return {
+        formData: sourceFormData,
+        notice: '집계할 실시대장 기록이 없습니다.',
+      }
+    }
+    const { quality_rows, verification_rows } = aggregatePerformanceRows(
+      records,
+      sourceFormData.quality_rows,
+      sourceFormData.verification_rows
+    )
+    const submissionCount = new Set(records.map((record) => record.serial_no ?? record.id)).size
+    return {
+      formData: {
+        ...sourceFormData,
+        quality_rows: quality_rows.length > 0 ? quality_rows : [createEmptyQualityPerformanceRow()],
+        verification_rows:
+          verification_rows.length > 0 ? verification_rows : [createEmptyVerificationPerformanceRow()],
+      },
+      notice: `실시대장 전체 ${submissionCount}개 제출건을 누계에 반영했습니다.`,
+    }
+  }
+
   const handleReject = async () => {
     if (!editingReportId || !canReject || rejectionSaving) return
 
@@ -306,42 +380,23 @@ export default function QualitySummaryTab({
     }
   }
 
-  // 프로젝트의 모든 실시대장 기록을 ④·⑤ 실적으로 집계한다. 계획·비고 입력값은 보존한다.
-  const handleAggregateAll = async () => {
-    if (!formData) return
+  const runAggregation = async (sourceFormData: QualitySummaryFormData) => {
     setAggregating(true)
     setAggregateNotice('')
     try {
-      const { data, error } = await (supabase as any)
-        .from('quality_test_records')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('serial_no', { ascending: true })
-        .order('created_at', { ascending: true })
-      if (error) throw error
-      const records = (data ?? []) as QualityTestRecord[]
-      if (records.length === 0) {
-        setAggregateNotice('집계할 실시대장 기록이 없습니다.')
-        return
-      }
-      const { quality_rows, verification_rows } = aggregatePerformanceRows(
-        records,
-        formData.quality_rows,
-        formData.verification_rows
-      )
-      setFormData({
-        ...formData,
-        quality_rows: quality_rows.length > 0 ? quality_rows : [createEmptyQualityPerformanceRow()],
-        verification_rows:
-          verification_rows.length > 0 ? verification_rows : [createEmptyVerificationPerformanceRow()],
-      })
-      const submissionCount = new Set(records.map((record) => record.serial_no ?? record.id)).size
-      setAggregateNotice(`실시대장 전체 ${submissionCount}개 제출건을 누계에 반영했습니다.`)
+      const result = await queryAndAggregateAll(sourceFormData)
+      setFormData(result.formData)
+      setAggregateNotice(result.notice)
     } catch (err: unknown) {
       setAggregateNotice('자동집계 실패: ' + getErrorMessage(err))
     } finally {
       setAggregating(false)
     }
+  }
+
+  const handleAggregateAll = async () => {
+    if (!formData || aggregating) return
+    await runAggregation(formData)
   }
 
   const set = <K extends keyof QualitySummaryFormData>(key: K, value: QualitySummaryFormData[K]) => {
@@ -399,10 +454,11 @@ export default function QualitySummaryTab({
             </a>
             <button
               onClick={handleAddClick}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium"
+              disabled={aggregating}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Plus className="h-4 w-4" />
-              추가
+              {aggregating ? '집계 중...' : '추가'}
             </button>
           </div>
         </div>
@@ -413,6 +469,15 @@ export default function QualitySummaryTab({
             <p className="text-gray-500 text-sm">
               작성된 총괄표가 없습니다. 추가 버튼으로 작성하고, 실적은 실시대장에서 자동집계할 수 있습니다.
             </p>
+            <button
+              type="button"
+              onClick={handleAddClick}
+              disabled={aggregating}
+              className="mt-4 inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <Plus className="h-4 w-4" />
+              {aggregating ? '집계 중...' : '추가'}
+            </button>
           </div>
         ) : (
           <div className="overflow-x-auto">

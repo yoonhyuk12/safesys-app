@@ -85,6 +85,9 @@ const normalizeActualLabel = (value: string): string => value.trim().replace(/\s
 const actualRowKey = (workType: string, testItem: string): string =>
   JSON.stringify([normalizeActualLabel(workType), normalizeActualLabel(testItem)])
 
+const isEmptyReportRow = (row: QualityMonthlyReportRow): boolean =>
+  Object.values(row).every((value) => value.trim() === '')
+
 const actualFieldFor = (
   testCategory: string,
   isReportMonth: boolean
@@ -152,7 +155,10 @@ export function applyQualityTestActuals(
       testItem: labels.testItem,
     }))
 
-  return [...rows.map(applyTally), ...appendedRows]
+  const mergedRows = [...rows.map(applyTally), ...appendedRows]
+  return mergedRows.length > 1 && isEmptyReportRow(mergedRows[0])
+    ? mergedRows.slice(1)
+    : mergedRows
 }
 
 // "1,200㎥" 같은 단위 포함 입력에서 앞쪽 숫자만 추출. 숫자가 없으면 null.
