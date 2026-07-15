@@ -372,6 +372,7 @@ const Dashboard: React.FC = () => {
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const [mapDynamicHeight, setMapDynamicHeight] = useState<number>(500)
   const lastMapTopRef = useRef<number>(-1)
+  const mergeScrollRestoreRef = useRef<number | null>(null)
 
   // 보고서 선택 모드 (본부/지사 일괄)
   const [isHqDownloadMode, setIsHqDownloadMode] = useState(false)
@@ -434,6 +435,8 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     // 데이터 로딩이 완료된 후에만 스크롤 복원
     if (loading) return
+    // 병합 직후에는 병합 전용 위치 복원을 우선한다.
+    if (mergeScrollRestoreRef.current !== null) return
 
     if (typeof window !== 'undefined') {
       const savedScrollPosition = sessionStorage.getItem('dashboard-scroll-position')
@@ -450,6 +453,15 @@ const Dashboard: React.FC = () => {
       }
     }
   }, [pathname, loading, projects])
+
+  // 병합으로 목록이 다시 렌더링된 뒤 사용자가 보던 위치를 한 번만 복원한다.
+  useEffect(() => {
+    if (loading || mergeScrollRestoreRef.current === null || typeof window === 'undefined') return
+
+    const scrollY = mergeScrollRestoreRef.current
+    mergeScrollRestoreRef.current = null
+    window.scrollTo(0, scrollY)
+  }, [loading, projects])
 
   // URL 파라미터에서 view 모드 읽기
   useEffect(() => {
@@ -1677,6 +1689,13 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleMergeProjectsMerged = async () => {
+    if (typeof window !== 'undefined') {
+      mergeScrollRestoreRef.current = window.scrollY
+    }
+    await loadBranchProjects()
   }
 
   const loadHeatWaveChecks = async () => {
@@ -4991,7 +5010,7 @@ const Dashboard: React.FC = () => {
         source={mergeSource}
         target={mergeTarget}
         onClose={resetMergeSelection}
-        onMerged={loadBranchProjects}
+        onMerged={handleMergeProjectsMerged}
       />
 
       {/* 삭제 확인 모달 */}

@@ -18,3 +18,13 @@
 - 실제 앱이 연결된 Supabase 프로젝트의 함수 설명과 본문을 조회한 결과 선택사항 보충 로직이 없는 구버전 함수가 실행 중이었다. 이 때문에 병합 후 `total_budget`, `supervisor_name` 등 대상 프로젝트의 빈 선택사항이 그대로 NULL로 남았다.
 - 2026-07-16에 Supabase 관리 API로 `database/20260716-0026_merge_project_optional_fields.sql`을 원격 DB에 적용했다. 적용 후 함수 설명과 `total_budget`, `supervisor_name`, `privacy_manager_phone` 보충 구문 존재 여부를 읽기 전용 쿼리로 검증했다.
 - 함수 교체는 이후 병합부터 적용된다. 구버전 함수로 이미 병합되어 source 프로젝트가 삭제된 건은 현재 행만으로 source 선택사항을 자동 복구할 수 없다.
+- 프로젝트 카드의 1Q·2Q·3Q·4Q·준공 상태는 `projects.is_active` JSONB 한 필드에 저장되므로 개별 키를 OR 병합하지 않고 상태 묶음 전체를 복사한다.
+- target이 JSON object이고 `q1`, `q2`, `q3`, `q4`, `completed` 중 true가 하나라도 있으면 target 전체를 보존한다. 과거 형식인 JSON true도 같은 방식으로 보존한다.
+- target의 다섯 키가 모두 false 또는 누락이거나 과거 형식인 JSON false이면 비어 있는 상태로 본다. SQL NULL과 JSON null도 기록이 없는 상태로 보아 source가 있으면 보충한다.
+- source가 SQL NULL 또는 JSON null이면 target을 유지한다. 이외에는 target이 비어 있을 때 source의 boolean/object 값을 변형하지 않고 전체 복사한다.
+- `database/20260716-0601_merge_project_quarter_status.sql`은 24개 FK 이동과 19개 선택사항 보충, 함수 권한을 유지하면서 `is_active` 보충만 추가한다. `updated_at`은 source 값으로 복사하지 않는다.
+- 병합 성공 콜백에서 현재 `window.scrollY`를 병합 전용 ref에 저장하고 `loadBranchProjects()`로 목록을 갱신한다. 새 목록 렌더가 끝나 `loading`이 false가 된 효과에서 위치를 한 번 복원한 뒤 ref를 비운다.
+- 병합 전용 ref가 남아 있는 동안 기존 `dashboard-scroll-position` 복원 효과는 건너뛴다. 병합 취소나 RPC 실패 때는 성공 콜백이 실행되지 않아 스크롤 위치를 저장하거나 변경하지 않는다.
+- `database/20260716-0601_merge_project_quarter_status.sql`을 원격 Supabase DB에 적용했다. 적용 전 `BEGIN`·`ROLLBACK` 컴파일 검증과 빈 object 복사, 기존 true 보존, JSON boolean 호환, source null 보존 등 6개 판정 사례를 통과했다.
+- 적용 후 실제 함수 본문에서 `is_active` CASE, `completed` 판정, 기존 `total_budget` 보충 로직 유지, `updated_at` 미복사를 읽기 전용 쿼리로 확인했다.
+- 로그인된 Chrome 프로필에서 병합 API만 성공 응답으로 모킹하고 실제 프로젝트 목록 재조회를 수행했다. 병합 전 `scrollY=8000`이 약 1천 건 목록 재렌더와 모달 종료 후에도 `8000`으로 복원됐고, source와 target 프로젝트가 모두 남아 실제 데이터 변경이 없음을 확인했다.
