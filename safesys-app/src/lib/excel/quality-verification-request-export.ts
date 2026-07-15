@@ -4,6 +4,7 @@ import ExcelJS from 'exceljs'
 import { QualityVerificationRequestRecord } from '@/lib/quality/quality-test-types'
 import {
   mergeSet,
+  setCell,
   addSignatureImage,
   headerFill,
   formatDateKorean,
@@ -70,12 +71,15 @@ export async function downloadQualityVerificationRequestExcel(
   ws.getRow(r).height = 24
   r++
 
-  // 받음 / 보냄 (인 또는 서명)
+  // 받음 / 보냄 — 감독 이름 뒤의 서명 이미지가 서명 표기 위에 겹쳐 보이도록 영역 분리
   mergeSet(ws, `A${r}:D${r}`, `받    음 :  ${record.receiver || ''}`, {
     size: 11, border: false, align: { horizontal: 'left' },
   })
-  mergeSet(ws, `E${r}:H${r}`, `보    냄 :  공사감독 ${record.sender || ''}      (인 또는 서명)`, {
+  mergeSet(ws, `E${r}:G${r}`, `보    냄 :  공사감독 ${record.sender || ''}`, {
     size: 11, border: false, align: { horizontal: 'left' },
+  })
+  setCell(ws, `H${r}`, '(서명 또는 인)', {
+    size: 9, border: false, align: { horizontal: 'left' },
   })
   const senderSignatureRow = r
   ws.getRow(r).height = 24
@@ -117,7 +121,7 @@ export async function downloadQualityVerificationRequestExcel(
     r++
   })
 
-  addSignatureImage(workbook, ws, record.sender_signature, 5.6, senderSignatureRow, 70, 26)
+  addSignatureImage(workbook, ws, record.sender_signature, 7.1, senderSignatureRow, 70, 26)
 
   const dateStr = record.request_date || new Date().toISOString().split('T')[0]
   const filename = `확인시험의뢰서_${record.request_no ? `${record.request_no}_` : ''}${dateStr}.xlsx`
