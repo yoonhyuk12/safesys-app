@@ -74,7 +74,7 @@ export async function downloadQualityVerificationRequestExcel(
   mergeSet(ws, `A${r}:D${r}`, `받    음 :  ${record.receiver || ''}`, {
     size: 11, border: false, align: { horizontal: 'left' },
   })
-  mergeSet(ws, `E${r}:H${r}`, `보    냄 :  ${record.sender || ''}      (인 또는 서명)`, {
+  mergeSet(ws, `E${r}:H${r}`, `보    냄 :  공사감독 ${record.sender || ''}      (인 또는 서명)`, {
     size: 11, border: false, align: { horizontal: 'left' },
   })
   const senderSignatureRow = r
