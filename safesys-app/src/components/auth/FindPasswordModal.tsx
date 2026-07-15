@@ -89,6 +89,9 @@ const FindPasswordModal: React.FC<FindPasswordModalProps> = ({ isOpen, onClose }
     if (password.length < 6) {
       return '비밀번호는 최소 6자 이상이어야 합니다.'
     }
+    if (password.length > 72) {
+      return '비밀번호는 최대 72자까지 입력할 수 있습니다.'
+    }
     return null
   }
 
@@ -122,35 +125,25 @@ const FindPasswordModal: React.FC<FindPasswordModalProps> = ({ isOpen, onClose }
     setLoading(true)
 
     try {
-      // Supabase Admin API를 통한 비밀번호 직접 변경
-      // 실제 구현에서는 서버사이드 함수나 Edge Function을 사용해야 함
-      const { data, error } = await supabase.functions.invoke('update-user-password', {
-        body: {
-          userId: verifiedUser.id,
-          email: verifiedUser.email,
+      const response = await fetch('/api/auth/update-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          name: formData.name,
+          phone: formData.phone,
           newPassword: passwordData.newPassword
-        }
+        }),
       })
+      const result = await response.json().catch(() => null) as { success?: boolean; error?: string } | null
 
-      if (error) {
-        // Edge Function이 없는 경우 대체 방법 사용
-        console.log('Edge Function 호출 실패, 대체 방법 사용')
-        
-        // 임시로 사용자 프로필에 새 비밀번호를 저장하고 
-        // 다음 로그인 시 비밀번호를 업데이트하는 방식
-        const { error: updateError } = await supabase
-          .from('user_profiles')
-          .update({ temp_password: passwordData.newPassword })
-          .eq('id', verifiedUser.id)
-
-        if (updateError) {
-          throw new Error('비밀번호 정보 저장에 실패했습니다.')
-        }
-
-        alert('본인 확인이 완료되어 새 비밀번호로 설정되었습니다.\n새로운 비밀번호로 로그인해주세요.')
-      } else {
-        alert('비밀번호가 성공적으로 변경되었습니다.\n새로운 비밀번호로 로그인해주세요.')
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.error || '비밀번호 변경에 실패했습니다.')
       }
+
+      alert('비밀번호가 성공적으로 변경되었습니다.\n새로운 비밀번호로 로그인해주세요.')
       
       // 폼 초기화
       setStep('form')
@@ -419,6 +412,7 @@ const FindPasswordModal: React.FC<FindPasswordModalProps> = ({ isOpen, onClose }
                         value={passwordData.newPassword}
                         onChange={handlePasswordInputChange}
                         placeholder="새 비밀번호를 입력하세요"
+                        maxLength={72}
                         className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         disabled={loading}
                       />
@@ -452,6 +446,7 @@ const FindPasswordModal: React.FC<FindPasswordModalProps> = ({ isOpen, onClose }
                         value={passwordData.confirmPassword}
                         onChange={handlePasswordInputChange}
                         placeholder="새 비밀번호를 다시 입력하세요"
+                        maxLength={72}
                         className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         disabled={loading}
                       />
