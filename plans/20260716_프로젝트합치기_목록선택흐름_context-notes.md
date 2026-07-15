@@ -15,3 +15,6 @@
 - `ProjectEditForm`의 노란 선택사항 섹션에 있는 19개 필드를 병합 보충 대상으로 정했다. target의 텍스트가 NULL·공백이거나 날짜가 NULL일 때만 source 값을 사용하며, 체크박스는 source와 target 중 하나라도 true이면 true를 보존한다.
 - 로그인된 로컬 브라우저에서 삭제될 현장 선택, 유지될 현장 선택, 최종 확인 모달 표시, 취소 후 상태 초기화까지 확인했다. 실제 데이터 삭제를 막기 위해 최종 합치기 버튼은 누르지 않았다.
 - `database/20260716-0026_merge_project_optional_fields.sql`은 최신 24개 자식 테이블 병합 함수를 유지한 채 선택사항 보충 UPDATE만 추가한다. 로컬 PostgreSQL 파서가 없어 원격 DB에는 적용하지 않았고 정적 검토만 수행했다.
+- 실제 앱이 연결된 Supabase 프로젝트의 함수 설명과 본문을 조회한 결과 선택사항 보충 로직이 없는 구버전 함수가 실행 중이었다. 이 때문에 병합 후 `total_budget`, `supervisor_name` 등 대상 프로젝트의 빈 선택사항이 그대로 NULL로 남았다.
+- 2026-07-16에 Supabase 관리 API로 `database/20260716-0026_merge_project_optional_fields.sql`을 원격 DB에 적용했다. 적용 후 함수 설명과 `total_budget`, `supervisor_name`, `privacy_manager_phone` 보충 구문 존재 여부를 읽기 전용 쿼리로 검증했다.
+- 함수 교체는 이후 병합부터 적용된다. 구버전 함수로 이미 병합되어 source 프로젝트가 삭제된 건은 현재 행만으로 source 선택사항을 자동 복구할 수 없다.
