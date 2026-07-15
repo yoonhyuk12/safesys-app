@@ -568,16 +568,33 @@ export default function SupervisorDiaryGenerator({
                         return
                       }
 
-                      // TBM 데이터 조회
-                      const { data: tbmSubmissions, error } = await supabase
-                        .from('tbm_submissions')
-                        .select('*')
-                        .eq('project_name', projectName)
-                        .eq('headquarters', managingHq)
-                        .eq('branch', managingBranch)
-                        .gte('meeting_date', reportStartDate)
-                        .lte('meeting_date', reportEndDate)
-                        .order('meeting_date', { ascending: true })
+                      // TBM 데이터 조회 — 병합된 프로젝트의 옛 명칭 행도 포함하도록 project_id·명칭 이중 조회
+                      const [byIdResult, byNameResult] = await Promise.all([
+                        projectId
+                          ? supabase
+                              .from('tbm_submissions')
+                              .select('*')
+                              .eq('project_id', projectId)
+                              .gte('meeting_date', reportStartDate)
+                              .lte('meeting_date', reportEndDate)
+                              .order('meeting_date', { ascending: true })
+                          : Promise.resolve({ data: [], error: null }),
+                        supabase
+                          .from('tbm_submissions')
+                          .select('*')
+                          .eq('project_name', projectName)
+                          .eq('headquarters', managingHq)
+                          .eq('branch', managingBranch)
+                          .gte('meeting_date', reportStartDate)
+                          .lte('meeting_date', reportEndDate)
+                          .order('meeting_date', { ascending: true }),
+                      ])
+                      const error = byIdResult.error || byNameResult.error
+
+                      // 두 조회 결과를 합쳐 id 기준 중복 제거 후 meeting_date 오름차순 정렬
+                      const tbmSubmissions = [...(byIdResult.data || []), ...(byNameResult.data || [])]
+                        .filter((row, index, rows) => rows.findIndex((r) => r.id === row.id) === index)
+                        .sort((a, b) => String(a.meeting_date).localeCompare(String(b.meeting_date)))
 
                       if (error) {
                         console.error('TBM 데이터 조회 오류:', error)
