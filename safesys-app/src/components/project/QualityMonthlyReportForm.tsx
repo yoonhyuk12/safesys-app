@@ -149,9 +149,9 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
       value += extractUnit(edited.yearlyPlan)
     }
     const normalizedWorkType = edited.workType.trim()
-    // 같은 공종의 첫 행에서 연간 시공계획 물량을 입력하면 아래 동일 공종 행 전체로 전파
-    const propagateYearlyPlan =
-      field === 'yearlyPlan' &&
+    // 같은 공종의 첫 행에서 물량을 입력하면 아래 동일 공종 행 전체로 전파
+    const propagateVolume =
+      VOLUME_FIELDS.includes(field) &&
       normalizedWorkType !== '' &&
       formData.report_rows.findIndex((row) => row.workType.trim() === normalizedWorkType) === index
     // 콘크리트 슬럼프 행에 시공계획 물량·월 실적 입력 시 나머지 콘크리트 시험항목 행에도 동일 값 전파
@@ -172,7 +172,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
     const rows = formData.report_rows.map((row, i) => {
       const isTarget =
         i === index ||
-        (propagateYearlyPlan && row.workType.trim() === normalizedWorkType) ||
+        (propagateVolume && row.workType.trim() === normalizedWorkType) ||
         (propagateFromSlump && row.workType === '콘크리트') ||
         (propagateEarthwork &&
           row.workType === '토공' &&
