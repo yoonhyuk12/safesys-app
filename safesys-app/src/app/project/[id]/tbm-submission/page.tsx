@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Calendar, ChevronLeft, ChevronRight, ExternalLink, X, Download, Trash2, Printer, QrCode, BookOpen, Youtube } from 'lucide-react'
+import { ArrowLeft, Plus, Calendar, ChevronLeft, ChevronRight, ExternalLink, X, Download, Trash2, Printer, QrCode, BookOpen, Youtube, Share2 } from 'lucide-react'
 import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import TBMSubmissionModal from '@/components/project/TBMSubmissionModal'
 import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
-import { generateTBMSubmissionReport, generateTBMSubmissionBulkReport, generateHTMLPagePDF, TBMSubmissionFormData } from '@/lib/reports/tbm-submission-report'
+import { generateTBMSubmissionReport, generateTBMSubmissionReportBlob, generateTBMSubmissionBulkReport, generateHTMLPagePDF, TBMSubmissionFormData } from '@/lib/reports/tbm-submission-report'
 import { createTBMTodayQRPosterHTML } from '@/lib/reports/tbm-today-qr-poster'
 import { downloadTBMSubmissionExcel, downloadTBMSubmissionBulkExcel } from '@/lib/excel/tbm-submission-export'
 import type { TBMWorkerSignatureEntry } from '@/lib/excel/tbm-worker-signature-export'
@@ -379,6 +379,47 @@ export default function TBMSubmissionPage() {
     } catch (error: any) {
       console.error(`${format === 'pdf' ? 'PDF' : '엑셀'} 생성 오류:`, error)
       alert(`보고서 생성 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`)
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
+  // PDF를 생성해 Web Share API로 공유 (카톡 등 SNS 앱으로 바로 전달)
+  const handleSharePdf = async (submission: TBMSubmission) => {
+    if (!project) return
+
+    try {
+      setDownloadingId(submission.id)
+      setDownloadMenuId(null)
+
+      const formData = buildFormData(submission)
+      const dateStr = submission.meeting_date || new Date().toISOString().split('T')[0]
+      const projectName = submission.project_name || project.project_name || '사업명'
+      const filename = `${projectName}_TBM_${dateStr}.pdf`
+
+      const signatureMap = await fetchWorkerSignatures([submission.id])
+      const signatures = signatureMap.get(submission.id) || []
+
+      const blob = await generateTBMSubmissionReportBlob(formData, { signatures })
+      const file = new File([blob], filename, { type: 'application/pdf' })
+
+      if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: filename })
+      } else {
+        // 파일 공유 미지원 환경(일부 데스크톱 브라우저 등)은 다운로드로 대체
+        alert('이 기기에서는 파일 공유가 지원되지 않아 PDF를 다운로드합니다.')
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = filename
+        a.click()
+        URL.revokeObjectURL(url)
+      }
+    } catch (error: any) {
+      // 공유 시트에서 사용자가 취소한 경우는 오류로 취급하지 않음
+      if (error?.name === 'AbortError') return
+      console.error('PDF 공유 오류:', error)
+      alert(`PDF 공유 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`)
     } finally {
       setDownloadingId(null)
     }
@@ -939,6 +980,13 @@ export default function TBMSubmissionPage() {
                                               >
                                                 <span className="text-red-500 font-bold text-xs">PDF</span>
                                                 PDF 다운로드
+                                              </button>
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); handleSharePdf(submission) }}
+                                                className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 flex items-center gap-2 text-gray-700 border-t border-gray-100"
+                                              >
+                                                <Share2 className="h-4 w-4 text-yellow-500" />
+                                                PDF 공유
                                               </button>
                                               <button
                                                 onClick={(e) => { e.stopPropagation(); handleDownloadReport(submission, 'excel') }}

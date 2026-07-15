@@ -663,6 +663,25 @@ export async function generateTBMSubmissionReport(
   generator.downloadPDF(filename || defaultFilename)
 }
 
+// TBM 보고서 PDF Blob 생성 함수 — Web Share API 공유 등 다운로드 외 용도
+export async function generateTBMSubmissionReportBlob(
+  formData: TBMSubmissionFormData,
+  options?: {
+    signatures?: TBMWorkerSignatureEntry[]
+  }
+): Promise<Blob> {
+  const generator = new PDFGenerator()
+  await generator.generateTBMReport(formData)
+  if (options?.signatures && options.signatures.length > 0) {
+    await generator.appendHTMLPage(createWorkerSignatureSheetHTML(options.signatures, formData.educationDate || ''))
+  }
+  const blob = generator.getPDFBlob()
+  if (!blob) {
+    throw new Error('PDF 생성에 실패했습니다.')
+  }
+  return blob
+}
+
 // TBM 보고서 PDF 일괄 생성 함수 (1파일 다중 페이지)
 export async function generateTBMSubmissionBulkReport(
   formDataList: TBMSubmissionFormData[],
