@@ -514,6 +514,9 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
 
   const updateInfo = getUpdateInfo()
 
+  // 카드에 표시할 프로젝트 소유자 회사명
+  const companyName = project.user_profiles?.company_name?.trim() || null
+
   // 작업일보의 수동 입력 공정률 기준점 — 작업일보와 동일한 보간 계산을 위해 로드
   const hasConstructionPeriod = !!project.construction_start_date && !!project.construction_end_date
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
@@ -720,19 +723,13 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         </div>
       )}
 
-      {/* 우측 상단 뱃지: 공유 또는 인계 필요 */}
-      {(isShared || handoverRequired) && (
+      {/* 우측 상단 뱃지: 공유 */}
+      {isShared && (
         <div className="absolute top-2 right-2 z-20">
-          {isShared ? (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-800 border border-green-200">
-              <Share2 className="h-3 w-3 mr-0.5" />
-              공유
-            </span>
-          ) : (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
-              인계 필요
-            </span>
-          )}
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-800 border border-green-200">
+            <Share2 className="h-3 w-3 mr-0.5" />
+            공유
+          </span>
         </div>
       )}
 
@@ -758,13 +755,21 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
           )}
         </div>
 
-        {/* 관할 본부 및 지사 */}
+        {/* 소유자 회사명 (인계 필요 프로젝트는 회사명 대신 인계 필요 뱃지 표시) */}
         <div className="flex items-center justify-between text-xs text-gray-600">
           <div className="flex items-center min-w-0">
-            <Building className="h-3 w-3 mr-1 flex-shrink-0" />
-            <span className="truncate">
-              {project.managing_hq} • {project.managing_branch}
-            </span>
+            {handoverRequired ? (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200 whitespace-nowrap">
+                인계 필요
+              </span>
+            ) : companyName && (
+              <>
+                <Building className="h-3 w-3 mr-1 flex-shrink-0" />
+                <span className="truncate">
+                  {companyName}
+                </span>
+              </>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {(project.supervisor_position || project.supervisor_name) && (
