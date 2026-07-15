@@ -27,7 +27,11 @@ interface QualityVerificationRequestsTabProps {
 const inputCls =
   'w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
-const TEST_ITEM_PRESETS = ['콘크리트', '슈미트해머', '토공'] as const
+const TEST_ITEM_PRESETS = [
+  '콘크리트(슬럼프, 공기량, 염화물, 단위수량)',
+  '콘크리트(압축강도(비파괴시험))',
+  '토공(현장밀도, 함수비)',
+] as const
 
 // 프로젝트명에서 지구명 추출 (첫 단어의 "…지구"까지, 최대 4글자) — 의뢰번호 접두어용
 const deriveDistrictPrefix = (projectName?: string): string => {
