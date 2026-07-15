@@ -139,6 +139,8 @@ export default function QualityTestLedgerPage() {
     todayStr,
     progressAnchors
   )
+  const canDeleteQualityRecords =
+    userProfile?.role === '발주청' || project?.created_by === user.id
 
   return (
     <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
@@ -189,6 +191,7 @@ export default function QualityTestLedgerPage() {
           <QualityTestRecordsTab
             projectId={projectId}
             userId={user.id}
+            canDeleteQualityRecords={canDeleteQualityRecords}
             projectName={project?.project_name || ''}
             supervisorName={project?.supervisor_name || ''}
           />

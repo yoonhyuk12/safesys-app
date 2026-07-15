@@ -34,6 +34,7 @@ import {
 interface QualityTestRecordsTabProps {
   projectId: string
   userId: string
+  canDeleteQualityRecords: boolean
   projectName: string
   supervisorName?: string
 }
@@ -101,6 +102,7 @@ const CONCRETE_PRESETS: ConcretePreset[] = [
 export default function QualityTestRecordsTab({
   projectId,
   userId,
+  canDeleteQualityRecords,
   projectName,
   supervisorName = '',
 }: QualityTestRecordsTabProps) {
@@ -272,7 +274,7 @@ export default function QualityTestRecordsTab({
   }
 
   const handleApplyEarthworkPreset = () => {
-    handleApplyTestPreset('토공', '토공', '토공 프리셋 2개 항목', [
+    handleApplyTestPreset('되메우기', '토공', '되메우기 프리셋 2개 항목', [
       { test_item: '함수비', test_standard: '±2.0%' },
       { test_item: '현장밀도', test_standard: '90% 이상' },
     ])
@@ -497,56 +499,35 @@ export default function QualityTestRecordsTab({
   const handleDelete = async (record: QualityTestRecord) => {
     if (!confirm('정말 삭제하시겠습니까? (같은 일련번호의 모든 항목이 함께 삭제됩니다)')) return
 
-    const deleteTargets = records.filter((item) =>
-      record.serial_no === null ? item.id === record.id : item.serial_no === record.serial_no
-    )
-    if (deleteTargets.some((item) => item.created_by !== userId)) {
-      alert('같은 일련번호에 다른 작성자의 기록이 포함되어 삭제할 수 없습니다.')
-      return
-    }
-
-    const deleteTargetIds = new Set(deleteTargets.map((item) => item.id))
-    const remainingRecords = records.filter((item) => !deleteTargetIds.has(item.id))
-    const remainingSerialNos = Array.from(
-      new Set(
-        remainingRecords.flatMap((item) => (item.serial_no === null ? [] : [item.serial_no]))
-      )
-    ).sort((a, b) => a - b)
-    const renumberPlan = remainingSerialNos
-      .map((currentSerialNo, index) => ({ currentSerialNo, nextSerialNo: index + 1 }))
-      .filter(({ currentSerialNo, nextSerialNo }) => currentSerialNo !== nextSerialNo)
-
-    const hasUnauthorizedRenumberTarget = renumberPlan.some(({ currentSerialNo }) =>
-      remainingRecords.some(
-        (item) => item.serial_no === currentSerialNo && item.created_by !== userId
-      )
-    )
-    if (hasUnauthorizedRenumberTarget) {
-      alert('다른 작성자의 기록이 포함되어 일련번호를 자동 재정렬할 수 없습니다.')
+    if (!canDeleteQualityRecords) {
+      alert('프로젝트 소유자 또는 발주청만 삭제할 수 있습니다.')
       return
     }
 
     try {
-      let deleteQuery = (supabase as any)
-        .from('quality_test_records')
-        .delete()
-        .eq('project_id', projectId)
-      deleteQuery = record.serial_no === null
-        ? deleteQuery.eq('id', record.id)
-        : deleteQuery.eq('serial_no', record.serial_no)
-      const { error: deleteError } = await deleteQuery
-      if (deleteError) throw deleteError
-
-      for (const { currentSerialNo, nextSerialNo } of renumberPlan) {
-        const recordIds = remainingRecords
-          .filter((item) => item.serial_no === currentSerialNo)
-          .map((item) => item.id)
-        const { error: renumberError } = await (supabase as any)
-          .from('quality_test_records')
-          .update({ serial_no: nextSerialNo, updated_at: new Date().toISOString() })
-          .in('id', recordIds)
-        if (renumberError) throw renumberError
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (sessionError || !accessToken) {
+        throw new Error('로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.')
       }
+
+      const response = await fetch(
+        `/api/projects/${projectId}/quality-test-records/${record.id}/delete`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      )
+      const result = (await response.json()) as {
+        success?: boolean
+        error?: string
+        renumberedSerialNos?: Array<{ currentSerialNo: number; nextSerialNo: number }>
+      }
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || '삭제에 실패했습니다.')
+      }
+
+      const renumberPlan = result.renumberedSerialNos ?? []
 
       if (editingSerialNo === record.serial_no) {
         resetForm()
@@ -557,7 +538,7 @@ export default function QualityTestRecordsTab({
       await loadRecords()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '알 수 없는 오류'
-      alert('삭제 또는 일련번호 재정렬 실패: ' + message)
+      alert('삭제 실패: ' + message)
       await loadRecords()
     }
   }
@@ -672,7 +653,13 @@ export default function QualityTestRecordsTab({
   const shouldHideRepeatedField = (
     record: QualityTestRecord,
     index: number,
-    field: 'test_date' | 'test_category' | 'work_type' | 'target_material'
+    field:
+      | 'test_date'
+      | 'test_category'
+      | 'work_type'
+      | 'target_material'
+      | 'supplier_factory'
+      | 'test_place'
   ) => {
     const previous = records[index - 1]
     return (
@@ -691,7 +678,7 @@ export default function QualityTestRecordsTab({
     >
       <td className="px-2 py-2 text-center text-gray-500">{record.serial_no ?? index + 1}</td>
       <td className="px-2 py-2 text-center">
-        {record.created_by === userId && (
+        {canDeleteQualityRecords && (
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -715,6 +702,12 @@ export default function QualityTestRecordsTab({
       </td>
       <td className="px-2 py-2 text-center">
         {shouldHideRepeatedField(record, index, 'target_material') ? '' : record.target_material || '-'}
+      </td>
+      <td className="px-2 py-2 text-center">
+        {shouldHideRepeatedField(record, index, 'supplier_factory') ? '' : record.supplier_factory || '-'}
+      </td>
+      <td className="px-2 py-2 text-center">
+        {shouldHideRepeatedField(record, index, 'test_place') ? '' : record.test_place || '-'}
       </td>
       <td className="px-2 py-2 text-center">{record.test_item || '-'}</td>
       <td className="px-2 py-2 text-center">{record.test_standard || '-'}</td>
@@ -865,6 +858,8 @@ export default function QualityTestRecordsTab({
                       <th className="px-2 py-2 text-center whitespace-nowrap">구분</th>
                       <th className="px-2 py-2 text-center whitespace-nowrap">공종</th>
                       <th className="px-2 py-2 text-center whitespace-nowrap">대상 재료</th>
+                      <th className="px-2 py-2 text-center whitespace-nowrap">공급처</th>
+                      <th className="px-2 py-2 text-center whitespace-nowrap">시험검사<br />장소</th>
                       <th className="px-2 py-2 text-center whitespace-nowrap">시험·검사 종목</th>
                       <th className="px-2 py-2 text-center whitespace-nowrap">시험 기준</th>
                       <th className="px-2 py-2 text-center whitespace-nowrap">시험 결과</th>
@@ -1101,15 +1096,15 @@ export default function QualityTestRecordsTab({
                       <button
                         type="button"
                         role="option"
-                        aria-selected={commonData.target_material === '토공'}
+                        aria-selected={commonData.target_material === '되메우기'}
                         onClick={handleApplyEarthworkPreset}
                         className={`mb-2 flex w-full items-center justify-between rounded border px-3 py-2 text-left text-xs transition-colors ${
-                          commonData.target_material === '토공'
+                          commonData.target_material === '되메우기'
                             ? 'border-emerald-300 bg-emerald-100 font-semibold text-emerald-800'
                             : 'border-emerald-100 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
                         }`}
                       >
-                        <span>토공</span>
+                        <span>되메우기</span>
                         <span className="text-[11px] font-normal">함수비 · 현장밀도</span>
                       </button>
                       <p className="px-1 pb-2 text-xs font-semibold text-gray-600">
