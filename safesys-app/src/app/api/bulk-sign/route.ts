@@ -1,4 +1,4 @@
-// 감독(공사감독원)·시공사(현장소장 및 기타 확인자)가 프로젝트의 미서명 문서에 일괄 서명하는 서버 라우트 (service-role, 역할 검증)
+// 감독(공사감독원)·시공사(현장소장 및 기타 확인자)가 프로젝트 문서에 일괄 서명하는 서버 라우트 (service-role, 역할 검증)
 // 대상 서류 목록은 src/lib/bulk-sign/bulk-sign-targets.ts 단일 레지스트리를 따른다.
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
@@ -8,7 +8,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export async function POST(request: NextRequest) {
   // 0. body 파싱·검증
-  let body: { project_id?: unknown; signature_data?: unknown; signer?: unknown; items?: unknown }
+  let body: {
+    project_id?: unknown
+    signature_data?: unknown
+    signer?: unknown
+    items?: unknown
+    replace_existing?: unknown
+  }
   try {
     body = await request.json()
   } catch {
@@ -30,6 +36,7 @@ export async function POST(request: NextRequest) {
   if (!signer) {
     return NextResponse.json({ success: false, error: '유효하지 않은 서명 주체입니다.' }, { status: 400 })
   }
+  const replaceExisting = body.replace_existing === true
 
   if (typeof body.items !== 'object' || body.items === null) {
     return NextResponse.json({ success: false, error: '서명할 항목이 필요합니다.' }, { status: 400 })
@@ -70,7 +77,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: '일괄서명 권한이 없습니다.' }, { status: 403 })
   }
 
-  // 3. 타입별 일괄 서명 (project_id + 미서명 조건을 함께 걸어 잘못된 id·기존 서명 보호)
+  // 3. 타입별 일괄 서명 (project_id로 소속을 검증하고, 허용 대상 외에는 기존 서명을 보호)
   const updatedCounts: Record<string, number> = {}
   let totalUpdated = 0
 
@@ -140,33 +147,75 @@ export async function POST(request: NextRequest) {
     const payload: Record<string, string> = { [target.signColumn]: signatureData }
     if (target.hasUpdatedAt !== false) payload.updated_at = new Date().toISOString()
 
-    let query = supabaseAdmin
-      .from(target.table)
-      .update(payload)
-      .in('id', validIds)
+    const buildUpdateQuery = () => {
+      let query = supabaseAdmin
+        .from(target.table)
+        .update(payload)
+        .in('id', validIds)
 
-    if (!target.projectScope) {
-      query = query.eq('project_id', projectId)
+      if (!target.projectScope) {
+        query = query.eq('project_id', projectId)
+      }
+
+      return query
     }
 
-    if (target.unsignedBoolColumn) {
-      query = query.eq(target.unsignedBoolColumn, false)
+    let updatedRows: Array<{ id: string }> = []
+    const canReplaceExistingSignature =
+      replaceExisting && signerKey === 'supervisor' && target.allowReplaceExisting === true
+
+    if (canReplaceExistingSignature) {
+      const { data, error } = await buildUpdateQuery().select('id')
+
+      if (error) {
+        console.error(`일괄서명 오류 (${target.table}.${target.signColumn}):`, error)
+        return NextResponse.json(
+          { success: false, error: `${target.table} 서명 저장에 실패했습니다.`, details: error.message },
+          { status: 500 }
+        )
+      }
+
+      updatedRows = (data || []) as Array<{ id: string }>
+    } else if (target.unsignedBoolColumn) {
+      const { data, error } = await buildUpdateQuery()
+        .eq(target.unsignedBoolColumn, false)
+        .select('id')
+
+      if (error) {
+        console.error(`일괄서명 오류 (${target.table}.${target.signColumn}):`, error)
+        return NextResponse.json(
+          { success: false, error: `${target.table} 서명 저장에 실패했습니다.`, details: error.message },
+          { status: 500 }
+        )
+      }
+
+      updatedRows = (data || []) as Array<{ id: string }>
     } else {
-      query = query.or(`${target.signColumn}.is.null,${target.signColumn}.eq.`)
+      // PostgREST의 UPDATE + or(null, empty) 조합은 일부 버전에서 대상 컬럼을
+      // 찾지 못하는 SQL(42703)을 생성한다. 조건을 분리하면 기존 서명을
+      // 덮어쓰지 않으면서 NULL/빈 문자열 두 형태의 미서명 값을 모두 처리한다.
+      const [nullResult, emptyResult] = await Promise.all([
+        buildUpdateQuery().is(target.signColumn, null).select('id'),
+        buildUpdateQuery().eq(target.signColumn, '').select('id'),
+      ])
+      const updateError = nullResult.error || emptyResult.error
+
+      if (updateError) {
+        console.error(`일괄서명 오류 (${target.table}.${target.signColumn}):`, updateError)
+        return NextResponse.json(
+          { success: false, error: `${target.table} 서명 저장에 실패했습니다.`, details: updateError.message },
+          { status: 500 }
+        )
+      }
+
+      updatedRows = [
+        ...((nullResult.data || []) as Array<{ id: string }>),
+        ...((emptyResult.data || []) as Array<{ id: string }>),
+      ]
     }
 
-    const { data: updatedRows, error: updateError } = await query.select('id')
-
-    if (updateError) {
-      console.error(`일괄서명 오류 (${target.table}.${target.signColumn}):`, updateError)
-      return NextResponse.json(
-        { success: false, error: `${target.table} 서명 저장에 실패했습니다.`, details: updateError.message },
-        { status: 500 }
-      )
-    }
-
-    updatedCounts[target.type] = updatedRows?.length || 0
-    totalUpdated += updatedRows?.length || 0
+    updatedCounts[target.type] = updatedRows.length
+    totalUpdated += updatedRows.length
   }
 
   return NextResponse.json({

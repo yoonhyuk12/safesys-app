@@ -1,7 +1,7 @@
 'use client'
 
 // 품질검사 실시대장 탭 (별지 제42호서식) — 대장 행 목록·작성·수정·삭제·엑셀 출력
-// 한 제출건(일련번호)에 시험·검사 종목~건설사업관리기술인 확인 항목을 여러 건 등록할 수 있다.
+// 한 제출건(일련번호)에 시험·검사 종목을 여러 건 등록하고 감독 서명은 목록에서 선택해 입력한다.
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import {
@@ -13,8 +13,17 @@ import {
   FileDown,
   Upload,
   Image as ImageIcon,
+  PenTool,
   ChevronDown,
   ChevronUp,
+  FlaskConical,
+  Building2,
+  BadgeCheck,
+  ArrowRight,
+  History,
+  Mountain,
+  ListChecks,
+  Hammer,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -35,6 +44,7 @@ interface QualityTestRecordsTabProps {
   projectId: string
   userId: string
   canDeleteQualityRecords: boolean
+  canSignQualityRecords: boolean
   projectName: string
   supervisorName?: string
 }
@@ -47,7 +57,7 @@ interface SummaryOption {
   created_at: string
 }
 
-type SignatureField = 'quality_engineer_signature' | 'supervision_engineer_signature'
+type SignatureField = 'quality_engineer_signature'
 type FormItem = QualityTestItemFields & {
   test_date: QualityTestCommonFields['test_date']
   _key: string
@@ -58,13 +68,46 @@ type ConcretePresetMode = 'standard' | 'schmidt'
 
 interface ConcretePreset {
   label: string
+  aggregate: number
   strength: number
   slump: number
 }
 
 const inputCls =
-  'w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
+  'w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
+
+const TEST_CATEGORY_DEFINITIONS: Record<string, string> = {
+  '자체(관리)시험': '시공자가 현장 시험실이나 이동 장비를 활용해 직접 수행하는 시험입니다.',
+  '의뢰(수탁)시험':
+    '현장에서 하기 어려운 시험을 공인 품질검사 전문기관에 의뢰하는 시험입니다.',
+  확인시험:
+    '기존 시험 결과를 검증하기 위해 발주자·공사감독자가 직접 하거나 전문기관에 의뢰하는 시험입니다.',
+}
+
+const TEST_CATEGORY_CARD_STYLES = [
+  {
+    icon: FlaskConical,
+    card: 'border-amber-200 hover:border-amber-400 hover:shadow-amber-100',
+    iconBox: 'bg-amber-100 text-amber-700',
+    number: 'bg-amber-50 text-amber-700',
+    action: 'text-amber-700',
+  },
+  {
+    icon: Building2,
+    card: 'border-sky-200 hover:border-sky-400 hover:shadow-sky-100',
+    iconBox: 'bg-sky-100 text-sky-700',
+    number: 'bg-sky-50 text-sky-700',
+    action: 'text-sky-700',
+  },
+  {
+    icon: BadgeCheck,
+    card: 'border-emerald-200 hover:border-emerald-400 hover:shadow-emerald-100',
+    iconBox: 'bg-emerald-100 text-emerald-700',
+    number: 'bg-emerald-50 text-emerald-700',
+    action: 'text-emerald-700',
+  },
+]
 
 const VERDICT_OPTIONS: TestVerdict[] = ['합격', '불합격', '재시험']
 const COMPRESSION_STRENGTH_TEST_ITEM = '압축강도'
@@ -75,6 +118,11 @@ const getTodayDateString = () => {
   const now = new Date()
   const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
   return localDate.toISOString().slice(0, 10)
+}
+
+const formatShortDate = (date: string | null) => {
+  if (!date) return '-'
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(2) : date
 }
 
 const getCompressionStrengthTestDate = (
@@ -88,21 +136,22 @@ const getCompressionStrengthTestDate = (
 }
 
 const CONCRETE_PRESETS: ConcretePreset[] = [
-  { label: '콘크리트(25-24-80)', strength: 24, slump: 80 },
-  { label: '콘크리트(25-24-120)', strength: 24, slump: 120 },
-  { label: '콘크리트(25-24-150)', strength: 24, slump: 150 },
-  { label: '콘크리트(25-27-80)', strength: 27, slump: 80 },
-  { label: '콘크리트(25-27-120)', strength: 27, slump: 120 },
-  { label: '콘크리트(25-27-150)', strength: 27, slump: 150 },
-  { label: '콘크리트(25-30-80)', strength: 30, slump: 80 },
-  { label: '콘크리트(25-30-120)', strength: 30, slump: 120 },
-  { label: '콘크리트(25-30-150)', strength: 30, slump: 150 },
+  { label: '콘크리트(25-24-80)', aggregate: 25, strength: 24, slump: 80 },
+  { label: '콘크리트(25-24-120)', aggregate: 25, strength: 24, slump: 120 },
+  { label: '콘크리트(25-24-150)', aggregate: 25, strength: 24, slump: 150 },
+  { label: '콘크리트(25-27-80)', aggregate: 25, strength: 27, slump: 80 },
+  { label: '콘크리트(25-27-120)', aggregate: 25, strength: 27, slump: 120 },
+  { label: '콘크리트(25-27-150)', aggregate: 25, strength: 27, slump: 150 },
+  { label: '콘크리트(25-30-80)', aggregate: 25, strength: 30, slump: 80 },
+  { label: '콘크리트(25-30-120)', aggregate: 25, strength: 30, slump: 120 },
+  { label: '콘크리트(25-30-150)', aggregate: 25, strength: 30, slump: 150 },
 ]
 
 export default function QualityTestRecordsTab({
   projectId,
   userId,
   canDeleteQualityRecords,
+  canSignQualityRecords,
   projectName,
   supervisorName = '',
 }: QualityTestRecordsTabProps) {
@@ -115,6 +164,7 @@ export default function QualityTestRecordsTab({
   const [commonData, setCommonData] = useState<QualityTestCommonFields | null>(null)
   const [items, setItems] = useState<FormItem[]>([])
   const [showMaterialPresets, setShowMaterialPresets] = useState(false)
+  const [concretePresetMode, setConcretePresetMode] = useState<ConcretePresetMode>('standard')
   const [copySourceSerialNo, setCopySourceSerialNo] = useState('')
   const [editingSerialNo, setEditingSerialNo] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
@@ -122,6 +172,11 @@ export default function QualityTestRecordsTab({
   const [photoReportDownloading, setPhotoReportDownloading] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [activeSign, setActiveSign] = useState<SignatureField | null>(null)
+  const [showTestCategorySelector, setShowTestCategorySelector] = useState(false)
+  const [isSupervisorSignMode, setIsSupervisorSignMode] = useState(false)
+  const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(() => new Set())
+  const [showSupervisorSignature, setShowSupervisorSignature] = useState(false)
+  const [supervisorSigning, setSupervisorSigning] = useState(false)
   const nextKeyRef = useRef(0)
   const newKey = () => String(nextKeyRef.current++)
 
@@ -154,6 +209,17 @@ export default function QualityTestRecordsTab({
     loadSummaries()
   }, [loadRecords, loadSummaries])
 
+  useEffect(() => {
+    if (!showTestCategorySelector) return
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowTestCategorySelector(false)
+    }
+
+    document.addEventListener('keydown', handleEscape)
+    return () => document.removeEventListener('keydown', handleEscape)
+  }, [showTestCategorySelector])
+
   const computeNextSerialNo = () => records.reduce((max, r) => Math.max(max, r.serial_no || 0), 0) + 1
   const availablePreviousSerialNos = Array.from(
     new Set(
@@ -179,12 +245,14 @@ export default function QualityTestRecordsTab({
   }
 
   const handleAddClick = () => {
-    // 직전 제출건의 기술인 성명·서명을 기본값으로 이어받아 반복 입력을 줄인다.
+    setShowTestCategorySelector(true)
+  }
+
+  const handleTestCategorySelect = (testCategory: QualityTestCommonFields['test_category']) => {
+    // 직전 제출건의 품질관리기술인 성명·서명을 기본값으로 이어받아 반복 입력을 줄인다.
     // 건설사업관리기술인 성명은 프로젝트 감독자 이름을 우선 기본값으로 사용한다.
     const last = records[records.length - 1]
     const supervisionName = supervisorName || last?.supervision_engineer_name || ''
-    const supervisionSignature =
-      last && last.supervision_engineer_name === supervisionName ? last.supervision_engineer_signature : ''
 
     // 총괄표가 있으면 최신 항목을 기본 선택하고, 없으면 미지정으로 저장한다.
     setSelectedSummaryId(summaries.length === 0 ? '' : summaries[summaries.length - 1].id)
@@ -192,11 +260,12 @@ export default function QualityTestRecordsTab({
     setShowMaterialPresets(false)
     setCopySourceSerialNo('')
     const initialCommonData = createEmptyQualityTestCommon({
+      test_category: testCategory,
       test_place: '현장시험실',
       quality_engineer_name: last?.quality_engineer_name || '',
       quality_engineer_signature: last?.quality_engineer_signature || '',
       supervision_engineer_name: supervisionName,
-      supervision_engineer_signature: supervisionSignature,
+      supervision_engineer_signature: '',
     })
     setCommonData(initialCommonData)
     setItems([
@@ -206,6 +275,7 @@ export default function QualityTestRecordsTab({
         _key: newKey(),
       },
     ])
+    setShowTestCategorySelector(false)
     setIsListExpanded(false)
     setShowForm(true)
   }
@@ -314,8 +384,8 @@ export default function QualityTestRecordsTab({
       photo_url: '',
       quality_engineer_name: first.quality_engineer_name,
       quality_engineer_signature: first.quality_engineer_signature,
-      supervision_engineer_name: first.supervision_engineer_name,
-      supervision_engineer_signature: first.supervision_engineer_signature,
+      supervision_engineer_name: supervisorName || first.supervision_engineer_name,
+      supervision_engineer_signature: '',
       note: first.note,
     })
     setItems(
@@ -389,14 +459,6 @@ export default function QualityTestRecordsTab({
         missing: !commonData.quality_engineer_signature.trim(),
         message: '품질관리기술인 서명을 입력해주세요.',
       },
-      {
-        missing: !commonData.supervision_engineer_name.trim(),
-        message: '건설사업관리기술인 이름을 입력해주세요.',
-      },
-      {
-        missing: !commonData.supervision_engineer_signature.trim(),
-        message: '건설사업관리기술인 서명을 입력해주세요.',
-      },
       { missing: !commonData.test_date, message: '연월일을 입력해주세요.' },
       { missing: !commonData.test_category.trim(), message: '시험·검사구분을 선택해주세요.' },
       { missing: !commonData.target_material.trim(), message: '품질검사 대상 재료를 입력해주세요.' },
@@ -455,8 +517,16 @@ export default function QualityTestRecordsTab({
 
       for (const it of items) {
         const rowData = {
-          ...commonData,
           test_date: it.test_date,
+          test_category: commonData.test_category,
+          work_type: commonData.work_type,
+          target_material: commonData.target_material,
+          supplier_factory: commonData.supplier_factory,
+          test_place: commonData.test_place,
+          photo_url: commonData.photo_url,
+          quality_engineer_name: commonData.quality_engineer_name,
+          quality_engineer_signature: commonData.quality_engineer_signature,
+          note: commonData.note,
           summary_id: summaryId,
           test_item: it.test_item,
           test_standard: it.test_standard,
@@ -472,7 +542,12 @@ export default function QualityTestRecordsTab({
         } else {
           const { error } = await (supabase as any)
             .from('quality_test_records')
-            .insert([{ ...rowData, created_by: userId }])
+            .insert([{
+              ...rowData,
+              supervision_engineer_name: commonData.supervision_engineer_name,
+              supervision_engineer_signature: '',
+              created_by: userId,
+            }])
           if (error) throw error
         }
       }
@@ -649,6 +724,81 @@ export default function QualityTestRecordsTab({
     setItems((prev) => prev.map((it) => (it._key === itemKey ? { ...it, [field]: value } : it)))
   }
 
+  const selectableRecordIds = records.map((record) => record.id)
+  const allRecordsSelected =
+    selectableRecordIds.length > 0 && selectableRecordIds.every((id) => selectedRecordIds.has(id))
+
+  const startSupervisorSignMode = () => {
+    setIsListExpanded(true)
+    setSelectedRecordIds(new Set())
+    setIsSupervisorSignMode(true)
+  }
+
+  const closeSupervisorSignMode = () => {
+    setShowSupervisorSignature(false)
+    setSelectedRecordIds(new Set())
+    setIsSupervisorSignMode(false)
+  }
+
+  const toggleRecordSelection = (record: QualityTestRecord) => {
+    setSelectedRecordIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(record.id)) next.delete(record.id)
+      else next.add(record.id)
+      return next
+    })
+  }
+
+  const toggleAllRecords = () => {
+    setSelectedRecordIds(allRecordsSelected ? new Set() : new Set(selectableRecordIds))
+  }
+
+  const handleSupervisorSignatureSave = async (signatureData: string) => {
+    if (selectedRecordIds.size === 0) return
+
+    setSupervisorSigning(true)
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (sessionError || !accessToken) {
+        throw new Error('로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.')
+      }
+
+      const response = await fetch('/api/bulk-sign', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          project_id: projectId,
+          signature_data: signatureData,
+          signer: 'supervisor',
+          replace_existing: true,
+          items: { quality_test_record: Array.from(selectedRecordIds) },
+        }),
+      })
+      const result = (await response.json()) as {
+        success?: boolean
+        error?: string
+        updated_total?: number
+      }
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || '감독 서명 저장에 실패했습니다.')
+      }
+
+      const updatedCount = result.updated_total ?? 0
+      closeSupervisorSignMode()
+      await loadRecords()
+      alert(`${updatedCount}건의 감독 서명이 완료되었습니다.`)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '알 수 없는 오류'
+      alert('감독 서명 실패: ' + message)
+    } finally {
+      setSupervisorSigning(false)
+    }
+  }
+
   // 목록 렌더용 — 로드 정렬(일련번호·created_at 오름차순) 유지
   const shouldHideRepeatedField = (
     record: QualityTestRecord,
@@ -671,11 +821,32 @@ export default function QualityTestRecordsTab({
   const renderRecordRow = (record: QualityTestRecord, index: number) => (
     <tr
       key={record.id}
-      onClick={() => handleSelectRecord(record)}
-      className={`border-t border-gray-100 cursor-pointer hover:bg-amber-50 ${
-        editingSerialNo === record.serial_no ? 'bg-amber-50' : ''
+      onClick={() => {
+        if (isSupervisorSignMode) toggleRecordSelection(record)
+        else handleSelectRecord(record)
+      }}
+      aria-selected={isSupervisorSignMode ? selectedRecordIds.has(record.id) : undefined}
+      className={`border-t border-gray-100 ${
+        isSupervisorSignMode
+          ? 'cursor-pointer hover:bg-amber-50'
+          : 'cursor-pointer hover:bg-amber-50'
+      } ${
+        selectedRecordIds.has(record.id) || editingSerialNo === record.serial_no ? 'bg-amber-50' : ''
       }`}
     >
+      {isSupervisorSignMode && (
+        <td className="px-2 py-2 text-center">
+          <input
+            type="checkbox"
+            checked={selectedRecordIds.has(record.id)}
+            onClick={(event) => event.stopPropagation()}
+            onChange={() => toggleRecordSelection(record)}
+            aria-label={`일련번호 ${record.serial_no ?? index + 1} 감독 서명 선택`}
+            title={record.supervision_engineer_signature ? '기존 감독 서명을 새 서명으로 대체' : '감독 서명 선택'}
+            className="h-4 w-4 accent-amber-600"
+          />
+        </td>
+      )}
       <td className="px-2 py-2 text-center text-gray-500">{record.serial_no ?? index + 1}</td>
       <td className="px-2 py-2 text-center">
         {canDeleteQualityRecords && (
@@ -692,7 +863,9 @@ export default function QualityTestRecordsTab({
         )}
       </td>
       <td className="px-2 py-2 text-center whitespace-nowrap">
-        {shouldHideRepeatedField(record, index, 'test_date') ? '' : record.test_date || '-'}
+        {shouldHideRepeatedField(record, index, 'test_date')
+          ? ''
+          : formatShortDate(record.test_date)}
       </td>
       <td className="px-2 py-2 text-center whitespace-nowrap">
         {shouldHideRepeatedField(record, index, 'test_category') ? '' : record.test_category || '-'}
@@ -802,33 +975,80 @@ export default function QualityTestRecordsTab({
               <FileDown className="h-4 w-4" />
               HWP 양식
             </a>
-            <button
-              onClick={handleLedgerDownload}
-              disabled={ledgerDownloading || records.length === 0}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium disabled:opacity-50"
-              title="품질검사 실시대장 엑셀 출력"
-            >
-              <Printer className="h-4 w-4" />
-              대장 출력
-            </button>
-            <button
-              onClick={handlePhotoReportDownload}
-              disabled={photoReportDownloading || !records.some((r) => r.photo_url)}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium disabled:opacity-50"
-              title="사진대지 PDF 출력"
-            >
-              <ImageIcon className="h-4 w-4" />
-              사진대지
-            </button>
-            <button
-              onClick={handleAddClick}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium"
-            >
-              <Plus className="h-4 w-4" />
-              추가
-            </button>
+            {canSignQualityRecords && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSupervisorSignMode) setShowSupervisorSignature(true)
+                  else startSupervisorSignMode()
+                }}
+                disabled={
+                  records.length === 0 ||
+                  (isSupervisorSignMode && selectedRecordIds.size === 0)
+                }
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${
+                  isSupervisorSignMode
+                    ? 'bg-amber-950 text-white hover:bg-amber-900'
+                    : 'bg-white text-amber-700 hover:bg-amber-50'
+                }`}
+                title={
+                  records.length === 0
+                    ? '감독 서명할 항목이 없습니다.'
+                    : isSupervisorSignMode
+                      ? `선택한 ${selectedRecordIds.size}건의 감독 서명을 저장하거나 대체`
+                      : '목록에서 항목을 선택해 감독 서명 또는 기존 서명 대체'
+                }
+              >
+                <PenTool className="h-4 w-4" />
+                {isSupervisorSignMode ? `${selectedRecordIds.size}건 서명` : '감독서명'}
+              </button>
+            )}
+            {isSupervisorSignMode ? (
+              <button
+                type="button"
+                onClick={closeSupervisorSignMode}
+                className="flex items-center gap-1 rounded-lg border border-white/60 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/10 sm:text-sm"
+              >
+                취소
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={handleLedgerDownload}
+                  disabled={ledgerDownloading || records.length === 0}
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium disabled:opacity-50"
+                  title="품질검사 실시대장 엑셀 출력"
+                >
+                  <Printer className="h-4 w-4" />
+                  대장 출력
+                </button>
+                <button
+                  onClick={handlePhotoReportDownload}
+                  disabled={photoReportDownloading || !records.some((r) => r.photo_url)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium disabled:opacity-50"
+                  title="사진대지 PDF 출력"
+                >
+                  <ImageIcon className="h-4 w-4" />
+                  사진대지
+                </button>
+                <button
+                  onClick={handleAddClick}
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium"
+                >
+                  <Plus className="h-4 w-4" />
+                  추가
+                </button>
+              </>
+            )}
           </div>
         </div>
+
+        {isSupervisorSignMode && (
+          <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+            <span>서명할 행을 체크한 뒤 상단의 서명 버튼을 눌러주세요. 기존 서명은 새 서명으로 대체됩니다.</span>
+            <span className="shrink-0 font-semibold">{selectedRecordIds.size}건 선택</span>
+          </div>
+        )}
 
         {isListExpanded && (
           <div id="quality-test-record-list">
@@ -848,10 +1068,22 @@ export default function QualityTestRecordsTab({
                 </button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="max-h-[calc(100vh-12rem)] overflow-auto">
                 <table className="w-full border-collapse text-sm [&_th]:border-r [&_th]:border-gray-200 [&_th:last-child]:border-r-0 [&_td]:border-r [&_td]:border-gray-200 [&_td:last-child]:border-r-0">
-                  <thead>
+                  <thead className="sticky top-0 z-10 bg-gray-50 shadow-[0_1px_0_0_#e5e7eb]">
                     <tr className="bg-gray-50 text-gray-600 text-xs">
+                      {isSupervisorSignMode && (
+                        <th className="px-2 py-2 text-center whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={allRecordsSelected}
+                            onChange={toggleAllRecords}
+                            aria-label="감독 서명 항목 전체 선택"
+                            title="감독 서명 항목 전체 선택"
+                            className="h-4 w-4 accent-amber-600"
+                          />
+                        </th>
+                      )}
                       <th className="px-2 py-2 text-center whitespace-nowrap">일련번호</th>
                       <th className="px-2 py-2 text-center whitespace-nowrap">삭제</th>
                       <th className="px-2 py-2 text-center whitespace-nowrap">연월일</th>
@@ -878,10 +1110,90 @@ export default function QualityTestRecordsTab({
         )}
       </div>
 
+      {showTestCategorySelector && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setShowTestCategorySelector(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="시험·검사구분 선택"
+            aria-describedby="quality-test-category-dialog-description"
+            className="max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto rounded-2xl border border-white/60 bg-gradient-to-br from-white via-white to-amber-50 p-5 shadow-2xl sm:p-7"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">시험·검사구분 선택</h2>
+                <p
+                  id="quality-test-category-dialog-description"
+                  className="mt-1 text-sm text-gray-500"
+                >
+                  등록할 기록의 시험·검사구분을 선택해주세요.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTestCategorySelector(false)}
+                aria-label="시험·검사구분 선택 창 닫기"
+                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              {TEST_CATEGORY_OPTIONS.map((option, index) => {
+                const definition = TEST_CATEGORY_DEFINITIONS[option]
+                const style = TEST_CATEGORY_CARD_STYLES[index]
+                const Icon = style.icon
+
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    autoFocus={index === 0}
+                    onClick={() => handleTestCategorySelect(option)}
+                    className={`group flex h-full min-h-[14rem] flex-col rounded-2xl border-2 bg-white/90 p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${style.card}`}
+                  >
+                    <span className="flex items-start justify-between gap-3">
+                      <span
+                        className={`flex h-12 w-12 items-center justify-center rounded-2xl ${style.iconBox}`}
+                      >
+                        <Icon className="h-6 w-6" aria-hidden="true" />
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-bold tracking-wider ${style.number}`}
+                      >
+                        0{index + 1}
+                      </span>
+                    </span>
+                    <span className="mt-5 text-lg font-bold text-gray-900">{option}</span>
+                    <span className="mt-2 flex-1 text-sm leading-6 text-gray-600">
+                      {definition}
+                    </span>
+                    <span
+                      className={`mt-5 flex items-center gap-1.5 text-sm font-semibold ${style.action}`}
+                    >
+                      선택하기
+                      <ArrowRight
+                        className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1"
+                        aria-hidden="true"
+                      />
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 작성/수정 폼 */}
       {showForm && commonData && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-          <div className="bg-amber-600 text-white px-4 py-3 flex items-center justify-between">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-visible">
+          <div className="bg-amber-600 text-white px-4 py-3 flex items-center justify-between rounded-t-lg">
             <h2 className="font-semibold text-sm sm:text-base truncate">
               시험·검사 기록 {editingSerialNo !== null ? '수정' : '등록'}
             </h2>
@@ -890,28 +1202,25 @@ export default function QualityTestRecordsTab({
             </button>
           </div>
 
-          <div className="p-3 sm:p-4 space-y-4">
+          <div className="p-3 sm:p-4 space-y-4 bg-gray-100 rounded-b-lg">
             {/* 공통 항목 — 한 제출건 내 모든 시험 항목이 공유 */}
             <div className="space-y-3">
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
                 <div>
                   <label className={labelCls}>일련번호</label>
                   <input
                     type="text"
                     value={editingSerialNo ?? computeNextSerialNo()}
                     disabled
-                    className={`${inputCls} bg-gray-100 text-gray-500`}
+                    className={`${inputCls} disabled:bg-gray-200 text-gray-500`}
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div>
+                <div className="sm:col-span-2">
                   <label className={labelCls}>품질관리기술인 *</label>
                   <div
                     className="flex items-center gap-2"
                     role="group"
                     aria-label="품질관리기술인 이름 및 서명 (필수)"
-                    aria-required="true"
                   >
                     <input
                       type="text"
@@ -949,49 +1258,6 @@ export default function QualityTestRecordsTab({
                   </div>
                 </div>
                 <div>
-                  <label className={labelCls}>건설사업관리기술인 확인 *</label>
-                  <div
-                    className="flex items-center gap-2"
-                    role="group"
-                    aria-label="건설사업관리기술인 이름 및 서명 (필수)"
-                    aria-required="true"
-                  >
-                    <input
-                      type="text"
-                      value={commonData.supervision_engineer_name}
-                      onChange={(e) => setCommon('supervision_engineer_name', e.target.value)}
-                      placeholder="성명"
-                      required
-                      aria-required="true"
-                      className={`${inputCls} max-w-[180px]`}
-                    />
-                    {commonData.supervision_engineer_signature ? (
-                      <button
-                        type="button"
-                        onClick={() => setActiveSign('supervision_engineer_signature')}
-                        aria-label="건설사업관리기술인 다시 서명 (필수)"
-                        title="다시 서명"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={commonData.supervision_engineer_signature}
-                          alt="건설사업관리기술인 서명"
-                          className="h-9 border rounded cursor-pointer hover:opacity-80"
-                        />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setActiveSign('supervision_engineer_signature')}
-                        aria-label="건설사업관리기술인 서명 (필수)"
-                        className="px-3 py-1.5 text-sm rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 flex-shrink-0"
-                      >
-                        서명
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div>
                   <label className={labelCls}>연월일 *</label>
                   <input
                     type="date"
@@ -1002,33 +1268,32 @@ export default function QualityTestRecordsTab({
                     className={inputCls}
                   />
                 </div>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-5">
-                <div>
-                <label className={labelCls}>시험·검사구분 *</label>
-                <div
-                  className="flex gap-1.5"
-                  role="group"
-                  aria-label="시험·검사구분 (필수)"
-                  aria-required="true"
-                >
-                  {TEST_CATEGORY_OPTIONS.map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setCommon('test_category', opt)}
-                      className={`flex-1 px-2 py-1.5 rounded text-xs sm:text-sm font-medium transition-colors ${
-                        commonData.test_category === opt
-                          ? 'bg-amber-600 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-amber-100'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
+                <div className="sm:col-span-2">
+                  <label className={labelCls}>시험·검사구분 *</label>
+                  <div
+                    className="flex gap-1.5"
+                    role="group"
+                    aria-label="시험·검사구분 (필수)"
+                  >
+                    {TEST_CATEGORY_OPTIONS.map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => setCommon('test_category', opt)}
+                        className={`flex-1 whitespace-nowrap px-2 py-1.5 rounded text-xs sm:text-sm font-medium transition-colors ${
+                          commonData.test_category === opt
+                            ? 'bg-amber-600 text-white'
+                            : 'bg-gray-100 text-gray-600 hover:bg-amber-100'
+                        }`}
+                      >
+                        {opt.replace('시험', '')}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
-              <div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+                <div>
                 <label className={labelCls}>품질검사 대상 재료 *</label>
                 <div
                   className="relative"
@@ -1048,10 +1313,10 @@ export default function QualityTestRecordsTab({
                     onKeyDown={(e) => {
                       if (e.key === 'Escape') setShowMaterialPresets(false)
                     }}
-                    placeholder="콘크리트 규격 선택 또는 직접 입력"
+                    placeholder="프리셋 선택 또는 직접 입력"
                     role="combobox"
                     aria-autocomplete="list"
-                    aria-haspopup="listbox"
+                    aria-haspopup="dialog"
                     aria-expanded={showMaterialPresets}
                     aria-controls="concrete-material-presets"
                     required
@@ -1061,97 +1326,207 @@ export default function QualityTestRecordsTab({
                   {showMaterialPresets && (
                     <div
                       id="concrete-material-presets"
-                      role="listbox"
+                      role="dialog"
                       aria-label="품질검사 대상 재료 프리셋"
-                      className="absolute z-30 mt-1 w-full min-w-[280px] rounded-lg border border-gray-200 bg-white p-2 shadow-xl"
+                      className="absolute left-0 z-30 mt-2 max-h-[min(38rem,70vh)] w-[min(44rem,calc(100vw-2rem))] overflow-y-auto rounded-2xl border border-gray-200 bg-gray-50/95 p-4 shadow-2xl backdrop-blur"
                     >
-                      <div className="mb-2 flex gap-1.5 rounded border border-violet-200 bg-violet-50 p-2">
-                        <select
-                          value={selectedCopySerialNo ?? ''}
-                          onChange={(e) => setCopySourceSerialNo(e.target.value)}
-                          disabled={availablePreviousSerialNos.length === 0}
-                          aria-label="불러올 이전 일련번호 선택"
-                          className="min-w-0 flex-1 rounded border border-violet-200 bg-white px-2 py-1.5 text-xs text-violet-800 focus:outline-none focus:ring-1 focus:ring-violet-500 disabled:bg-gray-100 disabled:text-gray-400"
-                        >
-                          {availablePreviousSerialNos.length === 0 ? (
-                            <option value="">이전 기록 없음</option>
-                          ) : (
-                            availablePreviousSerialNos.map((serialNo) => (
-                              <option key={serialNo} value={serialNo}>
-                                일련번호 {serialNo}번
-                              </option>
-                            ))
-                          )}
-                        </select>
+                      <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-start justify-between gap-4 border-b border-gray-200 bg-gray-50/95 px-4 py-4 backdrop-blur">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-100 text-amber-700">
+                            <FlaskConical className="h-5 w-5" aria-hidden="true" />
+                          </span>
+                          <div>
+                            <h3 className="text-sm font-bold text-gray-900">시험 항목 프리셋</h3>
+                            <p className="mt-0.5 text-xs text-gray-500">
+                              필요한 항목 묶음을 선택하면 입력란이 자동으로 채워집니다.
+                            </p>
+                          </div>
+                        </div>
                         <button
                           type="button"
-                          onClick={handleCopyPreviousRecord}
-                          disabled={selectedCopySerialNo === null}
-                          className="shrink-0 rounded bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                          onClick={() => setShowMaterialPresets(false)}
+                          aria-label="시험 항목 프리셋 닫기"
+                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-white hover:text-gray-700"
                         >
-                          불러오기
-                          <span className="ml-1 text-[10px] font-normal opacity-80">사진 제외</span>
+                          <X className="h-4 w-4" />
                         </button>
                       </div>
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={commonData.target_material === '되메우기'}
-                        onClick={handleApplyEarthworkPreset}
-                        className={`mb-2 flex w-full items-center justify-between rounded border px-3 py-2 text-left text-xs transition-colors ${
-                          commonData.target_material === '되메우기'
-                            ? 'border-emerald-300 bg-emerald-100 font-semibold text-emerald-800'
-                            : 'border-emerald-100 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                        }`}
-                      >
-                        <span>되메우기</span>
-                        <span className="text-[11px] font-normal">함수비 · 현장밀도</span>
-                      </button>
-                      <p className="px-1 pb-2 text-xs font-semibold text-gray-600">
-                        콘크리트 규격은 시험 항목 5개, 옆의 ‘슈’는 슈미트해머 항목 1개를 입력합니다.
-                      </p>
-                      <div className="grid grid-cols-1 gap-1 sm:grid-cols-3">
-                        {CONCRETE_PRESETS.map((preset) => {
-                          const isSchmidtSelected =
-                            commonData.target_material === preset.label &&
-                            items.length === 1 &&
-                            items[0]?.test_item === '슈미트해머'
-                          const isStandardSelected =
-                            commonData.target_material === preset.label && !isSchmidtSelected
 
-                          return (
-                            <div key={preset.label} className="flex overflow-hidden rounded border border-gray-100">
-                              <button
-                                type="button"
-                                role="option"
-                                aria-selected={isStandardSelected}
-                                onClick={() => handleApplyConcretePreset(preset)}
-                                className={`min-w-0 flex-1 px-2 py-2 text-left text-xs transition-colors ${
-                                  isStandardSelected
-                                    ? 'bg-amber-100 font-semibold text-amber-800'
-                                    : 'text-gray-700 hover:bg-amber-50 hover:text-amber-800'
-                                }`}
-                              >
-                                {preset.label}
-                              </button>
-                              <button
-                                type="button"
-                                role="option"
-                                aria-label={`${preset.label} 슈미트해머 프리셋`}
-                                aria-selected={isSchmidtSelected}
-                                onClick={() => handleApplyConcretePreset(preset, 'schmidt')}
-                                title="슈미트해머 항목만 입력"
-                                className={`shrink-0 border-l px-2 py-2 text-xs font-bold transition-colors ${
-                                  isSchmidtSelected
-                                    ? 'border-blue-300 bg-blue-600 text-white'
-                                    : 'border-gray-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                                }`}
-                              >
-                                슈
-                              </button>
-                            </div>
-                          )
-                        })}
+                      <div className="space-y-4">
+                        <section className="rounded-xl border border-violet-100 bg-violet-50/70 p-3">
+                          <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-violet-800">
+                            <History className="h-4 w-4" aria-hidden="true" />
+                            이전 기록 불러오기
+                            <span className="font-normal text-violet-600">사진 제외</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <select
+                              value={selectedCopySerialNo ?? ''}
+                              onChange={(e) => setCopySourceSerialNo(e.target.value)}
+                              disabled={availablePreviousSerialNos.length === 0}
+                              aria-label="불러올 이전 일련번호 선택"
+                              className="min-w-0 flex-1 rounded-lg border border-violet-200 bg-white px-3 py-2 text-xs text-violet-800 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:bg-gray-100 disabled:text-gray-400"
+                            >
+                              {availablePreviousSerialNos.length === 0 ? (
+                                <option value="">이전 기록 없음</option>
+                              ) : (
+                                availablePreviousSerialNos.map((serialNo) => (
+                                  <option key={serialNo} value={serialNo}>
+                                    일련번호 {serialNo}번
+                                  </option>
+                                ))
+                              )}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={handleCopyPreviousRecord}
+                              disabled={selectedCopySerialNo === null}
+                              className="shrink-0 rounded-lg bg-violet-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-violet-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                            >
+                              불러오기
+                            </button>
+                          </div>
+                        </section>
+
+                        <section>
+                          <p className="mb-2 text-xs font-bold text-gray-700">토공</p>
+                          <button
+                            type="button"
+                            aria-pressed={commonData.target_material === '되메우기'}
+                            onClick={handleApplyEarthworkPreset}
+                            className={`flex w-full items-center justify-between rounded-xl border-2 bg-white p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-400 ${
+                              commonData.target_material === '되메우기'
+                                ? 'border-emerald-400 bg-emerald-50'
+                                : 'border-emerald-100 hover:border-emerald-300'
+                            }`}
+                          >
+                            <span className="flex items-center gap-3">
+                              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                                <Mountain className="h-5 w-5" aria-hidden="true" />
+                              </span>
+                              <span>
+                                <span className="block text-sm font-bold text-gray-900">되메우기</span>
+                                <span className="mt-0.5 block text-xs text-gray-500">
+                                  함수비 · 현장밀도
+                                </span>
+                              </span>
+                            </span>
+                            <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+                              2개 항목
+                            </span>
+                          </button>
+                        </section>
+
+                        <section>
+                          <div className="mb-3">
+                            <p className="text-xs font-bold text-gray-700">콘크리트</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              시험 유형을 고른 뒤 규격 카드를 선택해주세요.
+                            </p>
+                          </div>
+
+                          <div className="mb-3 grid gap-2 sm:grid-cols-2">
+                            <button
+                              type="button"
+                              aria-pressed={concretePresetMode === 'standard'}
+                              onClick={() => setConcretePresetMode('standard')}
+                              className={`flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+                                concretePresetMode === 'standard'
+                                  ? 'border-amber-400 bg-amber-50'
+                                  : 'border-gray-200 bg-white hover:border-amber-200'
+                              }`}
+                            >
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+                                <ListChecks className="h-4 w-4" aria-hidden="true" />
+                              </span>
+                              <span>
+                                <span className="block text-xs font-bold text-gray-900">
+                                  기본 품질시험
+                                </span>
+                                <span className="mt-0.5 block text-[11px] text-gray-500">
+                                  슬럼프 등 5개 항목
+                                </span>
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              aria-pressed={concretePresetMode === 'schmidt'}
+                              onClick={() => setConcretePresetMode('schmidt')}
+                              className={`flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-sky-400 ${
+                                concretePresetMode === 'schmidt'
+                                  ? 'border-sky-400 bg-sky-50'
+                                  : 'border-gray-200 bg-white hover:border-sky-200'
+                              }`}
+                            >
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700">
+                                <Hammer className="h-4 w-4" aria-hidden="true" />
+                              </span>
+                              <span>
+                                <span className="block text-xs font-bold text-gray-900">
+                                  슈미트해머
+                                </span>
+                                <span className="mt-0.5 block text-[11px] text-gray-500">
+                                  반발경도 1개 항목
+                                </span>
+                              </span>
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {CONCRETE_PRESETS.map((preset) => {
+                              const isSchmidtSelected =
+                                commonData.target_material === preset.label &&
+                                items.length === 1 &&
+                                items[0]?.test_item === '슈미트해머'
+                              const isSelected =
+                                commonData.target_material === preset.label &&
+                                (concretePresetMode === 'schmidt'
+                                  ? isSchmidtSelected
+                                  : !isSchmidtSelected)
+
+                              return (
+                                <button
+                                  key={preset.label}
+                                  type="button"
+                                  aria-label={`${preset.label}, ${
+                                    concretePresetMode === 'schmidt'
+                                      ? '슈미트해머 1개 항목'
+                                      : '기본 품질시험 5개 항목'
+                                  }`}
+                                  aria-pressed={isSelected}
+                                  onClick={() => handleApplyConcretePreset(preset, concretePresetMode)}
+                                  className={`group relative rounded-xl border-2 p-3 text-left transition-all hover:-translate-y-0.5 hover:shadow-md focus:outline-none focus:ring-2 ${
+                                    isSelected
+                                      ? concretePresetMode === 'schmidt'
+                                        ? 'border-sky-400 bg-sky-50 focus:ring-sky-400'
+                                        : 'border-amber-400 bg-amber-50 focus:ring-amber-400'
+                                      : 'border-gray-200 bg-white hover:border-amber-200 focus:ring-amber-400'
+                                  }`}
+                                >
+                                  {isSelected && (
+                                    <BadgeCheck
+                                      className={`absolute right-2.5 top-2.5 h-4 w-4 ${
+                                        concretePresetMode === 'schmidt'
+                                          ? 'text-sky-600'
+                                          : 'text-amber-600'
+                                      }`}
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                  <span className="block text-[10px] font-semibold tracking-wide text-gray-400">
+                                    {preset.aggregate}-{preset.strength}-{preset.slump}
+                                  </span>
+                                  <span className="mt-1 block text-sm font-bold text-gray-900">
+                                    강도 {preset.strength} MPa
+                                  </span>
+                                  <span className="mt-1 block text-[11px] leading-5 text-gray-500">
+                                    골재 {preset.aggregate} mm · 슬럼프 {preset.slump} mm
+                                  </span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </section>
                       </div>
                     </div>
                   )}
@@ -1195,7 +1570,7 @@ export default function QualityTestRecordsTab({
               </div>
               </div>
               <div className="grid grid-cols-1 gap-3">
-                <div role="group" aria-label="사진 (필수)" aria-required="true">
+                <div role="group" aria-label="사진 (필수)">
                   <label className={labelCls}>사진 (사진대지 출력용) *</label>
                   {commonData.photo_url ? (
                     <div className="relative inline-block">
@@ -1215,7 +1590,7 @@ export default function QualityTestRecordsTab({
                     </button>
                     </div>
                   ) : (
-                    <label className="flex items-center justify-center gap-1 border-2 border-dashed border-gray-300 rounded-lg h-16 bg-white hover:bg-gray-50 cursor-pointer text-xs text-gray-500">
+                    <label className="flex w-fit items-center justify-center gap-1 border border-gray-300 rounded-lg px-4 py-2 bg-white hover:bg-gray-50 cursor-pointer text-xs text-gray-500">
                     {uploadingPhoto ? (
                       '업로드중...'
                     ) : (
@@ -1242,7 +1617,7 @@ export default function QualityTestRecordsTab({
             {/* 항목별 반복 등록 — 시험·검사 종목 ~ 시험 결과 판정 */}
             <div className="space-y-3">
               {items.map((item, idx) => (
-                <div key={item._key} className="border border-gray-200 rounded-lg p-3 space-y-3 bg-gray-50/50">
+                <div key={item._key} className="border border-gray-300 rounded-lg p-3 space-y-3">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-semibold text-amber-700">항목 {idx + 1}</span>
                     <button
@@ -1309,7 +1684,6 @@ export default function QualityTestRecordsTab({
                         className="grid grid-cols-3 overflow-hidden rounded border border-gray-300"
                         role="group"
                         aria-label="시험 결과 판정 (필수)"
-                        aria-required="true"
                       >
                         {VERDICT_OPTIONS.map((opt, optionIndex) => {
                           const isSelected = item.result_verdict === opt
@@ -1387,6 +1761,12 @@ export default function QualityTestRecordsTab({
           if (activeSign) setCommon(activeSign, signatureData)
           setActiveSign(null)
         }}
+      />
+      <SignatureModal
+        isOpen={showSupervisorSignature}
+        onClose={() => setShowSupervisorSignature(false)}
+        onSave={handleSupervisorSignatureSave}
+        isSubmitting={supervisorSigning}
       />
     </div>
   )
