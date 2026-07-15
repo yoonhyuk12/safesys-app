@@ -352,6 +352,9 @@ const Dashboard: React.FC = () => {
   const [handoverModal, setHandoverModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; project: Project | null }>({ isOpen: false, project: null })
   const [mergeModalOpen, setMergeModalOpen] = useState(false)
+  const [mergeSelectionStep, setMergeSelectionStep] = useState<'source' | 'target' | null>(null)
+  const [mergeSource, setMergeSource] = useState<Project | null>(null)
+  const [mergeTarget, setMergeTarget] = useState<Project | null>(null)
   const [sharedProjects, setSharedProjects] = useState<Project[]>([])
   const userMenuRef = useRef<HTMLDivElement>(null)
   const isDataLoaded = useRef(false)
@@ -381,6 +384,34 @@ const Dashboard: React.FC = () => {
   const [isProjectEditMode, setIsProjectEditMode] = useState(false)
   const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null)
   const [dragOverProjectId, setDragOverProjectId] = useState<string | null>(null)
+
+  const resetMergeSelection = () => {
+    setMergeModalOpen(false)
+    setMergeSelectionStep(null)
+    setMergeSource(null)
+    setMergeTarget(null)
+  }
+
+  const handleMergeSelectionStart = () => {
+    resetMergeSelection()
+    setIsProjectEditMode(false)
+    setMergeSelectionStep('source')
+  }
+
+  const handleMergeProjectSelect = (project: Project) => {
+    if (mergeSelectionStep === 'source') {
+      setMergeSource(project)
+      setMergeTarget(null)
+      setMergeSelectionStep('target')
+      return
+    }
+
+    if (mergeSelectionStep === 'target' && mergeSource && project.id !== mergeSource.id) {
+      setMergeTarget(project)
+      setMergeSelectionStep(null)
+      setMergeModalOpen(true)
+    }
+  }
 
   // 전사 보기 가능 여부: 발주청이면서 관리자급(hq_division 없음) 또는 본사 소속 또는 본부 지사 사용자
   const canSeeAllHq = React.useMemo(() => {
@@ -4258,6 +4289,10 @@ const Dashboard: React.FC = () => {
                                     hqPendingCount={hqPendingCounts[project.id]}
                                     safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
                                     qualityRejectionCount={qualityRejectionCounts[project.id]}
+                                    mergeSelectionMode={mergeSelectionStep ?? undefined}
+                                    mergeSelectionState={project.id === mergeSource?.id ? 'source' : project.id === mergeTarget?.id ? 'target' : undefined}
+                                    mergeSelectionDisabled={mergeSelectionStep === 'target' && project.id === mergeSource?.id}
+                                    onMergeSelect={handleMergeProjectSelect}
                                   />
                                 ))}
                               </div>
@@ -4391,6 +4426,10 @@ const Dashboard: React.FC = () => {
                                     hqPendingCount={hqPendingCounts[project.id]}
                                     safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
                                     qualityRejectionCount={qualityRejectionCounts[project.id]}
+                                    mergeSelectionMode={mergeSelectionStep ?? undefined}
+                                    mergeSelectionState={project.id === mergeSource?.id ? 'source' : project.id === mergeTarget?.id ? 'target' : undefined}
+                                    mergeSelectionDisabled={mergeSelectionStep === 'target' && project.id === mergeSource?.id}
+                                    onMergeSelect={handleMergeProjectSelect}
                                   />
                                 ))}
                               </div>
@@ -4548,6 +4587,10 @@ const Dashboard: React.FC = () => {
                                       hqPendingCount={hqPendingCounts[project.id]}
                                       safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
                                       qualityRejectionCount={qualityRejectionCounts[project.id]}
+                                      mergeSelectionMode={mergeSelectionStep ?? undefined}
+                                      mergeSelectionState={project.id === mergeSource?.id ? 'source' : project.id === mergeTarget?.id ? 'target' : undefined}
+                                      mergeSelectionDisabled={mergeSelectionStep === 'target' && project.id === mergeSource?.id}
+                                      onMergeSelect={handleMergeProjectSelect}
                                     />
                                   ))}
                                 </div>
@@ -4605,6 +4648,10 @@ const Dashboard: React.FC = () => {
                         hqPendingCount={hqPendingCounts[project.id]}
                         safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
                         qualityRejectionCount={qualityRejectionCounts[project.id]}
+                        mergeSelectionMode={mergeSelectionStep ?? undefined}
+                        mergeSelectionState={project.id === mergeSource?.id ? 'source' : project.id === mergeTarget?.id ? 'target' : undefined}
+                        mergeSelectionDisabled={mergeSelectionStep === 'target' && project.id === mergeSource?.id}
+                        onMergeSelect={handleMergeProjectSelect}
                       />
                     ))}
                   </div>
@@ -4774,6 +4821,40 @@ const Dashboard: React.FC = () => {
         </div>
       </main>
 
+      {viewMode === 'list' && mergeSelectionStep && (
+        <div
+          className={`fixed left-1/2 top-20 z-40 flex w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 items-start justify-between gap-3 rounded-xl border p-4 shadow-xl ${
+            mergeSelectionStep === 'source'
+              ? 'border-red-200 bg-red-50 text-red-900'
+              : 'border-blue-200 bg-blue-50 text-blue-900'
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex min-w-0 items-start gap-3">
+            <GitMerge className={`mt-0.5 h-5 w-5 flex-shrink-0 ${mergeSelectionStep === 'source' ? 'text-red-600' : 'text-blue-600'}`} />
+            <div className="min-w-0">
+              <p className="font-semibold">
+                {mergeSelectionStep === 'source' ? '1단계 · 삭제될 현장을 고르세요' : '2단계 · 유지될 현장을 고르세요'}
+              </p>
+              <p className="mt-1 text-sm">
+                {mergeSelectionStep === 'source'
+                  ? '목록의 프로젝트 카드를 누르면 합친 뒤 사라질 현장으로 선택됩니다.'
+                  : <><span className="font-semibold">{mergeSource?.project_name}</span>을(를) 제외한 다른 카드를 누르세요.</>}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={resetMergeSelection}
+            aria-label="프로젝트 합치기 선택 취소"
+            className="flex-shrink-0 rounded-md p-1 hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+
       <footer className="w-full px-4 py-6 [&_p]:!text-blue-200/70 [&_p:first-child]:!text-blue-100">
         <CopyrightNotice withDivider={false} />
       </footer>
@@ -4782,9 +4863,9 @@ const Dashboard: React.FC = () => {
       {viewMode === 'list' && (
         <div className="fixed bottom-6 right-6 flex flex-row gap-3 items-center">
           {/* 합치기 버튼 - 발주청만 표시 (공사중토글과 별개 게이팅) */}
-          {userProfile?.role === '발주청' && (
+          {userProfile?.role === '발주청' && !mergeSelectionStep && !mergeModalOpen && (
             <button
-              onClick={() => setMergeModalOpen(true)}
+              onClick={handleMergeSelectionStart}
               className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-full px-4 py-3 shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-2"
               title="두 프로젝트 합치기"
             >
@@ -4907,8 +4988,9 @@ const Dashboard: React.FC = () => {
       {/* 프로젝트 합치기 모달 */}
       <MergeProjectsModal
         isOpen={mergeModalOpen}
-        projects={projects}
-        onClose={() => setMergeModalOpen(false)}
+        source={mergeSource}
+        target={mergeTarget}
+        onClose={resetMergeSelection}
         onMerged={loadBranchProjects}
       />
 

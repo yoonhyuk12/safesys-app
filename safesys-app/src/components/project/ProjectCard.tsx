@@ -37,6 +37,10 @@ interface ProjectCardProps {
   safetyPendingCount?: number // 안전점검 관리대장 미조치 건수
   managerPendingCount?: number // 관리자점검 미완료(서명/사진) 건수
   qualityRejectionCount?: number // 품질 성과총괄표 미확인 반려 건수
+  mergeSelectionMode?: 'source' | 'target'
+  mergeSelectionState?: 'source' | 'target'
+  mergeSelectionDisabled?: boolean
+  onMergeSelect?: (project: Project) => void
 }
 
 const ProjectCard: React.FC<ProjectCardProps> = ({
@@ -66,6 +70,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   safetyPendingCount,
   managerPendingCount,
   qualityRejectionCount,
+  mergeSelectionMode,
+  mergeSelectionState,
+  mergeSelectionDisabled = false,
+  onMergeSelect,
 }) => {
   // showQuarters가 명시되지 않으면 canEditQuarters 값 사용 (기존 동작 유지)
   const shouldShowQuarters = showQuarters !== undefined ? showQuarters : canEditQuarters
@@ -535,6 +543,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         isEditMode ? 'touch-none select-none' : ''
         } ${isDragging ? 'opacity-50' : ''
         } ${isDragOver ? 'ring-2 ring-blue-500 ring-offset-2' : ''
+        } ${mergeSelectionState === 'source' ? 'ring-2 ring-red-500 ring-offset-2' : ''
+        } ${mergeSelectionState === 'target' ? 'ring-2 ring-blue-500 ring-offset-2' : ''
+        } ${mergeSelectionMode === 'source' ? 'hover:ring-2 hover:ring-red-400 hover:ring-offset-2' : ''
+        } ${mergeSelectionMode === 'target' && !mergeSelectionDisabled ? 'hover:ring-2 hover:ring-blue-400 hover:ring-offset-2 hover:bg-blue-50/30' : ''
         }`}
       data-edit-mode={isEditMode}
       data-project-card="true"
@@ -585,6 +597,56 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         animation: isEditMode ? 'shake 0.5s ease-in-out infinite' : undefined
       }}
     >
+      {mergeSelectionMode && onMergeSelect && (
+        <button
+          type="button"
+          aria-label={mergeSelectionState === 'source'
+            ? `${project.project_name}을(를) 삭제될 현장으로 선택함`
+            : mergeSelectionState === 'target'
+              ? `${project.project_name}을(를) 유지될 현장으로 선택함`
+              : `${project.project_name}을(를) ${mergeSelectionMode === 'source' ? '삭제될 현장' : '유지될 현장'}으로 선택`}
+          disabled={mergeSelectionDisabled}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            if (!mergeSelectionDisabled) onMergeSelect(project)
+          }}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseUp={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+          onContextMenu={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
+          className={`absolute inset-0 z-40 rounded-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-offset-2 ${
+            mergeSelectionDisabled
+              ? 'cursor-not-allowed bg-red-50/20 focus-visible:ring-red-500'
+              : mergeSelectionMode === 'source'
+                ? 'cursor-pointer focus-visible:ring-red-500'
+                : 'cursor-pointer focus-visible:ring-blue-500'
+          }`}
+        >
+          {mergeSelectionState === 'source' && (
+            <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-1 text-[11px] font-semibold text-white shadow">
+              삭제될 현장
+            </span>
+          )}
+          {mergeSelectionState === 'target' && (
+            <span className="absolute left-2 top-2 rounded-full bg-blue-600 px-2 py-1 text-[11px] font-semibold text-white shadow">
+              유지될 현장
+            </span>
+          )}
+          {!mergeSelectionState && !mergeSelectionDisabled && (
+            <span className={`absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-2 py-1 text-[11px] font-semibold text-white shadow opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 ${
+              mergeSelectionMode === 'source' ? 'bg-red-600' : 'bg-blue-600'
+            }`}>
+              {mergeSelectionMode === 'source' ? '삭제될 현장으로 선택' : '유지될 현장으로 선택'}
+            </span>
+          )}
+        </button>
+      )}
+
       {/* 공정률 색 채움 (좌→우, 100% = 준공) */}
       {progressRate !== null && progressRate > 0 && (
         <div
