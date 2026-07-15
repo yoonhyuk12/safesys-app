@@ -372,9 +372,13 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
+              <colgroup>
+                <col className="w-28" />
+                <col span={14} />
+              </colgroup>
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트명</th>
+                  <th className="w-28 min-w-28 max-w-28 px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">프로젝트명</th>
                   {MONTHS.map(month => (
                     <th key={month} className="min-w-16 px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{month}월</th>
                   ))}
@@ -385,11 +389,10 @@ const BusinessQualityReportView: React.FC<BusinessQualityReportViewProps> = ({
               <tbody className="divide-y divide-gray-200">
                 {projectList.map(p => (
                   <tr key={p.project_id} onClick={() => onRowClickProject(p.project_id, selectedBranchForDetail)} className="hover:bg-emerald-50/50 cursor-pointer transition-colors">
-                    <td className="px-3 py-3 text-sm font-medium text-gray-900 text-center">
-                      <span className="sm:hidden" title={p.project_name}>
-                        {p.project_name.length > 3 ? `${p.project_name.slice(0, 3)}...` : p.project_name}
+                    <td className="w-28 min-w-28 max-w-28 px-3 py-3 text-center text-sm font-medium text-gray-900">
+                      <span className="whitespace-nowrap" title={p.project_name}>
+                        {p.project_name.length > 5 ? `${p.project_name.slice(0, 5)}...` : p.project_name}
                       </span>
-                      <span className="hidden sm:inline">{p.project_name}</span>
                     </td>
                     {MONTHS.map(month => (
                       <td key={month} className="px-3 py-3 text-sm text-center">
