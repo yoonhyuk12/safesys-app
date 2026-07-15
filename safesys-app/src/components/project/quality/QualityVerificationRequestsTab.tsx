@@ -3,7 +3,7 @@
 // 확인시험 의뢰서 탭 (별지 제4호서식) — 의뢰서 목록·작성·수정·삭제·엑셀 출력
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { Plus, Download, X, Trash2, FileText, FileDown, ChevronDown } from 'lucide-react'
+import { Plus, Download, X, Trash2, FileText, FileDown, PenTool, ChevronDown } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignatureModal from '@/components/project/SignatureModal'
@@ -17,6 +17,7 @@ import {
 interface QualityVerificationRequestsTabProps {
   projectId: string
   userId: string
+  canSignQualityRecords: boolean
   projectName: string
   managingBranch: string
   ownerCompanyName: string
@@ -36,6 +37,7 @@ const TEST_ITEM_PRESETS = [
 export default function QualityVerificationRequestsTab({
   projectId,
   userId,
+  canSignQualityRecords,
   projectName,
   managingBranch,
   ownerCompanyName,
@@ -50,6 +52,10 @@ export default function QualityVerificationRequestsTab({
   const [saving, setSaving] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [signOpen, setSignOpen] = useState(false)
+  const [isSupervisorSignMode, setIsSupervisorSignMode] = useState(false)
+  const [selectedRequestIds, setSelectedRequestIds] = useState<Set<string>>(() => new Set())
+  const [showSupervisorSignature, setShowSupervisorSignature] = useState(false)
+  const [supervisorSigning, setSupervisorSigning] = useState(false)
   const [testItemsOpen, setTestItemsOpen] = useState(false)
 
   const loadRecords = useCallback(async () => {
@@ -180,6 +186,83 @@ export default function QualityVerificationRequestsTab({
     if (formData) setFormData({ ...formData, [key]: value })
   }
 
+  const unsignedRequestIds = records
+    .filter((record) => !record.sender_signature)
+    .map((record) => record.id)
+  const allUnsignedRequestsSelected =
+    unsignedRequestIds.length > 0 && unsignedRequestIds.every((id) => selectedRequestIds.has(id))
+
+  const startSupervisorSignMode = () => {
+    setSelectedRequestIds(new Set())
+    setIsSupervisorSignMode(true)
+  }
+
+  const closeSupervisorSignMode = () => {
+    setShowSupervisorSignature(false)
+    setSelectedRequestIds(new Set())
+    setIsSupervisorSignMode(false)
+  }
+
+  const toggleRequestSelection = (record: QualityVerificationRequestRecord) => {
+    if (record.sender_signature) return
+
+    setSelectedRequestIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(record.id)) next.delete(record.id)
+      else next.add(record.id)
+      return next
+    })
+  }
+
+  const toggleAllUnsignedRequests = () => {
+    setSelectedRequestIds(allUnsignedRequestsSelected ? new Set() : new Set(unsignedRequestIds))
+  }
+
+  const handleSupervisorSignatureSave = async (signatureData: string) => {
+    if (selectedRequestIds.size === 0) return
+
+    setSupervisorSigning(true)
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (sessionError || !accessToken) {
+        throw new Error('로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.')
+      }
+
+      const response = await fetch('/api/bulk-sign', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          project_id: projectId,
+          signature_data: signatureData,
+          signer: 'supervisor',
+          items: { quality_verification_request: Array.from(selectedRequestIds) },
+        }),
+      })
+      const result = (await response.json()) as {
+        success?: boolean
+        error?: string
+        updated_total?: number
+      }
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || '감독 서명 저장에 실패했습니다.')
+      }
+
+      const updatedCount = result.updated_total ?? 0
+      closeSupervisorSignMode()
+      await loadRecords()
+      alert(`${updatedCount}건의 감독 서명이 완료되었습니다.`)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '알 수 없는 오류'
+      alert('감독 서명 실패: ' + message)
+    } finally {
+      setSupervisorSigning(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center py-20">
@@ -205,15 +288,60 @@ export default function QualityVerificationRequestsTab({
               <FileDown className="h-4 w-4" />
               HWP 양식
             </a>
-            <button
-              onClick={handleAddClick}
-              className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium"
-            >
-              <Plus className="h-4 w-4" />
-              추가
-            </button>
+            {canSignQualityRecords && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSupervisorSignMode) setShowSupervisorSignature(true)
+                  else startSupervisorSignMode()
+                }}
+                disabled={
+                  unsignedRequestIds.length === 0 ||
+                  (isSupervisorSignMode && selectedRequestIds.size === 0)
+                }
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${
+                  isSupervisorSignMode
+                    ? 'bg-amber-950 text-white hover:bg-amber-900'
+                    : 'bg-white text-amber-700 hover:bg-amber-50'
+                }`}
+                title={
+                  unsignedRequestIds.length === 0
+                    ? '감독 서명이 필요한 항목이 없습니다.'
+                    : isSupervisorSignMode
+                      ? `선택한 ${selectedRequestIds.size}건 감독 서명`
+                      : '목록에서 항목을 선택해 감독 서명'
+                }
+              >
+                <PenTool className="h-4 w-4" />
+                {isSupervisorSignMode ? `${selectedRequestIds.size}건 서명` : '감독서명'}
+              </button>
+            )}
+            {isSupervisorSignMode ? (
+              <button
+                type="button"
+                onClick={closeSupervisorSignMode}
+                className="flex items-center gap-1 rounded-lg border border-white/60 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/10 sm:text-sm"
+              >
+                취소
+              </button>
+            ) : (
+              <button
+                onClick={handleAddClick}
+                className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium"
+              >
+                <Plus className="h-4 w-4" />
+                추가
+              </button>
+            )}
           </div>
         </div>
+
+        {isSupervisorSignMode && (
+          <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-900">
+            <span>서명할 미서명 행을 체크한 뒤 상단의 서명 버튼을 눌러주세요.</span>
+            <span className="shrink-0 font-semibold">{selectedRequestIds.size}건 선택</span>
+          </div>
+        )}
 
         {records.length === 0 ? (
           <div className="p-8 text-center">
@@ -233,6 +361,18 @@ export default function QualityVerificationRequestsTab({
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 text-gray-600 text-xs">
+                  {isSupervisorSignMode && (
+                    <th className="px-2 py-2 text-center whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        checked={allUnsignedRequestsSelected}
+                        onChange={toggleAllUnsignedRequests}
+                        aria-label="감독 서명 미완료 의뢰서 전체 선택"
+                        title="감독 서명 미완료 의뢰서 전체 선택"
+                        className="h-4 w-4 accent-amber-600"
+                      />
+                    </th>
+                  )}
                   <th className="px-2 py-2 text-center whitespace-nowrap">의뢰번호</th>
                   <th className="px-2 py-2 text-center whitespace-nowrap">의뢰일자</th>
                   <th className="px-2 py-2 text-center">대상공종, 물량</th>
@@ -246,11 +386,35 @@ export default function QualityVerificationRequestsTab({
                 {records.map((record) => (
                   <tr
                     key={record.id}
-                    onClick={() => handleSelectRecord(record)}
-                    className={`border-t border-gray-100 cursor-pointer hover:bg-amber-50 ${
-                      editingRecordId === record.id ? 'bg-amber-50' : ''
+                    onClick={() => {
+                      if (isSupervisorSignMode) toggleRequestSelection(record)
+                      else handleSelectRecord(record)
+                    }}
+                    aria-selected={isSupervisorSignMode ? selectedRequestIds.has(record.id) : undefined}
+                    className={`border-t border-gray-100 ${
+                      isSupervisorSignMode
+                        ? record.sender_signature
+                          ? 'cursor-not-allowed'
+                          : 'cursor-pointer hover:bg-amber-50'
+                        : 'cursor-pointer hover:bg-amber-50'
+                    } ${
+                      selectedRequestIds.has(record.id) || editingRecordId === record.id ? 'bg-amber-50' : ''
                     }`}
                   >
+                    {isSupervisorSignMode && (
+                      <td className="px-2 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedRequestIds.has(record.id)}
+                          disabled={Boolean(record.sender_signature)}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={() => toggleRequestSelection(record)}
+                          aria-label={`의뢰번호 ${record.request_no || '-'} 감독 서명 선택`}
+                          title={record.sender_signature ? '이미 감독 서명이 완료된 항목입니다.' : '감독 서명 선택'}
+                          className="h-4 w-4 accent-amber-600 disabled:cursor-not-allowed"
+                        />
+                      </td>
+                    )}
                     <td className="px-2 py-2 text-center whitespace-nowrap">{record.request_no || '-'}</td>
                     <td className="px-2 py-2 text-center whitespace-nowrap">{record.request_date || '-'}</td>
                     <td className="px-2 py-2 text-center">{record.target_work || '-'}</td>
@@ -545,6 +709,12 @@ export default function QualityVerificationRequestsTab({
           set('sender_signature', signatureData)
           setSignOpen(false)
         }}
+      />
+      <SignatureModal
+        isOpen={showSupervisorSignature}
+        onClose={() => setShowSupervisorSignature(false)}
+        onSave={handleSupervisorSignatureSave}
+        isSubmitting={supervisorSigning}
       />
     </div>
   )

@@ -27,6 +27,8 @@ export interface BulkSignTarget {
   projectScope?: { joinTable: string }
   // updated_at 컬럼이 없는 테이블은 false (기본 true)
   hasUpdatedAt?: boolean
+  // 요청이 replace_existing=true일 때 기존 서명 대체를 허용하는 대상만 true
+  allowReplaceExisting?: boolean
 }
 
 export interface BulkSignSignerConfig {
@@ -151,9 +153,19 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         title: '품질검사 실시대장 (건설사업관리기술인 서명)',
         table: 'quality_test_records',
         signColumn: 'supervision_engineer_signature',
+        allowReplaceExisting: true,
         selectColumns: 'id, test_date, test_item, target_material, supervision_engineer_name',
         orderColumn: 'test_date',
         toItem: (r) => ({ date: str(r.test_date), label: `${[str(r.target_material), str(r.test_item)].filter(Boolean).join(' · ')}${r.supervision_engineer_name ? ` (감독: ${str(r.supervision_engineer_name)})` : ''}` }),
+      },
+      {
+        type: 'quality_verification_request',
+        title: '확인시험 의뢰서 (공사감독 서명)',
+        table: 'quality_verification_requests',
+        signColumn: 'sender_signature',
+        selectColumns: 'id, request_no, request_date, test_items, sender',
+        orderColumn: 'request_date',
+        toItem: (r) => ({ date: str(r.request_date), label: `${[str(r.request_no), str(r.test_items)].filter(Boolean).join(' · ')}${r.sender ? ` (감독: ${str(r.sender)})` : ''}` }),
       },
       {
         type: 'quality_summary_report',
@@ -288,15 +300,6 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         selectColumns: 'id, test_date, test_item, target_material, quality_engineer_name',
         orderColumn: 'test_date',
         toItem: (r) => ({ date: str(r.test_date), label: `${[str(r.target_material), str(r.test_item)].filter(Boolean).join(' · ')}${r.quality_engineer_name ? ` (품질관리: ${str(r.quality_engineer_name)})` : ''}` }),
-      },
-      {
-        type: 'quality_verification_request',
-        title: '확인시험 의뢰서 (보냄 서명)',
-        table: 'quality_verification_requests',
-        signColumn: 'sender_signature',
-        selectColumns: 'id, request_no, request_date, test_items, sender',
-        orderColumn: 'request_date',
-        toItem: (r) => ({ date: str(r.request_date), label: `${[str(r.request_no), str(r.test_items)].filter(Boolean).join(' · ')}${r.sender ? ` (보낸이: ${str(r.sender)})` : ''}` }),
       },
       {
         type: 'corrective_action_issue_contractor',

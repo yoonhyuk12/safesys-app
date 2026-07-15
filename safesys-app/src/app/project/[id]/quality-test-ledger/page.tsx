@@ -215,6 +215,7 @@ export default function QualityTestLedgerPage() {
           <QualityVerificationRequestsTab
             projectId={projectId}
             userId={user.id}
+            canSignQualityRecords={userProfile?.role === '발주청'}
             projectName={project?.project_name || ''}
             managingBranch={project?.managing_branch || ''}
             ownerCompanyName={projectOwner?.company_name || ''}
