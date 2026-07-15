@@ -74,6 +74,72 @@ interface TBMSubmission {
   education_photo_url?: string
 }
 
+type WeatherStationMeta = {
+  network: 'AWS' | 'ASOS'
+  stnId: string
+  stnName: string
+  distanceKm: number
+}
+
+type SiteDailyWeatherItem = {
+  date: string
+  summary: string
+  source: 'AWS' | 'ASOS' | null
+}
+
+type SiteDailyWeatherResponse = {
+  tempStation: WeatherStationMeta | null
+  cloudStation: WeatherStationMeta
+  stnName: string
+  data: SiteDailyWeatherItem[]
+}
+
+function toWeatherApiDate(date: Date): string {
+  return date.toISOString().slice(0, 10).replace(/-/g, '')
+}
+
+function splitWeatherDateRange(start: string, end: string): { start: string; end: string }[] {
+  const ranges: { start: string; end: string }[] = []
+  const current = new Date(`${start.slice(0, 4)}-${start.slice(4, 6)}-${start.slice(6, 8)}T00:00:00Z`)
+  const last = new Date(`${end.slice(0, 4)}-${end.slice(4, 6)}-${end.slice(6, 8)}T00:00:00Z`)
+
+  while (current <= last) {
+    const rangeStart = toWeatherApiDate(current)
+    const rangeEnd = new Date(current)
+    rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 30)
+    if (rangeEnd > last) rangeEnd.setTime(last.getTime())
+    ranges.push({ start: rangeStart, end: toWeatherApiDate(rangeEnd) })
+    current.setTime(rangeEnd.getTime())
+    current.setUTCDate(current.getUTCDate() + 1)
+  }
+
+  return ranges
+}
+
+function formatWeatherStationLabel(result: SiteDailyWeatherResponse): string {
+  const { tempStation, cloudStation } = result
+  if (tempStation && tempStation.stnId !== cloudStation.stnId) {
+    return `${tempStation.stnName} ${tempStation.network} ${tempStation.distanceKm.toFixed(1)}km · 운량 ${cloudStation.stnName}관측소 ${cloudStation.distanceKm.toFixed(1)}km`
+  }
+
+  const station = tempStation ?? cloudStation
+  return `${station.stnName}관측소 ASOS ${station.distanceKm.toFixed(1)}km`
+}
+
+function buildWeatherNote(result: SiteDailyWeatherResponse, item: SiteDailyWeatherItem): string {
+  const tempDescription = result.tempStation
+    ? `${result.tempStation.stnName}(${result.tempStation.network}, ${result.tempStation.distanceKm.toFixed(1)}km)`
+    : '확인 불가'
+  const cloudDescription = `${result.cloudStation.stnName}(ASOS, ${result.cloudStation.distanceKm.toFixed(1)}km)`
+  const fallbackDescription = item.source === 'ASOS'
+    ? ' / 해당 일자 기온·강수: ASOS 폴백'
+    : item.source === null
+      ? ' / 해당 일자 기온·강수: 자료부족'
+      : ''
+
+  return `기온·강수: ${tempDescription} / 운량: ${cloudDescription} / 자료: 기상청 API허브${fallbackDescription}`
+}
+
 /**
  * 공사감독일지 Excel 파일 생성
  * @param projectName 프로젝트명
@@ -112,57 +178,103 @@ export async function generateSupervisorDiaryExcel(
   )
   const totalDates = datesWithSubmissions.length
 
-  // 날씨 데이터 기간 조회 (단일 API 호출로 전체 기간 조회)
+  // 날씨 데이터 기간 조회
   const weatherMap = new Map<string, string>()
-  let weatherStationName = '' // 관측소 이름 저장 (subStatus용)
+  const weatherNoteMap = new Map<string, string>()
+  let weatherStationLabel = ''
 
   if (latitude && longitude && datesWithSubmissions.length > 0) {
     if (onProgress) {
-      onProgress(0, totalDates, '기상청 ASOS 일자료 조회 중...')
+      onProgress(0, totalDates, '기상청 AWS·ASOS 일자료 조회 중...')
     }
 
+    const startDateApi = startDate.replace(/-/g, '')
+    const endDateApi = endDate.replace(/-/g, '')
+
     try {
-      // 기간 조회 API 사용 (한 번의 호출로 전체 기간 조회)
-      const startDateApi = startDate.replace(/-/g, '') // YYYY-MM-DD -> YYYYMMDD
-      const endDateApi = endDate.replace(/-/g, '')
-
-      const response = await fetch(
-        `/api/weather/asos-range?lat=${latitude}&lon=${longitude}&start=${startDateApi}&end=${endDateApi}`
-      )
-
-      if (response.ok) {
-        const result = await response.json()
-
-        // API 응답: { stnId, stnName, data: [...] }
-        if (result.data && Array.isArray(result.data)) {
-          weatherStationName = result.stnName || ''
-          console.log(`📡 날씨 기간 조회 완료: ${weatherStationName} 관측소, ${result.data.length}일 데이터`)
-
-          // 날짜별로 Map에 저장 (YYYYMMDD -> YYYY-MM-DD 변환)
-          for (const item of result.data) {
-            const dateKey = `${item.date.slice(0, 4)}-${item.date.slice(4, 6)}-${item.date.slice(6, 8)}`
-            if (item.summary) {
-              weatherMap.set(dateKey, item.summary)
-            }
-          }
-
-          if (onProgress) {
-            onProgress(1, 1, `기상 데이터 ${result.data.length}일 로드 완료`, weatherStationName ? `(기상정보 : ${weatherStationName}관측소)` : '')
-          }
+      let loadedDays = 0
+      for (const range of splitWeatherDateRange(startDateApi, endDateApi)) {
+        const response = await fetch(
+          `/api/weather/site-daily?lat=${latitude}&lon=${longitude}&start=${range.start}&end=${range.end}`
+        )
+        if (!response.ok) {
+          throw new Error(`site-daily API 오류: ${response.status} ${await response.text()}`)
         }
-      } else {
-        console.error('날씨 API 오류:', response.status, await response.text())
+
+        const result = await response.json() as SiteDailyWeatherResponse
+        if (!result.cloudStation || !Array.isArray(result.data)) {
+          throw new Error('site-daily API 응답 형식이 올바르지 않습니다')
+        }
+
+        if (!weatherStationLabel) {
+          weatherStationLabel = formatWeatherStationLabel(result)
+        }
+        loadedDays += result.data.length
+
+        for (const item of result.data) {
+          const dateKey = `${item.date.slice(0, 4)}-${item.date.slice(4, 6)}-${item.date.slice(6, 8)}`
+          if (item.summary) weatherMap.set(dateKey, item.summary)
+          weatherNoteMap.set(dateKey, buildWeatherNote(result, item))
+        }
       }
-    } catch (err) {
-      console.error('날씨 데이터 기간 조회 중 오류:', err)
+
+      console.log(`📡 현장 날씨 기간 조회 완료: ${weatherStationLabel}, ${loadedDays}일 데이터`)
       if (onProgress) {
-        onProgress(1, 1, '기상 데이터 로드 실패 (날씨 정보 없이 계속 진행)', '')
+        onProgress(1, 1, `기상 데이터 ${loadedDays}일 로드 완료`, `(기상정보 : ${weatherStationLabel})`)
       }
+    } catch (siteDailyError) {
+      console.error('현장 날씨 API 조회 실패, ASOS 기간조회로 폴백:', siteDailyError)
+      weatherMap.clear()
+      weatherNoteMap.clear()
+      weatherStationLabel = ''
+
+      try {
+        const response = await fetch(
+          `/api/weather/asos-range?lat=${latitude}&lon=${longitude}&start=${startDateApi}&end=${endDateApi}`
+        )
+        if (!response.ok) {
+          throw new Error(`asos-range API 오류: ${response.status} ${await response.text()}`)
+        }
+
+        const result = await response.json() as {
+          stnName?: string
+          data?: { date: string; summary?: string }[]
+        }
+        if (!Array.isArray(result.data)) {
+          throw new Error('asos-range API 응답 형식이 올바르지 않습니다')
+        }
+
+        weatherStationLabel = result.stnName ? `${result.stnName}관측소` : ''
+        for (const item of result.data) {
+          const dateKey = `${item.date.slice(0, 4)}-${item.date.slice(4, 6)}-${item.date.slice(6, 8)}`
+          if (item.summary) weatherMap.set(dateKey, item.summary)
+          weatherNoteMap.set(
+            dateKey,
+            `기온·강수·운량: ${result.stnName || '확인 불가'}(ASOS) / 자료: 기상청 API허브 / 신규 지점 API 실패로 ASOS 폴백`
+          )
+        }
+
+        if (onProgress) {
+          onProgress(1, 1, `기상 데이터 ${result.data.length}일 로드 완료`, weatherStationLabel ? `(기상정보 : ${weatherStationLabel})` : '')
+        }
+      } catch (fallbackError) {
+        console.error('날씨 데이터 기간 조회 중 오류:', fallbackError)
+        if (onProgress) {
+          onProgress(1, 1, '기상 데이터 로드 실패 (날씨 정보 없이 계속 진행)', '')
+        }
+      }
+    }
+
+    // 당일은 관측 자료가 미확정 — 조회 경로와 무관하게 '당일정보 없음'으로 표시한다
+    const kstTodayKey = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+    if (startDate <= kstTodayKey && kstTodayKey <= endDate) {
+      weatherMap.set(kstTodayKey, '당일정보 없음')
+      weatherNoteMap.set(kstTodayKey, '당일 기상정보는 관측 자료 미확정으로 제공하지 않음')
     }
   }
 
   // AI 데이터 미리 배치 조회 (useAI가 true일 때만)
-  const weatherSubStatus = weatherStationName ? `(기상정보 : ${weatherStationName}관측소)` : ''
+  const weatherSubStatus = weatherStationLabel ? `(기상정보 : ${weatherStationLabel})` : ''
   const aiMap = new Map<string, { supervisorInstructions: string; personnelEquipmentSummary: string }>()
   if (useAI && datesWithSubmissions.length > 0) {
     if (onProgress) {
@@ -326,7 +438,8 @@ export async function generateSupervisorDiaryExcel(
       aiData,
       photoBuffer,
       useAI,
-      recordLogsMap ? (recordLogsMap.get(date) || []) : undefined
+      recordLogsMap ? (recordLogsMap.get(date) || []) : undefined,
+      weatherNoteMap.get(date)
     )
 
     // UI 업데이트를 위한 짧은 지연
@@ -390,7 +503,8 @@ async function createSupervisorDiarySheet(
   aiData?: { supervisorInstructions: string; personnelEquipmentSummary: string },
   photoBuffer?: Buffer,
   useAI: boolean = true,
-  recordLogs?: string[]
+  recordLogs?: string[],
+  weatherNote?: string
 ) {
   // 열 너비 설정 (7개 열: A-G)
   worksheet.columns = [
@@ -441,6 +555,9 @@ async function createSupervisorDiarySheet(
 
   // 날씨 데이터 사용 (이미 받아옴)
   const dateDataRow = worksheet.addRow([dateStr, weatherSummary, reporter, supervisorName || '', '', '', ''])
+  if (weatherNote) {
+    dateDataRow.getCell(2).note = weatherNote
+  }
   worksheet.mergeCells(`D${dateDataRow.number}:E${dateDataRow.number}`) // 감독 이름 2칸 병합
   worksheet.mergeCells(`F${dateDataRow.number}:G${dateDataRow.number}`) // 서명 2칸 병합
   dateDataRow.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
