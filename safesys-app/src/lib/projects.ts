@@ -2621,6 +2621,8 @@ export interface QualityTestCountByProject {
   test_count: number
   verification_count: number
   summary_count: number
+  test_supervisor_unsigned_count: number
+  verification_supervisor_unsigned_count: number
   hq_unsigned_count: number
 }
 
@@ -2682,7 +2684,14 @@ export async function getQualityTestCountsByUserBranch(
 
     const projectIds = activeProjects.map(p => p.id)
 
-    const [recordResult, verificationResult, summaryResult, hqUnsignedResult] = await Promise.all([
+    const [
+      recordResult,
+      verificationResult,
+      summaryResult,
+      testSupervisorUnsignedResult,
+      verificationSupervisorUnsignedResult,
+      hqUnsignedResult,
+    ] = await Promise.all([
       supabase
         .from('quality_test_records')
         .select('project_id')
@@ -2696,14 +2705,36 @@ export async function getQualityTestCountsByUserBranch(
         .select('project_id')
         .in('project_id', projectIds),
       supabase
+        .from('quality_test_records')
+        .select('project_id')
+        .in('project_id', projectIds)
+        .or('supervision_engineer_signature.is.null,supervision_engineer_signature.eq.'),
+      supabase
+        .from('quality_verification_requests')
+        .select('project_id')
+        .in('project_id', projectIds)
+        .or('sender_signature.is.null,sender_signature.eq.'),
+      supabase
         .from('quality_summary_reports')
         .select('project_id')
         .in('project_id', projectIds)
         .or('confirmer_signature.is.null,confirmer_signature.eq.'),
     ])
 
-    if (recordResult.error || verificationResult.error || summaryResult.error || hqUnsignedResult.error) {
-      const queryError = recordResult.error || verificationResult.error || summaryResult.error || hqUnsignedResult.error
+    if (
+      recordResult.error ||
+      verificationResult.error ||
+      summaryResult.error ||
+      testSupervisorUnsignedResult.error ||
+      verificationSupervisorUnsignedResult.error ||
+      hqUnsignedResult.error
+    ) {
+      const queryError = recordResult.error ||
+        verificationResult.error ||
+        summaryResult.error ||
+        testSupervisorUnsignedResult.error ||
+        verificationSupervisorUnsignedResult.error ||
+        hqUnsignedResult.error
       console.error('품질시험 서류 조회 오류:', queryError)
       return { success: false, error: queryError?.message }
     }
@@ -2719,6 +2750,8 @@ export async function getQualityTestCountsByUserBranch(
     const testCountMap = buildCountMap(recordResult.data)
     const verificationCountMap = buildCountMap(verificationResult.data)
     const summaryCountMap = buildCountMap(summaryResult.data)
+    const testSupervisorUnsignedCountMap = buildCountMap(testSupervisorUnsignedResult.data)
+    const verificationSupervisorUnsignedCountMap = buildCountMap(verificationSupervisorUnsignedResult.data)
     const hqUnsignedCountMap = buildCountMap(hqUnsignedResult.data)
 
     const testCounts: QualityTestCountByProject[] = activeProjects.map(p => ({
@@ -2729,6 +2762,8 @@ export async function getQualityTestCountsByUserBranch(
       test_count: testCountMap.get(p.id) || 0,
       verification_count: verificationCountMap.get(p.id) || 0,
       summary_count: summaryCountMap.get(p.id) || 0,
+      test_supervisor_unsigned_count: testSupervisorUnsignedCountMap.get(p.id) || 0,
+      verification_supervisor_unsigned_count: verificationSupervisorUnsignedCountMap.get(p.id) || 0,
       hq_unsigned_count: hqUnsignedCountMap.get(p.id) || 0,
     }))
 
