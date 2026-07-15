@@ -197,16 +197,17 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         orderColumn: 'receive_date',
         projectScope: { joinTable: 'materials' },
         hasUpdatedAt: false,
+        // 라벨 형식: (발주|반입) 수량 · 자재명(품명·규격) · 계약명
         toItem: (r) => {
           const mat = (r.materials ?? {}) as { name?: string; unit?: string }
           const qty = r.receive_qty != null
-            ? `반입 ${Number(r.receive_qty).toLocaleString('ko-KR')}${str(mat.unit)}`
+            ? `(반입) ${Number(r.receive_qty).toLocaleString('ko-KR')}${str(mat.unit)}`
             : r.order_qty != null
-              ? `발주 ${Number(r.order_qty).toLocaleString('ko-KR')}${str(mat.unit)}`
+              ? `(발주) ${Number(r.order_qty).toLocaleString('ko-KR')}${str(mat.unit)}`
               : ''
           return {
             date: str(r.receive_date) || str(r.release_date),
-            label: [str(mat.name), str(r.name_or_spec), qty].filter(Boolean).join(' · '),
+            label: [qty, str(r.name_or_spec), str(mat.name)].filter(Boolean).join(' · '),
           }
         },
       },
