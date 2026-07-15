@@ -40,9 +40,9 @@ interface QualitySummaryTabProps {
 }
 
 const inputCls =
-  'w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
+  'w-full border border-gray-300 bg-white rounded px-2.5 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
 const cellInputCls =
-  'w-full border border-gray-200 rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500'
+  'w-full border border-gray-200 bg-white rounded px-1.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
 const thCls = 'px-1.5 py-1.5 text-center whitespace-nowrap font-medium'
 
@@ -575,7 +575,7 @@ export default function QualitySummaryTab({
             </button>
           </div>
 
-          <div className="bg-gray-100 p-3 sm:p-4 space-y-5">
+          <div className="bg-gradient-to-br from-gray-100 via-gray-200 to-gray-300 p-3 sm:p-4 space-y-5">
             {/* 기본 정보 */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div>
