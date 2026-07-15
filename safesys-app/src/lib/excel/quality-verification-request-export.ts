@@ -108,7 +108,7 @@ export async function downloadQualityVerificationRequestExcel(
     ['확인시험 항목', record.test_items || '', 44],
     ['확인시험예정일', formatDateKorean(record.planned_date), 40],
     ['시 험 목 적', record.purpose || '', 44],
-    ['기 타 사 항', record.etc_note || '', 44],
+    ['기타사항(주소)', record.etc_note || '', 44],
   ]
   bodyRows.forEach(([label, value, height]) => {
     mergeSet(ws, `A${r}:B${r}`, label, { bold: true, size: 10, fill: headerFill, align: { horizontal: 'center' } })

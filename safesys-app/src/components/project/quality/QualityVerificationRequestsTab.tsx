@@ -33,15 +33,6 @@ const TEST_ITEM_PRESETS = [
   '토공(현장밀도, 함수비)',
 ] as const
 
-// 프로젝트명에서 지구명 추출 (첫 단어의 "…지구"까지, 최대 4글자) — 의뢰번호 접두어용
-const deriveDistrictPrefix = (projectName?: string): string => {
-  if (!projectName) return ''
-  const token = projectName.trim().split(/\s+/)[0]
-  const idx = token.indexOf('지구')
-  const district = idx >= 0 ? token.slice(0, idx + 2) : token
-  return district.slice(0, 4)
-}
-
 export default function QualityVerificationRequestsTab({
   projectId,
   userId,
@@ -86,10 +77,10 @@ export default function QualityVerificationRequestsTab({
   // 추가 시작 — 프로젝트 정보와 확인시험 의뢰서 기본 문구를 신규 폼에만 채움
   const handleAddClick = () => {
     setEditingRecordId(null)
-    const prefix = deriveDistrictPrefix(projectName)
+    const requestSequence = String(records.length + 1).padStart(3, '0')
     setFormData(
       createEmptyVerificationRequest({
-        request_no: `${prefix}의뢰-${records.length + 1}`,
+        request_no: `${new Date().getFullYear()}-${requestSequence}`,
         receiver: '경기본부 기반사업부장',
         sender: supervisorName,
         reference: '품질담당',
@@ -320,7 +311,7 @@ export default function QualityVerificationRequestsTab({
                   type="text"
                   value={formData.request_no}
                   onChange={(e) => set('request_no', e.target.value)}
-                  placeholder="지구명의뢰-1"
+                  placeholder={`${new Date().getFullYear()}-001`}
                   className={inputCls}
                 />
               </div>
@@ -498,7 +489,7 @@ export default function QualityVerificationRequestsTab({
                 />
               </div>
               <div className="col-span-2 sm:col-span-4">
-                <label className={labelCls}>기타사항</label>
+                <label className={labelCls}>기타사항(주소)</label>
                 <textarea
                   value={formData.etc_note}
                   onChange={(e) => set('etc_note', e.target.value)}
