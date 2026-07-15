@@ -173,6 +173,13 @@ export default function SupervisorDiaryPage() {
       {/* 메인 콘텐츠 */}
       <main className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="max-w-md mx-auto">
+          {/* 서버 미저장 안내 */}
+          <p className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 text-center">
+            공사감독일지는 여기 서버에 저장하지 않습니다.
+            <br />
+            (향후 서비스 종료 및 중단에 따른 우려로 인함)
+          </p>
+
           <div className="bg-white rounded-lg shadow p-4">
             {/* 상단: 월 + 작성 버튼(우측 상단) */}
             <div className="flex items-center justify-between mb-4">
