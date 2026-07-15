@@ -1,11 +1,25 @@
 'use client'
+// 프로젝트 문서철의 표시와 클릭 동작을 관리하는 컴포넌트.
 
-import React from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { HoradricCubeOpeningEffect } from './HoradricCubeOpeningEffect'
+import { prefetchMaterialLedgerSnapshot } from '@/lib/material-ledger-prefetch'
 
 // 모든 서류철이 공유하는 마우스 오버 효과음 — 인스턴스마다 새로 디코딩하지 않도록 모듈 레벨에서 1회 생성·프리로드
 const boxHoverSound = typeof window !== 'undefined' ? new Audio('/kave_msri-box-sfx-323776.mp3') : null
 if (boxHoverSound) boxHoverSound.preload = 'auto'
+
+const HORADRIC_OPENING_MS = 1950
+const REDUCED_MOTION_OPENING_MS = 220
+const CINEMATIC_FALLBACK_MS = 1200
+
+const resetMaterialLedgerCinematic = () => {
+  if (typeof document === 'undefined') return
+  document.body.classList.remove('material-ledger-cinematic-active')
+  document.body.style.removeProperty('--material-ledger-origin-x')
+  document.body.style.removeProperty('--material-ledger-origin-y')
+}
 
 interface DocumentFolderProps {
   title: string
@@ -45,6 +59,19 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
   bottomLabel
 }) => {
   const router = useRouter()
+  const [isMaterialLedgerOpening, setIsMaterialLedgerOpening] = useState(false)
+  const openingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const openingLockRef = useRef(false)
+  const openingCancelledRef = useRef(false)
+  const isMaterialLedger = title.replace(/\s/g, '') === '자재수불부'
+
+  useEffect(() => {
+    return () => {
+      openingCancelledRef.current = true
+      if (openingTimerRef.current) clearTimeout(openingTimerRef.current)
+      if (openingLockRef.current) resetMaterialLedgerCinematic()
+    }
+  }, [])
 
   const playHoverSound = () => {
     if (!boxHoverSound) return
@@ -52,19 +79,7 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
     boxHoverSound.play().catch(() => {})
   }
 
-  const handleClick = () => {
-    // 준비중 상태인 경우
-    if (isPending) {
-      alert('준비중입니다.')
-      return
-    }
-
-    // 폭염대비점검이나 TBM 관련 문서철이고 프로젝트가 비활성 상태인 경우
-    if ((title === '폭염대비점검' || title.includes('TBM')) && !isProjectActive) {
-      alert('공사중지 상태에서는 사용할 수 없습니다.')
-      return
-    }
-
+  const runClickAction = () => {
     if (title === '폭염대비점검' && projectId) {
       router.push(`/project/${projectId}/heatwave`)
     } else if (title === '관리자 일상점검') {
@@ -77,6 +92,62 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
     } else if (onClick) {
       onClick()
     }
+  }
+
+  const handleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (openingLockRef.current) return
+
+    // 준비중 상태인 경우
+    if (isPending) {
+      alert('준비중입니다.')
+      return
+    }
+
+    // 폭염대비점검이나 TBM 관련 문서철이고 프로젝트가 비활성 상태인 경우
+    if ((title === '폭염대비점검' || title.includes('TBM')) && !isProjectActive) {
+      alert('공사중지 상태에서는 사용할 수 없습니다.')
+      return
+    }
+
+    if (!isMaterialLedger) {
+      runClickAction()
+      return
+    }
+
+    openingLockRef.current = true
+    openingCancelledRef.current = false
+    const folderBounds = event.currentTarget.getBoundingClientRect()
+    document.body.style.setProperty('--material-ledger-origin-x', `${folderBounds.left + folderBounds.width / 2}px`)
+    document.body.style.setProperty('--material-ledger-origin-y', `${folderBounds.top + folderBounds.height / 2}px`)
+    document.body.classList.add('material-ledger-cinematic-active')
+    setIsMaterialLedgerOpening(true)
+
+    const prefersReducedMotion = typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const openingDuration = prefersReducedMotion ? REDUCED_MOTION_OPENING_MS : HORADRIC_OPENING_MS
+    const materialLedgerPath = projectId ? `/project/${projectId}/material-ledger` : null
+    if (materialLedgerPath) router.prefetch(materialLedgerPath)
+    const snapshotPromise = projectId
+      ? prefetchMaterialLedgerSnapshot(projectId)
+      : Promise.resolve(null)
+
+    openingTimerRef.current = setTimeout(() => {
+      openingTimerRef.current = null
+      void snapshotPromise
+        .catch((prefetchError: unknown) => {
+          console.error('자재 수불부 사전 로드 실패:', prefetchError)
+        })
+        .then(() => {
+          if (openingCancelledRef.current) return
+          openingTimerRef.current = setTimeout(() => {
+            openingTimerRef.current = null
+            openingLockRef.current = false
+            resetMaterialLedgerCinematic()
+            setIsMaterialLedgerOpening(false)
+          }, CINEMATIC_FALLBACK_MS)
+          runClickAction()
+        })
+    }, openingDuration)
   }
 
   // 지사 안전점검과 본부 안전점검 문서철의 특별한 색상 정의
@@ -278,10 +349,11 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
       className={`
         relative w-[60px] h-56 sm:w-[68px] lg:w-[80px] lg:h-96 transition-all duration-200
         ${isGrayedOut ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:scale-105'}
-        ${isActive ? 'z-10' : 'z-0'}
+        ${isMaterialLedgerOpening ? 'z-50' : isActive ? 'z-10' : 'z-0'}
       `}
       onClick={handleClick}
       onMouseEnter={playHoverSound}
+      aria-busy={isMaterialLedgerOpening || undefined}
     >
       {/* 문서철 본체 */}
       <div className={`
@@ -647,6 +719,8 @@ const DocumentFolder: React.FC<DocumentFolderProps> = ({
           {badgeCount}
         </div>
       )}
+
+      {isMaterialLedgerOpening && <HoradricCubeOpeningEffect />}
     </div>
   )
 }

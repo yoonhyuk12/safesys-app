@@ -14,6 +14,13 @@ import { downloadMaterialContractStatusExcel, type MaterialContractRow } from '@
 import MaterialInspectionPhotoField, { materialInspectionPhotoStoragePath, MATERIAL_INSPECTION_PHOTO_BUCKET } from '@/components/project/material/MaterialInspectionPhotoField'
 import BulkInspectionAssign from '@/components/project/material/BulkInspectionAssign'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
+import {
+  invalidateMaterialLedgerSnapshot,
+  peekMaterialLedgerSnapshot,
+  prefetchMaterialLedgerSnapshot,
+  type MaterialLedgerRawRecord,
+  type MaterialLedgerSnapshot,
+} from '@/lib/material-ledger-prefetch'
 
 // ── 타입 ──
 
@@ -73,6 +80,108 @@ interface MaterialRow {
   prdctAmt?: string
   feeAmt?: string
   inspectionPhotos?: string[]
+}
+
+function rawString(record: MaterialLedgerRawRecord, key: string): string {
+  const value = record[key]
+  return value == null ? '' : String(value)
+}
+
+function rawOptionalString(record: MaterialLedgerRawRecord, key: string): string | null {
+  const value = rawString(record, key)
+  return value || null
+}
+
+function rawNumber(record: MaterialLedgerRawRecord, key: string): number {
+  const value = Number(record[key] ?? 0)
+  return Number.isFinite(value) ? value : 0
+}
+
+function rawOptionalNumber(record: MaterialLedgerRawRecord, key: string): number | null {
+  const value = record[key]
+  if (value == null || value === '') return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function mapMaterialLedgerMaterials(snapshot: MaterialLedgerSnapshot): Material[] {
+  const materials = snapshot.materials.map<Material>((record, index) => {
+    const sortOrder = rawNumber(record, 'sort_order')
+    let colorIndex = index % gemPalette.length
+    let realOrder = sortOrder
+    if (sortOrder >= 1000) {
+      colorIndex = Math.floor(sortOrder / 1000) - 1
+      realOrder = sortOrder % 1000
+    }
+    if (colorIndex < 0 || colorIndex >= gemPalette.length) colorIndex = 0
+
+    return {
+      id: rawString(record, 'id'),
+      name: rawString(record, 'name'),
+      unit: rawString(record, 'unit'),
+      rows: [],
+      sortOrder,
+      colorIndex,
+      realOrder,
+      dlvrReqNo: rawOptionalString(record, 'dlvr_req_no'),
+      dlvrSupplier: rawOptionalString(record, 'dlvr_supplier'),
+      dlvrSupplierTel: rawOptionalString(record, 'dlvr_supplier_tel'),
+      dlvrDeadline: rawOptionalString(record, 'dlvr_deadline'),
+      dlvrTitle: rawOptionalString(record, 'dlvr_title'),
+      dlvrDemandOrg: rawOptionalString(record, 'dlvr_dminstt'),
+      g2bInspDate: rawOptionalString(record, 'g2b_insp_date'),
+      g2bPayDate: rawOptionalString(record, 'g2b_pay_date'),
+      g2bPayTotal: rawOptionalNumber(record, 'g2b_pay_total'),
+      g2bPayDocCount: rawOptionalNumber(record, 'g2b_pay_doc_count'),
+      g2bSettlementYear: rawOptionalString(record, 'g2b_settlement_year'),
+      g2bPayInspCheckedAt: rawOptionalString(record, 'g2b_pay_insp_checked_at'),
+    }
+  })
+
+  materials.sort((left, right) => (left.realOrder || 0) - (right.realOrder || 0))
+  const entriesByMaterial = new Map<string, MaterialRow[]>()
+
+  for (const record of snapshot.entries) {
+    const materialId = rawString(record, 'material_id')
+    if (!materialId) continue
+    const inspectionPhotos = Array.isArray(record.inspection_photos)
+      ? record.inspection_photos.filter((url): url is string => typeof url === 'string')
+      : []
+    const rows = entriesByMaterial.get(materialId) || []
+    rows.push({
+      id: rawString(record, 'id'),
+      nameOrSpec: rawString(record, 'name_or_spec'),
+      orderQty: rawString(record, 'order_qty'),
+      receiveDate: rawString(record, 'receive_date'),
+      receiveQty: rawString(record, 'receive_qty'),
+      passQtyCurrent: rawString(record, 'pass_qty_current'),
+      passQtyTotal: rawString(record, 'pass_qty_total'),
+      failQty: record.fail_qty != null ? String(record.fail_qty) : rawString(record, 'fail_qty_text'),
+      action: rawString(record, 'action'),
+      releaseDate: rawString(record, 'release_date'),
+      releaseQty: rawString(record, 'release_qty'),
+      remainQty: rawString(record, 'remain_qty'),
+      supervisorConfirm: rawString(record, 'supervisor_confirm'),
+      dlvrReqNo: rawOptionalString(record, 'dlvr_req_no'),
+      dlvrReqPrdctSno: rawOptionalNumber(record, 'dlvr_req_prdct_sno'),
+      dlvrCndtn: rawString(record, 'dlvr_cndtn'),
+      unitPrice: rawString(record, 'unit_price'),
+      prdctAmt: rawString(record, 'prdct_amt'),
+      feeAmt: rawString(record, 'fee_amt'),
+      inspectionPhotos,
+    })
+    entriesByMaterial.set(materialId, rows)
+  }
+
+  for (const material of materials) {
+    const rows = entriesByMaterial.get(material.id) || []
+    const specOrder = [...new Set(rows.map((row) => row.nameOrSpec))]
+    material.rows = rows.sort(
+      (left, right) => specOrder.indexOf(left.nameOrSpec) - specOrder.indexOf(right.nameOrSpec),
+    )
+  }
+
+  return materials
 }
 
 // 연계 모달 매핑에서 "새 규격 행으로 추가"를 뜻하는 값
@@ -354,13 +463,17 @@ export default function MaterialLedgerPage() {
   const params = useParams()
   const searchParams = useSearchParams()
   const projectId = params.id as string
+  const prefetchedSnapshotRef = useRef<MaterialLedgerSnapshot | null>(peekMaterialLedgerSnapshot(projectId))
+  const initializedProjectIdRef = useRef<string | null>(prefetchedSnapshotRef.current ? projectId : null)
 
-  const [project, setProject] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [project, setProject] = useState<any>(() => prefetchedSnapshotRef.current?.project || null)
+  const [loading, setLoading] = useState(() => !prefetchedSnapshotRef.current)
   const [error, setError] = useState('')
 
   // 자재 목록
-  const [materials, setMaterials] = useState<Material[]>([])
+  const [materials, setMaterials] = useState<Material[]>(() => (
+    prefetchedSnapshotRef.current ? mapMaterialLedgerMaterials(prefetchedSnapshotRef.current) : []
+  ))
 
   // 현재 선택한 자재 (null이면 대시보드)
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(null)
@@ -474,13 +587,35 @@ export default function MaterialLedgerPage() {
   const materialRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const wasDragging = useRef(false)
 
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const snapshot = await prefetchMaterialLedgerSnapshot(projectId, { force: true })
+      setProject(snapshot.project)
+      setMaterials(mapMaterialLedgerMaterials(snapshot))
+      initializedProjectIdRef.current = projectId
+      invalidateMaterialLedgerSnapshot(projectId)
+    } catch (err: unknown) {
+      invalidateMaterialLedgerSnapshot(projectId)
+      console.error('데이터 로드 실패:', err)
+      setError(err instanceof Error ? err.message : '데이터를 불러오는데 실패했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }, [projectId])
+
   const selectedMaterial = materials.find(m => m.id === selectedMaterialId) || null
 
   useEffect(() => {
     if (user && projectId) {
+      if (initializedProjectIdRef.current === projectId) {
+        invalidateMaterialLedgerSnapshot(projectId)
+        return
+      }
       loadData()
     }
-  }, [user, projectId])
+  }, [user, projectId, loadData])
 
   // 납품요구번호가 연계된 자재 상세 진입 시 조달청을 자동 조회해 계약(발주량·납품기한) 변경 확인.
   // 같으면 조용히 넘어가고, 다르면 팝업으로 알린 뒤 연계 화면으로 유도. 세션당 자재별 1회만 확인.
@@ -696,130 +831,7 @@ export default function MaterialLedgerPage() {
       }))
     })()
     return () => { cancelled = true }
-  }, [materials, dlvrTitles])
-
-  const loadData = async () => {
-    try {
-      setLoading(true)
-      setError('')
-
-      // 프로젝트 조회 (소유자 이름 포함 — 검수조서 인수자 기본값)
-      const { data: projectData, error: projectError } = await supabase
-        .from('projects')
-        .select('*, user_profiles!projects_created_by_fkey(full_name)')
-        .eq('id', projectId)
-        .single()
-      if (projectError) throw new Error(projectError.message)
-      setProject(projectData)
-
-      // 자재 목록 조회
-      const { data: materialsData, error: matError } = await supabase
-        .from('materials')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('sort_order', { ascending: true })
-        .order('created_at', { ascending: true })
-      if (matError) {
-        console.error('Materials load error:', matError)
-      }
-
-      // 내역 조회
-      const matList: Material[] = (materialsData || []).map((m: any, idx: number) => {
-        const val = m.sort_order || 0
-        let colorIndex = idx % 9
-        let realOrder = val
-        if (val >= 1000) {
-          colorIndex = Math.floor(val / 1000) - 1
-          realOrder = val % 1000
-        }
-        if (colorIndex < 0 || colorIndex >= 9) colorIndex = 0
-        return {
-          id: m.id,
-          name: m.name,
-          unit: m.unit || '',
-          rows: [],
-          sortOrder: val,
-          colorIndex,
-          realOrder,
-          dlvrReqNo: m.dlvr_req_no || null,
-          dlvrSupplier: m.dlvr_supplier || null,
-          dlvrSupplierTel: m.dlvr_supplier_tel || null,
-          dlvrDeadline: m.dlvr_deadline || null,
-          dlvrTitle: m.dlvr_title || null,
-          dlvrDemandOrg: m.dlvr_dminstt || null,
-          g2bInspDate: m.g2b_insp_date || null,
-          g2bPayDate: m.g2b_pay_date || null,
-          g2bPayTotal: m.g2b_pay_total == null ? null : Number(m.g2b_pay_total),
-          g2bPayDocCount: m.g2b_pay_doc_count == null ? null : Number(m.g2b_pay_doc_count),
-          g2bSettlementYear: m.g2b_settlement_year || null,
-          g2bPayInspCheckedAt: m.g2b_pay_insp_checked_at || null
-        }
-      })
-      matList.sort((a: any, b: any) => (a.realOrder || 0) - (b.realOrder || 0))
-
-      if (matList.length > 0) {
-        const matIds = matList.map(m => m.id)
-        const { data: entriesData, error: entError } = await supabase
-          .from('material_ledger_entries')
-          .select('*')
-          .in('material_id', matIds)
-          .order('created_at', { ascending: true })
-        if (entError) {
-          console.error('Entries load error:', entError)
-        }
-        const entriesByMat: Record<string, MaterialRow[]> = {}
-        for (const e of (entriesData || [])) {
-          if (!entriesByMat[e.material_id]) entriesByMat[e.material_id] = []
-          entriesByMat[e.material_id].push({
-            id: e.id,
-            nameOrSpec: e.name_or_spec || '',
-            orderQty: e.order_qty != null ? String(e.order_qty) : '',
-            receiveDate: e.receive_date || '',
-            receiveQty: e.receive_qty != null ? String(e.receive_qty) : '',
-            passQtyCurrent: e.pass_qty_current != null ? String(e.pass_qty_current) : '',
-            passQtyTotal: e.pass_qty_total != null ? String(e.pass_qty_total) : '',
-            failQty: e.fail_qty != null ? String(e.fail_qty) : (e.fail_qty_text || ''),
-            action: e.action || '',
-            releaseDate: e.release_date || '',
-            releaseQty: e.release_qty != null ? String(e.release_qty) : '',
-            remainQty: e.remain_qty != null ? String(e.remain_qty) : '',
-            supervisorConfirm: e.supervisor_confirm || '',
-            dlvrReqNo: e.dlvr_req_no || null,
-            dlvrReqPrdctSno: e.dlvr_req_prdct_sno ?? null,
-            dlvrCndtn: e.dlvr_cndtn || '',
-            unitPrice: e.unit_price != null ? String(e.unit_price) : '',
-            prdctAmt: e.prdct_amt != null ? String(e.prdct_amt) : '',
-            feeAmt: e.fee_amt != null ? String(e.fee_amt) : '',
-            inspectionPhotos: Array.isArray(e.inspection_photos)
-              ? e.inspection_photos.filter((u: unknown): u is string => typeof u === 'string')
-              : [],
-          })
-        }
-        for (const mat of matList) {
-          const rawRows = entriesByMat[mat.id] || []
-          // 품명/규격 기준으로 정렬 (첫 등장 순서 유지, 같은 품명끼리 그룹화)
-          const nameOrSpecOrder: string[] = []
-          for (const row of rawRows) {
-            if (!nameOrSpecOrder.includes(row.nameOrSpec)) {
-              nameOrSpecOrder.push(row.nameOrSpec)
-            }
-          }
-          mat.rows = rawRows.sort((a, b) => {
-            const aIdx = nameOrSpecOrder.indexOf(a.nameOrSpec)
-            const bIdx = nameOrSpecOrder.indexOf(b.nameOrSpec)
-            return aIdx - bIdx
-          })
-        }
-      }
-
-      setMaterials(matList)
-    } catch (err: any) {
-      console.error('데이터 로드 실패:', err)
-      setError(err.message || '데이터를 불러오는데 실패했습니다.')
-    } finally {
-      setLoading(false)
-    }
-  }
+  }, [materials, dlvrTitles, projectId])
 
   // 진입 경로를 returnUrl 쿼리로 받은 경우 그 위치(지사 프로젝트 목록 등)로 정확히 복귀.
   const navigateBack = () => {
@@ -2701,7 +2713,7 @@ export default function MaterialLedgerPage() {
       // 실패 시 원래 순서로 복원
       loadData()
     }
-  }, [materials])
+  }, [materials, loadData])
 
   const handleDragEnd = useCallback(() => {
     if (draggingMaterialId) {
