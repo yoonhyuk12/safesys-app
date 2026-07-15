@@ -19,6 +19,7 @@ import {
   carryOverRows,
   createEmptyRow,
   normalizeRows,
+  reconcileQualityMonthlyReports,
 } from '@/lib/quality/quality-monthly-types'
 
 export default function QualityMonthlyReportPage() {
@@ -107,15 +108,20 @@ export default function QualityMonthlyReportPage() {
         : null
     )
     if (!monthlyResult.error && monthlyResult.data) {
+      const reconciledRecords = reconcileQualityMonthlyReports(
+        (monthlyResult.data as QualityMonthlyReportRecord[]).map((record) => ({
+          ...record,
+          report_rows: normalizeRows(record.report_rows),
+        }))
+      )
       setRecords(
-        (monthlyResult.data as QualityMonthlyReportRecord[]).map((record) => {
-          const reportRows = normalizeRows(record.report_rows)
+        reconciledRecords.map((record) => {
           return {
             ...record,
             report_rows: qualityTestResult.error
-              ? reportRows
+              ? record.report_rows
               : applyQualityTestActuals(
-                  reportRows,
+                  record.report_rows,
                   loadedQualityTests,
                   record.report_year,
                   record.report_month

@@ -271,6 +271,70 @@ export function carryOverRows(prevRows: QualityMonthlyReportRow[]): QualityMonth
   })
 }
 
+// 보고서를 연월 순으로 다시 연결해 나중에 입력된 앞선 월의 계획·누계를 기존 후속 월에도 반영한다.
+export function reconcileQualityMonthlyReports(
+  records: QualityMonthlyReportRecord[]
+): QualityMonthlyReportRecord[] {
+  const reconciledById = new Map<string, QualityMonthlyReportRecord>()
+  const chronologicalRecords = [...records].sort(
+    (a, b) => a.report_year - b.report_year || a.report_month - b.report_month
+  )
+  let previousRows: QualityMonthlyReportRow[] | null = null
+  let previousReportYear: number | null = null
+
+  chronologicalRecords.forEach((record) => {
+    const currentRows = normalizeRows(record.report_rows)
+    let reportRows = currentRows
+
+    if (previousRows && previousReportYear === record.report_year) {
+      const previousRowsByKey = new Map(
+        previousRows
+          .filter((row) => row.workType.trim() || row.testItem.trim())
+          .map((row) => [actualRowKey(row.workType, row.testItem), row])
+      )
+      const currentKeys = new Set(
+        currentRows.map((row) => actualRowKey(row.workType, row.testItem))
+      )
+
+      reportRows = currentRows.map((row) => {
+        const previousRow = previousRowsByKey.get(actualRowKey(row.workType, row.testItem))
+        if (!previousRow) return row
+
+        const previousDerived = deriveRow(previousRow)
+        return {
+          ...row,
+          yearlyPlan:
+            parseNum(previousRow.yearlyPlan) !== null ? previousRow.yearlyPlan : row.yearlyPlan,
+          yearlyPlanCount:
+            parseNum(previousRow.yearlyPlanCount) !== null
+              ? previousRow.yearlyPlanCount
+              : row.yearlyPlanCount,
+          prevCumulVolume:
+            previousDerived.cumulVolume !== null ? String(previousDerived.cumulVolume) : '',
+          prevCumulQualityTest:
+            previousDerived.cumulQualityTest !== null ? String(previousDerived.cumulQualityTest) : '',
+          prevCumulExpertConfirm:
+            previousDerived.cumulExpertConfirm !== null ? String(previousDerived.cumulExpertConfirm) : '',
+          prevCumulOtherConfirm:
+            previousDerived.cumulOtherConfirm !== null ? String(previousDerived.cumulOtherConfirm) : '',
+        }
+      })
+
+      const missingCarriedRows = carryOverRows(previousRows).filter(
+        (row) => !currentKeys.has(actualRowKey(row.workType, row.testItem))
+      )
+      reportRows = [...reportRows, ...missingCarriedRows]
+    }
+
+    const reconciledRecord = { ...record, report_rows: reportRows }
+    reconciledById.set(record.id, reconciledRecord)
+    previousRows = reportRows
+    previousReportYear = record.report_year
+  })
+
+  return records.map((record) => reconciledById.get(record.id) ?? record)
+}
+
 // DB JSONB 값 방어적 정규화 — 배열이 아니거나 필드가 빠져 있어도 안전한 행 배열로 변환
 export function normalizeRows(value: unknown): QualityMonthlyReportRow[] {
   if (!Array.isArray(value)) return []
