@@ -28,3 +28,14 @@
 - `database/20260716-0601_merge_project_quarter_status.sql`을 원격 Supabase DB에 적용했다. 적용 전 `BEGIN`·`ROLLBACK` 컴파일 검증과 빈 object 복사, 기존 true 보존, JSON boolean 호환, source null 보존 등 6개 판정 사례를 통과했다.
 - 적용 후 실제 함수 본문에서 `is_active` CASE, `completed` 판정, 기존 `total_budget` 보충 로직 유지, `updated_at` 미복사를 읽기 전용 쿼리로 확인했다.
 - 로그인된 Chrome 프로필에서 병합 API만 성공 응답으로 모킹하고 실제 프로젝트 목록 재조회를 수행했다. 병합 전 `scrollY=8000`이 약 1천 건 목록 재렌더와 모달 종료 후에도 `8000`으로 복원됐고, source와 target 프로젝트가 모두 남아 실제 데이터 변경이 없음을 확인했다.
+- source 프로젝트의 기존 `project_shares`는 중복과 발주청 공유 행을 먼저 제거한 뒤 target으로 이동하고, 이동이 끝난 다음 비발주청 source 소유자를 target 공유자로 추가한다.
+- 기존 공유 행을 이동할 때 `shared_by`도 target의 `created_by`로 변경한다. 그래야 병합 후 target 소유자가 RLS의 `shared_by = auth.uid()` 조건으로 공유자 목록을 조회하고 관리할 수 있다.
+- source 공유자 중 `shared_with = target.created_by`인 행은 target 소유자 자신의 불필요한 self-share가 되므로 기존 중복 제거 단계에서 삭제하고 이동하지 않는다. 이 삭제 건수는 `dropped_project_shares`에 포함한다.
+- source 공유자 중 `user_profiles.role = '발주청'`인 행은 관할 권한으로 target에 접근할 수 있으므로 기존 중복 제거 단계에서 삭제하고 이동하지 않는다. 시공사·감리단 공유 행은 그대로 유지하며 발주청 제거 건수도 `dropped_project_shares`에 포함한다.
+- 새 소유자 공유 행은 source 소유자의 역할이 발주청이 아닐 때만 `project_id = p_target`, `shared_with = source.created_by`, `shared_by = target.created_by`로 기록한다.
+- source와 target 소유자가 같으면 공유 행을 추가하지 않는다. target에 이미 있거나 source에서 이동된 동일 공유자는 `UNIQUE(project_id, shared_with)`와 `ON CONFLICT DO NOTHING`으로 한 행만 유지한다.
+- 함수 JSON 응답의 `added_source_owner_share`는 실제 새 소유자 공유 행이 추가되면 1, 중복·동일 소유자·발주청 source 소유자로 추가되지 않으면 0이다.
+- `database/20260716-0630_merge_project_participants.sql`은 최신 24개 FK 이동, 선택사항 19개, `is_active` 보충과 service-role 권한을 유지하면서 참여자 보존을 추가하며 실제 Supabase DB에 적용했다.
+- 참여자 보존 함수는 롤백되는 통합 시나리오로 비발주청 source 소유자 추가, 기존 공유자 이동, target 중복·self-share 제거, 발주청 소유자·공유자 제외, `shared_by` 관리권 이전을 검증했다.
+- 최종 확인창의 참여자 전환 안내는 클라이언트가 추측하지 않고 인증된 발주청 전용 GET 미리보기 API가 조회한 실제 비발주청 source 소유자와 기존 공유자 계정을 사용한다.
+- 로그인된 브라우저에서 실제 source와 target을 선택해 계정명·회사·이메일, source 소유자 배지, 발주청 제외 안내가 표시되는 것을 확인했다. 실제 데이터 삭제를 막기 위해 최종 합치기 버튼은 누르지 않았다.

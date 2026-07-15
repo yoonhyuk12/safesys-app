@@ -14,25 +14,59 @@ interface MergeProjectsModalProps {
   onMerged: () => void | Promise<void>
 }
 
+interface MergeParticipant {
+  id: string
+  full_name: string | null
+  email: string | null
+  company_name: string | null
+  role: string | null
+  sourceOwner: boolean
+  alreadyShared: boolean
+}
+
+interface MergePreview {
+  sourceId: string
+  targetId: string
+  targetProjectName: string
+  participants: MergeParticipant[]
+}
+
+interface MergePreviewResponse {
+  success?: boolean
+  error?: string
+  targetProjectName?: string
+  participants?: MergeParticipant[]
+}
+
 const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source, target, onClose, onMerged }) => {
   const [overlapCount, setOverlapCount] = useState<number | null>(null)
   const [checking, setChecking] = useState(false)
+  const [preview, setPreview] = useState<MergePreview | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // 확인 모달이 열리면 겹치는 작업일보 날짜 수를 미리 조회한다.
+  // 확인 모달이 열리면 겹치는 작업일보와 공유자로 유지·전환될 계정을 함께 조회한다.
   useEffect(() => {
     if (!isOpen || !source || !target) {
       setOverlapCount(null)
       setChecking(false)
+      setPreview(null)
+      setPreviewLoading(false)
+      setPreviewError('')
       setLoading(false)
       setError('')
       return
     }
 
     let cancelled = false
+    const controller = new AbortController()
     setOverlapCount(null)
     setChecking(true)
+    setPreview(null)
+    setPreviewLoading(true)
+    setPreviewError('')
     setError('')
 
     const checkOverlap = async () => {
@@ -54,11 +88,54 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
       }
     }
 
+    const loadPreview = async () => {
+      try {
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        if (sessionError || !session?.access_token) {
+          throw new Error('로그인이 필요합니다.')
+        }
+
+        const params = new URLSearchParams({ sourceId: source.id, targetId: target.id })
+        const response = await fetch(`/api/projects/merge?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          signal: controller.signal,
+        })
+        const json = await response.json() as MergePreviewResponse
+        if (!response.ok || !json.success) {
+          throw new Error(json.error || '공유자 안내를 불러오지 못했습니다.')
+        }
+        if (typeof json.targetProjectName !== 'string' || !Array.isArray(json.participants)) {
+          throw new Error('공유자 안내 응답이 올바르지 않습니다.')
+        }
+        if (cancelled) return
+
+        setPreview({
+          sourceId: source.id,
+          targetId: target.id,
+          targetProjectName: json.targetProjectName,
+          participants: json.participants,
+        })
+      } catch (err) {
+        if (cancelled || (err instanceof DOMException && err.name === 'AbortError')) return
+        console.error('병합 공유자 미리보기 조회 실패', err)
+        setPreview(null)
+        setPreviewError(err instanceof Error ? err.message : '공유자 안내를 불러오지 못했습니다.')
+      } finally {
+        if (!cancelled) setPreviewLoading(false)
+      }
+    }
+
     void checkOverlap()
+    void loadPreview()
     return () => {
       cancelled = true
+      controller.abort()
     }
   }, [isOpen, source, target])
+
+  const previewReady = Boolean(
+    source && target && preview && preview.sourceId === source.id && preview.targetId === target.id,
+  )
 
   if (!isOpen || !source || !target) return null
 
@@ -70,6 +147,10 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
   const handleMerge = async () => {
     if (source.id === target.id) {
       setError('같은 프로젝트끼리는 합칠 수 없습니다.')
+      return
+    }
+    if (!previewReady || previewLoading || previewError) {
+      setError('공유자 안내를 확인하지 못해 합칠 수 없습니다.')
       return
     }
 
@@ -157,6 +238,63 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
             유지될 현장의 선택사항이 비어 있으면 삭제될 현장 값으로 채우며, 이미 입력된 값은 그대로 유지합니다.
           </p>
 
+          <section className="rounded-md border border-gray-200 bg-gray-50 p-3" aria-labelledby="merge-share-preview-title">
+            <h4 id="merge-share-preview-title" className="text-sm font-semibold text-gray-900">
+              공유자로 유지 또는 전환되는 계정
+            </h4>
+            <p className="mt-1 text-xs leading-5 text-gray-500">
+              발주청 계정은 관할 권한으로 접근하므로 공유자 전환 대상에서 제외됩니다.
+            </p>
+
+            {previewLoading && (
+              <p className="mt-2 flex items-center gap-2 text-sm text-gray-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                계정 정보를 확인하는 중입니다.
+              </p>
+            )}
+
+            {previewError && (
+              <p className="mt-2 rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700" role="alert">
+                {previewError} 이 상태에서는 합칠 수 없습니다.
+              </p>
+            )}
+
+            {preview && preview.participants.length === 0 && (
+              <p className="mt-2 text-sm text-gray-600">공유자로 전환되는 별도 계정이 없습니다.</p>
+            )}
+
+            {preview && preview.participants.length > 0 && (
+              <ul className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                {preview.participants.map((participant) => {
+                  const accountName = participant.full_name?.trim() || '이름 미등록'
+                  const accountDetails = [participant.company_name, participant.email]
+                    .filter((value): value is string => Boolean(value))
+                  const accountLabel = accountDetails.length > 0
+                    ? `${accountName} (${accountDetails.join(', ')})`
+                    : accountName
+
+                  return (
+                    <li key={participant.id} className="min-w-0 rounded-md border border-gray-200 bg-white p-3">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="break-words text-sm font-medium text-gray-900">{accountName}</span>
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          participant.sourceOwner
+                            ? 'bg-red-100 text-red-700'
+                            : 'bg-gray-200 text-gray-700'
+                        }`}>
+                          {participant.sourceOwner ? '삭제될 현장 소유자' : '기존 공유자'}
+                        </span>
+                      </div>
+                      <p className="mt-1 break-words text-xs leading-5 text-gray-600">
+                        {accountLabel} 계정은 병합 후 “{preview.targetProjectName}”의 공유자{participant.alreadyShared ? '로 유지됩니다.' : '가 됩니다.'}
+                      </p>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+
           {checking && (
             <p className="flex items-center gap-2 text-sm text-gray-500">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -183,7 +321,7 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
           <button
             type="button"
             onClick={handleMerge}
-            disabled={loading || checking}
+            disabled={loading || checking || previewLoading || !previewReady}
             className="flex items-center gap-2 rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}

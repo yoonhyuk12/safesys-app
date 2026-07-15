@@ -31,6 +31,7 @@
 - **프로젝트 병합(`merge_projects` DB 함수)도 함께 갱신한다.** 병합은 자식 테이블의 `project_id`를 target으로 UPDATE한 뒤 source를 삭제하므로, 함수의 UPDATE 목록에 없는 자식 테이블은 CASCADE로 유실된다. 함수는 실제 FK 테이블 수와 자신이 아는 개수(현재 24)가 다르면 예외로 중단하도록 되어 있으니, **새 자식 테이블 추가 시 UPDATE 목록과 개수 가드를 함께 갱신**해야 병합이 다시 동작한다. 프로젝트 단위 유니크 제약이 있는 테이블(예: quality_monthly_reports의 연·월)은 target 우선 충돌 폐기 DELETE도 추가한다.
 - 병합할 때 target 프로젝트의 선택사항이 비어 있고 source에 값이 있으면 source 값으로 보충한다. target에 이미 입력된 값은 덮어쓰지 않으며, 체크박스 선택값은 어느 프로젝트에서든 `true`이면 보존한다.
 - 프로젝트 카드의 `is_active` 분기·준공 상태는 다섯 값이 모두 `false` 또는 누락일 때만 비어 있는 것으로 본다. target에 하나라도 `true`가 있으면 target 상태 묶음 전체를 보존하고, 비어 있을 때만 source 상태 묶음 전체를 복사한다. 프로젝트 전체 수정일인 `updated_at`은 source 값으로 바꾸지 않는다.
+- source의 기존 공유자 중 발주청 계정은 관할 권한으로 접근할 수 있으므로 제거하고, 시공사·감리단 등 비발주청 공유자만 target으로 이동하면서 `shared_by`를 target 소유자로 바꾼다. source 소유자도 비발주청 계정일 때만 target 공유자로 추가하며, 동일 계정, 기존 target 공유자, target 소유자의 self-share는 중복 생성하지 않는다.
 
 ## 일괄서명 대상 등록 규칙 (필수)
 
