@@ -1007,7 +1007,7 @@ export default function QualityTestRecordsTab({
     <div className="space-y-4">
       {/* 목록 */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="bg-amber-600 text-white px-4 py-3 flex items-center justify-between gap-2">
+        <div className="bg-amber-600 text-white px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="truncate text-sm font-semibold sm:text-base">품질검사 실시대장 (별지 제42호서식)</h2>
             <button
@@ -1022,7 +1022,7 @@ export default function QualityTestRecordsTab({
               <span className="hidden sm:inline">{isListExpanded ? '목록 접기' : '목록 펼치기'}</span>
             </button>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center justify-end gap-1.5 shrink-0">
             <a
               href="https://drive.google.com/uc?export=download&id=1QUNV-8SxYgThRcf5afTo7LyJdaM3xtn_"
               target="_blank"
@@ -1031,7 +1031,7 @@ export default function QualityTestRecordsTab({
               title="품질검사 실시대장 HWP 양식 다운로드"
             >
               <FileDown className="h-4 w-4" />
-              HWP 양식
+              <span className="hidden sm:inline">HWP 양식</span>
             </a>
             {canSignQualityRecords && (
               <button
@@ -1058,7 +1058,9 @@ export default function QualityTestRecordsTab({
                 }
               >
                 <PenTool className="h-4 w-4" />
-                {isSupervisorSignMode ? `${selectedRecordIds.size}건 서명` : '감독서명'}
+                <span className="hidden sm:inline">
+                  {isSupervisorSignMode ? `${selectedRecordIds.size}건 서명` : '감독서명'}
+                </span>
               </button>
             )}
             {isSupervisorSignMode ? (
@@ -1066,8 +1068,10 @@ export default function QualityTestRecordsTab({
                 type="button"
                 onClick={closeSupervisorSignMode}
                 className="flex items-center gap-1 rounded-lg border border-white/60 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/10 sm:text-sm"
+                title="감독 서명 모드 취소"
               >
-                취소
+                <X className="h-4 w-4" />
+                <span className="hidden sm:inline">취소</span>
               </button>
             ) : (
               <>
@@ -1078,7 +1082,7 @@ export default function QualityTestRecordsTab({
                   title="품질검사 실시대장 엑셀 출력"
                 >
                   <Printer className="h-4 w-4" />
-                  대장 출력
+                  <span className="hidden sm:inline">대장 출력</span>
                 </button>
                 <button
                   onClick={handlePhotoReportDownload}
@@ -1087,7 +1091,7 @@ export default function QualityTestRecordsTab({
                   title="사진대지 PDF 출력"
                 >
                   <ImageIcon className="h-4 w-4" />
-                  사진대지
+                  <span className="hidden sm:inline">사진대지</span>
                 </button>
                 <button
                   onClick={() => setShowCsiImport(true)}
@@ -1095,14 +1099,14 @@ export default function QualityTestRecordsTab({
                   title="건설공사 안전관리 종합정보망(CSI) 품질검사 성적서 불러오기"
                 >
                   <CloudDownload className="h-4 w-4" />
-                  CSI 성적서
+                  <span className="hidden sm:inline">CSI 성적서</span>
                 </button>
                 <button
                   onClick={handleAddClick}
                   className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium"
                 >
                   <Plus className="h-4 w-4" />
-                  추가
+                  <span className="hidden sm:inline">추가</span>
                 </button>
               </>
             )}
