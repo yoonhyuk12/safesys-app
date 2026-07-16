@@ -2990,21 +2990,21 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                                   setTimeout(() => setSmsCopied(false), 2000)
                                 }
                               }}
-                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium shadow-sm transition-colors ${
+                              className={`inline-flex items-center justify-center p-1.5 rounded-md shadow-sm transition-colors ${
                                 smsCopied ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
                               }`}
                               title={`연락처 ${phoneNumbers.length}건 + 문자내용 복사`}
+                              aria-label={smsCopied ? '복사 완료' : `연락처 ${phoneNumbers.length}건과 문자내용 복사`}
                             >
                               {smsCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                              {smsCopied ? '복사됨' : `복사(${phoneNumbers.length})`}
                             </button>
                             <a
                               href={smsHref}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 shadow-sm transition-colors"
+                              className="inline-flex items-center justify-center p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 shadow-sm transition-colors"
                               title="TBM 소장님들께 단체문자 보내기"
+                              aria-label="TBM 소장님들께 단체문자 보내기"
                             >
                               <MessageSquare className="h-4 w-4" />
-                              단체문자
                             </a>
                           </>
                         )
@@ -3098,12 +3098,19 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                       {/* 일자 선택 */}
                       <div className="flex items-center space-x-2">
                         <Calendar className="h-4 w-4 text-gray-400" />
-                        <input
-                          type="date"
-                          value={selectedDate}
-                          onChange={(e) => setSelectedDate(e.target.value)}
-                          className="border border-gray-300 rounded-md px-2 py-1 text-xs bg-white text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        />
+                        <div className="relative">
+                          <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => setSelectedDate(e.target.value)}
+                            className="border border-gray-300 rounded-md pl-2 pr-1 py-1 w-[90px] text-xs bg-white text-gray-700 hover:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 [&::-webkit-datetime-edit]:opacity-0"
+                            style={{ color: 'transparent' }}
+                            aria-label="TBM 조회 일자"
+                          />
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-600 pointer-events-none tabular-nums">
+                            {selectedDate ? selectedDate.slice(2).replace(/-/g, '.') : ''}
+                          </span>
+                        </div>
                       </div>
                       {selectedHq && !selectedBranch && (userProfile?.branch_division?.endsWith('본부') || userProfile?.branch_division?.endsWith('본사')) && (
                         <button
