@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useCallback, useRef } from 'react'
-import { Activity, Calendar, Users, FileText, ChevronRight, AlertTriangle, Building2, Eye, Video, RefreshCw, ArrowUp, Phone, Copy, X, CheckCircle, Trash2, Download, FileSpreadsheet, MessageSquare, Check, Sigma, Star, ArrowLeftRight, UserCheck } from 'lucide-react'
+import { Activity, Calendar, Users, FileText, ChevronRight, AlertTriangle, Building2, Eye, Video, RefreshCw, ArrowUp, Phone, Copy, X, CheckCircle, Trash2, Download, FileSpreadsheet, MessageSquare, Check, Sigma, Star, ArrowLeftRight, UserCheck, Send } from 'lucide-react'
 import KakaoMap from '@/components/ui/KakaoMap'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import NavigationSelector from '@/components/ui/NavigationSelector'
@@ -14,6 +14,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import type { TBMSafetyInspection } from '@/lib/projects'
 import { generateSupervisorDiaryExcel } from '@/lib/excel/supervisor-diary-export'
 import { downloadTBMStatusExcel } from '@/lib/excel/tbm-status-export'
+import TBMTelegramBroadcastModal from '@/components/project/TBMTelegramBroadcastModal'
 
 // TBMRecord와 TBMStats는 lib/tbm.ts에서 import하므로 제거
 
@@ -79,6 +80,11 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
     return <span className={valueCls} title={`${personnelTotal.toLocaleString()}명`}>{formatK(personnelTotal)}</span>
   }
   const [allTbmRecords, setAllTbmRecords] = useState<TBMRecord[]>([]) // 전체 캐시된 데이터
+  const [telegramModalOpen, setTelegramModalOpen] = useState(false)
+  // AI 텔레그램 일괄발송 대상 — 당일(selectedDate) 제출 건 중 작업없음 제외
+  const telegramTargetRecords = allTbmRecords.filter(record =>
+    record.meeting_date === selectedDate && record.today_work !== '작업없음'
+  )
   const [tbmSafetyInspections, setTbmSafetyInspections] = useState<TBMSafetyInspection[]>([]) // TBM 안전활동 점검 데이터
   const [error, setError] = useState<string>('')
   const [navigationModal, setNavigationModal] = useState<{
@@ -2957,6 +2963,18 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                       )}
                     </h4>
                     <div className="flex items-center gap-3">
+                      {/* AI 텔레그램 일괄발송 버튼 - 당일 TBM 제출 현장(작업없음 제외) 대상 */}
+                      {telegramTargetRecords.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setTelegramModalOpen(true)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium shadow-sm transition-colors bg-sky-100 text-sky-700 hover:bg-sky-200"
+                          title="TBM 제출 현장 일괄 텔레그램 발송 (AI 분석)"
+                        >
+                          <Send className="h-4 w-4" />
+                          AI 텔레그램
+                        </button>
+                      )}
                       {/* 단체문자 버튼 - 현재 조회중인 TBM 기록 소장 전원에게 문자 */}
                       {(() => {
                         const phoneNumbers = tbmRecords
@@ -4966,6 +4984,14 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
           </div>
         </div>
       )}
+
+      {/* AI 텔레그램 일괄발송 모달 */}
+      <TBMTelegramBroadcastModal
+        isOpen={telegramModalOpen}
+        onClose={() => setTelegramModalOpen(false)}
+        records={telegramTargetRecords}
+        selectedDate={selectedDate}
+      />
     </div>
   )
 }
