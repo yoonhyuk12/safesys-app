@@ -15,6 +15,7 @@ export interface ResolvedProject {
 }
 
 const PROJECT_COLUMNS = 'id, project_name, project_category, client_telegram_id, contractor_telegram_id'
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export function isProjectItemRef(value: unknown): value is ProjectItemRef {
   if (!value || typeof value !== 'object') return false
@@ -36,7 +37,9 @@ export async function resolveProjects(
   items: ProjectItemRef[]
 ): Promise<(ResolvedProject | null)[]> {
   const ids = [...new Set(
-    items.map((item) => item.projectId).filter((id): id is string => Boolean(id))
+    items
+      .map((item) => item.projectId)
+      .filter((id): id is string => typeof id === 'string' && UUID_PATTERN.test(id))
   )]
   const names = [...new Set(
     items.map((item) => item.projectName)
