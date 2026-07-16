@@ -24,6 +24,7 @@ import {
   Mountain,
   ListChecks,
   Hammer,
+  CloudDownload,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -36,9 +37,12 @@ import {
   QualityTestCommonFields,
   TestVerdict,
   TEST_CATEGORY_OPTIONS,
+  COMMISSIONED_TEST_CATEGORY,
   createEmptyQualityTestItem,
   createEmptyQualityTestCommon,
 } from '@/lib/quality/quality-test-types'
+import CsiReportImportModal from '@/components/project/quality/CsiReportImportModal'
+import { CsiQualityReport } from '@/lib/quality/csi-report-types'
 
 interface QualityTestRecordsTabProps {
   projectId: string
@@ -125,6 +129,14 @@ const formatShortDate = (date: string | null) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date.slice(2) : date
 }
 
+// CSI 응답 날짜('YYYY-MM-DD' 또는 'YYYYMMDD')를 date input 값으로 정규화
+const csiDateToIso = (value: string | undefined): string | null => {
+  const digits = (value || '').replace(/\D/g, '')
+  return digits.length === 8
+    ? `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`
+    : null
+}
+
 const getCompressionStrengthTestDate = (
   baseDate: QualityTestCommonFields['test_date']
 ): QualityTestCommonFields['test_date'] => {
@@ -173,6 +185,7 @@ export default function QualityTestRecordsTab({
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [activeSign, setActiveSign] = useState<SignatureField | null>(null)
   const [showTestCategorySelector, setShowTestCategorySelector] = useState(false)
+  const [showCsiImport, setShowCsiImport] = useState(false)
   const [isSupervisorSignMode, setIsSupervisorSignMode] = useState(false)
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(() => new Set())
   const [showSupervisorSignature, setShowSupervisorSignature] = useState(false)
@@ -401,6 +414,51 @@ export default function QualityTestRecordsTab({
       }))
     )
     setShowMaterialPresets(false)
+  }
+
+  // CSI 성적서 1건(시험항목 N건)을 등록 폼에 프리필 — 사진·서명·공종 등 나머지는 사용자가 채워 저장
+  const handleCsiImport = (report: CsiQualityReport) => {
+    const last = records[records.length - 1]
+    const baseDate =
+      csiDateToIso(report.items[0]?.tsiEndDt) ||
+      csiDateToIso(report.cmptnYmd) ||
+      csiDateToIso(report.issueYmd) ||
+      getTodayDateString()
+
+    setSelectedSummaryId(summaries.length === 0 ? '' : summaries[summaries.length - 1].id)
+    setEditingSerialNo(null)
+    setShowMaterialPresets(false)
+    setCopySourceSerialNo('')
+    setCommonData(
+      createEmptyQualityTestCommon({
+        test_date: baseDate,
+        test_category: COMMISSIONED_TEST_CATEGORY,
+        target_material: report.sampleNm,
+        test_place: report.companyNm || report.labNm,
+        quality_engineer_name: last?.quality_engineer_name || '',
+        quality_engineer_signature: last?.quality_engineer_signature || '',
+        supervision_engineer_name: supervisorName || last?.supervision_engineer_name || '',
+        supervision_engineer_signature: '',
+        note: report.issueNo ? `CSI 성적서 ${report.issueNo}` : '',
+      })
+    )
+    const importedItems = report.items.map((it) => ({
+      ...createEmptyQualityTestItem({
+        test_item: it.teNm || it.tsNm,
+        test_standard: it.testMthd,
+        test_result: [it.itmRslt, it.itmUnit].filter(Boolean).join(' '),
+      }),
+      test_date: csiDateToIso(it.tsiEndDt) || baseDate,
+      _key: newKey(),
+    }))
+    setItems(
+      importedItems.length > 0
+        ? importedItems
+        : [{ ...createEmptyQualityTestItem(), test_date: baseDate, _key: newKey() }]
+    )
+    setShowCsiImport(false)
+    setIsListExpanded(false)
+    setShowForm(true)
   }
 
   const handleSelectRecord = (record: QualityTestRecord) => {
@@ -1030,6 +1088,14 @@ export default function QualityTestRecordsTab({
                 >
                   <ImageIcon className="h-4 w-4" />
                   사진대지
+                </button>
+                <button
+                  onClick={() => setShowCsiImport(true)}
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium"
+                  title="건설공사 안전관리 종합정보망(CSI) 품질검사 성적서 불러오기"
+                >
+                  <CloudDownload className="h-4 w-4" />
+                  CSI 성적서
                 </button>
                 <button
                   onClick={handleAddClick}
@@ -1751,6 +1817,15 @@ export default function QualityTestRecordsTab({
             </div>
           </div>
         </div>
+      )}
+
+      {/* CSI 성적서 불러오기 모달 */}
+      {showCsiImport && (
+        <CsiReportImportModal
+          projectName={projectName}
+          onClose={() => setShowCsiImport(false)}
+          onImport={handleCsiImport}
+        />
       )}
 
       {/* 서명 모달 */}
