@@ -115,15 +115,18 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
   // records는 호출부에서 렌더마다 새 배열로 계산되므로 ref로 받아 effect 재실행을 막는다
   const recordsRef = useRef(records)
   recordsRef.current = records
+  const analyzeRequestGenerationRef = useRef(0)
 
   // 모달이 열릴 때 상태 초기화 후 prepare 트리거
   useEffect(() => {
+    analyzeRequestGenerationRef.current += 1
     if (!isOpen) return
     setStep('targets')
     setTargets([])
     setCategoryFilter(ALL_CATEGORY)
     setUserRequest('')
     setRows([])
+    setAnalyzing(false)
     setAnalyzeError('')
     setSendClient(true)
     setSendContractor(true)
@@ -207,15 +210,19 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
 
   const checkedCount = rows.filter(r => r.checked).length
   const allChecked = rows.length > 0 && rows.every(r => r.checked)
+  const hasSelectedEmptyMessage = rows.some(r => r.checked && !r.message.trim())
 
   const handleClose = () => {
     if (sending) return
+    analyzeRequestGenerationRef.current += 1
     onClose()
   }
 
   const startAnalyze = async () => {
     const sites = filteredTargets
     if (sites.length === 0 || !userRequest.trim()) return
+    const requestGeneration = analyzeRequestGenerationRef.current + 1
+    analyzeRequestGenerationRef.current = requestGeneration
     setStep('results')
     setAnalyzing(true)
     setAnalyzeError('')
@@ -246,6 +253,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
       if (!res.ok || !data.results) {
         throw new Error(data.error || 'AI 분석에 실패했습니다.')
       }
+      if (requestGeneration !== analyzeRequestGenerationRef.current) return
       const byKey = new Map(data.results.map(r => [r.key, r]))
       setRows(sites.map(t => {
         const result = byKey.get(t.record.id)
@@ -257,9 +265,12 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
         }
       }))
     } catch (err) {
+      if (requestGeneration !== analyzeRequestGenerationRef.current) return
       setAnalyzeError(err instanceof Error ? err.message : 'AI 분석에 실패했습니다.')
     } finally {
-      setAnalyzing(false)
+      if (requestGeneration === analyzeRequestGenerationRef.current) {
+        setAnalyzing(false)
+      }
     }
   }
 
@@ -278,7 +289,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
 
   const handleSend = async () => {
     const targetsToSend = rows.filter(r => r.checked)
-    if (targetsToSend.length === 0 || (!sendClient && !sendContractor)) return
+    if (targetsToSend.length === 0 || hasSelectedEmptyMessage || (!sendClient && !sendContractor)) return
     const recipientLabel = [sendClient ? '발주청' : null, sendContractor ? '시공사' : null]
       .filter(Boolean).join('·')
     if (!window.confirm(`선택한 ${targetsToSend.length}개 현장에 ${recipientLabel} 텔레그램을 발송하시겠습니까?`)) return
@@ -307,15 +318,13 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
         throw new Error(data.error || '텔레그램 발송에 실패했습니다.')
       }
       const results = data.results
-      setRows(prev => {
-        let idx = 0
-        return prev.map(r => {
-          if (!r.checked) return r
-          const result = results[idx]
-          idx += 1
-          return result ? { ...r, sendResult: result } : r
-        })
-      })
+      const sendResultByRecordId = new Map(
+        targetsToSend.map((row, index) => [row.record.id, results[index]] as const)
+      )
+      setRows(prev => prev.map(row => {
+        const result = sendResultByRecordId.get(row.record.id)
+        return result ? { ...row, sendResult: result } : row
+      }))
     } catch (err) {
       setSendError(err instanceof Error ? err.message : '텔레그램 발송에 실패했습니다.')
     } finally {
@@ -477,6 +486,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                             type="checkbox"
                             checked={allChecked}
                             onChange={toggleAll}
+                            disabled={sending}
                             aria-label="전체 선택"
                           />
                         </th>
@@ -495,6 +505,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                               type="checkbox"
                               checked={row.checked}
                               onChange={() => toggleRow(row.record.id)}
+                              disabled={sending}
                               aria-label={`${row.record.project_name} 선택`}
                             />
                           </td>
@@ -515,8 +526,9 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                             <textarea
                               value={row.message}
                               onChange={e => updateMessage(row.record.id, e.target.value)}
+                              disabled={sending}
                               rows={4}
-                              className="w-full min-w-[220px] border border-gray-300 rounded-md p-1.5 text-xs text-gray-900"
+                              className="w-full min-w-[220px] border border-gray-300 rounded-md p-1.5 text-xs text-gray-900 disabled:bg-gray-100 disabled:text-gray-500"
                             />
                             {row.sendResult && (
                               <div className="mt-1 space-x-2 text-[11px]">
@@ -561,6 +573,9 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                 </button>
                 <div className="flex items-center gap-3">
                   {sendError && <span className="text-xs text-red-600">{sendError}</span>}
+                  {hasSelectedEmptyMessage && (
+                    <span className="text-xs text-amber-600">선택한 현장의 메시지를 입력해 주세요.</span>
+                  )}
                   <label className="inline-flex items-center gap-1 text-xs text-gray-700">
                     <input
                       type="checkbox"
@@ -582,7 +597,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                   <button
                     type="button"
                     onClick={() => { void handleSend() }}
-                    disabled={checkedCount === 0 || (!sendClient && !sendContractor) || sending}
+                    disabled={checkedCount === 0 || hasSelectedEmptyMessage || (!sendClient && !sendContractor) || sending}
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium bg-sky-600 text-white hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
