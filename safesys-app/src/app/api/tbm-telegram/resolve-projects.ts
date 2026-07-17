@@ -16,15 +16,20 @@ export interface ResolvedProject {
 
 const PROJECT_COLUMNS = 'id, project_name, project_category, client_telegram_id, contractor_telegram_id'
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const MAX_PROJECT_NAME_LENGTH = 200
+
+export function isCanonicalUuid(value: unknown): value is string {
+  return typeof value === 'string' && UUID_PATTERN.test(value)
+}
 
 export function isProjectItemRef(value: unknown): value is ProjectItemRef {
   if (!value || typeof value !== 'object') return false
   const item = value as Record<string, unknown>
-  const hasValidProjectId = item.projectId === null || (
-    typeof item.projectId === 'string' && item.projectId.trim().length > 0
-  )
+  const hasValidProjectId = item.projectId === null || isCanonicalUuid(item.projectId)
   return hasValidProjectId && (
-    typeof item.projectName === 'string' && item.projectName.trim().length > 0
+    typeof item.projectName === 'string' &&
+    item.projectName.trim().length > 0 &&
+    item.projectName.length <= MAX_PROJECT_NAME_LENGTH
   )
 }
 
@@ -39,7 +44,7 @@ export async function resolveProjects(
   const ids = [...new Set(
     items
       .map((item) => item.projectId)
-      .filter((id): id is string => typeof id === 'string' && UUID_PATTERN.test(id))
+      .filter(isCanonicalUuid)
   )]
   const names = [...new Set(
     items.map((item) => item.projectName)
@@ -71,11 +76,22 @@ export async function resolveProjects(
     rows.push(...((data ?? []) as ResolvedProject[]))
   }
 
-  const byId = new Map<string, ResolvedProject>()
-  const byName = new Map<string, ResolvedProject>()
+  const uniqueRows = new Map<string, ResolvedProject>()
   for (const row of rows) {
-    if (!byId.has(row.id)) byId.set(row.id, row)
-    if (!byName.has(row.project_name)) byName.set(row.project_name, row)
+    if (!uniqueRows.has(row.id)) uniqueRows.set(row.id, row)
+  }
+
+  const byId = new Map<string, ResolvedProject>()
+  const projectsByName = new Map<string, ResolvedProject[]>()
+  for (const row of uniqueRows.values()) {
+    byId.set(row.id, row)
+    const sameName = projectsByName.get(row.project_name) ?? []
+    projectsByName.set(row.project_name, [...sameName, row])
+  }
+
+  const byUniqueName = new Map<string, ResolvedProject>()
+  for (const [name, sameName] of projectsByName) {
+    if (sameName.length === 1) byUniqueName.set(name, sameName[0])
   }
 
   return items.map((item) => {
@@ -83,6 +99,6 @@ export async function resolveProjects(
       const matched = byId.get(item.projectId)
       if (matched) return matched
     }
-    return byName.get(item.projectName) ?? null
+    return byUniqueName.get(item.projectName) ?? null
   })
 }

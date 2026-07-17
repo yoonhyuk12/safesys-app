@@ -46,6 +46,8 @@ interface SendOutcome {
 }
 
 interface SendResultItem {
+  key: string
+  projectId: string | null
   projectName: string
   client: SendOutcome | null
   contractor: SendOutcome | null
@@ -53,7 +55,7 @@ interface SendResultItem {
 
 interface SendResponse {
   success?: boolean
-  results?: SendResultItem[]
+  results?: unknown
   error?: string
 }
 
@@ -76,6 +78,52 @@ interface AnalyzedRow extends TargetRow {
 }
 
 const ALL_CATEGORY = '전체'
+const MAX_ANALYZE_TARGETS = 50
+const MAX_SEND_TARGETS = 30
+
+function isSendOutcome(value: unknown): value is SendOutcome {
+  if (!value || typeof value !== 'object') return false
+  const outcome = value as Record<string, unknown>
+  return (
+    typeof outcome.attempted === 'boolean' &&
+    typeof outcome.ok === 'boolean' &&
+    (outcome.description === undefined || typeof outcome.description === 'string')
+  )
+}
+
+function validateSendResults(
+  value: unknown,
+  expectedKeys: string[]
+): Map<string, SendResultItem> | null {
+  if (!Array.isArray(value) || value.length !== expectedKeys.length) return null
+
+  const expected = new Set(expectedKeys)
+  const byKey = new Map<string, SendResultItem>()
+  for (const item of value) {
+    if (!item || typeof item !== 'object') return null
+    const row = item as Record<string, unknown>
+    if (
+      typeof row.key !== 'string' ||
+      !expected.has(row.key) ||
+      byKey.has(row.key) ||
+      (row.projectId !== null && typeof row.projectId !== 'string') ||
+      typeof row.projectName !== 'string' ||
+      (row.client !== null && !isSendOutcome(row.client)) ||
+      (row.contractor !== null && !isSendOutcome(row.contractor))
+    ) {
+      return null
+    }
+    byKey.set(row.key, row as unknown as SendResultItem)
+  }
+
+  return byKey.size === expected.size ? byKey : null
+}
+
+function withoutSendResult(row: AnalyzedRow): AnalyzedRow {
+  const next = { ...row }
+  delete next.sendResult
+  return next
+}
 
 const getAccessToken = async () => {
   const { data: { session }, error } = await supabase.auth.getSession()
@@ -116,6 +164,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
   const recordsRef = useRef(records)
   recordsRef.current = records
   const analyzeRequestGenerationRef = useRef(0)
+  const sendReservationRef = useRef<{ fingerprint: string; requestId: string } | null>(null)
 
   // 모달이 열릴 때 상태 초기화 후 prepare 트리거
   useEffect(() => {
@@ -211,6 +260,8 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
   const checkedCount = rows.filter(r => r.checked).length
   const allChecked = rows.length > 0 && rows.every(r => r.checked)
   const hasSelectedEmptyMessage = rows.some(r => r.checked && !r.message.trim())
+  const analyzeLimitExceeded = filteredTargets.length > MAX_ANALYZE_TARGETS
+  const sendLimitExceeded = checkedCount > MAX_SEND_TARGETS
 
   const handleClose = () => {
     if (sending) return
@@ -220,7 +271,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
 
   const startAnalyze = async () => {
     const sites = filteredTargets
-    if (sites.length === 0 || !userRequest.trim()) return
+    if (sites.length === 0 || sites.length > MAX_ANALYZE_TARGETS || !userRequest.trim()) return
     const requestGeneration = analyzeRequestGenerationRef.current + 1
     analyzeRequestGenerationRef.current = requestGeneration
     setStep('results')
@@ -289,11 +340,34 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
 
   const handleSend = async () => {
     const targetsToSend = rows.filter(r => r.checked)
-    if (targetsToSend.length === 0 || hasSelectedEmptyMessage || (!sendClient && !sendContractor)) return
+    if (
+      targetsToSend.length === 0 ||
+      targetsToSend.length > MAX_SEND_TARGETS ||
+      hasSelectedEmptyMessage ||
+      (!sendClient && !sendContractor)
+    ) return
     const recipientLabel = [sendClient ? '발주청' : null, sendContractor ? '시공사' : null]
       .filter(Boolean).join('·')
     if (!window.confirm(`선택한 ${targetsToSend.length}개 현장에 ${recipientLabel} 텔레그램을 발송하시겠습니까?`)) return
 
+    const items = targetsToSend.map(r => ({
+      key: r.record.id,
+      projectId: r.projectId,
+      projectName: r.record.project_name.trim(),
+      message: r.message.trim()
+    }))
+    const recipients = { client: sendClient, contractor: sendContractor }
+    const fingerprint = JSON.stringify({ items, recipients })
+    const previousReservation = sendReservationRef.current
+    const requestId = previousReservation?.fingerprint === fingerprint
+      ? previousReservation.requestId
+      : crypto.randomUUID()
+    sendReservationRef.current = { fingerprint, requestId }
+
+    const selectedKeys = new Set(targetsToSend.map(row => row.record.id))
+    setRows(prev => prev.map(row => (
+      selectedKeys.has(row.record.id) ? withoutSendResult(row) : row
+    )))
     setSending(true)
     setSendError('')
     try {
@@ -305,26 +379,27 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
           Authorization: `Bearer ${accessToken}`
         },
         body: JSON.stringify({
-          items: targetsToSend.map(r => ({
-            projectId: r.projectId,
-            projectName: r.record.project_name,
-            message: r.message
-          })),
-          recipients: { client: sendClient, contractor: sendContractor }
+          requestId,
+          items,
+          recipients
         })
       })
       const data: SendResponse = await res.json()
-      if (!res.ok || !data.results) {
+      if (!res.ok || data.success !== true) {
         throw new Error(data.error || '텔레그램 발송에 실패했습니다.')
       }
-      const results = data.results
-      const sendResultByRecordId = new Map(
-        targetsToSend.map((row, index) => [row.record.id, results[index]] as const)
+      const sendResultByRecordId = validateSendResults(
+        data.results,
+        targetsToSend.map(row => row.record.id)
       )
+      if (!sendResultByRecordId) {
+        throw new Error('텔레그램 발송 결과 형식이 올바르지 않습니다.')
+      }
       setRows(prev => prev.map(row => {
         const result = sendResultByRecordId.get(row.record.id)
         return result ? { ...row, sendResult: result } : row
       }))
+      sendReservationRef.current = null
     } catch (err) {
       setSendError(err instanceof Error ? err.message : '텔레그램 발송에 실패했습니다.')
     } finally {
@@ -437,14 +512,20 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                     value={userRequest}
                     onChange={e => setUserRequest(e.target.value)}
                     placeholder="어떤 부분에 대해 검토할까요? 예: 우천 대비 작업 안전조치 확인"
+                    maxLength={1000}
                     rows={2}
                     className="w-full border border-gray-300 rounded-md p-2 text-sm text-gray-900 placeholder:text-gray-400"
                   />
-                  <div className="mt-2 flex justify-end">
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    {analyzeLimitExceeded ? (
+                      <span className="text-xs text-amber-600">
+                        분석 대상이 50건을 초과했습니다. 소관사업 필터로 대상을 줄여주세요.
+                      </span>
+                    ) : <span />}
                     <button
                       type="button"
                       onClick={() => { void startAnalyze() }}
-                      disabled={!userRequest.trim() || filteredTargets.length === 0}
+                      disabled={!userRequest.trim() || filteredTargets.length === 0 || analyzeLimitExceeded}
                       className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium bg-sky-600 text-white hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       AI 분석 시작
@@ -527,6 +608,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                               value={row.message}
                               onChange={e => updateMessage(row.record.id, e.target.value)}
                               disabled={sending}
+                              maxLength={1000}
                               rows={4}
                               className="w-full min-w-[220px] border border-gray-300 rounded-md p-1.5 text-xs text-gray-900 disabled:bg-gray-100 disabled:text-gray-500"
                             />
@@ -576,6 +658,9 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                   {hasSelectedEmptyMessage && (
                     <span className="text-xs text-amber-600">선택한 현장의 메시지를 입력해 주세요.</span>
                   )}
+                  {sendLimitExceeded && (
+                    <span className="text-xs text-amber-600">발송 대상은 최대 30건입니다. 일부 선택을 해제해 주세요.</span>
+                  )}
                   <label className="inline-flex items-center gap-1 text-xs text-gray-700">
                     <input
                       type="checkbox"
@@ -597,7 +682,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                   <button
                     type="button"
                     onClick={() => { void handleSend() }}
-                    disabled={checkedCount === 0 || hasSelectedEmptyMessage || (!sendClient && !sendContractor) || sending}
+                    disabled={checkedCount === 0 || sendLimitExceeded || hasSelectedEmptyMessage || (!sendClient && !sendContractor) || sending}
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium bg-sky-600 text-white hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}

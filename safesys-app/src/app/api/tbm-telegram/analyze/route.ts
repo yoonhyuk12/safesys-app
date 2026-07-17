@@ -1,10 +1,20 @@
 // TBM 일괄 텔레그램 발송 — 사용자 검토 요청을 Gemini로 분석해 현장별 텔레그램 문안을 생성하는 API
 import { NextRequest, NextResponse } from 'next/server'
+import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
 import { authenticateRequest } from '../auth'
+import { isCanonicalUuid, resolveProjects } from '../resolve-projects'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const GEMINI_MODEL = 'gemini-3.1-flash'
 const CHUNK_SIZE = 15
+const MAX_ANALYZE_SITES = 50
+const MAX_USER_REQUEST_LENGTH = 1000
+const MAX_PROJECT_NAME_LENGTH = 200
+const MAX_PROJECT_CATEGORY_LENGTH = 100
+const MAX_SITE_DETAIL_LENGTH = 1000
+const MAX_ANALYSIS_LENGTH = 2000
+const MAX_MESSAGE_LENGTH = 1000
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
 
 interface AnalyzeSite {
   key: string
@@ -21,20 +31,42 @@ interface AnalyzeResult {
   message: string
 }
 
+interface TbmSubmissionRow {
+  id: string
+  project_id: string | null
+  project_name: string | null
+  today_work: string | null
+  personnel_total_count: number | null
+  personnel_count: string | null
+  equipment_input: string | null
+}
+
 interface GeminiGenerateResponse {
   candidates?: { content?: { parts?: { text?: string }[] } }[]
+}
+
+function isBoundedString(value: unknown, maxLength: number, required = false): value is string {
+  return typeof value === 'string' && value.length <= maxLength && (
+    !required || value.trim().length > 0
+  )
+}
+
+function isIsoDate(value: string): boolean {
+  if (!DATE_PATTERN.test(value)) return false
+  const parsed = new Date(`${value}T00:00:00.000Z`)
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
 function isAnalyzeSite(value: unknown): value is AnalyzeSite {
   if (!value || typeof value !== 'object') return false
   const site = value as Record<string, unknown>
   return (
-    typeof site.key === 'string' && site.key.trim().length > 0 &&
-    typeof site.projectName === 'string' && site.projectName.trim().length > 0 &&
-    typeof site.projectCategory === 'string' &&
-    typeof site.todayWork === 'string' &&
-    typeof site.personnel === 'string' &&
-    typeof site.equipment === 'string'
+    isCanonicalUuid(site.key) &&
+    isBoundedString(site.projectName, MAX_PROJECT_NAME_LENGTH, true) &&
+    isBoundedString(site.projectCategory, MAX_PROJECT_CATEGORY_LENGTH) &&
+    isBoundedString(site.todayWork, MAX_SITE_DETAIL_LENGTH) &&
+    isBoundedString(site.personnel, MAX_SITE_DETAIL_LENGTH) &&
+    isBoundedString(site.equipment, MAX_SITE_DETAIL_LENGTH)
   )
 }
 
@@ -54,7 +86,9 @@ function validateAnalyzeResults(
       !expectedKeys.has(result.key) ||
       byKey.has(result.key) ||
       typeof result.analysis !== 'string' ||
-      typeof result.message !== 'string'
+      result.analysis.length > MAX_ANALYSIS_LENGTH ||
+      typeof result.message !== 'string' ||
+      result.message.length > MAX_MESSAGE_LENGTH
     ) {
       return null
     }
@@ -180,9 +214,11 @@ export async function POST(request: NextRequest) {
 
     if (
       !userRequest ||
-      !date ||
+      userRequest.length > MAX_USER_REQUEST_LENGTH ||
+      !isIsoDate(date) ||
       !Array.isArray(sitesValue) ||
       sitesValue.length === 0 ||
+      sitesValue.length > MAX_ANALYZE_SITES ||
       !sitesValue.every(isAnalyzeSite)
     ) {
       return NextResponse.json(
@@ -198,6 +234,61 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const keys = sites.map((site) => site.key)
+    const { data, error } = await authentication.supabase
+      .from('tbm_submissions')
+      .select(
+        'id, project_id, project_name, today_work, personnel_total_count, personnel_count, equipment_input'
+      )
+      .in('id', keys)
+      .eq('meeting_date', date)
+      .eq('status', 'submitted')
+      .not('today_work', 'is', null)
+      .neq('today_work', '작업없음')
+
+    if (error) {
+      console.error('TBM 분석 권위 데이터 조회 오류:', error)
+      return NextResponse.json(
+        { error: 'TBM 제출 정보를 확인하는 중 오류가 발생했습니다.' },
+        { status: 500 }
+      )
+    }
+
+    const submissions = (data ?? []) as TbmSubmissionRow[]
+    const submissionById = new Map(submissions.map((row) => [row.id, row]))
+    if (
+      submissions.length !== keys.length ||
+      keys.some((key) => !submissionById.has(key))
+    ) {
+      return NextResponse.json(
+        { error: '조회 권한이 없거나 분석할 수 없는 TBM 항목이 포함되어 있습니다.' },
+        { status: 403 }
+      )
+    }
+
+    const orderedSubmissions = keys.map((key) => submissionById.get(key) as TbmSubmissionRow)
+    const resolvedProjects = await resolveProjects(
+      authentication.supabase,
+      orderedSubmissions.map((row) => ({
+        projectId: row.project_id,
+        projectName: row.project_name ?? '',
+      }))
+    )
+    const authoritativeSites: AnalyzeSite[] = orderedSubmissions.map((row, index) => {
+      const personnel = typeof row.personnel_total_count === 'number'
+        ? row.personnel_total_count
+        : parsePersonnelCount(row.personnel_count)
+      return {
+        key: row.id,
+        projectName: (row.project_name ?? '').slice(0, MAX_PROJECT_NAME_LENGTH),
+        projectCategory: (resolvedProjects[index]?.project_category ?? '')
+          .slice(0, MAX_PROJECT_CATEGORY_LENGTH),
+        todayWork: (row.today_work ?? '').slice(0, MAX_SITE_DETAIL_LENGTH),
+        personnel: `${personnel}명`,
+        equipment: (row.equipment_input ?? '').slice(0, MAX_SITE_DETAIL_LENGTH),
+      }
+    })
+
     if (!GEMINI_API_KEY) {
       return NextResponse.json(
         { error: 'GEMINI_API_KEY가 설정되지 않았습니다. (.env.local 확인)' },
@@ -207,8 +298,8 @@ export async function POST(request: NextRequest) {
 
     // 출력 잘림 방지를 위해 15개 현장 단위로 나눠 순차 호출한다.
     const results: AnalyzeResult[] = []
-    for (let i = 0; i < sites.length; i += CHUNK_SIZE) {
-      const chunk = sites.slice(i, i + CHUNK_SIZE)
+    for (let i = 0; i < authoritativeSites.length; i += CHUNK_SIZE) {
+      const chunk = authoritativeSites.slice(i, i + CHUNK_SIZE)
       const outcome = await analyzeChunk(GEMINI_API_KEY, userRequest, date, chunk)
       if ('error' in outcome) {
         return NextResponse.json({ error: outcome.error }, { status: 500 })

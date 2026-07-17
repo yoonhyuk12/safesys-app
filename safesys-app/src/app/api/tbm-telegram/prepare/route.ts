@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest } from '../auth'
 import { isProjectItemRef, resolveProjects, type ProjectItemRef } from '../resolve-projects'
 
+const MAX_PREPARE_ITEMS = 100
+
 interface PrepareResult {
   projectId: string | null
   projectName: string
@@ -21,6 +23,12 @@ export async function POST(request: NextRequest) {
       ? (body as Record<string, unknown>).items
       : null
 
+    if (Array.isArray(itemsValue) && itemsValue.length > MAX_PREPARE_ITEMS) {
+      return NextResponse.json(
+        { error: 'prepare 대상은 최대 100개까지 요청할 수 있습니다.' },
+        { status: 400 }
+      )
+    }
     if (
       !Array.isArray(itemsValue) ||
       itemsValue.length === 0 ||
@@ -38,7 +46,7 @@ export async function POST(request: NextRequest) {
     const results: PrepareResult[] = items.map((item, index) => {
       const project = resolved[index]
       return {
-        projectId: item.projectId ?? null,
+        projectId: project?.id ?? null,
         projectName: item.projectName,
         projectCategory: project?.project_category?.trim() ? project.project_category : '미분류',
         hasClientTelegram: Boolean(project?.client_telegram_id?.trim()),
