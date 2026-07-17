@@ -44,6 +44,7 @@ const filterLabelClassName = 'mb-1 block text-xs font-medium text-gray-600'
 
 const severityOptions = ACCIDENT_SEVERITY_OPTIONS
 const accidentTypeOptions = ACCIDENT_TYPE_OPTIONS
+const SHOW_PROJECT_SUMMARY = false
 
 const formatInputDate = (date: Date): string => {
   const year = date.getFullYear()
@@ -513,43 +514,45 @@ export default function AccidentAnalysisView({
             </div>
           </section>
 
-          <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm" aria-labelledby="project-summary-title">
-            <div className="border-b border-gray-200 px-4 py-3">
-              <h3 id="project-summary-title" className="text-sm font-semibold text-gray-900">프로젝트별 요약</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[940px] text-sm">
-                <thead className="bg-gray-50 text-xs text-gray-500">
-                  <tr>
-                    <th className="px-3 py-3 text-left font-medium">프로젝트</th>
-                    <th className="px-3 py-3 text-center font-medium">본부·지사</th>
-                    <th className="px-3 py-3 text-right font-medium">점검</th>
-                    <th className="px-3 py-3 text-right font-medium">서명 완료율</th>
-                    <th className="px-3 py-3 text-right font-medium">지적</th>
-                    <th className="px-3 py-3 text-right font-medium">미조치</th>
-                    <th className="px-3 py-3 text-right font-medium">사고</th>
-                    <th className="px-3 py-3 text-right font-medium">부상·사망</th>
-                    <th className="px-3 py-3 text-center font-medium">최근 사고일</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {analysis.projectSummaries.map((summary) => (
-                    <tr key={summary.projectId}>
-                      <td className="px-3 py-3 font-medium text-gray-900">{summary.projectName}</td>
-                      <td className="px-3 py-3 text-center text-gray-600">{summary.managingHq} · {summary.managingBranch}</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{summary.inspectionCount.toLocaleString()}건</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{formatRate(summary.signatureCompletionRate)}</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{summary.findingCount.toLocaleString()}건</td>
-                      <td className="px-3 py-3 text-right tabular-nums text-red-600">{summary.unresolvedCount.toLocaleString()}건</td>
-                      <td className="px-3 py-3 text-right font-medium tabular-nums text-indigo-700">{summary.accidentCount.toLocaleString()}건</td>
-                      <td className="px-3 py-3 text-right tabular-nums">{summary.injuredCount.toLocaleString()}명 · {summary.fatalCount.toLocaleString()}명</td>
-                      <td className="px-3 py-3 text-center text-gray-600">{formatDate(summary.latestAccidentAt)}</td>
+          {SHOW_PROJECT_SUMMARY && (
+            <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm" aria-labelledby="project-summary-title">
+              <div className="border-b border-gray-200 px-4 py-3">
+                <h3 id="project-summary-title" className="text-sm font-semibold text-gray-900">프로젝트별 요약</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[940px] text-sm">
+                  <thead className="bg-gray-50 text-xs text-gray-500">
+                    <tr>
+                      <th className="px-3 py-3 text-left font-medium">프로젝트</th>
+                      <th className="px-3 py-3 text-center font-medium">본부·지사</th>
+                      <th className="px-3 py-3 text-right font-medium">점검</th>
+                      <th className="px-3 py-3 text-right font-medium">서명 완료율</th>
+                      <th className="px-3 py-3 text-right font-medium">지적</th>
+                      <th className="px-3 py-3 text-right font-medium">미조치</th>
+                      <th className="px-3 py-3 text-right font-medium">사고</th>
+                      <th className="px-3 py-3 text-right font-medium">부상·사망</th>
+                      <th className="px-3 py-3 text-center font-medium">최근 사고일</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {analysis.projectSummaries.map((summary) => (
+                      <tr key={summary.projectId}>
+                        <td className="px-3 py-3 font-medium text-gray-900">{summary.projectName}</td>
+                        <td className="px-3 py-3 text-center text-gray-600">{summary.managingHq} · {summary.managingBranch}</td>
+                        <td className="px-3 py-3 text-right tabular-nums">{summary.inspectionCount.toLocaleString()}건</td>
+                        <td className="px-3 py-3 text-right tabular-nums">{formatRate(summary.signatureCompletionRate)}</td>
+                        <td className="px-3 py-3 text-right tabular-nums">{summary.findingCount.toLocaleString()}건</td>
+                        <td className="px-3 py-3 text-right tabular-nums text-red-600">{summary.unresolvedCount.toLocaleString()}건</td>
+                        <td className="px-3 py-3 text-right font-medium tabular-nums text-indigo-700">{summary.accidentCount.toLocaleString()}건</td>
+                        <td className="px-3 py-3 text-right tabular-nums">{summary.injuredCount.toLocaleString()}명 · {summary.fatalCount.toLocaleString()}명</td>
+                        <td className="px-3 py-3 text-center text-gray-600">{formatDate(summary.latestAccidentAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
 
           <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm" aria-labelledby="accident-history-title">
             <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
