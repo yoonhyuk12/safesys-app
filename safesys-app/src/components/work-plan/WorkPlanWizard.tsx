@@ -12,10 +12,15 @@ import SignatureStep from './SignatureStep'
 import WorkPlanForm from './WorkPlanForm'
 import { downloadConstructionWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-construction-pdf'
 import { downloadElectricWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-electric-pdf'
+import { downloadExcavationWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-excavation-pdf'
 import { downloadHeavyWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-heavy-pdf'
 import { downloadLoadingWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-loading-pdf'
 import { supabase } from '@/lib/supabase'
 import { PLAN_TYPE_OPTIONS } from '@/lib/work-plan/constants'
+import {
+  EXCAVATION_EMERGENCY_AGENCY_PRESETS,
+  EXCAVATION_UTILITY_KIND_PRESETS,
+} from '@/lib/work-plan/excavation-constants'
 import { removeWorkPlanStorageUrls, uploadWorkPlanSource } from '@/lib/work-plan/storage'
 import type {
   CommonWorkPlanFields,
@@ -53,6 +58,7 @@ const WORK_PLAN_DOWNLOADERS: Record<PlanType, (record: WorkPlanRecord) => Promis
   construction: downloadConstructionWorkPlanPdf,
   electric: downloadElectricWorkPlanPdf,
   heavy: downloadHeavyWorkPlanPdf,
+  excavation: downloadExcavationWorkPlanPdf,
 }
 
 function getPlanTypeLabel(type: PlanType): string {
@@ -146,6 +152,59 @@ function createPlanForm(type: PlanType, project: WorkPlanProject): NonNullable<W
       instructionAcknowledgement: { managerName: '', workerName: '' },
       workSteps: [], handover: { details: '', deliverer: '', receiver: '' },
       attachments: [], checklist: [],
+    }
+  }
+  if (type === 'excavation') {
+    const excavStartDate = project.construction_start_date || today()
+    const excavEndDate = project.construction_end_date || today()
+    return {
+      ...common,
+      workStartDate: excavStartDate,
+      workEndDate: excavEndDate,
+      planType: 'excavation',
+      overview: {
+        sitePhone: '',
+        siteScale: '',
+        partnerCompany: '',
+        partnerPhone: '',
+        partnerManager: { name: '', phone: '' },
+        excavStartDate,
+        excavEndDate,
+        depth: '',
+        area: '',
+        volume: '',
+        method: '',
+        equipmentSummary: '',
+      },
+      utilities: EXCAVATION_UTILITY_KIND_PRESETS.map((kind) => ({
+        kind,
+        finding: '',
+        action: '',
+        agency: '',
+      })),
+      surveyEntries: [],
+      equipmentRows: [],
+      manpowerRows: [],
+      drainagePlan: '',
+      blasting: {
+        applied: false,
+        method: '',
+        area: '',
+        amount: '',
+        managerName: '',
+        controlMeasure: '',
+      },
+      shoring: {
+        applied: false,
+        wallMethod: '',
+        wallQuantity: '',
+        supportMethod: '',
+        supportQuantity: '',
+        materials: [],
+      },
+      instrumentation: { applied: false, rows: [] },
+      emergencyContacts: EXCAVATION_EMERGENCY_AGENCY_PRESETS.map((contact) => ({ ...contact })),
+      checklist: [],
     }
   }
   return {

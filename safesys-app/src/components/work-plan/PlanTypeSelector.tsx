@@ -2,7 +2,7 @@
 
 // 작성할 작업계획서 종류를 복수 선택하는 카드형 선택기
 
-import { Check, Construction, Forklift, Scale, Zap } from 'lucide-react'
+import { Check, Construction, Forklift, Scale, Shovel, Zap } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { PlanType } from '@/lib/work-plan/types'
 
@@ -50,6 +50,14 @@ const PLAN_CARDS: Array<{
     description: '중량물 인양·운반·적재 작업',
     icon: Scale,
     color: 'text-emerald-700 bg-emerald-50 border-emerald-200',
+  },
+  {
+    type: 'excavation',
+    attachment: '표준 양식',
+    title: '지반 굴착',
+    description: '터파기·흙막이·발파 등 지반 굴착 작업',
+    icon: Shovel,
+    color: 'text-orange-700 bg-orange-50 border-orange-200',
   },
 ]
 

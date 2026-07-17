@@ -12,6 +12,7 @@ import { supabase } from '@/lib/supabase'
 import { downloadLoadingWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-loading-pdf'
 import { downloadConstructionWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-construction-pdf'
 import { downloadElectricWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-electric-pdf'
+import { downloadExcavationWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-excavation-pdf'
 import { downloadHeavyWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-heavy-pdf'
 import { PLAN_TYPE_OPTIONS } from '@/lib/work-plan/constants'
 import type { PlanType, WorkPlanProject, WorkPlanRecord, WorkPlanWorker } from '@/lib/work-plan/types'
@@ -21,6 +22,7 @@ const workPlanPdfDownloaders: Record<PlanType, (record: WorkPlanRecord) => Promi
   construction: downloadConstructionWorkPlanPdf,
   electric: downloadElectricWorkPlanPdf,
   heavy: downloadHeavyWorkPlanPdf,
+  excavation: downloadExcavationWorkPlanPdf,
 }
 
 const planTypeName = (type: PlanType) =>

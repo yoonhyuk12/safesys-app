@@ -3,8 +3,10 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { AlertTriangle, Calculator } from 'lucide-react'
+import { AlertTriangle, Calculator, Plus, Trash2 } from 'lucide-react'
 import EquipmentCatalogSelector from '@/components/work-plan/EquipmentCatalogSelector'
+import { CONSTRUCTION_SURVEY_ITEMS } from '@/lib/work-plan/constants'
+import { EXCAVATION_CHECKLIST } from '@/lib/work-plan/excavation-constants'
 import {
   toConstructionEquipmentPatch,
   toHeavyMachinePatch,
@@ -46,10 +48,12 @@ const TYPE_LABELS: Record<PlanType, string> = {
   construction: '붙임 2-2 차량계 건설기계',
   electric: '붙임 2-3 전기 작업',
   heavy: '붙임 2-4 중량물 취급',
+  excavation: '표준 양식 지반 굴착',
 }
 
 const RIGGING_TOOLS: RiggingTool[] = ['와이어로프', '섬유로프', '체인블럭', '기타']
 const TENSION_FACTORS = { 0: 1, 30: 1.04, 60: 1.16, 90: 1.41, 120: 2 } as const
+const CHECKLIST_RESULTS = ['양호', '미흡', '해당없음'] as const
 
 function Field({ label, value, onChange, type = 'text', placeholder, suffix }: FieldProps) {
   return (
@@ -484,11 +488,191 @@ export default function DeferredInfoStep({ selectedTypes, formData, onChange }: 
     )
   }
 
+  const renderExcavation = () => {
+    const current = formData.excavation
+    if (!current) return null
+
+    const updateEquipmentRow = (index: number, patch: Partial<(typeof current.equipmentRows)[number]>) =>
+      updatePlan('excavation', {
+        equipmentRows: current.equipmentRows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row),
+      })
+    const updateManpowerRow = (index: number, patch: Partial<(typeof current.manpowerRows)[number]>) =>
+      updatePlan('excavation', {
+        manpowerRows: current.manpowerRows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row),
+      })
+    const updateMaterialRow = (index: number, patch: Partial<(typeof current.shoring.materials)[number]>) =>
+      updateNested('excavation', 'shoring', {
+        materials: current.shoring.materials.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row),
+      })
+    const updateInstrumentRow = (index: number, patch: Partial<(typeof current.instrumentation.rows)[number]>) =>
+      updateNested('excavation', 'instrumentation', {
+        rows: current.instrumentation.rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row),
+      })
+    const updateSurveyFinding = (itemIndex: number, finding: string) => {
+      const exists = current.surveyEntries.some((entry) => entry.itemIndex === itemIndex)
+      updatePlan('excavation', {
+        surveyEntries: exists
+          ? current.surveyEntries.map((entry) => entry.itemIndex === itemIndex ? { ...entry, finding } : entry)
+          : [...current.surveyEntries, { itemIndex, finding, photoUrl: '' }],
+      })
+    }
+    const updateEmergencyContact = (index: number, patch: Partial<(typeof current.emergencyContacts)[number]>) =>
+      updatePlan('excavation', {
+        emergencyContacts: current.emergencyContacts.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row),
+      })
+    const updateChecklistResult = (itemIndex: number, result: (typeof CHECKLIST_RESULTS)[number]) => {
+      const exists = current.checklist.some((answer) => answer.itemIndex === itemIndex)
+      updatePlan('excavation', {
+        checklist: exists
+          ? current.checklist.map((answer) => answer.itemIndex === itemIndex ? { ...answer, result } : answer)
+          : [...current.checklist, { itemIndex, result, note: '' }],
+      })
+    }
+    const updateChecklistNote = (itemIndex: number, note: string) => {
+      const exists = current.checklist.some((answer) => answer.itemIndex === itemIndex)
+      updatePlan('excavation', {
+        checklist: exists
+          ? current.checklist.map((answer) => answer.itemIndex === itemIndex ? { ...answer, note } : answer)
+          : [...current.checklist, { itemIndex, result: '양호', note }],
+      })
+    }
+
+    return (
+      <>
+        <Section title="장비 사용계획">
+          <div className="space-y-3">
+            {current.equipmentRows.map((row, index) => (
+              <div key={`equipment-${index}`} className="rounded-lg border border-gray-200 p-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field label="항목" value={row.name} onChange={(value) => updateEquipmentRow(index, { name: value })} />
+                  <Field label="규격" value={row.spec} onChange={(value) => updateEquipmentRow(index, { spec: value })} />
+                  <Field label="수량" value={row.quantity} onChange={(value) => updateEquipmentRow(index, { quantity: value })} />
+                  <Field label="용도" value={row.purpose} onChange={(value) => updateEquipmentRow(index, { purpose: value })} />
+                  <Field label="작업기간" value={row.period} onChange={(value) => updateEquipmentRow(index, { period: value })} />
+                  <Field label="비고" value={row.note} onChange={(value) => updateEquipmentRow(index, { note: value })} />
+                </div>
+                <div className="mt-2 flex justify-end"><button type="button" onClick={() => updatePlan('excavation', { equipmentRows: current.equipmentRows.filter((_, rowIndex) => rowIndex !== index) })} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50" aria-label={`${row.name || index + 1} 장비 행 삭제`}><Trash2 className="h-3.5 w-3.5" /> 삭제</button></div>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={() => updatePlan('excavation', { equipmentRows: [...current.equipmentRows, { name: '', spec: '', quantity: '', purpose: '', period: '', note: '' }] })} className="mt-3 inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"><Plus className="h-3.5 w-3.5" /> 장비 행 추가</button>
+        </Section>
+
+        <Section title="인원 투입계획">
+          <div className="space-y-3">
+            {current.manpowerRows.map((row, index) => (
+              <div key={`manpower-${index}`} className="rounded-lg border border-gray-200 p-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field label="직종" value={row.role} onChange={(value) => updateManpowerRow(index, { role: value })} />
+                  <Field label="담당작업" value={row.task} onChange={(value) => updateManpowerRow(index, { task: value })} />
+                  <Field label="인원" value={row.count} onChange={(value) => updateManpowerRow(index, { count: value })} />
+                  <Field label="작업기간" value={row.period} onChange={(value) => updateManpowerRow(index, { period: value })} />
+                  <div className="sm:col-span-2"><Field label="비고" value={row.note} onChange={(value) => updateManpowerRow(index, { note: value })} /></div>
+                </div>
+                <div className="mt-2 flex justify-end"><button type="button" onClick={() => updatePlan('excavation', { manpowerRows: current.manpowerRows.filter((_, rowIndex) => rowIndex !== index) })} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50" aria-label={`${row.role || index + 1} 인원 행 삭제`}><Trash2 className="h-3.5 w-3.5" /> 삭제</button></div>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={() => updatePlan('excavation', { manpowerRows: [...current.manpowerRows, { role: '', task: '', count: '', period: '', note: '' }] })} className="mt-3 inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"><Plus className="h-3.5 w-3.5" /> 인원 행 추가</button>
+        </Section>
+
+        {current.shoring.applied && (
+          <Section title="흙막이 사용재료">
+            <div className="space-y-3">
+              {current.shoring.materials.map((row, index) => (
+                <div key={`material-${index}`} className="rounded-lg border border-gray-200 p-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    <Field label="품목" value={row.item} onChange={(value) => updateMaterialRow(index, { item: value })} />
+                    <Field label="규격" value={row.spec} onChange={(value) => updateMaterialRow(index, { spec: value })} />
+                    <Field label="단위" value={row.unit} onChange={(value) => updateMaterialRow(index, { unit: value })} />
+                    <Field label="수량" value={row.quantity} onChange={(value) => updateMaterialRow(index, { quantity: value })} />
+                  </div>
+                  <div className="mt-2 flex justify-end"><button type="button" onClick={() => updateNested('excavation', 'shoring', { materials: current.shoring.materials.filter((_, rowIndex) => rowIndex !== index) })} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50" aria-label={`${row.item || index + 1} 흙막이 재료 행 삭제`}><Trash2 className="h-3.5 w-3.5" /> 삭제</button></div>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => updateNested('excavation', 'shoring', { materials: [...current.shoring.materials, { item: '', spec: '', unit: '', quantity: '' }] })} className="mt-3 inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"><Plus className="h-3.5 w-3.5" /> 재료 행 추가</button>
+          </Section>
+        )}
+
+        {current.instrumentation.applied && (
+          <Section title="지반 계측계획" description="관리기준치는 구조기술자 승인값을 기재하세요.">
+            <div className="space-y-3">
+              {current.instrumentation.rows.map((row, index) => (
+                <div key={`instrument-${index}`} className="rounded-lg border border-gray-200 p-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <Field label="계측항목" value={row.item} onChange={(value) => updateInstrumentRow(index, { item: value })} />
+                    <Field label="설치위치" value={row.location} onChange={(value) => updateInstrumentRow(index, { location: value })} />
+                    <Field label="수량" value={row.quantity} onChange={(value) => updateInstrumentRow(index, { quantity: value })} />
+                    <Field label="측정시기" value={row.timing} onChange={(value) => updateInstrumentRow(index, { timing: value })} />
+                    <Field label="측정빈도" value={row.frequency} onChange={(value) => updateInstrumentRow(index, { frequency: value })} />
+                    <Field label="비고" value={row.note} onChange={(value) => updateInstrumentRow(index, { note: value })} />
+                  </div>
+                  <div className="mt-2 flex justify-end"><button type="button" onClick={() => updateNested('excavation', 'instrumentation', { rows: current.instrumentation.rows.filter((_, rowIndex) => rowIndex !== index) })} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50" aria-label={`${row.item || index + 1} 계측 행 삭제`}><Trash2 className="h-3.5 w-3.5" /> 삭제</button></div>
+                </div>
+              ))}
+            </div>
+            <button type="button" onClick={() => updateNested('excavation', 'instrumentation', { rows: [...current.instrumentation.rows, { item: '', location: '', quantity: '', timing: '', frequency: '', note: '' }] })} className="mt-3 inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"><Plus className="h-3.5 w-3.5" /> 계측 행 추가</button>
+          </Section>
+        )}
+
+        <Section title="사전조사 결과">
+          <div className="space-y-3">
+            {CONSTRUCTION_SURVEY_ITEMS.excavation.map((item, index) => (
+              <label key={item} className="block">
+                <span className="mb-1 block text-xs font-medium text-gray-600">{index + 1}. {item}</span>
+                <textarea rows={2} value={current.surveyEntries.find((entry) => entry.itemIndex === index)?.finding || ''} onChange={(event) => updateSurveyFinding(index, event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+              </label>
+            ))}
+          </div>
+        </Section>
+
+        <Section title="비상연락망">
+          <div className="space-y-3">
+            {current.emergencyContacts.map((row, index) => (
+              <div key={`emergency-${index}`} className="grid items-end gap-3 rounded-lg border border-gray-200 p-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto]">
+                <Field label="기관명" value={row.agency} onChange={(value) => updateEmergencyContact(index, { agency: value })} />
+                <Field label="전화번호" value={row.phone} onChange={(value) => updateEmergencyContact(index, { phone: value })} />
+                <button type="button" onClick={() => updatePlan('excavation', { emergencyContacts: current.emergencyContacts.filter((_, rowIndex) => rowIndex !== index) })} className="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200 px-2.5 py-2 text-xs font-medium text-red-600 hover:bg-red-50" aria-label={`${row.agency || index + 1} 비상연락망 행 삭제`}><Trash2 className="h-3.5 w-3.5" /> 삭제</button>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={() => updatePlan('excavation', { emergencyContacts: [...current.emergencyContacts, { agency: '', phone: '' }] })} className="mt-3 inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"><Plus className="h-3.5 w-3.5" /> 연락처 행 추가</button>
+        </Section>
+
+        <Section title="굴착작업 체크리스트">
+          <div className="space-y-3">
+            {EXCAVATION_CHECKLIST.map((item, itemIndex) => {
+              const answer = current.checklist.find((entry) => entry.itemIndex === itemIndex)
+              return (
+                <div key={item} className="rounded-lg border border-gray-200 p-3">
+                  <p className="text-sm font-medium text-gray-800">{itemIndex + 1}. {item}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {CHECKLIST_RESULTS.map((result) => {
+                      const selected = answer?.result === result
+                      const selectedClass = result === '양호'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                        : result === '미흡'
+                          ? 'border-red-600 bg-red-50 text-red-700'
+                          : 'border-gray-600 bg-gray-100 text-gray-700'
+                      return <button key={result} type="button" aria-pressed={selected} onClick={() => updateChecklistResult(itemIndex, result)} className={`rounded-full border px-3 py-1 text-xs font-medium ${selected ? selectedClass : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}>{result}</button>
+                    })}
+                  </div>
+                  <div className="mt-2"><Field label="비고" value={answer?.note || ''} onChange={(value) => updateChecklistNote(itemIndex, value)} /></div>
+                </div>
+              )
+            })}
+          </div>
+        </Section>
+      </>
+    )
+  }
+
   return (
     <div className="space-y-5">
       <div>
         <h2 className="text-xl font-bold text-gray-900">나중 확인 정보를 입력해주세요.</h2>
-        <p className="mt-1 text-sm text-gray-500">장비 제원과 자격 정보를 아직 모르면 모두 비워두고 저장할 수 있습니다.</p>
+        <p className="mt-1 text-sm text-gray-500">장비 제원·자격·굴착 세부정보를 아직 모르면 모두 비워두고 저장할 수 있습니다.</p>
       </div>
       {selectedTypes.map((type) => (
         <div key={type} className="space-y-4 rounded-xl border-2 border-amber-100 bg-amber-50/40 p-3 sm:p-4">
@@ -497,6 +681,7 @@ export default function DeferredInfoStep({ selectedTypes, formData, onChange }: 
           {type === 'construction' && renderConstruction()}
           {type === 'electric' && renderElectric()}
           {type === 'heavy' && renderHeavy()}
+          {type === 'excavation' && renderExcavation()}
         </div>
       ))}
     </div>

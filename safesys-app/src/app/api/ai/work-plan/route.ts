@@ -15,7 +15,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 // 검측 체크리스트 라우트와 동일하게 검증된 3.1-flash-lite를 사용한다. 상위 모델 출시 시 배열 앞에 추가하면 자동 폴백된다.
 const GEMINI_MODELS = ['gemini-3.1-flash-lite']
 
-const VALID_PLAN_TYPES: readonly PlanType[] = ['loading', 'construction', 'electric', 'heavy']
+const VALID_PLAN_TYPES: readonly PlanType[] = ['loading', 'construction', 'electric', 'heavy', 'excavation']
 const VALID_SURVEY_TYPES: readonly ConstructionSurveyType[] = [
   'constructionMachine',
   'excavation',
@@ -54,6 +54,8 @@ function planInstruction(type: PlanType): string {
       return `- ${planLabel(type)}(electric): 전기작업. 감전·아크섬광·아크폭발·접근한계거리·정전(전로차단)·활선 위험 관점으로 작성하며, 공통 riskControls에 더해 작업단계별 electricWorkSteps를 별도로 생성한다.`
     case 'heavy':
       return `- ${planLabel(type)}(heavy): 중량물 취급 작업. 인양물 낙하·협착·전도, 달기구(슬링·샤클) 점검, 인양 하부 출입금지, 편하중·적재 안정 관점으로 작성한다.`
+    case 'excavation':
+      return `- ${planLabel(type)}(excavation): 지반 굴착 작업. 굴착면·흙막이 붕괴, 토사 매몰, 장비 협착·충돌, 지하매설물(가스·전기·상수도) 파손, 굴착 단부 추락, 토사반출 차량 위험 관점으로 위험요인·개선대책을 작성한다.`
     default:
       return ''
   }

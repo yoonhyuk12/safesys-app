@@ -1,6 +1,6 @@
-// AI 작업계획서 4종의 폼·AI 초안·지도 드로잉·DB 레코드 공용 타입
+// AI 작업계획서 5종의 폼·AI 초안·지도 드로잉·DB 레코드 공용 타입
 
-export type PlanType = 'loading' | 'construction' | 'electric' | 'heavy'
+export type PlanType = 'loading' | 'construction' | 'electric' | 'heavy' | 'excavation'
 
 // 작성 화면 자동 인입에 필요한 프로젝트·작업자 최소 필드
 export interface WorkPlanProject {
@@ -47,9 +47,11 @@ export interface RiskControlRow {
   improvementMeasure: string
 }
 
-// 보고서 서명 대상 역할 — 결재란(담당·승인), 공통 서식(지휘자·운전원·유도자), 전기 서식(지시확인·인계인수)
+// 보고서 서명 대상 역할 — 결재란(담당·검토자 1·2·승인), 공통 서식(지휘자·운전원·유도자), 전기 서식(지시확인·인계인수)
 export type WorkPlanSignatureRole =
   | 'approvalManager'
+  | 'approvalReviewer1'
+  | 'approvalReviewer2'
   | 'approvalApprover'
   | 'workDirector'
   | 'operator'
@@ -245,11 +247,104 @@ export interface HeavyWorkPlanFormData extends CommonWorkPlanFields {
   checklist: ChecklistAnswer[]
 }
 
+export interface ExcavationUtilityRow {
+  kind: string
+  finding: string
+  action: string
+  agency: string
+}
+
+export interface ExcavationEquipmentRow {
+  name: string
+  spec: string
+  quantity: string
+  purpose: string
+  period: string
+  note: string
+}
+
+export interface ExcavationManpowerRow {
+  role: string
+  task: string
+  count: string
+  period: string
+  note: string
+}
+
+export interface ExcavationShoringMaterialRow {
+  item: string
+  spec: string
+  unit: string
+  quantity: string
+}
+
+export interface ExcavationInstrumentRow {
+  item: string
+  location: string
+  quantity: string
+  timing: string
+  frequency: string
+  note: string
+}
+
+export interface ExcavationEmergencyContact {
+  agency: string
+  phone: string
+}
+
+export interface ExcavationOverview {
+  sitePhone: string
+  siteScale: string
+  partnerCompany: string
+  partnerPhone: string
+  partnerManager: PersonContact
+  excavStartDate: string
+  excavEndDate: string
+  depth: string
+  area: string
+  volume: string
+  method: string
+  equipmentSummary: string
+}
+
+export interface ExcavationWorkPlanFormData extends CommonWorkPlanFields {
+  planType: 'excavation'
+  overview: ExcavationOverview
+  utilities: ExcavationUtilityRow[]
+  surveyEntries: ConstructionSurveyEntry[]
+  equipmentRows: ExcavationEquipmentRow[]
+  manpowerRows: ExcavationManpowerRow[]
+  drainagePlan: string
+  blasting: {
+    applied: boolean
+    method: string
+    area: string
+    amount: string
+    managerName: string
+    controlMeasure: string
+  }
+  shoring: {
+    applied: boolean
+    wallMethod: string
+    wallQuantity: string
+    supportMethod: string
+    supportQuantity: string
+    materials: ExcavationShoringMaterialRow[]
+  }
+  instrumentation: {
+    applied: boolean
+    rows: ExcavationInstrumentRow[]
+  }
+  emergencyContacts: ExcavationEmergencyContact[]
+  checklist: ChecklistAnswer[]
+}
+
 export interface WorkPlanFormByType {
   loading: LoadingWorkPlanFormData
   construction: ConstructionWorkPlanFormData
   electric: ElectricWorkPlanFormData
   heavy: HeavyWorkPlanFormData
+  excavation: ExcavationWorkPlanFormData
 }
 
 export type WorkPlanFormData = Partial<WorkPlanFormByType>

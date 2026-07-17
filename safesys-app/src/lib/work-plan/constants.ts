@@ -1,5 +1,10 @@
-// AI 작업계획서 4종 양식의 고정 문구·선택지·안전계수 상수
+// AI 작업계획서 5종 양식의 고정 문구·선택지·안전계수 상수
 import type { ConstructionSurveyType, PlanType } from './types'
+import {
+  EXCAVATION_CHECKLIST,
+  EXCAVATION_SAMPLE_NOTE,
+  EXCAVATION_TOC,
+} from './excavation-constants'
 
 export const PLAN_TYPE_OPTIONS: ReadonlyArray<{
   value: PlanType
@@ -11,6 +16,7 @@ export const PLAN_TYPE_OPTIONS: ReadonlyArray<{
   { value: 'construction', appendix: '붙임2-2', title: '차량계 건설기계 등 사용 작업계획서', shortTitle: '건설기계' },
   { value: 'electric', appendix: '붙임2-3', title: '전기 작업계획서', shortTitle: '전기' },
   { value: 'heavy', appendix: '붙임2-4', title: '중량물 취급 작업계획서', shortTitle: '중량물' },
+  { value: 'excavation', appendix: '표준양식', title: '지반 굴착 작업계획서', shortTitle: '굴착' },
 ]
 
 // 표지(원본 1쪽) 고정 텍스트 — 개정 2025-09-11 원본 표지에서 추출. "(작성예시)" 표기는 실문서이므로 제외.
@@ -98,6 +104,17 @@ export const WORK_PLAN_COVERS: Record<PlanType, WorkPlanCover> = {
         ],
       },
     ],
+  },
+  excavation: {
+    headerNote: '지반 굴착 작업계획서_고용노동부 표준 양식(2021)',
+    titleLines: ['지반 굴착', '작업계획서'],
+    sections: [
+      {
+        heading: '[목 차]',
+        items: EXCAVATION_TOC,
+      },
+    ],
+    footnote: EXCAVATION_SAMPLE_NOTE,
   },
 }
 
@@ -314,4 +331,5 @@ export const CHECKLISTS_BY_PLAN_TYPE: Record<PlanType, readonly string[]> = {
   construction: CONSTRUCTION_CHECKLIST,
   electric: ELECTRIC_CHECKLIST,
   heavy: HEAVY_CHECKLIST,
+  excavation: EXCAVATION_CHECKLIST,
 }
