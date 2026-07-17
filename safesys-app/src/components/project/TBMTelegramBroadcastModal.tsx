@@ -430,7 +430,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
             </h2>
             {step === 'results' && (
               <p className="mt-0.5 text-[11px] text-gray-500">
-                분석 대상 · today_work(오늘 작업내용) · personnel_total_count/personnel_count(투입인원) · equipment_input(투입장비)
+                분석 대상 · 오늘 작업내용 · 투입인원 · 투입장비
               </p>
             )}
           </div>
