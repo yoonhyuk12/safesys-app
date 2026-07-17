@@ -427,14 +427,17 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
             TBM 텔레그램 일괄 발송
             <span className="ml-2 text-xs font-normal text-gray-500">{selectedDate}</span>
           </h2>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="p-1 rounded hover:bg-gray-100"
-            aria-label="닫기"
-          >
-            <X className="h-4 w-4 text-gray-500" />
-          </button>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">사용 모델 · GPT-5.6 Luna</span>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="p-1 rounded hover:bg-gray-100"
+              aria-label="닫기"
+            >
+              <X className="h-4 w-4 text-gray-500" />
+            </button>
+          </div>
         </div>
 
         {step === 'targets' && (
@@ -540,9 +543,6 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                       AI 분석 시작
                     </button>
                   </div>
-                  <p className="mt-1 text-right text-xs text-gray-500">
-                    사용 모델 · GPT-5.6 Luna
-                  </p>
                 </div>
               </>
             )}
