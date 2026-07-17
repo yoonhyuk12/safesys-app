@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { sendTelegramMessage } from '@/lib/telegram'
+import { isOrganizationInUserScope } from '@/lib/organization-scope'
 import { authenticateRequest } from '../auth'
 import {
   isCanonicalUuid,
@@ -194,6 +195,15 @@ export async function POST(request: NextRequest) {
     }
 
     const resolved = await resolveProjects(authentication.supabase, items)
+    const hasUnauthorizedProject = resolved.some(project => (
+      project && !isOrganizationInUserScope(authentication.organizationScope, project)
+    ))
+    if (hasUnauthorizedProject) {
+      return NextResponse.json(
+        { error: '발송 권한이 없는 현장이 포함되어 있습니다.' },
+        { status: 403 }
+      )
+    }
     const resolvedIds = resolved.flatMap((project) => project ? [project.id] : [])
     if (new Set(resolvedIds).size !== resolvedIds.length) {
       return NextResponse.json(

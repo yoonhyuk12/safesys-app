@@ -1,9 +1,14 @@
 // TBM 텔레그램 API 요청의 Bearer 토큰을 검증하고 RLS용 Supabase 클라이언트를 생성하는 헬퍼
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import type { OrganizationScopeProfile } from '@/lib/organization-scope'
 
 type AuthenticationResult =
-  | { ok: true; supabase: SupabaseClient }
+  | {
+      ok: true
+      supabase: SupabaseClient
+      organizationScope: OrganizationScopeProfile
+    }
   | { ok: false; response: NextResponse }
 
 export async function authenticateRequest(
@@ -72,5 +77,33 @@ export async function authenticateRequest(
     }
   }
 
-  return { ok: true, supabase }
+  const { data: profile, error: profileError } = await supabase
+    .from('user_profiles')
+    .select('role, hq_division, branch_division')
+    .eq('id', user.id)
+    .single()
+
+  if (profileError || !profile) {
+    console.error('TBM AI API 사용자 소속 조회 실패', {
+      userId: user.id,
+      message: profileError?.message ?? '사용자 프로필 없음',
+    })
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: '사용자 소속 정보를 확인할 수 없습니다.' },
+        { status: 403 }
+      ),
+    }
+  }
+
+  return {
+    ok: true,
+    supabase,
+    organizationScope: {
+      role: profile.role,
+      hq_division: profile.hq_division,
+      branch_division: profile.branch_division,
+    },
+  }
 }

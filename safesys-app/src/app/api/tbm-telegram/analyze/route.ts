@@ -1,6 +1,7 @@
 // TBM 일괄 텔레그램 발송 — 사용자 검토 요청을 OpenAI로 분석해 현장별 텔레그램 문안을 생성하는 API
 import { NextRequest, NextResponse } from 'next/server'
 import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
+import { isOrganizationInUserScope } from '@/lib/organization-scope'
 import { authenticateRequest } from '../auth'
 import { isCanonicalUuid, resolveProjects } from '../resolve-projects'
 
@@ -35,6 +36,8 @@ interface TbmSubmissionRow {
   id: string
   project_id: string | null
   project_name: string | null
+  headquarters: string | null
+  branch: string | null
   today_work: string | null
   personnel_total_count: number | null
   personnel_count: string | null
@@ -236,7 +239,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await authentication.supabase
       .from('tbm_submissions')
       .select(
-        'id, project_id, project_name, today_work, personnel_total_count, personnel_count, equipment_input'
+        'id, project_id, project_name, headquarters, branch, today_work, personnel_total_count, personnel_count, equipment_input'
       )
       .in('id', keys)
       .eq('meeting_date', date)
@@ -256,7 +259,11 @@ export async function POST(request: NextRequest) {
     const submissionById = new Map(submissions.map((row) => [row.id, row]))
     if (
       submissions.length !== keys.length ||
-      keys.some((key) => !submissionById.has(key))
+      keys.some((key) => !submissionById.has(key)) ||
+      submissions.some(row => !isOrganizationInUserScope(
+        authentication.organizationScope,
+        { managing_hq: row.headquarters, managing_branch: row.branch }
+      ))
     ) {
       return NextResponse.json(
         { error: '조회 권한이 없거나 분석할 수 없는 TBM 항목이 포함되어 있습니다.' },

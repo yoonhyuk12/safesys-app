@@ -14,6 +14,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import type { TBMSafetyInspection } from '@/lib/projects'
 import { generateSupervisorDiaryExcel } from '@/lib/excel/supervisor-diary-export'
 import { downloadTBMStatusExcel } from '@/lib/excel/tbm-status-export'
+import { isOrganizationInUserScope } from '@/lib/organization-scope'
 import TBMTelegramBroadcastModal from '@/components/project/TBMTelegramBroadcastModal'
 
 // TBMRecord와 TBMStats는 lib/tbm.ts에서 import하므로 제거
@@ -81,10 +82,19 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
   }
   const [allTbmRecords, setAllTbmRecords] = useState<TBMRecord[]>([]) // 전체 캐시된 데이터
   const [telegramModalOpen, setTelegramModalOpen] = useState(false)
-  // AI 텔레그램 일괄발송 대상 — 당일(selectedDate) 제출 건 중 작업없음 제외
-  const telegramTargetRecords = allTbmRecords.filter(record =>
-    record.meeting_date === selectedDate && record.today_work !== '작업없음'
-  )
+  // AI 분석 대상 — 사용자 소속 범위와 현재 조회 범위를 모두 적용한 당일 제출 건
+  const telegramTargetRecords = React.useMemo(() => (
+    allTbmRecords.filter(record => (
+      record.meeting_date === selectedDate &&
+      record.today_work !== '작업없음' &&
+      isOrganizationInUserScope(userProfile, {
+        managing_hq: record.managing_hq,
+        managing_branch: record.managing_branch,
+      }) &&
+      (!selectedHq || record.managing_hq === selectedHq) &&
+      (!selectedBranch || record.managing_branch === selectedBranch)
+    ))
+  ), [allTbmRecords, selectedDate, selectedHq, selectedBranch, userProfile])
   const [tbmSafetyInspections, setTbmSafetyInspections] = useState<TBMSafetyInspection[]>([]) // TBM 안전활동 점검 데이터
   const [error, setError] = useState<string>('')
   const [navigationModal, setNavigationModal] = useState<{
