@@ -92,6 +92,22 @@ function isSendOutcome(value: unknown): value is SendOutcome {
   )
 }
 
+function toUserFacingMessage(message: string): string {
+  return message
+    .replace(/텔레그램 메시지/g, '메시지')
+    .replace(/텔레그램/g, '메시지')
+}
+
+function toUserFacingOutcome(outcome: SendOutcome | null): SendOutcome | null {
+  if (!outcome) return null
+  return {
+    ...outcome,
+    description: outcome.description
+      ? toUserFacingMessage(outcome.description)
+      : undefined,
+  }
+}
+
 function validateSendResults(
   value: unknown,
   expectedKeys: string[]
@@ -114,7 +130,12 @@ function validateSendResults(
     ) {
       return null
     }
-    byKey.set(row.key, row as unknown as SendResultItem)
+    const sendResult = row as unknown as SendResultItem
+    byKey.set(row.key, {
+      ...sendResult,
+      client: toUserFacingOutcome(sendResult.client),
+      contractor: toUserFacingOutcome(sendResult.contractor),
+    })
   }
 
   return byKey.size === expected.size ? byKey : null
@@ -357,7 +378,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     ) return
     const recipientLabel = [sendClient ? '발주청' : null, sendContractor ? '시공사' : null]
       .filter(Boolean).join('·')
-    if (!window.confirm(`선택한 ${targetsToSend.length}개 현장에 ${recipientLabel} 텔레그램을 발송하시겠습니까?`)) return
+    if (!window.confirm(`선택한 ${targetsToSend.length}개 현장에 ${recipientLabel} 메시지를 발송하시겠습니까?`)) return
 
     const items = targetsToSend.map(r => ({
       key: r.record.id,
@@ -395,14 +416,14 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
       })
       const data: SendResponse = await res.json()
       if (!res.ok || data.success !== true) {
-        throw new Error(data.error || '텔레그램 발송에 실패했습니다.')
+        throw new Error(toUserFacingMessage(data.error || '메시지 발송에 실패했습니다.'))
       }
       const sendResultByRecordId = validateSendResults(
         data.results,
         targetsToSend.map(row => row.record.id)
       )
       if (!sendResultByRecordId) {
-        throw new Error('텔레그램 발송 결과 형식이 올바르지 않습니다.')
+        throw new Error('메시지 발송 결과 형식이 올바르지 않습니다.')
       }
       setRows(prev => prev.map(row => {
         const result = sendResultByRecordId.get(row.record.id)
@@ -410,7 +431,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
       }))
       sendReservationRef.current = null
     } catch (err) {
-      setSendError(err instanceof Error ? err.message : '텔레그램 발송에 실패했습니다.')
+      setSendError(err instanceof Error ? err.message : '메시지 발송에 실패했습니다.')
     } finally {
       setSending(false)
     }
@@ -425,7 +446,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
         <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-gray-900">
-              TBM 텔레그램 일괄 발송
+              TBM AI 분석 및 메시지 발송
               <span className="ml-2 text-xs font-normal text-gray-500">{selectedDate}</span>
             </h2>
             {step === 'results' && (
@@ -729,7 +750,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium bg-sky-600 text-white hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    {sending ? '발송 중…' : `텔레그램 발송(${checkedCount}건)`}
+                    {sending ? '발송 중…' : `메시지 발송(${checkedCount}건)`}
                   </button>
                 </div>
               </div>

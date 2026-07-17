@@ -2969,10 +2969,10 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                           type="button"
                           onClick={() => setTelegramModalOpen(true)}
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium shadow-sm transition-colors bg-sky-100 text-sky-700 hover:bg-sky-200"
-                          title="TBM 제출 현장 일괄 텔레그램 발송 (AI 분석)"
+                          title="TBM 제출 현장 AI 분석 및 메시지 발송"
                         >
                           <Send className="h-4 w-4" />
-                          AI 텔레그램
+                          AI 분석
                         </button>
                       )}
                       {/* 단체문자 버튼 - 현재 조회중인 TBM 기록 소장 전원에게 문자 */}
