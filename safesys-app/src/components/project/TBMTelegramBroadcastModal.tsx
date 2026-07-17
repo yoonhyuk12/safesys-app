@@ -490,7 +490,10 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                     <thead className="bg-gray-50 sticky top-0">
                       <tr className="text-left text-gray-600">
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">소관사업</th>
-                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">현장명</th>
+                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">
+                          <span className="block">현장명</span>
+                          <span className="block text-[10px] font-normal text-gray-500">(지사명)</span>
+                        </th>
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">금일 작업내용</th>
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">인원</th>
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">장비</th>
@@ -506,7 +509,12 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                         <tr key={t.record.id} className="border-t border-gray-100 align-top">
                           <td className="px-2 py-1.5 whitespace-nowrap text-gray-600">{t.projectCategory}</td>
                           <td className="px-2 py-1.5 text-gray-900">
-                            <span className="block max-w-[180px] truncate" title={t.record.project_name}>{t.record.project_name}</span>
+                            <span className="block max-w-[180px] truncate font-medium" title={t.record.project_name}>
+                              {t.record.project_name}
+                            </span>
+                            <span className="block max-w-[180px] truncate text-[11px] text-gray-500" title={t.record.managing_branch || '지사 미분류'}>
+                              ({t.record.managing_branch || '지사 미분류'})
+                            </span>
                           </td>
                           <td className="px-2 py-1.5 text-gray-700">
                             <span className="block max-w-[220px] truncate" title={t.record.today_work}>{t.record.today_work || '-'}</span>
@@ -597,7 +605,10 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                             aria-label="전체 선택"
                           />
                         </th>
-                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">현장명</th>
+                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">
+                          <span className="block">현장명</span>
+                          <span className="block text-[10px] font-normal text-gray-500">(지사명)</span>
+                        </th>
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">작업·인원·장비</th>
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">분석 요약</th>
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">메시지 (수정 가능)</th>
