@@ -13,6 +13,7 @@ const RELATED_TABLES: Array<{ table: string; category: CountCategory }> = [
   { table: 'tbm_safety_inspections', category: 'safety' },
   { table: 'safe_document_inspections', category: 'safety' },
   { table: 'safety_inspections', category: 'safety' },
+  { table: 'project_accidents', category: 'safety' },
   { table: 'ptw_permits', category: 'safety' },
   { table: 'inspection_requests', category: 'safety' },
   { table: 'inspection_visit_logs', category: 'safety' },
