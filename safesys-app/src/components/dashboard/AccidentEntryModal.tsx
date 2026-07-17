@@ -2,7 +2,7 @@
 // 관할 프로젝트의 사고 이력을 입력하고 수정하는 접근 가능한 모달 폼.
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Loader2, X } from 'lucide-react'
+import { AlertCircle, Check, ChevronDown, Loader2, Search, X } from 'lucide-react'
 import type { Project } from '@/lib/projects'
 import {
   ACCIDENT_SEVERITY_OPTIONS,
@@ -45,6 +45,11 @@ const accidentTypeOptions = ACCIDENT_TYPE_OPTIONS
 const isAccidentSeverity = (value: string): value is AccidentFormInput['severity'] =>
   severityOptions.some((option) => option.value === value)
 
+const getProjectOptionLabel = (project: Project): string =>
+  `${project.project_name} (${project.managing_hq} · ${project.managing_branch})`
+
+const normalizeSearchText = (value: string): string => value.trim().toLocaleLowerCase('ko')
+
 const toLocalDateTimeInput = (value?: string | null): string => {
   const date = value ? new Date(value) : new Date()
   if (Number.isNaN(date.getTime())) return ''
@@ -70,6 +75,190 @@ const createDraft = (accident: ProjectAccident | null, defaultProjectId: string)
   fatalCount: String(accident?.fatal_count ?? 0),
   lostWorkdays: String(accident?.lost_workdays ?? 0),
 })
+
+interface ProjectSearchSelectProps {
+  id: string
+  projects: Project[]
+  value: string
+  disabled: boolean
+  onChange: (projectId: string) => void
+}
+
+function ProjectSearchSelect({ id, projects, value, disabled, onChange }: ProjectSearchSelectProps) {
+  const listboxId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const activeOptionRef = useRef<HTMLButtonElement>(null)
+  const selectedProject = projects.find((project) => project.id === value)
+  const selectedLabel = selectedProject ? getProjectOptionLabel(selectedProject) : ''
+  const [query, setQuery] = useState(selectedLabel)
+  const [isOpen, setIsOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
+
+  const filteredProjects = useMemo(() => {
+    const searchTerms = normalizeSearchText(query).split(/\s+/).filter(Boolean)
+    if (searchTerms.length === 0) return projects
+
+    return projects.filter((project) => {
+      const searchableText = normalizeSearchText(
+        `${project.project_name} ${project.managing_hq} ${project.managing_branch}`,
+      )
+      return searchTerms.every((term) => searchableText.includes(term))
+    })
+  }, [projects, query])
+  const activeProject = filteredProjects[activeIndex]
+
+  useEffect(() => {
+    setQuery(selectedLabel)
+    setIsOpen(false)
+  }, [selectedLabel])
+
+  useEffect(() => {
+    setActiveIndex(filteredProjects.length > 0 ? 0 : -1)
+  }, [filteredProjects])
+
+  useEffect(() => {
+    if (isOpen) activeOptionRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, isOpen])
+
+  const selectProject = (project: Project) => {
+    onChange(project.id)
+    setQuery(getProjectOptionLabel(project))
+    setIsOpen(false)
+    inputRef.current?.focus()
+  }
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      if (!isOpen) {
+        setQuery('')
+        setIsOpen(true)
+        return
+      }
+      setActiveIndex((current) => Math.min(current + 1, filteredProjects.length - 1))
+      return
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      if (!isOpen) {
+        setQuery('')
+        setIsOpen(true)
+        return
+      }
+      setActiveIndex((current) => Math.max(current - 1, 0))
+      return
+    }
+
+    if (event.key === 'Enter' && isOpen && activeIndex >= 0) {
+      event.preventDefault()
+      const project = filteredProjects[activeIndex]
+      if (project) selectProject(project)
+      return
+    }
+
+    if (event.key === 'Escape' && isOpen) {
+      event.preventDefault()
+      event.stopPropagation()
+      setQuery(selectedLabel)
+      setIsOpen(false)
+    }
+  }
+
+  return (
+    <div
+      className="relative"
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setQuery(selectedLabel)
+          setIsOpen(false)
+        }
+      }}
+    >
+      <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-gray-400" />
+      <input
+        ref={inputRef}
+        id={id}
+        type="text"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls={listboxId}
+        aria-expanded={isOpen}
+        aria-activedescendant={isOpen && activeProject ? `${listboxId}-${activeProject.id}` : undefined}
+        aria-required="true"
+        autoComplete="off"
+        value={query}
+        placeholder="프로젝트명, 본부 또는 지사 검색"
+        disabled={disabled}
+        onFocus={(event) => {
+          event.currentTarget.select()
+          setQuery('')
+          setIsOpen(true)
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value)
+          setIsOpen(true)
+        }}
+        onKeyDown={handleKeyDown}
+        className={`${inputClassName} pl-9 pr-10`}
+      />
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label={isOpen ? '프로젝트 목록 닫기' : '프로젝트 목록 열기'}
+        disabled={disabled}
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => {
+          if (isOpen) {
+            setQuery(selectedLabel)
+            setIsOpen(false)
+          } else {
+            setQuery('')
+            setIsOpen(true)
+            inputRef.current?.focus()
+          }
+        }}
+        className="absolute right-0 top-0 flex h-full w-10 items-center justify-center text-gray-400 hover:text-gray-700 disabled:cursor-not-allowed"
+      >
+        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && !disabled && (
+        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
+          <div className="border-b border-gray-100 px-3 py-2 text-xs text-gray-500">
+            {filteredProjects.length.toLocaleString('ko-KR')}개 프로젝트
+          </div>
+          <ul id={listboxId} role="listbox" className="max-h-60 overflow-y-auto py-1">
+            {filteredProjects.length > 0 ? filteredProjects.map((project, index) => {
+              const isSelected = project.id === value
+              const isActive = index === activeIndex
+              return (
+                <li key={project.id}>
+                  <button
+                    ref={isActive ? activeOptionRef : undefined}
+                    id={`${listboxId}-${project.id}`}
+                    type="button"
+                    role="option"
+                    aria-selected={isSelected}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onClick={() => selectProject(project)}
+                    className={`flex w-full items-start gap-2 px-3 py-2 text-left text-sm ${isActive ? 'bg-indigo-50 text-indigo-900' : 'text-gray-800 hover:bg-gray-50'}`}
+                  >
+                    <Check className={`mt-0.5 h-4 w-4 flex-shrink-0 ${isSelected ? 'text-indigo-600' : 'invisible'}`} />
+                    <span className="min-w-0 break-words">{getProjectOptionLabel(project)}</span>
+                  </button>
+                </li>
+              )
+            }) : (
+              <li className="px-3 py-5 text-center text-sm text-gray-500">검색 결과가 없습니다.</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function AccidentEntryModal({
   isOpen,
@@ -229,21 +418,13 @@ export default function AccidentEntryModal({
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label htmlFor="accident-project" className={labelClassName}>프로젝트 <span className="text-red-500">*</span></label>
-                <select
+                <ProjectSearchSelect
                   id="accident-project"
+                  projects={sortedProjects}
                   value={draft.projectId}
-                  onChange={(event) => updateDraft('projectId', event.target.value)}
                   disabled={submitting || Boolean(accident)}
-                  className={inputClassName}
-                  required
-                >
-                  <option value="">프로젝트 선택</option>
-                  {sortedProjects.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.managing_hq} · {project.managing_branch} · {project.project_name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(projectId) => updateDraft('projectId', projectId)}
+                />
               </div>
 
               <div>
