@@ -175,7 +175,7 @@ function analyzeTBMData(records: TBMRecord[]) {
       personnelCount: stats.personnelCount,
       projectCount: stats.projects.length
     })),
-    records: records.slice(0, 20) // 최근 20개 레코드만 상세 정보 제공
+    records: records.slice(0, 100) // 최근 100개 레코드까지 상세 정보 제공
   }
 }
 
