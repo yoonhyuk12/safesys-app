@@ -56,18 +56,6 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
     return `${year}-${month}-${day}`
   })
   const [tbmRecords, setTbmRecords] = useState<TBMRecord[]>([])
-  const orderedTbmRecords = React.useMemo(() => {
-    const branchOrder = selectedHq
-      ? (BRANCH_OPTIONS[selectedHq] || [])
-      : Array.from(new Set(Object.values(BRANCH_OPTIONS).flat()))
-    const branchIndexes = new Map(branchOrder.map((branchName, index) => [branchName, index]))
-
-    return [...tbmRecords].sort((a, b) => {
-      const aIndex = branchIndexes.get(a.managing_branch) ?? branchOrder.length
-      const bIndex = branchIndexes.get(b.managing_branch) ?? branchOrder.length
-      return aIndex - bIndex
-    })
-  }, [tbmRecords, selectedHq])
   // 총원(신규) 컬럼용 당해년도 누적 집계 (본부/지사별)
   const [yearlyPersonnel, setYearlyPersonnel] = useState<{ byHq: Map<string, { total: number; newWorkers: number }>; byBranch: Map<string, { total: number; newWorkers: number }> }>({ byHq: new Map(), byBranch: new Map() })
   // 누적 총원 ↔ 상시근로자 토글. false=누적(기본), true=상시. 상시값은 첫 전환 시 lazy 로드해 캐시.
@@ -1947,7 +1935,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                       </td>
                     </tr>
                   ) : (
-                    orderedTbmRecords.map((record, index) => (
+                    tbmRecords.map((record, index) => (
                       <tr
                         key={record.id}
                         className={`cursor-pointer transition-colors align-top ${deleteMode && selectedForDeletion.has(record.id)
@@ -2846,7 +2834,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
               ) : (
                 // 개별 TBM 기록 (모바일 카드 형식)
                 <div className="divide-y divide-gray-200">
-                  {orderedTbmRecords.map((record) => (
+                  {tbmRecords.map((record) => (
                     <div
                       key={record.id}
                       className={`p-4 cursor-pointer transition-colors ${deleteMode && selectedForDeletion.has(record.id)
@@ -3604,7 +3592,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                     ) : (
                       // 개별 TBM 기록 테이블
                       <div className="divide-y divide-gray-200">
-                        {orderedTbmRecords.map((record) => (
+                        {tbmRecords.map((record) => (
                           <div
                             key={record.id}
                             className={`p-4 cursor-pointer transition-colors ${deleteMode && selectedForDeletion.has(record.id)

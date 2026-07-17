@@ -5,6 +5,17 @@ import { X, Loader2, Send, ArrowLeft } from 'lucide-react'
 import type { TBMRecord } from '@/lib/tbm'
 import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
 import { supabase } from '@/lib/supabase'
+import { BRANCH_OPTIONS } from '@/lib/constants'
+
+const BRANCH_SORT_INDEX = new Map(
+  Object.entries(BRANCH_OPTIONS).flatMap(([hq, branches], hqIndex) =>
+    branches.map((branch, branchIndex) => [`${hq}||${branch}`, hqIndex * 1000 + branchIndex] as const)
+  )
+)
+
+const BRANCH_NAME_SORT_INDEX = new Map(
+  Array.from(new Set(Object.values(BRANCH_OPTIONS).flat())).map((branch, index) => [branch, index] as const)
+)
 
 interface TBMTelegramBroadcastModalProps {
   isOpen: boolean
@@ -297,6 +308,14 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
           }
         })
         const sorted = [...combined].sort((a, b) => {
+          const aBranchOrder = BRANCH_SORT_INDEX.get(`${a.record.managing_hq}||${a.record.managing_branch}`)
+            ?? BRANCH_NAME_SORT_INDEX.get(a.record.managing_branch)
+            ?? Number.MAX_SAFE_INTEGER
+          const bBranchOrder = BRANCH_SORT_INDEX.get(`${b.record.managing_hq}||${b.record.managing_branch}`)
+            ?? BRANCH_NAME_SORT_INDEX.get(b.record.managing_branch)
+            ?? Number.MAX_SAFE_INTEGER
+          if (aBranchOrder !== bBranchOrder) return aBranchOrder - bBranchOrder
+
           const byCategory = a.projectCategory.localeCompare(b.projectCategory, 'ko')
           if (byCategory !== 0) return byCategory
           return a.record.project_name.localeCompare(b.record.project_name, 'ko')
