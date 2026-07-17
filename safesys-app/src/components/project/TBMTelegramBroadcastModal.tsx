@@ -422,12 +422,19 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className={`bg-white rounded-lg shadow-xl w-full max-w-5xl ${step === 'results' ? 'lg:max-w-none' : ''} max-h-[90vh] flex flex-col`}>
         {/* 헤더 */}
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-sm font-bold text-gray-900">
-            TBM 텔레그램 일괄 발송
-            <span className="ml-2 text-xs font-normal text-gray-500">{selectedDate}</span>
-          </h2>
-          <div className="flex items-center gap-3">
+        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-gray-900">
+              TBM 텔레그램 일괄 발송
+              <span className="ml-2 text-xs font-normal text-gray-500">{selectedDate}</span>
+            </h2>
+            {step === 'results' && (
+              <p className="mt-0.5 text-[11px] text-gray-500">
+                분석 대상 · today_work(오늘 작업내용) · personnel_total_count/personnel_count(투입인원) · equipment_input(투입장비)
+              </p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-3">
             <span className="text-xs text-gray-500">사용 모델 · GPT-5.6 Luna</span>
             <button
               type="button"
