@@ -581,10 +581,9 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                   <table className="w-full min-w-[1200px] table-fixed text-xs">
                     <colgroup>
                       <col className="w-10" />
-                      <col className="w-36" />
-                      <col className="w-[14%]" />
-                      <col className="w-[18%]" />
-                      <col className="w-[27%]" />
+                      <col className="w-[16%]" />
+                      <col className="w-[20%]" />
+                      <col className="w-[28%]" />
                       <col />
                     </colgroup>
                     <thead className="bg-gray-50 sticky top-0">
@@ -598,7 +597,6 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                             aria-label="전체 선택"
                           />
                         </th>
-                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">소관사업</th>
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">현장명</th>
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">작업·인원·장비</th>
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">분석 요약</th>
@@ -617,11 +615,16 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                               aria-label={`${row.record.project_name} 선택`}
                             />
                           </td>
-                          <td className="px-2 py-1.5 text-gray-600">
-                            <span className="block truncate" title={row.projectCategory}>{row.projectCategory}</span>
-                          </td>
                           <td className="px-2 py-1.5 text-gray-900">
-                            <span className="block truncate" title={row.record.project_name}>{row.record.project_name}</span>
+                            <span className="block truncate font-medium" title={row.record.project_name}>
+                              {row.record.project_name}
+                            </span>
+                            <span className="block truncate text-[11px] text-gray-500" title={row.record.managing_branch || '지사 미분류'}>
+                              ({row.record.managing_branch || '지사 미분류'})
+                            </span>
+                            <span className="block truncate text-[11px] text-gray-500" title={row.projectCategory || '소관사업 미분류'}>
+                              ({row.projectCategory || '소관사업 미분류'})
+                            </span>
                           </td>
                           <td className="px-2 py-1.5 text-gray-700">
                             <span className="block truncate" title={row.record.today_work}>{row.record.today_work || '-'}</span>
