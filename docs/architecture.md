@@ -66,7 +66,9 @@ const [selectedSafetyBranch, setSelectedSafetyBranch] = useState<string | null>(
 /safe/safetyInspection         # 안전점검 현황
 /safe/newWorkerOrientation     # 신규작업자 교육 현황
 /safe/worker                   # 작업자 관리 현황
+/safe/accident-analysis        # 사고 이력·안전점검 통계 분석
 /safe/branch/[branch]/         # 특정 지사 안전현황 (위 각 카테고리별 하위 경로 동일)
+/safe/branch/[branch]/accident-analysis # 특정 지사 사고 통계 분석
 ```
 
 모든 `/safe` 페이지 컴포넌트는 동일 구조 — `<Dashboard />`를 렌더링하고 URL pathname으로 상태를 결정한다.
@@ -102,9 +104,11 @@ src/components/
 ├── Dashboard.tsx           # 중앙 오케스트레이터 (~4,300줄)
 ├── auth/                   # 인증 (LoginForm, SignUpForm, FindIdModal 등 8개)
 ├── common/                 # PWA (ServiceWorkerRegistration, UpdateNotifier 등 4개)
-├── dashboard/              # 대시보드 뷰 (19개)
+├── dashboard/              # 대시보드 뷰 (29개)
 │   ├── ClientDashboard     # 발주청 뷰
 │   ├── ContractorDashboard # 시공사 뷰
+│   ├── AccidentAnalysisView # 사고 이력·안전점검 관계 분석 및 사고 관리
+│   ├── AccidentEntryModal  # 본부급 이상 사용자의 사고 입력·수정 폼
 │   ├── Safety*View         # 안전현황 카테고리별 뷰 (7개)
 │   ├── *Status             # 점검 현황 요약 컴포넌트
 │   └── BusinessMaterialView # 자재 관리
@@ -126,6 +130,16 @@ src/components/
 | `tbm.ts` | TBM 상태 관리 |
 | `telegram.ts` | Telegram 봇 연동 |
 | `ui-settings.ts` | UI 상태 영속화 (분기 토글) |
+| `accident-analysis.ts` | `project_accidents` CRUD, 3종 안전점검 조회·정규화, 분석 모듈 공개 진입점 |
+| `accident-analysis-types.ts` | 사고 입력·조회 DTO, 점검 정규화 타입, 분석 결과 타입과 선택 옵션 |
+| `accident-analysis-utils.ts` | 서울 달력일 계산과 점검 JSON 정규화 공통 유틸리티 |
+| `accident-analysis-calculation.ts` | 프로젝트-월 단위 KPI, 월별 추이, 사고 전 30일·90일 점검 관계 계산 |
+
+**사고 통계 분석 데이터 흐름:**
+
+`/safe/accident-analysis` 또는 `/safe/branch/[branch]/accident-analysis` → `Dashboard` → `AccidentAnalysisView` → `accident-analysis.ts` → Supabase 순서로 연결된다. `AccidentEntryModal`은 본부급 이상 사용자에게 사고 입력·수정 폼을 제공하며, 저장·수정·삭제 권한은 데이터베이스 RLS에서도 다시 제한한다.
+
+`project_accidents.project_id`는 `projects.id`를 참조하고 프로젝트 삭제 시 함께 삭제된다. 발주청 사용자는 조직 관할 사고를 조회하고, 본사·본부급 사용자는 관할 프로젝트 사고를 등록·수정·삭제한다. 조회 모듈은 이 사고 이력과 정기안전점검·관리자점검·본부불시점검을 공통 점검 타입으로 정규화하며, 계산 모듈이 프로젝트-월 및 사고 전 30일·90일 관계를 산출한다.
 
 **문서 생성:**
 
