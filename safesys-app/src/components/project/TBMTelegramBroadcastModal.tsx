@@ -166,12 +166,35 @@ function withoutSendResult(row: AnalyzedRow): AnalyzedRow {
   return next
 }
 
-const getAccessToken = async () => {
-  const { data: { session }, error } = await supabase.auth.getSession()
+const getAccessToken = async (forceRefresh = false) => {
+  const { data: { session }, error } = forceRefresh
+    ? await supabase.auth.refreshSession()
+    : await supabase.auth.getSession()
+
   if (error || !session?.access_token) {
-    throw new Error('로그인 세션이 없습니다. 다시 로그인해 주세요.')
+    throw new Error(
+      forceRefresh
+        ? '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.'
+        : '로그인 세션이 없습니다. 다시 로그인해 주세요.'
+    )
   }
   return session.access_token
+}
+
+const fetchWithAuth = async (
+  input: RequestInfo | URL,
+  init: RequestInit = {}
+): Promise<Response> => {
+  const send = async (accessToken: string) => {
+    const headers = new Headers(init.headers)
+    headers.set('Authorization', `Bearer ${accessToken}`)
+    return fetch(input, { ...init, headers })
+  }
+
+  const response = await send(await getAccessToken())
+  if (response.status !== 401) return response
+
+  return send(await getAccessToken(true))
 }
 
 const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
@@ -233,16 +256,14 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
       setPrepareLoading(true)
       setPrepareError('')
       try {
-        const accessToken = await getAccessToken()
         const results: PrepareResultItem[] = []
         for (let start = 0; start < currentRecords.length; start += PREPARE_CHUNK_SIZE) {
           if (cancelled) return
           const chunk = currentRecords.slice(start, start + PREPARE_CHUNK_SIZE)
-          const res = await fetch('/api/tbm-telegram/prepare', {
+          const res = await fetchWithAuth('/api/tbm-telegram/prepare', {
             method: 'POST',
             headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${accessToken}`
+              'Content-Type': 'application/json'
             },
             body: JSON.stringify({
               items: chunk.map(r => ({
@@ -332,12 +353,10 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     setRows([])
     setSendError('')
     try {
-      const accessToken = await getAccessToken()
-      const res = await fetch('/api/tbm-telegram/analyze', {
+      const res = await fetchWithAuth('/api/tbm-telegram/analyze', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           userRequest: userRequest.trim(),
@@ -426,12 +445,10 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     setSending(true)
     setSendError('')
     try {
-      const accessToken = await getAccessToken()
-      const res = await fetch('/api/tbm-telegram/send', {
+      const res = await fetchWithAuth('/api/tbm-telegram/send', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           requestId,

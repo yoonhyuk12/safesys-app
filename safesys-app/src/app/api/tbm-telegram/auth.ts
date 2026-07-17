@@ -46,11 +46,28 @@ export async function authenticateRequest(
   const { data: { user }, error } = await supabase.auth.getUser(token)
 
   if (error || !user) {
+    const errorStatus = error?.status
+    console.warn('TBM AI API 인증 실패', {
+      message: error?.message ?? '사용자 정보 없음',
+      status: errorStatus ?? null,
+    })
+
+    const authServiceUnavailable = Boolean(
+      error && (
+        error.name === 'AuthRetryableFetchError' ||
+        errorStatus === 0 ||
+        (typeof errorStatus === 'number' && errorStatus >= 500)
+      )
+    )
     return {
       ok: false,
       response: NextResponse.json(
-        { error: '유효하지 않은 인증 토큰입니다.' },
-        { status: 401 }
+        {
+          error: authServiceUnavailable
+            ? '인증 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+            : '유효하지 않은 인증 토큰입니다.',
+        },
+        { status: authServiceUnavailable ? 503 : 401 }
       ),
     }
   }
