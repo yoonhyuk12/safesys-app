@@ -73,7 +73,8 @@ interface TargetRow {
 interface AnalyzedRow extends TargetRow {
   analysis: string
   message: string
-  checked: boolean
+  sendClient: boolean
+  sendContractor: boolean
   sendResult?: SendResultItem
 }
 
@@ -219,8 +220,6 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
   const [rows, setRows] = useState<AnalyzedRow[]>([])
 
   // 발송
-  const [sendClient, setSendClient] = useState(true)
-  const [sendContractor, setSendContractor] = useState(true)
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
 
@@ -241,8 +240,6 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     setRows([])
     setAnalyzing(false)
     setAnalyzeError('')
-    setSendClient(true)
-    setSendContractor(true)
     setSendError('')
   }, [isOpen])
 
@@ -330,9 +327,12 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     return targets.filter(t => t.projectCategory === categoryFilter)
   }, [targets, categoryFilter])
 
-  const checkedCount = rows.filter(r => r.checked).length
-  const allChecked = rows.length > 0 && rows.every(r => r.checked)
-  const hasSelectedEmptyMessage = rows.some(r => r.checked && !r.message.trim())
+  const checkedCount = rows.filter(r => r.sendClient || r.sendContractor).length
+  const selectedClientCount = rows.filter(r => r.sendClient).length
+  const selectedContractorCount = rows.filter(r => r.sendContractor).length
+  const hasSelectedEmptyMessage = rows.some(
+    r => (r.sendClient || r.sendContractor) && !r.message.trim()
+  )
   const analyzeLimitExceeded = filteredTargets.length > MAX_ANALYZE_TARGETS
   const sendLimitExceeded = checkedCount > MAX_SEND_TARGETS
 
@@ -386,7 +386,8 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
           ...t,
           analysis: result?.analysis || '',
           message: result?.message || '',
-          checked: true
+          sendClient: t.hasClientTelegram,
+          sendContractor: t.hasContractorTelegram
         }
       }))
     } catch (err) {
@@ -399,13 +400,17 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     }
   }
 
-  const toggleRow = (id: string) => {
-    setRows(prev => prev.map(r => r.record.id === id ? { ...r, checked: !r.checked } : r))
-  }
-
-  const toggleAll = () => {
-    const next = !allChecked
-    setRows(prev => prev.map(r => ({ ...r, checked: next })))
+  const updateSendRecipient = (
+    id: string,
+    recipient: 'client' | 'contractor',
+    selected: boolean
+  ) => {
+    setRows(prev => prev.map(row => {
+      if (row.record.id !== id) return row
+      return recipient === 'client'
+        ? { ...row, sendClient: selected }
+        : { ...row, sendContractor: selected }
+    }))
   }
 
   const updateMessage = (id: string, message: string) => {
@@ -413,25 +418,31 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
   }
 
   const handleSend = async () => {
-    const targetsToSend = rows.filter(r => r.checked)
+    const targetsToSend = rows.filter(r => r.sendClient || r.sendContractor)
     if (
       targetsToSend.length === 0 ||
       targetsToSend.length > MAX_SEND_TARGETS ||
-      hasSelectedEmptyMessage ||
-      (!sendClient && !sendContractor)
+      hasSelectedEmptyMessage
     ) return
-    const recipientLabel = [sendClient ? '발주청' : null, sendContractor ? '시공사' : null]
-      .filter(Boolean).join('·')
-    if (!window.confirm(`선택한 ${targetsToSend.length}개 현장에 ${recipientLabel} 메시지를 발송하시겠습니까?`)) return
+    const recipientSummary = [
+      selectedClientCount > 0 ? `발주청 ${selectedClientCount}건` : null,
+      selectedContractorCount > 0 ? `시공사 ${selectedContractorCount}건` : null,
+    ].filter(Boolean).join(' · ')
+    if (!window.confirm(
+      `선택한 ${targetsToSend.length}개 현장에 메시지를 발송하시겠습니까?\n(${recipientSummary})`
+    )) return
 
     const items = targetsToSend.map(r => ({
       key: r.record.id,
       projectId: r.projectId,
       projectName: r.record.project_name.trim(),
-      message: r.message.trim()
+      message: r.message.trim(),
+      recipients: {
+        client: r.sendClient,
+        contractor: r.sendContractor,
+      },
     }))
-    const recipients = { client: sendClient, contractor: sendContractor }
-    const fingerprint = JSON.stringify({ items, recipients })
+    const fingerprint = JSON.stringify({ items })
     const previousReservation = sendReservationRef.current
     const requestId = previousReservation?.fingerprint === fingerprint
       ? previousReservation.requestId
@@ -452,8 +463,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
         },
         body: JSON.stringify({
           requestId,
-          items,
-          recipients
+          items
         })
       })
       const data = await parseJsonResponse<SendResponse>(
@@ -652,25 +662,17 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                 </div>
               ) : (
                 <div className="border border-gray-200 rounded-md max-h-[55vh] overflow-auto">
-                  <table className="w-full min-w-[1200px] table-fixed text-xs">
+                  <table className="w-full min-w-[1500px] table-fixed text-xs">
                     <colgroup>
-                      <col className="w-10" />
-                      <col className="w-[16%]" />
-                      <col className="w-[20%]" />
-                      <col className="w-[28%]" />
+                      <col className="w-[14%]" />
+                      <col className="w-[17%]" />
+                      <col className="w-[24%]" />
                       <col />
+                      <col className="w-28" />
+                      <col className="w-44" />
                     </colgroup>
                     <thead className="bg-gray-50 sticky top-0">
                       <tr className="text-left text-gray-600">
-                        <th className="px-2 py-1.5">
-                          <input
-                            type="checkbox"
-                            checked={allChecked}
-                            onChange={toggleAll}
-                            disabled={sending}
-                            aria-label="전체 선택"
-                          />
-                        </th>
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">
                           <span className="block">현장명</span>
                           <span className="block text-[10px] font-normal text-gray-500">(지사명)</span>
@@ -678,20 +680,13 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">작업·인원·장비</th>
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">분석 요약</th>
                         <th className="px-2 py-1.5 font-medium whitespace-nowrap">메시지 (수정 가능)</th>
+                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">수신 가능</th>
+                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">전송</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rows.map(row => (
                         <tr key={row.record.id} className="border-t border-gray-100 align-top">
-                          <td className="px-2 py-1.5">
-                            <input
-                              type="checkbox"
-                              checked={row.checked}
-                              onChange={() => toggleRow(row.record.id)}
-                              disabled={sending}
-                              aria-label={`${row.record.project_name} 선택`}
-                            />
-                          </td>
                           <td className="px-2 py-1.5 text-gray-900">
                             <span className="block truncate font-medium" title={row.record.project_name}>
                               {row.record.project_name}
@@ -721,23 +716,55 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                               rows={4}
                               className="w-full min-w-[220px] border border-gray-300 rounded-md p-1.5 text-xs text-gray-900 disabled:bg-gray-100 disabled:text-gray-500"
                             />
+                          </td>
+                          <td className="px-2 py-1.5 whitespace-nowrap">
+                            <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] ${row.hasClientTelegram ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
+                              발주청
+                            </span>
+                            <span className={`ml-1 inline-block rounded px-1.5 py-0.5 text-[10px] ${row.hasContractorTelegram ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
+                              시공사
+                            </span>
+                          </td>
+                          <td className="px-2 py-1.5">
+                            <div className="space-y-1">
+                              <label className={`flex items-center gap-1 text-[11px] ${row.hasClientTelegram ? 'text-gray-700' : 'text-gray-400'}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={row.sendClient}
+                                  onChange={e => updateSendRecipient(row.record.id, 'client', e.target.checked)}
+                                  disabled={sending || !row.hasClientTelegram}
+                                  aria-label={`${row.record.project_name} 발주청 전송`}
+                                />
+                                발주청
+                              </label>
+                              <label className={`flex items-center gap-1 text-[11px] ${row.hasContractorTelegram ? 'text-gray-700' : 'text-gray-400'}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={row.sendContractor}
+                                  onChange={e => updateSendRecipient(row.record.id, 'contractor', e.target.checked)}
+                                  disabled={sending || !row.hasContractorTelegram}
+                                  aria-label={`${row.record.project_name} 시공사 전송`}
+                                />
+                                시공사
+                              </label>
+                            </div>
                             {row.sendResult && (
-                              <div className="mt-1 space-x-2 text-[11px]">
+                              <div className="mt-1 space-y-0.5 text-[10px]">
                                 {row.sendResult.client && (
-                                  <span
+                                  <div
                                     className={row.sendResult.client.ok ? 'text-green-600' : 'text-red-600'}
                                     title={row.sendResult.client.description || ''}
                                   >
                                     발주청 {row.sendResult.client.ok ? '✓' : `✗ ${row.sendResult.client.description || ''}`}
-                                  </span>
+                                  </div>
                                 )}
                                 {row.sendResult.contractor && (
-                                  <span
+                                  <div
                                     className={row.sendResult.contractor.ok ? 'text-green-600' : 'text-red-600'}
                                     title={row.sendResult.contractor.description || ''}
                                   >
                                     시공사 {row.sendResult.contractor.ok ? '✓' : `✗ ${row.sendResult.contractor.description || ''}`}
-                                  </span>
+                                  </div>
                                 )}
                               </div>
                             )}
@@ -770,28 +797,13 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                   {sendLimitExceeded && (
                     <span className="text-xs text-amber-600">발송 대상은 최대 30건입니다. 일부 선택을 해제해 주세요.</span>
                   )}
-                  <label className="inline-flex items-center gap-1 text-xs text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={sendClient}
-                      onChange={e => setSendClient(e.target.checked)}
-                      disabled={sending}
-                    />
-                    발주청
-                  </label>
-                  <label className="inline-flex items-center gap-1 text-xs text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={sendContractor}
-                      onChange={e => setSendContractor(e.target.checked)}
-                      disabled={sending}
-                    />
-                    시공사
-                  </label>
+                  <span className="text-xs text-gray-500">
+                    전송 선택 · 발주청 {selectedClientCount}건 · 시공사 {selectedContractorCount}건
+                  </span>
                   <button
                     type="button"
                     onClick={() => { void handleSend() }}
-                    disabled={checkedCount === 0 || sendLimitExceeded || hasSelectedEmptyMessage || (!sendClient && !sendContractor) || sending}
+                    disabled={checkedCount === 0 || sendLimitExceeded || hasSelectedEmptyMessage || sending}
                     className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium bg-sky-600 text-white hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}

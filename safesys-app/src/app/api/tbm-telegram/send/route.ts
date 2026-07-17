@@ -18,6 +18,10 @@ const MAX_MESSAGE_LENGTH = 1000
 interface SendItem extends ProjectItemRef {
   key: string
   message: string
+  recipients: {
+    client: boolean
+    contractor: boolean
+  }
 }
 
 interface RecipientResult {
@@ -44,12 +48,23 @@ function escapeHtml(text: string): string {
 }
 
 function isSendItem(value: unknown): value is SendItem {
-  if (!isProjectItemRef(value) || !('key' in value) || !('message' in value)) return false
+  if (
+    !isProjectItemRef(value) ||
+    !('key' in value) ||
+    !('message' in value) ||
+    !('recipients' in value)
+  ) return false
   const message = typeof value.message === 'string' ? value.message.trim() : ''
+  const recipients = value.recipients
+  if (!recipients || typeof recipients !== 'object') return false
+  const recipientSelection = recipients as Record<string, unknown>
   return (
     isCanonicalUuid(value.key) &&
     message.length > 0 &&
-    message.length <= MAX_MESSAGE_LENGTH
+    message.length <= MAX_MESSAGE_LENGTH &&
+    typeof recipientSelection.client === 'boolean' &&
+    typeof recipientSelection.contractor === 'boolean' &&
+    (recipientSelection.client || recipientSelection.contractor)
   )
 }
 
@@ -76,16 +91,15 @@ function parseDispatchReservation(value: unknown): DispatchReservation | null {
 
 function createPayloadHash(
   items: SendItem[],
-  resolved: (ResolvedProject | null)[],
-  recipients: { client: boolean; contractor: boolean }
+  resolved: (ResolvedProject | null)[]
 ): string {
   const payload = {
     items: items.map((item, index) => ({
       project: resolved[index]?.id ?? item.projectName,
       key: item.key,
       message: item.message,
+      recipients: item.recipients,
     })),
-    recipients,
   }
   return createHash('sha256').update(JSON.stringify(payload)).digest('hex')
 }
@@ -150,10 +164,6 @@ export async function POST(request: NextRequest) {
       : null
     const requestId = input?.requestId
     const itemsValue = input?.items
-    const recipientsValue = input?.recipients
-    const recipients = recipientsValue && typeof recipientsValue === 'object'
-      ? recipientsValue as Record<string, unknown>
-      : null
 
     if (
       !isCanonicalUuid(requestId) ||
@@ -167,21 +177,14 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    if (
-      !recipients ||
-      typeof recipients.client !== 'boolean' ||
-      typeof recipients.contractor !== 'boolean' ||
-      (!recipients.client && !recipients.contractor)
-    ) {
-      return NextResponse.json(
-        { error: '발송할 수신자를 선택해주세요.' },
-        { status: 400 }
-      )
-    }
     const items: SendItem[] = itemsValue.map((item) => ({
       ...item,
       projectName: item.projectName.trim(),
       message: item.message.trim(),
+      recipients: {
+        client: item.recipients.client,
+        contractor: item.recipients.contractor,
+      },
     }))
     if (new Set(items.map((item) => item.key)).size !== items.length) {
       return NextResponse.json(
@@ -189,11 +192,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
-    const recipientSelection = {
-      client: recipients.client,
-      contractor: recipients.contractor,
-    }
-
     const resolved = await resolveProjects(authentication.supabase, items)
     const hasUnauthorizedProject = resolved.some(project => (
       project && !isOrganizationInUserScope(authentication.organizationScope, project)
@@ -212,7 +210,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const payloadHash = createPayloadHash(items, resolved, recipientSelection)
+    const payloadHash = createPayloadHash(items, resolved)
     const { data: reservationData, error: reservationError } = await authentication.supabase.rpc(
       'reserve_tbm_telegram_dispatch',
       { p_request_id: requestId, p_payload_hash: payloadHash }
@@ -259,10 +257,10 @@ export async function POST(request: NextRequest) {
         const project = resolved[index]
         const message = escapeHtml(item.message)
 
-        const client = recipientSelection.client
+        const client = item.recipients.client
           ? await sendToRecipient(project, project?.client_telegram_id, message)
           : null
-        const contractor = recipientSelection.contractor
+        const contractor = item.recipients.contractor
           ? await sendToRecipient(project, project?.contractor_telegram_id, message)
           : null
 
