@@ -570,8 +570,16 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                   </button>
                 </div>
               ) : (
-                <div className="border border-gray-200 rounded-md max-h-[55vh] overflow-y-auto">
-                  <table className="w-full text-xs">
+                <div className="border border-gray-200 rounded-md max-h-[55vh] overflow-auto">
+                  <table className="w-full min-w-[1200px] table-fixed text-xs">
+                    <colgroup>
+                      <col className="w-10" />
+                      <col className="w-36" />
+                      <col className="w-[14%]" />
+                      <col className="w-[18%]" />
+                      <col className="w-[27%]" />
+                      <col />
+                    </colgroup>
                     <thead className="bg-gray-50 sticky top-0">
                       <tr className="text-left text-gray-600">
                         <th className="px-2 py-1.5">
@@ -602,18 +610,20 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                               aria-label={`${row.record.project_name} 선택`}
                             />
                           </td>
-                          <td className="px-2 py-1.5 whitespace-nowrap text-gray-600">{row.projectCategory}</td>
+                          <td className="px-2 py-1.5 text-gray-600">
+                            <span className="block truncate" title={row.projectCategory}>{row.projectCategory}</span>
+                          </td>
                           <td className="px-2 py-1.5 text-gray-900">
-                            <span className="block max-w-[140px] truncate" title={row.record.project_name}>{row.record.project_name}</span>
+                            <span className="block truncate" title={row.record.project_name}>{row.record.project_name}</span>
                           </td>
                           <td className="px-2 py-1.5 text-gray-700">
-                            <span className="block max-w-[150px] truncate" title={row.record.today_work}>{row.record.today_work || '-'}</span>
-                            <span className="block text-gray-500 max-w-[150px] truncate" title={row.record.equipment_input || ''}>
+                            <span className="block truncate" title={row.record.today_work}>{row.record.today_work || '-'}</span>
+                            <span className="block truncate text-gray-500" title={row.record.equipment_input || ''}>
                               {row.personnelText} · {row.record.equipment_input || '장비 없음'}
                             </span>
                           </td>
                           <td className="px-2 py-1.5 text-gray-700">
-                            <div className="max-w-[200px] whitespace-pre-wrap break-words">{row.analysis || '-'}</div>
+                            <div className="whitespace-pre-wrap break-words">{row.analysis || '-'}</div>
                           </td>
                           <td className="px-2 py-1.5">
                             <textarea
