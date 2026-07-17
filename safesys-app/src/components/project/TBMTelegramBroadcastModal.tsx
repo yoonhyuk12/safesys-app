@@ -78,6 +78,7 @@ interface AnalyzedRow extends TargetRow {
 }
 
 const ALL_CATEGORY = '전체'
+const PREPARE_CHUNK_SIZE = 100
 const MAX_ANALYZE_TARGETS = 50
 const MAX_SEND_TARGETS = 30
 
@@ -193,25 +194,33 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
       setPrepareError('')
       try {
         const accessToken = await getAccessToken()
-        const res = await fetch('/api/tbm-telegram/prepare', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`
-          },
-          body: JSON.stringify({
-            items: currentRecords.map(r => ({
-              projectId: r.project_id || null,
-              projectName: r.project_name
-            }))
+        const results: PrepareResultItem[] = []
+        for (let start = 0; start < currentRecords.length; start += PREPARE_CHUNK_SIZE) {
+          if (cancelled) return
+          const chunk = currentRecords.slice(start, start + PREPARE_CHUNK_SIZE)
+          const res = await fetch('/api/tbm-telegram/prepare', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({
+              items: chunk.map(r => ({
+                projectId: r.project_id || null,
+                projectName: r.project_name
+              }))
+            })
           })
-        })
-        const data: PrepareResponse = await res.json()
-        if (!res.ok || !data.results) {
-          throw new Error(data.error || '대상 정보를 불러오지 못했습니다.')
+          const data: PrepareResponse = await res.json()
+          if (!res.ok || !Array.isArray(data.results)) {
+            throw new Error(data.error || '대상 정보를 불러오지 못했습니다.')
+          }
+          if (data.results.length !== chunk.length) {
+            throw new Error('대상 정보 응답 건수가 요청과 일치하지 않습니다.')
+          }
+          results.push(...data.results)
         }
         if (cancelled) return
-        const results = data.results
         const combined: TargetRow[] = currentRecords.map((record, i) => {
           const info = results[i]
           const personnel = typeof record.personnel_total_count === 'number'

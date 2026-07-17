@@ -114,6 +114,31 @@ BEGIN
   IF p_result IS NULL THEN
     RAISE EXCEPTION '발송 결과가 필요합니다.';
   END IF;
+  IF pg_column_size(p_result) > 131072
+     OR octet_length(p_result::TEXT) > 131072 THEN
+    RAISE EXCEPTION '발송 결과는 131072바이트를 초과할 수 없습니다.';
+  END IF;
+  IF jsonb_typeof(p_result) IS DISTINCT FROM 'object' THEN
+    RAISE EXCEPTION '발송 결과는 JSON object여야 합니다.';
+  END IF;
+
+  IF p_status = 'completed' THEN
+    IF p_result->'success' IS DISTINCT FROM 'true'::JSONB
+       OR jsonb_typeof(p_result->'results') IS DISTINCT FROM 'array' THEN
+      RAISE EXCEPTION '완료 결과 형식이 올바르지 않습니다.';
+    END IF;
+    IF jsonb_array_length(p_result->'results') > 30 THEN
+      RAISE EXCEPTION '완료 결과는 최대 30개까지 저장할 수 있습니다.';
+    END IF;
+  ELSE
+    IF p_result->'success' IS DISTINCT FROM 'false'::JSONB
+       OR jsonb_typeof(p_result->'error') IS DISTINCT FROM 'string' THEN
+      RAISE EXCEPTION '실패 결과 형식이 올바르지 않습니다.';
+    END IF;
+    IF length(p_result->>'error') > 500 THEN
+      RAISE EXCEPTION '실패 오류 메시지는 500자를 초과할 수 없습니다.';
+    END IF;
+  END IF;
 
   UPDATE public.tbm_telegram_dispatches
      SET status = p_status,
