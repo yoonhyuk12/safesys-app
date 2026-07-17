@@ -98,6 +98,25 @@ function toUserFacingMessage(message: string): string {
     .replace(/텔레그램/g, '메시지')
 }
 
+async function parseJsonResponse<T>(
+  response: Response,
+  fallbackMessage: string
+): Promise<T> {
+  const rawBody = await response.text()
+
+  try {
+    return JSON.parse(rawBody) as T
+  } catch (error) {
+    console.error('TBM AI API 응답 파싱 오류', {
+      status: response.status,
+      contentType: response.headers.get('content-type'),
+      preview: rawBody.slice(0, 200),
+      error,
+    })
+    throw new Error(`${fallbackMessage} (HTTP ${response.status})`)
+  }
+}
+
 function toUserFacingOutcome(outcome: SendOutcome | null): SendOutcome | null {
   if (!outcome) return null
   return {
@@ -232,7 +251,10 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
               }))
             })
           })
-          const data: PrepareResponse = await res.json()
+          const data = await parseJsonResponse<PrepareResponse>(
+            res,
+            '대상 정보를 불러오지 못했습니다.'
+          )
           if (!res.ok || !Array.isArray(data.results)) {
             throw new Error(data.error || '대상 정보를 불러오지 못했습니다.')
           }
@@ -330,7 +352,10 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
           }))
         })
       })
-      const data: AnalyzeResponse = await res.json()
+      const data = await parseJsonResponse<AnalyzeResponse>(
+        res,
+        'AI 분석 요청을 처리하지 못했습니다.'
+      )
       if (!res.ok || !data.results) {
         throw new Error(data.error || 'AI 분석에 실패했습니다.')
       }
@@ -414,7 +439,10 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
           recipients
         })
       })
-      const data: SendResponse = await res.json()
+      const data = await parseJsonResponse<SendResponse>(
+        res,
+        '메시지 발송 요청을 처리하지 못했습니다.'
+      )
       if (!res.ok || data.success !== true) {
         throw new Error(toUserFacingMessage(data.error || '메시지 발송에 실패했습니다.'))
       }
