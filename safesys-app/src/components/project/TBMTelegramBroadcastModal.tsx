@@ -540,6 +540,9 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                       AI 분석 시작
                     </button>
                   </div>
+                  <p className="mt-1 text-right text-xs text-gray-500">
+                    사용 모델 · GPT-5.6 Luna
+                  </p>
                 </div>
               </>
             )}
