@@ -515,6 +515,45 @@ export default function IssueManagementPage() {
           created_by: user?.id,
         })
         if (error) throw error
+
+        // 텔레그램 알림 발송 (발주청) - 신규 등록 시에만
+        try {
+          const { data: projectTgData } = await supabase
+            .from('projects')
+            .select('client_telegram_id, client_app_code')
+            .eq('id', projectId)
+            .single()
+
+          if (projectTgData?.client_telegram_id || projectTgData?.client_app_code) {
+            const contentPreview =
+              payload.content.length > 120
+                ? `${payload.content.slice(0, 120)}…`
+                : payload.content
+            const telegramMessage =
+              `⚠️ <b>지적사항 관리대장 등록 알림</b>\n\n` +
+              `🏗️ <b>현장:</b> ${project?.project_name || ''}\n` +
+              `📋 <b>점검종류:</b> ${payload.inspection_type || '(미입력)'}\n` +
+              `📅 <b>점검일자:</b> ${payload.inspection_date || '(미입력)'}\n` +
+              `👤 <b>점검자:</b> ${payload.inspector_name || '(미입력)'}\n` +
+              `📍 <b>지적부위:</b> ${payload.location || '(미입력)'}\n` +
+              `📝 <b>내용:</b> ${contentPreview || '(미입력)'}` +
+              `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+
+            await fetch('/api/telegram', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'direct',
+                chatId: projectTgData.client_telegram_id || undefined,
+                projectId,
+                recipients: { client: true, contractor: false },
+                message: telegramMessage,
+              }),
+            })
+          }
+        } catch (telegramError) {
+          console.error('텔레그램 발송 오류:', telegramError)
+        }
       }
       setShowForm(false)
       await loadAll()

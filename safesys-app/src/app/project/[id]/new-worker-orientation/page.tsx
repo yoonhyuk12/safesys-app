@@ -228,6 +228,42 @@ export default function NewWorkerOrientationPage() {
           .from('new_worker_orientations')
           .insert([dataToSave])
         if (error) throw error
+
+        // 텔레그램 알림 발송 (발주청) - 신규 등록 시에만
+        try {
+          const { data: projectTgData } = await supabase
+            .from('projects')
+            .select('client_telegram_id, client_app_code')
+            .eq('id', projectId)
+            .single()
+
+          if (projectTgData?.client_telegram_id || projectTgData?.client_app_code) {
+            const workerCount = formData.workers.filter((w) => w.name?.trim()).length
+            const telegramMessage =
+              `👷 <b>신규근로자 둘러보기 등록 알림</b>\n\n` +
+              `🏗️ <b>현장:</b> ${project?.project_name || ''}\n` +
+              `📅 <b>일자:</b> ${formData.orientation_date}\n` +
+              `⏰ <b>시간:</b> ${formData.start_time || '-'} ~ ${formData.end_time || '-'}\n` +
+              `📍 <b>장소:</b> ${formData.location || '(미입력)'}\n` +
+              `👥 <b>인원:</b> ${workerCount}명\n` +
+              `👤 <b>확인자:</b> ${formData.manager_name || '(미입력)'}` +
+              `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+
+            await fetch('/api/telegram', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'direct',
+                chatId: projectTgData.client_telegram_id || undefined,
+                projectId,
+                recipients: { client: true, contractor: false },
+                message: telegramMessage,
+              }),
+            })
+          }
+        } catch (telegramError) {
+          console.error('텔레그램 발송 오류:', telegramError)
+        }
       }
 
       alert(editingRecordId ? '수정되었습니다.' : '저장되었습니다.')
