@@ -2,7 +2,7 @@
 
 // 프로젝트·근로자·공정표 값을 자동 인입해 작업계획서 기본정보와 현장 즉시 정보를 입력하는 폼
 
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { CalendarRange, History, Loader2, Plus, Trash2, Users } from 'lucide-react'
 import { fetchRecentTbm, type TbmCandidate } from '@/lib/ptw/recent-tbm'
 import { GUIDE_SIGNAL_METHODS, HEAVY_FIXING_METHODS, HEAVY_LOAD_SHAPE_EXAMPLES } from '@/lib/work-plan/constants'
@@ -65,6 +65,48 @@ function Field({ label, value, onChange, type = 'text', placeholder, list, suffi
         {suffix && <span className="absolute right-3 top-2 text-sm text-gray-400">{suffix}</span>}
       </span>
     </label>
+  )
+}
+
+// 쉼표 구분 성명 입력 — 끝 쉼표/공백을 지우지 않아 다음 이름을 이어서 칠 수 있게 한다
+function parseCommaSeparatedNames(value: string) {
+  return value.split(',').map((name) => name.trim()).filter(Boolean)
+}
+
+function namesKey(names: string[]) {
+  return names.join('\0')
+}
+
+function CommaSeparatedNamesField({
+  label,
+  names,
+  onChange,
+  placeholder,
+}: {
+  label: string
+  names: string[]
+  onChange: (names: string[]) => void
+  placeholder?: string
+}) {
+  const joined = names.join(', ')
+  const [draft, setDraft] = useState(joined)
+
+  useEffect(() => {
+    if (namesKey(parseCommaSeparatedNames(draft)) !== namesKey(names)) {
+      setDraft(joined)
+    }
+  }, [draft, joined, names])
+
+  return (
+    <Field
+      label={label}
+      value={draft}
+      placeholder={placeholder}
+      onChange={(value) => {
+        setDraft(value)
+        onChange(parseCommaSeparatedNames(value))
+      }}
+    />
   )
 }
 
@@ -373,11 +415,11 @@ export default function WorkPlanForm({
         <Users className="h-4 w-4" /> 작업자 선택
       </div>
       <div className="mb-3">
-        <Field
+        <CommaSeparatedNamesField
           label="작업자 성명(쉼표로 구분)"
-          value={common.workerNames.join(', ')}
+          names={common.workerNames}
           placeholder="등록 근로자를 선택하거나 성명을 직접 입력하세요."
-          onChange={(value) => updatePlan(type, { workerNames: value.split(',').map((name) => name.trim()).filter(Boolean) })}
+          onChange={(workerNames) => updatePlan(type, { workerNames })}
         />
       </div>
       {workers.length === 0 ? (
@@ -566,12 +608,11 @@ export default function WorkPlanForm({
       </Section>
       <Section title="작업자·안전보건교육">
         <div className="mb-3">
-          <Field
+          <CommaSeparatedNamesField
             label="작업자 성명(쉼표로 구분)"
-            value={current.workers.map((worker) => worker.name).join(', ')}
+            names={current.workers.map((worker) => worker.name)}
             placeholder="등록 근로자를 선택하거나 성명을 직접 입력하세요."
-            onChange={(value) => {
-              const names = value.split(',').map((name) => name.trim()).filter(Boolean)
+            onChange={(names) => {
               updatePlan('electric', {
                 workers: names.map((name) => current.workers.find((worker) => worker.name === name) || { name, qualification: '', employmentType: '상근' }),
               })

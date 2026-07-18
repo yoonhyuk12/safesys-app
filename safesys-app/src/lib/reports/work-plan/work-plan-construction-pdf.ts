@@ -57,7 +57,7 @@ function buildMainPage(form: ConstructionForm, record: WorkPlanRecord): string {
   const workers = escapeHtml((form.workerNames || []).join(', '))
   const sequence = escapeHtml((form.workSequence || []).join(' → '))
   return `
-    ${approvalHeader('차량계 건설기계 등 작업계획서', '수급업체용', form.signatures)}
+    ${approvalHeader('차량계 건설기계 등 작업계획서', '수급업체용', form.signatures, form.approvalNames)}
     <table style="${TABLE}">
       ${colgroup(12)}
       <tr>${cell('작업명(장소)', LABEL, 2)}${cell(escapeHtml(form.title), VALUE, 4)}${cell('작업기간', LABEL, 2)}${cell(escapeHtml([form.workStartDate, form.workEndDate].filter(Boolean).join(' ~ ')), VALUE, 4)}</tr>

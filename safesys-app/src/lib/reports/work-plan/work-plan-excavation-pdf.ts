@@ -71,12 +71,13 @@ function padBlankRows<T>(rows: T[], blankCount: number, blank: T): T[] {
 
 function coverPage(form: ExcavationForm, record: WorkPlanRecord): string {
   const signatures = form.signatures
+  const names = form.approvalNames || {}
   const createdDate = record.work_start_date || new Date().toISOString().slice(0, 10)
   const approvalRows = [
-    ['작성자', signatures?.approvalManager],
-    ['검토자', signatures?.approvalReviewer1],
-    ['검토자', signatures?.approvalReviewer2],
-    ['현장소장', signatures?.approvalApprover],
+    ['작성자', names.approvalManager || '', signatures?.approvalManager],
+    ['검토자', names.approvalReviewer1 || '', signatures?.approvalReviewer1],
+    ['검토자', names.approvalReviewer2 || '', signatures?.approvalReviewer2],
+    ['현장소장', names.approvalApprover || '', signatures?.approvalApprover],
   ] as const
 
   return `<div style="min-height:260mm; border:${COVER_BORDER}; padding:10mm; box-sizing:border-box; display:flex; flex-direction:column;">
@@ -93,9 +94,9 @@ function coverPage(form: ExcavationForm, record: WorkPlanRecord): string {
         <tr>${cell('회사명', LABEL)}${cell(escapeHtml(form.companyName), LEFT, 2)}</tr>
         <tr>${cell('현장명', LABEL)}${cell(escapeHtml(form.title), LEFT, 2)}</tr>
         <tr>${cell('작성일', LABEL)}${cell(escapeHtml(createdDate), LEFT, 2)}</tr>
-        ${approvalRows.map(([role, signature]) => `<tr>
+        ${approvalRows.map(([role, name, signature]) => `<tr>
           ${cell(escapeHtml(role), LABEL)}
-          ${cell('직위&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;성명', LEFT)}
+          ${cell(`직위&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;성명 ${escapeHtml(name)}`, LEFT)}
           ${cell(seal(signature), VALUE)}
         </tr>`).join('')}
       </table>

@@ -68,6 +68,15 @@ export type WorkPlanSignatureRole =
 // 역할별 손글씨 서명 PNG data URL
 export type WorkPlanSignatures = Partial<Record<WorkPlanSignatureRole, string>>
 
+// 결재란(작성자·검토자·현장소장 / 담당·승인) 성명 — 서명과 별도로 텍스트 입력
+export type WorkPlanApprovalNameRole =
+  | 'approvalManager'
+  | 'approvalReviewer1'
+  | 'approvalReviewer2'
+  | 'approvalApprover'
+
+export type WorkPlanApprovalNames = Partial<Record<WorkPlanApprovalNameRole, string>>
+
 export interface CommonWorkPlanFields {
   title: string
   workStartDate: string
@@ -80,6 +89,7 @@ export interface CommonWorkPlanFields {
   sharedWorkContent: string
   riskControls: RiskControlRow[]
   signatures?: WorkPlanSignatures
+  approvalNames?: WorkPlanApprovalNames
 }
 
 export interface LiftingCapacityReview {
@@ -218,6 +228,7 @@ export interface ElectricWorkPlanFormData {
   attachments: string[]
   checklist: ChecklistAnswer[]
   signatures?: WorkPlanSignatures
+  approvalNames?: WorkPlanApprovalNames
 }
 
 export interface HeavyLoadSpec {

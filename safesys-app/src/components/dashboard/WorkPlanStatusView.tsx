@@ -254,6 +254,16 @@ const WorkPlanStatusView: React.FC<WorkPlanStatusViewProps> = ({
       })
   }, [visibleProjects, selectedHq, selectedBranch])
 
+  // 프로젝트 목록 소계 (작성 건수·유형별 건수)
+  const projectSubtotal = useMemo(() => {
+    const total = emptyAgg()
+    for (const p of projectList) {
+      addAgg(total, projectAgg(p.id))
+    }
+    return total
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectList, plansByProject])
+
   const sumStats = (m: Map<string, Agg>): Agg =>
     Array.from(m.values()).reduce((acc, s) => {
       addAgg(acc, s)
@@ -497,7 +507,7 @@ const WorkPlanStatusView: React.FC<WorkPlanStatusViewProps> = ({
             )}
 
             {viewLevel === 'project' && selectedBranch && (
-              <table className="w-full min-w-[640px] divide-y divide-gray-200">
+              <table className="w-full min-w-[800px] divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
@@ -506,18 +516,44 @@ const WorkPlanStatusView: React.FC<WorkPlanStatusViewProps> = ({
                     <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
                       작성 건수
                     </th>
-                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200">
-                      서식 종류
-                    </th>
+                    {PLAN_TYPES.map((type) => (
+                      <th
+                        key={type}
+                        className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200"
+                      >
+                        {shortTitle(type)}
+                      </th>
+                    ))}
                     <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       최근 작성일
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
+                  {projectList.length > 0 && (
+                    <tr className="bg-teal-50/70 border-b-2 border-teal-200">
+                      <td className="px-3 py-2 text-sm text-center text-teal-900 font-semibold border-r border-gray-200">
+                        소계
+                      </td>
+                      <td className="px-3 py-2 text-sm text-center text-teal-900 font-semibold border-r border-gray-200">
+                        {projectSubtotal.planCount > 0 ? `${projectSubtotal.planCount}건` : '-'}
+                      </td>
+                      {PLAN_TYPES.map((type) => (
+                        <td
+                          key={type}
+                          className="px-3 py-2 text-sm text-center text-teal-900 font-semibold border-r border-gray-200"
+                        >
+                          {projectSubtotal.byType[type] > 0
+                            ? projectSubtotal.byType[type].toLocaleString()
+                            : '-'}
+                        </td>
+                      ))}
+                      <td className="px-3 py-2 text-sm text-center text-teal-900 font-semibold">-</td>
+                    </tr>
+                  )}
                   {projectList.map((p) => {
                     const rows = plansByProject.get(p.id) || []
-                    const types = Array.from(new Set(rows.flatMap((r) => r.planTypes)))
+                    const agg = projectAgg(p.id)
                     const latest = rows.reduce<string>(
                       (m, r) => (r.updatedAt > m ? r.updatedAt : m),
                       ''
@@ -549,11 +585,11 @@ const WorkPlanStatusView: React.FC<WorkPlanStatusViewProps> = ({
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-3 text-sm text-center text-gray-700 border-r border-gray-200">
-                          {types.length === 0
-                            ? '-'
-                            : types.map((t) => shortTitle(t)).join(', ')}
-                        </td>
+                        {PLAN_TYPES.map((type) => (
+                          <td key={type} className="px-3 py-3 text-sm text-center border-r border-gray-200">
+                            {agg.byType[type] > 0 ? agg.byType[type].toLocaleString() : '-'}
+                          </td>
+                        ))}
                         <td className="px-3 py-3 text-sm text-center text-gray-500">
                           {latest ? new Date(latest).toLocaleDateString('ko-KR') : '-'}
                         </td>
@@ -562,7 +598,7 @@ const WorkPlanStatusView: React.FC<WorkPlanStatusViewProps> = ({
                   })}
                   {projectList.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-500">
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
                         해당 지사에 등록된 사업이 없습니다.
                       </td>
                     </tr>

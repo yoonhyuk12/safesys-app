@@ -89,6 +89,22 @@ interface AnalyzedRow extends TargetRow {
   sendResult?: SendResultItem
 }
 
+// 발송 진행 모달 — 발송 요청 시점의 대상 스냅샷에 결과를 부착해 표시한다
+interface SendProgressItem {
+  key: string
+  projectName: string
+  branchName: string
+  sendClient: boolean
+  sendContractor: boolean
+  result?: SendResultItem
+}
+
+interface SendProgressState {
+  status: 'sending' | 'done' | 'error'
+  items: SendProgressItem[]
+  error?: string
+}
+
 const ALL_CATEGORY = '전체'
 const PREPARE_CHUNK_SIZE = 100
 const MAX_ANALYZE_TARGETS = 50
@@ -178,6 +194,34 @@ function withoutSendResult(row: AnalyzedRow): AnalyzedRow {
   return next
 }
 
+// 진행 모달의 수신자별 상태 셀 — 발송 전·중·후 상태를 한눈에 보여준다
+function SendProgressOutcomeCell({
+  selected,
+  status,
+  outcome,
+}: {
+  selected: boolean
+  status: SendProgressState['status']
+  outcome: SendOutcome | null | undefined
+}) {
+  if (!selected) return <span className="text-gray-300">—</span>
+  if (status === 'sending') {
+    return (
+      <span className="inline-flex items-center gap-1 text-sky-600">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        발송 중
+      </span>
+    )
+  }
+  if (!outcome) return <span className="text-gray-400">결과 미확인</span>
+  if (outcome.ok) return <span className="text-green-600">✓ 성공</span>
+  return (
+    <span className="text-red-600" title={outcome.description || ''}>
+      ✗ 실패{outcome.description ? ` · ${outcome.description}` : ''}
+    </span>
+  )
+}
+
 const getAccessToken = async (forceRefresh = false) => {
   const { data: { session }, error } = forceRefresh
     ? await supabase.auth.refreshSession()
@@ -233,6 +277,8 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
   // 발송
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState('')
+  const [sendProgress, setSendProgress] = useState<SendProgressState | null>(null)
+  const [sendElapsedSeconds, setSendElapsedSeconds] = useState(0)
 
   // records는 호출부에서 렌더마다 새 배열로 계산되므로 ref로 받아 effect 재실행을 막는다
   const recordsRef = useRef(records)
@@ -252,6 +298,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     setAnalyzing(false)
     setAnalyzeError('')
     setSendError('')
+    setSendProgress(null)
   }, [isOpen])
 
   // prepare 호출 — 소관사업·텔레그램 수신 가능 여부 로드
@@ -333,6 +380,17 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     void run()
     return () => { cancelled = true }
   }, [isOpen, prepareAttempt])
+
+  // 발송 진행 모달의 경과 시간 표시
+  useEffect(() => {
+    if (sendProgress?.status !== 'sending') return
+    setSendElapsedSeconds(0)
+    const startedAt = Date.now()
+    const timer = window.setInterval(() => {
+      setSendElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [sendProgress?.status])
 
   // 소관사업 드롭다운 옵션 — prepare 결과의 distinct 카테고리(가나다순)
   const categories = useMemo(() => {
@@ -472,6 +530,16 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     setRows(prev => prev.map(row => (
       selectedKeys.has(row.record.id) ? withoutSendResult(row) : row
     )))
+    setSendProgress({
+      status: 'sending',
+      items: targetsToSend.map(r => ({
+        key: r.record.id,
+        projectName: r.record.project_name,
+        branchName: r.record.managing_branch || '지사 미분류',
+        sendClient: r.sendClient,
+        sendContractor: r.sendContractor,
+      })),
+    })
     setSending(true)
     setSendError('')
     try {
@@ -503,13 +571,47 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
         const result = sendResultByRecordId.get(row.record.id)
         return result ? { ...row, sendResult: result } : row
       }))
+      setSendProgress(prev => prev?.status === 'sending'
+        ? {
+          ...prev,
+          status: 'done',
+          items: prev.items.map(item => {
+            const result = sendResultByRecordId.get(item.key)
+            return result ? { ...item, result } : item
+          }),
+        }
+        : prev)
       sendReservationRef.current = null
     } catch (err) {
-      setSendError(err instanceof Error ? err.message : '메시지 발송에 실패했습니다.')
+      const message = err instanceof Error ? err.message : '메시지 발송에 실패했습니다.'
+      setSendError(message)
+      setSendProgress(prev => prev?.status === 'sending'
+        ? { ...prev, status: 'error', error: message }
+        : prev)
     } finally {
       setSending(false)
     }
   }
+
+  const closeSendProgress = () => {
+    if (sending) return
+    setSendProgress(null)
+  }
+
+  // 진행 모달 요약 — 수신자 단위(발주청·시공사 각각 1건)로 집계
+  const sendOutcomes = sendProgress
+    ? sendProgress.items.flatMap(item =>
+      [item.result?.client, item.result?.contractor].filter((o): o is SendOutcome => Boolean(o))
+    )
+    : []
+  const sendSuccessCount = sendOutcomes.filter(o => o.ok).length
+  const sendFailCount = sendOutcomes.length - sendSuccessCount
+  const sendRecipientCount = sendProgress
+    ? sendProgress.items.reduce(
+      (sum, item) => sum + (item.sendClient ? 1 : 0) + (item.sendContractor ? 1 : 0),
+      0
+    )
+    : 0
 
   if (!isOpen) return null
 
@@ -834,6 +936,110 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
           </>
         )}
       </div>
+
+      {/* 발송 진행·결과 모달 */}
+      {sendProgress && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+            <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3">
+              <h3 className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                {sendProgress.status === 'sending' && (
+                  <Loader2 className="h-4 w-4 animate-spin text-sky-600" />
+                )}
+                {sendProgress.status === 'sending'
+                  ? '메시지 발송 진행 중'
+                  : sendProgress.status === 'done'
+                    ? '메시지 발송 완료'
+                    : '메시지 발송 실패'}
+              </h3>
+              <button
+                type="button"
+                onClick={closeSendProgress}
+                disabled={sending}
+                className="p-1 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="발송 진행 창 닫기"
+              >
+                <X className="h-4 w-4 text-gray-500" />
+              </button>
+            </div>
+
+            {sendProgress.status === 'error' && (
+              <div className="px-4 py-2 bg-red-50 border-b border-red-100 text-xs text-red-600">
+                {sendProgress.error || '메시지 발송에 실패했습니다.'}
+              </div>
+            )}
+
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="border border-gray-200 rounded-md">
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr className="text-left text-gray-600">
+                      <th className="px-2 py-1.5 font-medium whitespace-nowrap">현장명</th>
+                      <th className="px-2 py-1.5 font-medium whitespace-nowrap w-44">발주청</th>
+                      <th className="px-2 py-1.5 font-medium whitespace-nowrap w-44">시공사</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sendProgress.items.map(item => (
+                      <tr key={item.key} className="border-t border-gray-100 align-top">
+                        <td className="px-2 py-1.5 text-gray-900">
+                          <span className="block max-w-[280px] truncate font-medium" title={item.projectName}>
+                            {item.projectName}
+                          </span>
+                          <span className="block text-[11px] text-gray-500">({item.branchName})</span>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <SendProgressOutcomeCell
+                            selected={item.sendClient}
+                            status={sendProgress.status}
+                            outcome={item.result?.client}
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <SendProgressOutcomeCell
+                            selected={item.sendContractor}
+                            status={sendProgress.status}
+                            outcome={item.result?.contractor}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 px-4 py-3 flex items-center justify-between gap-3">
+              {sendProgress.status === 'sending' ? (
+                <span className="text-xs text-gray-600">
+                  총 {sendRecipientCount}건 발송 중 · 경과 {sendElapsedSeconds}초
+                </span>
+              ) : sendProgress.status === 'done' ? (
+                <span className="text-xs text-gray-700">
+                  발송 결과 · <span className="font-medium text-green-600">성공 {sendSuccessCount}건</span>
+                  {' · '}
+                  <span className={sendFailCount > 0 ? 'font-medium text-red-600' : 'text-gray-500'}>
+                    실패 {sendFailCount}건
+                  </span>
+                </span>
+              ) : (
+                <span />
+              )}
+              {sendProgress.status === 'sending' ? (
+                <span className="text-xs text-gray-400">현장 수에 따라 시간이 걸릴 수 있습니다.</span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={closeSendProgress}
+                  className="px-3 py-1.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                >
+                  닫기
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

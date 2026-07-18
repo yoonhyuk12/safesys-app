@@ -93,10 +93,22 @@ export function dateRange(start: string | null | undefined, end: string | null |
 }
 
 // ── 결재란 + 제목 헤더 ──────────────────────────────────────
-// 담당·승인 서명칸은 서명 단계에서 받은 이미지를 넣고, 없으면 공란(출력 후 수기 결재). 중첩 표 없이 rowspan으로 선을 맞춘다.
-export function approvalHeader(mainTitle: string, subTitle: string, signatures?: WorkPlanSignatures): string {
-  const sign = (dataUrl: string | undefined) =>
-    dataUrl ? `<img src="${dataUrl}" alt="" style="display:block; margin:0 auto; width:76px; height:46px; object-fit:contain;" />` : ''
+// 담당·승인 칸에는 성명 텍스트와 서명 이미지를 넣고, 없으면 공란(출력 후 수기 결재). 중첩 표 없이 rowspan으로 선을 맞춘다.
+export function approvalHeader(
+  mainTitle: string,
+  subTitle: string,
+  signatures?: WorkPlanSignatures,
+  approvalNames?: { approvalManager?: string; approvalApprover?: string },
+): string {
+  const signCell = (name: string | undefined, dataUrl: string | undefined) => {
+    const nameHtml = name
+      ? `<div style="font-size:10px; line-height:1.2; margin-bottom:2px;">${escapeHtml(name)}</div>`
+      : ''
+    const image = dataUrl
+      ? `<img src="${dataUrl}" alt="" style="display:block; margin:0 auto; width:76px; height:40px; object-fit:contain;" />`
+      : ''
+    return `${nameHtml}${image}`
+  }
   return `
     <table style="width:100%; border-collapse:collapse; table-layout:fixed;">
       <colgroup><col style="width:72%"/><col style="width:5%"/><col style="width:11.5%"/><col style="width:11.5%"/></colgroup>
@@ -108,7 +120,7 @@ export function approvalHeader(mainTitle: string, subTitle: string, signatures?:
         <td rowspan="2" style="border:${BORDER}; background-color:#f2f2f2; font-weight:bold; text-align:center; padding:2px;">결<br/>재</td>
         ${cell('담당', `${LABEL} height:16px; padding:1px 6px;`)}${cell('승인', `${LABEL} height:16px; padding:1px 6px;`)}
       </tr>
-      <tr>${cell(sign(signatures?.approvalManager), `${VALUE} height:54px; padding:2px;`)}${cell(sign(signatures?.approvalApprover), `${VALUE} height:54px; padding:2px;`)}</tr>
+      <tr>${cell(signCell(approvalNames?.approvalManager, signatures?.approvalManager), `${VALUE} height:54px; padding:2px;`)}${cell(signCell(approvalNames?.approvalApprover, signatures?.approvalApprover), `${VALUE} height:54px; padding:2px;`)}</tr>
     </table>`
 }
 

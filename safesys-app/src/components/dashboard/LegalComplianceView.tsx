@@ -85,9 +85,9 @@ const LegalComplianceView: React.FC<LegalComplianceViewProps> = ({ initialHq, in
   const [error, setError] = useState('')
   const loadedRef = useRef(false)
 
+  // 기본값은 오늘 날짜 기준 연도·분기 (데이터 최신 분기로 덮어쓰지 않음)
   const [year, setYear] = useState<number>(new Date().getFullYear())
   const [quarter, setQuarter] = useState<number>(currentQuarter())
-  const quarterInitedRef = useRef(false)
 
   useEffect(() => {
     if (!user || !userProfile) return
@@ -140,18 +140,6 @@ const LegalComplianceView: React.FC<LegalComplianceViewProps> = ({ initialHq, in
     }
     load()
   }, [user, userProfile])
-
-  // 데이터가 있는 최신 분기로 기본 연도·분기 설정(최초 1회)
-  useEffect(() => {
-    if (quarterInitedRef.current || checks.length === 0) return
-    quarterInitedRef.current = true
-    const latest = checks.reduce(
-      (best, c) => (c.year * 10 + c.quarter > best.year * 10 + best.quarter ? c : best),
-      checks[0]
-    )
-    setYear(latest.year)
-    setQuarter(latest.quarter)
-  }, [checks])
 
   // 선택 분기의 점검표를 프로젝트별로 묶는다
   const checksByProject = useMemo(() => {

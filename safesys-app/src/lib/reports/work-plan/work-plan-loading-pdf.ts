@@ -28,7 +28,7 @@ function buildMainAndSpec(form: NonNullable<WorkPlanRecord['form_data']['loading
   const e = form.equipment
   const workers = escapeHtml((form.workerNames || []).join(', '))
   return `
-    ${approvalHeader('차량계 하역운반기계 작업계획서', '수급업체용', form.signatures)}
+    ${approvalHeader('차량계 하역운반기계 작업계획서', '수급업체용', form.signatures, form.approvalNames)}
     <table style="${TABLE}">
       ${colgroup(12)}
       <tr>${cell('작업명(장소)', LABEL, 2)}${cell(escapeHtml(form.title), VALUE, 4)}${cell('작업기간', LABEL, 2)}${cell(escapeHtml([form.workStartDate, form.workEndDate].filter(Boolean).join(' ~ ')), VALUE, 4)}</tr>

@@ -60,7 +60,7 @@ function buildMainPage(form: ElectricForm): string {
     (t) => `<tr>${cell(escapeHtml(t), LEFT, 12)}</tr>`
   ).join('')
   return `
-    ${approvalHeader('전기 작업계획서', '수급업체용', form.signatures)}
+    ${approvalHeader('전기 작업계획서', '수급업체용', form.signatures, form.approvalNames)}
     <table style="${TABLE}">
       ${colgroup(12)}
       <tr>${cell('작업명(장소)', LABEL, 2)}${cell(escapeHtml(form.title), VALUE, 4)}${cell('작업일자', LABEL, 2)}${cell(escapeHtml(form.workDate), VALUE, 4)}</tr>

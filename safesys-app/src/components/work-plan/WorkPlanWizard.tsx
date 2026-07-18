@@ -84,6 +84,10 @@ function createCommon(project: WorkPlanProject): CommonWorkPlanFields {
     guide: { name: '', phone: '' },
     sharedWorkContent: '',
     riskControls: [],
+    // 현장소장(결재 승인) 기본값 = 프로젝트 소유자
+    approvalNames: {
+      approvalApprover: project.owner_name || '',
+    },
   }
 }
 
@@ -156,6 +160,10 @@ function createPlanForm(type: PlanType, project: WorkPlanProject): NonNullable<W
       instructionAcknowledgement: { managerName: '', workerName: '' },
       workSteps: [], handover: { details: '', deliverer: '', receiver: '' },
       attachments: [], checklist: [],
+      // 현장소장(결재 승인) 기본값 = 프로젝트 소유자
+      approvalNames: {
+        approvalApprover: project.owner_name || '',
+      },
     }
   }
   if (type === 'excavation') {

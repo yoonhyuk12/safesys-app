@@ -6,7 +6,9 @@ import { useState } from 'react'
 import { Eraser, PenLine } from 'lucide-react'
 import SignaturePad from '@/components/ui/SignaturePad'
 import type {
+  CommonWorkPlanFields,
   PlanType,
+  WorkPlanApprovalNameRole,
   WorkPlanFormData,
   WorkPlanSignatureRole,
   WorkPlanSignatures,
@@ -23,8 +25,6 @@ interface SignatureSlot {
   role: WorkPlanSignatureRole
   roleLabel: string
   name: string
-  // 결재란처럼 성명 없이 서명만 받는 항목
-  showName?: boolean
 }
 
 const TYPE_LABELS: Record<PlanType, string> = {
@@ -35,45 +35,59 @@ const TYPE_LABELS: Record<PlanType, string> = {
   excavation: '표준 양식 지반 굴착',
 }
 
-const COMMON_ROLES: Array<{ role: WorkPlanSignatureRole; label: string }> = [
+const COMMON_ROLES: Array<{ role: 'workDirector' | 'operator' | 'guide'; label: string }> = [
   { role: 'workDirector', label: '작업지휘자' },
   { role: 'operator', label: '운전원' },
   { role: 'guide', label: '유도자' },
 ]
 
+const APPROVAL_NAME_ROLES: WorkPlanApprovalNameRole[] = [
+  'approvalManager',
+  'approvalReviewer1',
+  'approvalReviewer2',
+  'approvalApprover',
+]
+
+function isApprovalNameRole(role: WorkPlanSignatureRole): role is WorkPlanApprovalNameRole {
+  return (APPROVAL_NAME_ROLES as string[]).includes(role)
+}
+
 function buildSlots(selectedTypes: PlanType[], formData: WorkPlanFormData): SignatureSlot[] {
   const slots: SignatureSlot[] = []
   selectedTypes.forEach((type) => {
-    if (formData[type]) {
+    const form = formData[type]
+    if (form) {
+      const names = form.approvalNames || {}
       if (type === 'excavation') {
         slots.push(
-          { type, role: 'approvalManager', roleLabel: '작성자', name: '', showName: false },
-          { type, role: 'approvalReviewer1', roleLabel: '검토자 1', name: '', showName: false },
-          { type, role: 'approvalReviewer2', roleLabel: '검토자 2', name: '', showName: false },
-          { type, role: 'approvalApprover', roleLabel: '현장소장', name: '', showName: false },
+          { type, role: 'approvalManager', roleLabel: '작성자', name: names.approvalManager || '' },
+          { type, role: 'approvalReviewer1', roleLabel: '검토자 1', name: names.approvalReviewer1 || '' },
+          { type, role: 'approvalReviewer2', roleLabel: '검토자 2', name: names.approvalReviewer2 || '' },
+          { type, role: 'approvalApprover', roleLabel: '현장소장', name: names.approvalApprover || '' },
         )
       } else {
         slots.push(
-          { type, role: 'approvalManager', roleLabel: '결재란 담당', name: '', showName: false },
-          { type, role: 'approvalApprover', roleLabel: '결재란 승인', name: '', showName: false },
+          { type, role: 'approvalManager', roleLabel: '결재란 담당', name: names.approvalManager || '' },
+          { type, role: 'approvalApprover', roleLabel: '결재란 승인', name: names.approvalApprover || '' },
         )
       }
     }
     if (type === 'electric') {
-      const form = formData.electric
-      if (!form) return
+      const electric = formData.electric
+      if (!electric) return
       slots.push(
-        { type, role: 'instructionManager', roleLabel: '지시·협의 담당자', name: form.instructionAcknowledgement?.managerName || '' },
-        { type, role: 'instructionWorker', roleLabel: '지시·협의 작업자', name: form.instructionAcknowledgement?.workerName || '' },
-        { type, role: 'handoverDeliverer', roleLabel: '인계자', name: form.handover?.deliverer || '' },
-        { type, role: 'handoverReceiver', roleLabel: '인수자', name: form.handover?.receiver || '' },
+        { type, role: 'instructionManager', roleLabel: '지시·협의 담당자', name: electric.instructionAcknowledgement?.managerName || '' },
+        { type, role: 'instructionWorker', roleLabel: '지시·협의 작업자', name: electric.instructionAcknowledgement?.workerName || '' },
+        { type, role: 'handoverDeliverer', roleLabel: '인계자', name: electric.handover?.deliverer || '' },
+        { type, role: 'handoverReceiver', roleLabel: '인수자', name: electric.handover?.receiver || '' },
       )
       return
     }
-    const form = formData[type]
     if (!form) return
+    // 전기 외 서식은 CommonWorkPlanFields 기반 — 작업지휘자·운전원·유도자 성명 슬롯
+    const common = form as CommonWorkPlanFields
     COMMON_ROLES.forEach(({ role, label }) => {
-      const person = form[role as 'workDirector' | 'operator' | 'guide']
+      const person = common[role]
       slots.push({ type, role, roleLabel: label, name: person?.name || '' })
     })
   })
@@ -85,8 +99,20 @@ export default function SignatureStep({ selectedTypes, formData, onChange }: Sig
 
   const getSignatures = (type: PlanType): WorkPlanSignatures => formData[type]?.signatures || {}
 
-  // 서명 단계에서 고친 성명을 원래 입력 위치(기본정보·전기 지시확인/인계인수)에 반영한다
+  // 서명 단계에서 고친 성명을 결재란·기본정보·전기 지시확인/인계인수에 반영한다
   const updateName = (slot: SignatureSlot, name: string) => {
+    if (isApprovalNameRole(slot.role)) {
+      const form = formData[slot.type]
+      if (!form) return
+      onChange({
+        ...formData,
+        [slot.type]: {
+          ...form,
+          approvalNames: { ...(form.approvalNames || {}), [slot.role]: name },
+        },
+      } as WorkPlanFormData)
+      return
+    }
     if (slot.type === 'electric') {
       const form = formData.electric
       if (!form) return
@@ -135,15 +161,13 @@ export default function SignatureStep({ selectedTypes, formData, onChange }: Sig
                   <div key={`${slot.type}-${slot.role}`} className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
                     <div className="min-w-0 flex-1">
                       <span className="block text-xs font-medium text-gray-500">{slot.roleLabel}</span>
-                      {slot.showName !== false && (
-                        <input
-                          value={slot.name}
-                          onChange={(event) => updateName(slot, event.target.value)}
-                          placeholder="성명 입력"
-                          aria-label={`${slot.roleLabel} 성명`}
-                          className="w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-gray-800 placeholder:font-normal placeholder:text-gray-400 hover:border-gray-200 focus:border-blue-400 focus:bg-white focus:outline-none"
-                        />
-                      )}
+                      <input
+                        value={slot.name}
+                        onChange={(event) => updateName(slot, event.target.value)}
+                        placeholder="성명 입력"
+                        aria-label={`${slot.roleLabel} 성명`}
+                        className="w-full min-w-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-gray-800 placeholder:font-normal placeholder:text-gray-400 hover:border-gray-200 focus:border-blue-400 focus:bg-white focus:outline-none"
+                      />
                     </div>
                     <div className="flex shrink-0 items-center gap-1.5">
                       {signature && (
