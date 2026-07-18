@@ -7,9 +7,11 @@ import {
   type AccidentMutationResult,
   type AccidentSeverity,
   type AccidentValidationResult,
+  type NormalizedFinding,
   type NormalizedSafetyInspection,
   type ProjectAccident,
 } from '@/lib/accident-analysis-types'
+import { resolveFindingCode } from '@/lib/finding-classification'
 import {
   BATCH_SIZE,
   addCalendarDays,
@@ -60,6 +62,8 @@ interface RawHeadquartersInspection extends UnknownRecord {
   issue_content2?: string
   issue1_status?: string
   issue2_status?: string
+  issue1_category_code?: string | null
+  issue2_category_code?: string | null
   action_photo_issue1?: string
   action_photo_issue2?: string
   critical_items?: unknown
@@ -70,6 +74,16 @@ interface RawHeadquartersInspection extends UnknownRecord {
 
 const hasNonEmptyValue = (record: UnknownRecord, keys: string[]): boolean =>
   keys.some((key) => textValue(record[key]).length > 0)
+
+/**
+ * 저장 분류 코드를 우선하고, 없거나 무효면 원문 분류기로 fallback한다.
+ * 확정 제외 문구(또는 저장 NULL + 제외 원문)는 null을 돌려 통계에서 뺀다.
+ */
+const toFinding = (id: string, text: string, storedCode?: unknown): NormalizedFinding | null => {
+  const code = resolveFindingCode(text, storedCode)
+  if (!code) return null
+  return { id, text, code }
+}
 
 const isRegularFinding = (value: unknown): boolean => {
   const record = asRecord(value)
@@ -105,18 +119,35 @@ const normalizeSafetyInspection = (row: RawSafetyInspection): NormalizedSafetyIn
       }).length
     : 0
 
-  const resultSummaries = realResults.map((value) => {
+  const resultTexts = realResults.map((value) => {
     const result = asRecord(value)
-    if (!result) return ''
-    const finding = textValue(result.findings)
-    const field = textValue(result.field_item)
-    return field && finding ? `${field}: ${finding}` : finding || field
+    if (!result) return { finding: '', field: '', storedCode: null as unknown }
+    return {
+      finding: textValue(result.findings),
+      field: textValue(result.field_item),
+      storedCode: result.finding_category_code,
+    }
   })
-  const additionalSummaries = realAdditionalItems.map((item) => {
-    const title = firstText(item.item, item.title, item.category)
-    const action = textValue(item.action)
-    return title && action ? `${title}: ${action}` : action || title
-  })
+  const additionalTexts = realAdditionalItems.map((item) => ({
+    title: firstText(item.item, item.title, item.category),
+    action: textValue(item.action),
+  }))
+
+  const resultSummaries = resultTexts.map(({ finding, field }) =>
+    field && finding ? `${field}: ${finding}` : finding || field,
+  )
+  const additionalSummaries = additionalTexts.map(({ title, action }) =>
+    title && action ? `${title}: ${action}` : action || title,
+  )
+
+  // 분류 코퍼스: 정기 safety_inspection_results(사진 지적 입력란)만 전개한다 — 보고서 권장 1차 지표.
+  // finding_category_code가 F01~F20이면 우선 사용하고, NULL/미적용은 원문 분류 fallback.
+  // additional_items는 summary·finding_count·unresolved_count에는 그대로 유지하되 분류에서는 제외한다.
+  const findings: NormalizedFinding[] = resultTexts
+    .map(({ finding, field, storedCode }, index) =>
+      toFinding(`${row.id}:sir:${index}`, finding || field, storedCode),
+    )
+    .filter((finding): finding is NormalizedFinding => finding !== null)
 
   return {
     id: row.id,
@@ -132,6 +163,7 @@ const normalizeSafetyInspection = (row: RawSafetyInspection): NormalizedSafetyIn
     signed: isSignedRegularInspection(row.signatures, inspectionType),
     finding_count: realResults.length + realAdditionalItems.length,
     unresolved_count: unresolvedResults.length + specialUnresolved,
+    findings,
   }
 }
 
@@ -191,6 +223,8 @@ const normalizeManagerInspection = (
     signed: row.has_signature === true || signedIds.has(row.id),
     finding_count: factors.length,
     unresolved_count: factors.filter(isManagerFactorUnresolved).length,
+    // 관리자점검은 지적 분류 집계에서 제외하므로 개별 지적을 전개하지 않는다.
+    findings: [],
   }
 }
 
@@ -226,19 +260,30 @@ const normalizeHeadquartersInspection = (
       content: textValue(row.issue_content1),
       status: textValue(row.issue1_status),
       actionPhoto: textValue(row.action_photo_issue1),
+      storedCode: row.issue1_category_code,
     },
     {
       content: textValue(row.issue_content2),
       status: textValue(row.issue2_status),
       actionPhoto: textValue(row.action_photo_issue2),
+      storedCode: row.issue2_category_code,
     },
   ].filter((issue) => isMeaningfulFindingText(issue.content))
   const itemFindings = getHeadquartersItems(row).filter(isHeadquartersItemFinding)
-  const itemSummaries = itemFindings.map((item) => {
-    const title = firstText(item.title, item.item, item.category)
-    const finding = firstText(item.remarks, item.findings, item.issue_content)
-    return title && finding ? `${title}: ${finding}` : finding || title
-  })
+  const itemTexts = itemFindings.map((item) => ({
+    title: firstText(item.title, item.item, item.category),
+    finding: firstText(item.remarks, item.findings, item.issue_content),
+  }))
+  const itemSummaries = itemTexts.map(({ title, finding }) =>
+    title && finding ? `${title}: ${finding}` : finding || title,
+  )
+
+  // 분류 코퍼스: 본부 issue_content1/2(사진 지적 입력란)만 전개한다 — 보고서 권장 1차 지표.
+  // issue1/2_category_code가 F01~F20이면 우선 사용하고, NULL/미적용은 원문 분류 fallback.
+  // 체크리스트 부적합 항목(critical/caution/other/five_key)은 summary·finding_count·unresolved_count에는 유지하되 분류에서는 제외한다.
+  const findings: NormalizedFinding[] = issues
+    .map((issue, index) => toFinding(`${row.id}:hqiss:${index}`, issue.content, issue.storedCode))
+    .filter((finding): finding is NormalizedFinding => finding !== null)
 
   return {
     id: row.id,
@@ -252,6 +297,7 @@ const normalizeHeadquartersInspection = (
     unresolved_count:
       issues.filter((issue) => issue.status !== 'completed' && !issue.actionPhoto).length +
       itemFindings.filter(isHeadquartersItemUnresolved).length,
+    findings,
   }
 }
 
@@ -307,12 +353,39 @@ export async function getAccidentAnalysisData(
   }
 
   const scopedProjectIds = Array.from(new Set(projectIds.map((id) => id.trim()).filter(Boolean)))
-  if (scopedProjectIds.length === 0) {
-    return { success: true, accidents: [], inspections: [] }
-  }
-
   const inspectionStartDate = addCalendarDays(startDate, -90)
   const accidentEndExclusive = addCalendarDays(endDate, 1)
+
+  // 미등록 현장 사고는 project_id가 없어 배치 조회에 포함되지 않으므로 별도 조회한다. RLS가 관할을 제한한다.
+  const fetchExternalAccidents = async (): Promise<ProjectAccident[]> => {
+    const { data, error } = await (supabase as any)
+      .from('project_accidents')
+      .select('*')
+      .is('project_id', null)
+      .gte('accident_at', `${startDate}T00:00:00+09:00`)
+      .lt('accident_at', `${accidentEndExclusive}T00:00:00+09:00`)
+      .order('accident_at', { ascending: false })
+    if (error) {
+      console.error('미등록 현장 사고 이력 조회 오류:', error)
+      throw new Error('미등록 현장 사고 이력을 불러오지 못했습니다.')
+    }
+    return (data ?? []) as ProjectAccident[]
+  }
+
+  if (scopedProjectIds.length === 0) {
+    try {
+      const externalAccidents = await fetchExternalAccidents()
+      return { success: true, accidents: externalAccidents, inspections: [] }
+    } catch (error) {
+      console.error('미등록 현장 사고 이력 조회 실패:', error)
+      return {
+        success: false,
+        accidents: [],
+        inspections: [],
+        error: error instanceof Error ? error.message : '미등록 현장 사고 이력을 불러오지 못했습니다.',
+      }
+    }
+  }
 
   try {
     const accidentRowsPromise = fetchRowsInBatches(
@@ -327,6 +400,8 @@ export async function getAccidentAnalysisData(
       '사고 이력'
     )
 
+    const externalAccidentRowsPromise = fetchExternalAccidents()
+
     const safetyRowsPromise = fetchRowsInBatches(
       scopedProjectIds,
       (batchIds) => (supabase as any)
@@ -339,7 +414,7 @@ export async function getAccidentAnalysisData(
           inspector_opinion,
           signatures,
           additional_items,
-          safety_inspection_results (field_item, findings, action_items, photo_url, after_photo_url)
+          safety_inspection_results (field_item, findings, action_items, photo_url, after_photo_url, finding_category_code)
         `)
         .in('project_id', batchIds)
         .gte('inspection_date', inspectionStartDate)
@@ -370,6 +445,8 @@ export async function getAccidentAnalysisData(
           issue_content2,
           issue1_status,
           issue2_status,
+          issue1_category_code,
+          issue2_category_code,
           action_photo_issue1,
           action_photo_issue2,
           critical_items,
@@ -391,6 +468,7 @@ export async function getAccidentAnalysisData(
     )
     const [
       accidentRows,
+      externalAccidentRows,
       safetyRows,
       managerRows,
       headquartersRows,
@@ -398,6 +476,7 @@ export async function getAccidentAnalysisData(
       headquartersSignedIds,
     ] = await Promise.all([
       accidentRowsPromise,
+      externalAccidentRowsPromise,
       safetyRowsPromise,
       managerRowsPromise,
       headquartersRowsPromise,
@@ -405,10 +484,15 @@ export async function getAccidentAnalysisData(
       headquartersSignedIdsPromise,
     ])
 
-    const accidents = accidentRows
-      .map(asRecord)
-      .filter((row): row is UnknownRecord => row !== null)
-      .map((row) => row as unknown as ProjectAccident)
+    const accidents = [
+      ...accidentRows
+        .map(asRecord)
+        .filter((row): row is UnknownRecord => row !== null)
+        .map((row) => row as unknown as ProjectAccident),
+      ...externalAccidentRows,
+    ].sort((left, right) =>
+      (toInstantTimestamp(right.accident_at) ?? 0) - (toInstantTimestamp(left.accident_at) ?? 0)
+    )
     const inspections = [
       ...safetyRows
         .map(asRecord)
@@ -432,8 +516,7 @@ export async function getAccidentAnalysisData(
 }
 
 const requiredTextFields: ReadonlyArray<{ key: keyof AccidentFormInput; label: string }> = [
-  { key: 'project_id', label: '프로젝트' },
-  { key: 'accident_at', label: '사고 발생 일시' },
+  { key: 'accident_at', label: '사고일자' },
   { key: 'accident_type', label: '사고 유형' },
   { key: 'location', label: '발생 장소' },
   { key: 'work_description', label: '당시 작업 내용' },
@@ -451,8 +534,26 @@ export function validateAccidentInput(input: AccidentFormInput): AccidentValidat
     }
   }
 
+  const projectId = textValue(input.project_id)
+  const externalName = textValue(input.external_project_name)
+  if (!projectId && !externalName) {
+    errors.project_id = '프로젝트를 선택하거나 미등록 현장명을 직접 입력해 주세요.'
+    errors.external_project_name = '프로젝트를 선택하거나 미등록 현장명을 직접 입력해 주세요.'
+  }
+  if (projectId && externalName) {
+    errors.external_project_name = '등록 프로젝트와 직접입력을 동시에 지정할 수 없습니다.'
+  }
+  if (!projectId && externalName) {
+    if (!textValue(input.external_managing_hq)) {
+      errors.external_managing_hq = '미등록 현장의 관할 본부를 선택해 주세요.'
+    }
+    if (!textValue(input.external_managing_branch)) {
+      errors.external_managing_branch = '미등록 현장의 관할 지사를 선택해 주세요.'
+    }
+  }
+
   if (textValue(input.accident_at) && toInstantTimestamp(input.accident_at) === null) {
-    errors.accident_at = '사고 발생 일시가 올바르지 않습니다.'
+    errors.accident_at = '사고일자가 올바르지 않습니다.'
   }
   if (!SEVERITIES.has(input.severity)) {
     errors.severity = '사고 중대도를 선택해 주세요.'
@@ -479,20 +580,51 @@ const normalizeAccidentAt = (value: string): string => {
   return trimmed.length === 10 ? `${trimmed}T00:00:00+09:00` : `${trimmed}+09:00`
 }
 
-const normalizeAccidentInput = (input: AccidentFormInput): AccidentFormInput => ({
-  project_id: input.project_id.trim(),
-  accident_at: normalizeAccidentAt(input.accident_at),
-  severity: input.severity,
-  accident_type: input.accident_type.trim(),
-  location: input.location.trim(),
-  work_description: input.work_description.trim(),
-  description: input.description.trim(),
-  cause: input.cause.trim(),
-  prevention_action: input.prevention_action.trim(),
-  injured_count: input.injured_count,
-  fatal_count: input.fatal_count,
-  lost_workdays: input.lost_workdays,
-})
+const normalizeAccidentInput = (input: AccidentFormInput): AccidentFormInput => {
+  const projectId = input.project_id.trim()
+  const externalName = input.external_project_name.trim()
+  const isExternal = !projectId && externalName.length > 0
+  return {
+    project_id: isExternal ? '' : projectId,
+    external_project_name: isExternal ? externalName : '',
+    external_managing_hq: isExternal ? input.external_managing_hq.trim() : '',
+    external_managing_branch: isExternal ? input.external_managing_branch.trim() : '',
+    accident_at: normalizeAccidentAt(input.accident_at),
+    severity: input.severity,
+    accident_type: input.accident_type.trim(),
+    location: input.location.trim(),
+    work_description: input.work_description.trim(),
+    description: input.description.trim(),
+    cause: input.cause.trim(),
+    prevention_action: input.prevention_action.trim(),
+    injured_count: input.injured_count,
+    fatal_count: input.fatal_count,
+    lost_workdays: input.lost_workdays,
+  }
+}
+
+/** DB insert/update용 페이로드. 미등록 현장은 project_id null + external 필드를 쓴다. */
+const toAccidentDbPayload = (input: AccidentFormInput) => {
+  const normalized = normalizeAccidentInput(input)
+  const isExternal = !normalized.project_id && normalized.external_project_name.length > 0
+  return {
+    project_id: isExternal ? null : normalized.project_id,
+    external_project_name: isExternal ? normalized.external_project_name : null,
+    external_managing_hq: isExternal ? normalized.external_managing_hq : null,
+    external_managing_branch: isExternal ? normalized.external_managing_branch : null,
+    accident_at: normalized.accident_at,
+    severity: normalized.severity,
+    accident_type: normalized.accident_type,
+    location: normalized.location,
+    work_description: normalized.work_description,
+    description: normalized.description,
+    cause: normalized.cause,
+    prevention_action: normalized.prevention_action,
+    injured_count: normalized.injured_count,
+    fatal_count: normalized.fatal_count,
+    lost_workdays: normalized.lost_workdays,
+  }
+}
 
 const firstValidationError = (validation: AccidentValidationResult): string =>
   Object.values(validation.errors).find((message): message is string => Boolean(message)) || '사고 입력값을 확인해 주세요.'
@@ -506,7 +638,7 @@ export async function createProjectAccident(
   if (!createdBy.trim()) return { success: false, error: '사고 등록 사용자 정보를 확인하지 못했습니다.' }
 
   try {
-    const payload = { ...normalizeAccidentInput(input), created_by: createdBy.trim() }
+    const payload = { ...toAccidentDbPayload(input), created_by: createdBy.trim() }
     const { data, error } = await (supabase as any)
       .from('project_accidents')
       .insert(payload)
@@ -532,7 +664,7 @@ export async function updateProjectAccident(
   if (!validation.valid) return { success: false, error: firstValidationError(validation) }
 
   try {
-    const payload = normalizeAccidentInput(input)
+    const payload = toAccidentDbPayload(input)
     const { data, error } = await (supabase as any)
       .from('project_accidents')
       .update(payload)

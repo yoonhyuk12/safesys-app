@@ -75,7 +75,11 @@ function createCommon(project: WorkPlanProject): CommonWorkPlanFields {
     workEndDate: today(),
     companyName: project.g2b_corp_nm || '',
     workerNames: [],
-    workDirector: { name: '', phone: '' },
+    // 작업지휘자 기본값 = 프로젝트 소유자
+    workDirector: {
+      name: project.owner_name || '',
+      phone: project.owner_phone || '',
+    },
     operator: { name: '', phone: '' },
     guide: { name: '', phone: '' },
     sharedWorkContent: '',
@@ -163,11 +167,15 @@ function createPlanForm(type: PlanType, project: WorkPlanProject): NonNullable<W
       workEndDate: excavEndDate,
       planType: 'excavation',
       overview: {
-        sitePhone: '',
+        sitePhone: project.owner_phone || '',
         siteScale: '',
-        partnerCompany: '',
-        partnerPhone: '',
-        partnerManager: { name: '', phone: '' },
+        partnerCompany: project.owner_company || '',
+        partnerPhone: project.owner_phone || '',
+        // 작업담당자 기본값 = 프로젝트 소유자
+        partnerManager: {
+          name: project.owner_name || '',
+          phone: project.owner_phone || '',
+        },
         excavStartDate,
         excavEndDate,
         depth: '',

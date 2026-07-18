@@ -5,8 +5,6 @@
 import type { ReactNode } from 'react'
 import { AlertTriangle, Calculator, Plus, Trash2 } from 'lucide-react'
 import EquipmentCatalogSelector from '@/components/work-plan/EquipmentCatalogSelector'
-import { CONSTRUCTION_SURVEY_ITEMS } from '@/lib/work-plan/constants'
-import { EXCAVATION_CHECKLIST } from '@/lib/work-plan/excavation-constants'
 import {
   toConstructionEquipmentPatch,
   toHeavyMachinePatch,
@@ -53,7 +51,6 @@ const TYPE_LABELS: Record<PlanType, string> = {
 
 const RIGGING_TOOLS: RiggingTool[] = ['와이어로프', '섬유로프', '체인블럭', '기타']
 const TENSION_FACTORS = { 0: 1, 30: 1.04, 60: 1.16, 90: 1.41, 120: 2 } as const
-const CHECKLIST_RESULTS = ['양호', '미흡', '해당없음'] as const
 
 function Field({ label, value, onChange, type = 'text', placeholder, suffix }: FieldProps) {
   return (
@@ -508,35 +505,8 @@ export default function DeferredInfoStep({ selectedTypes, formData, onChange }: 
       updateNested('excavation', 'instrumentation', {
         rows: current.instrumentation.rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row),
       })
-    const updateSurveyFinding = (itemIndex: number, finding: string) => {
-      const exists = current.surveyEntries.some((entry) => entry.itemIndex === itemIndex)
-      updatePlan('excavation', {
-        surveyEntries: exists
-          ? current.surveyEntries.map((entry) => entry.itemIndex === itemIndex ? { ...entry, finding } : entry)
-          : [...current.surveyEntries, { itemIndex, finding, photoUrl: '' }],
-      })
-    }
-    const updateEmergencyContact = (index: number, patch: Partial<(typeof current.emergencyContacts)[number]>) =>
-      updatePlan('excavation', {
-        emergencyContacts: current.emergencyContacts.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row),
-      })
-    const updateChecklistResult = (itemIndex: number, result: (typeof CHECKLIST_RESULTS)[number]) => {
-      const exists = current.checklist.some((answer) => answer.itemIndex === itemIndex)
-      updatePlan('excavation', {
-        checklist: exists
-          ? current.checklist.map((answer) => answer.itemIndex === itemIndex ? { ...answer, result } : answer)
-          : [...current.checklist, { itemIndex, result, note: '' }],
-      })
-    }
-    const updateChecklistNote = (itemIndex: number, note: string) => {
-      const exists = current.checklist.some((answer) => answer.itemIndex === itemIndex)
-      updatePlan('excavation', {
-        checklist: exists
-          ? current.checklist.map((answer) => answer.itemIndex === itemIndex ? { ...answer, note } : answer)
-          : [...current.checklist, { itemIndex, result: '양호', note }],
-      })
-    }
 
+    // 사전조사·비상연락망·체크리스트는 화면 입력 없이 출력물 빈칸 양식만 제공한다.
     return (
       <>
         <Section title="장비 사용계획">
@@ -615,55 +585,6 @@ export default function DeferredInfoStep({ selectedTypes, formData, onChange }: 
             <button type="button" onClick={() => updateNested('excavation', 'instrumentation', { rows: [...current.instrumentation.rows, { item: '', location: '', quantity: '', timing: '', frequency: '', note: '' }] })} className="mt-3 inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"><Plus className="h-3.5 w-3.5" /> 계측 행 추가</button>
           </Section>
         )}
-
-        <Section title="사전조사 결과">
-          <div className="space-y-3">
-            {CONSTRUCTION_SURVEY_ITEMS.excavation.map((item, index) => (
-              <label key={item} className="block">
-                <span className="mb-1 block text-xs font-medium text-gray-600">{index + 1}. {item}</span>
-                <textarea rows={2} value={current.surveyEntries.find((entry) => entry.itemIndex === index)?.finding || ''} onChange={(event) => updateSurveyFinding(index, event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-              </label>
-            ))}
-          </div>
-        </Section>
-
-        <Section title="비상연락망">
-          <div className="space-y-3">
-            {current.emergencyContacts.map((row, index) => (
-              <div key={`emergency-${index}`} className="grid items-end gap-3 rounded-lg border border-gray-200 p-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto]">
-                <Field label="기관명" value={row.agency} onChange={(value) => updateEmergencyContact(index, { agency: value })} />
-                <Field label="전화번호" value={row.phone} onChange={(value) => updateEmergencyContact(index, { phone: value })} />
-                <button type="button" onClick={() => updatePlan('excavation', { emergencyContacts: current.emergencyContacts.filter((_, rowIndex) => rowIndex !== index) })} className="inline-flex items-center justify-center gap-1 rounded-lg border border-red-200 px-2.5 py-2 text-xs font-medium text-red-600 hover:bg-red-50" aria-label={`${row.agency || index + 1} 비상연락망 행 삭제`}><Trash2 className="h-3.5 w-3.5" /> 삭제</button>
-              </div>
-            ))}
-          </div>
-          <button type="button" onClick={() => updatePlan('excavation', { emergencyContacts: [...current.emergencyContacts, { agency: '', phone: '' }] })} className="mt-3 inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"><Plus className="h-3.5 w-3.5" /> 연락처 행 추가</button>
-        </Section>
-
-        <Section title="굴착작업 체크리스트">
-          <div className="space-y-3">
-            {EXCAVATION_CHECKLIST.map((item, itemIndex) => {
-              const answer = current.checklist.find((entry) => entry.itemIndex === itemIndex)
-              return (
-                <div key={item} className="rounded-lg border border-gray-200 p-3">
-                  <p className="text-sm font-medium text-gray-800">{itemIndex + 1}. {item}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {CHECKLIST_RESULTS.map((result) => {
-                      const selected = answer?.result === result
-                      const selectedClass = result === '양호'
-                        ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
-                        : result === '미흡'
-                          ? 'border-red-600 bg-red-50 text-red-700'
-                          : 'border-gray-600 bg-gray-100 text-gray-700'
-                      return <button key={result} type="button" aria-pressed={selected} onClick={() => updateChecklistResult(itemIndex, result)} className={`rounded-full border px-3 py-1 text-xs font-medium ${selected ? selectedClass : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}>{result}</button>
-                    })}
-                  </div>
-                  <div className="mt-2"><Field label="비고" value={answer?.note || ''} onChange={(value) => updateChecklistNote(itemIndex, value)} /></div>
-                </div>
-              )
-            })}
-          </div>
-        </Section>
       </>
     )
   }

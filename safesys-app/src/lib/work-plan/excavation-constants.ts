@@ -391,6 +391,36 @@ export const EXCAVATION_UTILITY_KIND_PRESETS = [
   '통신(광케이블)',
 ] as const
 
+// 굴착공사 개요 — 굴착방법 퀵 입력 프리셋
+export const EXCAVATION_METHOD_PRESETS = [
+  '개착식 굴착(기계식)',
+  '개착식 굴착(인력)',
+  '트렌치 굴착',
+  '단계 굴착',
+  '오픈컷',
+  '부분 굴착',
+] as const
+
+// 굴착공사 개요 — 사용기계 및 장비 퀵 입력 프리셋
+export const EXCAVATION_EQUIPMENT_PRESETS = [
+  '굴착기',
+  '덤프트럭',
+  '로더',
+  '브레이커',
+  '크레인',
+  '롤러',
+  '양수기',
+] as const
+
+// 배수방법 플로팅 프리셋 (현장 일반 공법 5종)
+export const EXCAVATION_DRAINAGE_PRESETS = [
+  '집수정 설치 후 양수기로 우수관 배수',
+  '배수로(U형 측구) 설치 후 자연유하 배수',
+  '웰포인트 공법으로 지하수위 저하',
+  '심정 설치 후 양수기 배수',
+  '가배수로 및 침사지 설치 후 배수',
+] as const
+
 export const EXCAVATION_CHECKLIST = [
   '작업 전 도면과 탐지기 등을 이용하여 지하매설물의 위치와 상태를 확인하였는가?',
   '굴착면의 토질에 적합한 구배와 소단을 설치하고 과굴착을 금지하였는가?',

@@ -3,7 +3,7 @@
 // 프로젝트별 AI 작업계획서 목록 조회·수정·삭제와 작성 마법사 진입을 제공하는 페이지
 
 import { useCallback, useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Download, FileText, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -90,6 +90,7 @@ const hasDelayedInputPending = (record: WorkPlanRecord) => record.plan_types.som
 export default function WorkPlanPage() {
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const params = useParams()
   const projectId = params.id as string
 
@@ -112,7 +113,7 @@ export default function WorkPlanPage() {
       const [projectResult, workerResult, recordResult] = await Promise.all([
         supabase
           .from('projects')
-          .select('id, project_name, actual_work_address, site_address, managing_hq, managing_branch, supervisor_position, supervisor_name, supervisor_phone, g2b_corp_nm, construction_start_date, construction_end_date, construction_schedule, latitude, longitude')
+          .select('id, project_name, actual_work_address, site_address, managing_hq, managing_branch, supervisor_position, supervisor_name, supervisor_phone, g2b_corp_nm, construction_start_date, construction_end_date, construction_schedule, latitude, longitude, created_by')
           .eq('id', projectId)
           .single(),
         supabase
@@ -131,7 +132,31 @@ export default function WorkPlanPage() {
       if (workerResult.error) console.error('작업계획서 근로자 후보 조회 실패:', workerResult.error)
       if (recordResult.error) throw new Error(recordResult.error.message)
 
-      setProject(projectResult.data as WorkPlanProject)
+      // 프로젝트 소유자(created_by) 성명·연락처·회사를 기본값으로 인입
+      const projectData = projectResult.data as WorkPlanProject & { created_by?: string | null }
+      let ownerName: string | null = null
+      let ownerPhone: string | null = null
+      let ownerCompany: string | null = null
+      if (projectData.created_by) {
+        const { data: ownerProfile, error: ownerError } = await supabase
+          .from('user_profiles')
+          .select('full_name, phone_number, company_name')
+          .eq('id', projectData.created_by)
+          .maybeSingle()
+        if (ownerError) console.error('작업계획서 프로젝트 소유자 조회 실패:', ownerError)
+        else if (ownerProfile) {
+          ownerName = ownerProfile.full_name || null
+          ownerPhone = ownerProfile.phone_number || null
+          ownerCompany = ownerProfile.company_name || null
+        }
+      }
+
+      setProject({
+        ...projectData,
+        owner_name: ownerName,
+        owner_phone: ownerPhone,
+        owner_company: ownerCompany,
+      })
       setWorkers((workerResult.data || []) as WorkPlanWorker[])
       setRecords((recordResult.data || []) as WorkPlanRecord[])
     } catch (loadError: unknown) {
@@ -152,6 +177,11 @@ export default function WorkPlanPage() {
   }, [authLoading, user, router])
 
   const handleBack = () => {
+    const returnUrl = searchParams.get('returnUrl')
+    if (returnUrl) {
+      router.push(returnUrl)
+      return
+    }
     if (typeof window !== 'undefined') sessionStorage.setItem(`project_${projectId}_from_subpage`, 'true')
     router.push(`/project/${projectId}`)
   }

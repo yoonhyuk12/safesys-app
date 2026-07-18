@@ -6,6 +6,11 @@ import { useRef, useState, type ReactNode } from 'react'
 import { CalendarRange, History, Loader2, Plus, Trash2, Users } from 'lucide-react'
 import { fetchRecentTbm, type TbmCandidate } from '@/lib/ptw/recent-tbm'
 import { GUIDE_SIGNAL_METHODS, HEAVY_FIXING_METHODS, HEAVY_LOAD_SHAPE_EXAMPLES } from '@/lib/work-plan/constants'
+import {
+  EXCAVATION_DRAINAGE_PRESETS,
+  EXCAVATION_EQUIPMENT_PRESETS,
+  EXCAVATION_METHOD_PRESETS,
+} from '@/lib/work-plan/excavation-constants'
 import type {
   CommonWorkPlanFields,
   PersonContact,
@@ -188,6 +193,72 @@ function Section({ title, description, children }: { title: string; description?
       </div>
       {children}
     </section>
+  )
+}
+
+// 포커스 시 플로팅 프리셋 목록을 띄워 한 번에 채우는 textarea
+function PresetTextarea({
+  label,
+  value,
+  onChange,
+  presets,
+  placeholder,
+  rows = 3,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  presets: readonly string[]
+  placeholder?: string
+  rows?: number
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="relative block">
+      <span className="mb-1 block text-xs font-medium text-gray-600">{label}</span>
+      <textarea
+        rows={rows}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+      />
+      {open && (
+        <div
+          role="listbox"
+          aria-label={`${label} 프리셋`}
+          className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
+          // blur보다 먼저 클릭이 처리되도록 포커스 이탈을 막는다
+          onMouseDown={(event) => event.preventDefault()}
+        >
+          <div className="border-b border-gray-100 bg-gray-50 px-3 py-1.5 text-[11px] font-medium text-gray-500">
+            프리셋 선택 · 클릭하면 입력됩니다
+          </div>
+          <ul className="max-h-56 overflow-y-auto py-1">
+            {presets.map((preset) => {
+              const selected = value.trim() === preset
+              return (
+                <li key={preset} role="option" aria-selected={selected}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange(preset)
+                      setOpen(false)
+                    }}
+                    className={`w-full px-3 py-2.5 text-left text-sm leading-snug hover:bg-blue-50 ${selected ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700'}`}
+                  >
+                    {preset}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -616,9 +687,13 @@ export default function WorkPlanForm({
             <Field label="굴착 깊이" value={current.overview.depth} placeholder="예: GL(-)4.5m" onChange={(value) => updateNested('excavation', 'overview', { depth: value })} />
             <Field label="굴착면적" value={current.overview.area} placeholder="예: 500㎡" onChange={(value) => updateNested('excavation', 'overview', { area: value })} />
             <Field label="터파기 물량" value={current.overview.volume} placeholder="예: 2,000㎥" onChange={(value) => updateNested('excavation', 'overview', { volume: value })} />
-            <Field label="굴착방법" value={current.overview.method} placeholder="예: 개착식 굴착(기계식)" onChange={(value) => updateNested('excavation', 'overview', { method: value })} />
+            <div className="min-w-0">
+              <Field label="굴착방법" value={current.overview.method} placeholder="예: 개착식 굴착(기계식)" onChange={(value) => updateNested('excavation', 'overview', { method: value })} />
+              {renderQuickFill(EXCAVATION_METHOD_PRESETS, current.overview.method, (next) => updateNested('excavation', 'overview', { method: next }))}
+            </div>
             <div className="sm:col-span-2">
               <Field label="사용기계 및 장비" value={current.overview.equipmentSummary} placeholder="예: 굴착기, 덤프트럭" onChange={(value) => updateNested('excavation', 'overview', { equipmentSummary: value })} />
+              {renderQuickFill(EXCAVATION_EQUIPMENT_PRESETS, current.overview.equipmentSummary, (next) => updateNested('excavation', 'overview', { equipmentSummary: next }))}
             </div>
           </div>
         </Section>
@@ -648,10 +723,13 @@ export default function WorkPlanForm({
         </Section>
 
         <Section title="배수·조건부 공정">
-          <label className="block">
-            <span className="mb-1 block text-xs font-medium text-gray-600">배수방법</span>
-            <textarea rows={3} value={current.drainagePlan} onChange={(event) => updatePlan('excavation', { drainagePlan: event.target.value })} placeholder="예: 집수정 설치 후 양수기 2대로 우수관 배수" className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-          </label>
+          <PresetTextarea
+            label="배수방법"
+            value={current.drainagePlan}
+            onChange={(value) => updatePlan('excavation', { drainagePlan: value })}
+            presets={EXCAVATION_DRAINAGE_PRESETS}
+            placeholder="예: 집수정 설치 후 양수기 2대로 우수관 배수"
+          />
 
           <div className="mt-4 space-y-3">
             <div className="rounded-lg border border-gray-200 p-3">

@@ -19,6 +19,10 @@ export interface WorkPlanProject {
   construction_schedule?: unknown
   latitude?: number | null
   longitude?: number | null
+  // 프로젝트 소유자(created_by) 프로필 — 작업지휘자·굴착 개요 등 기본값 인입용
+  owner_name?: string | null
+  owner_phone?: string | null
+  owner_company?: string | null
 }
 
 export interface WorkPlanWorker {

@@ -2,8 +2,6 @@
 import type { Project } from '@/lib/projects'
 import type {
   AccidentAnalysisResult,
-  InspectionCountBandKey,
-  InspectionCountRelation,
   NormalizedSafetyInspection,
   ProjectAccident,
 } from '@/lib/accident-analysis-types'
@@ -13,6 +11,7 @@ import {
   toInstantTimestamp,
   toSeoulCalendarDay,
 } from '@/lib/accident-analysis-utils'
+import { aggregateFindingClassification } from '@/lib/finding-classification'
 
 const roundOneDecimal = (value: number): number => Math.round(value * 10) / 10
 
@@ -33,28 +32,6 @@ const getMonthStarts = (startTimestamp: number, endTimestamp: number): number[] 
   return months
 }
 
-const relationBand = (inspectionCount: number): InspectionCountBandKey => {
-  if (inspectionCount === 0) return '0'
-  if (inspectionCount === 1) return '1'
-  if (inspectionCount <= 3) return '2-3'
-  return '4+'
-}
-
-const emptyRelationMap = (): Map<InspectionCountBandKey, InspectionCountRelation> => new Map([
-  ['0', { key: '0', label: '0건', projectMonthCount: 0, accidentProjectMonthCount: 0, accidentCount: 0, accidentOccurrenceRate: 0 }],
-  ['1', { key: '1', label: '1건', projectMonthCount: 0, accidentProjectMonthCount: 0, accidentCount: 0, accidentOccurrenceRate: 0 }],
-  ['2-3', { key: '2-3', label: '2~3건', projectMonthCount: 0, accidentProjectMonthCount: 0, accidentCount: 0, accidentOccurrenceRate: 0 }],
-  ['4+', { key: '4+', label: '4건 이상', projectMonthCount: 0, accidentProjectMonthCount: 0, accidentCount: 0, accidentOccurrenceRate: 0 }],
-])
-
-const finalizeRelation = (map: Map<InspectionCountBandKey, InspectionCountRelation>): InspectionCountRelation[] =>
-  Array.from(map.values()).map((item) => ({
-    ...item,
-    accidentOccurrenceRate: item.projectMonthCount > 0
-      ? roundOneDecimal((item.accidentProjectMonthCount / item.projectMonthCount) * 100)
-      : 0,
-  }))
-
 const emptyAnalysis = (): AccidentAnalysisResult => ({
   kpis: {
     observedProjectCount: 0,
@@ -69,14 +46,13 @@ const emptyAnalysis = (): AccidentAnalysisResult => ({
   monthlyTrend: [],
   projectSummaries: [],
   accidentDetails: [],
-  relation30Days: finalizeRelation(emptyRelationMap()),
-  relation90Days: finalizeRelation(emptyRelationMap()),
   sampleSize: {
     projectMonthCount: 0,
     accidentProjectMonthCount: 0,
     isInsufficient: true,
     message: '분석할 프로젝트-월 표본이 없습니다.',
   },
+  findingClassification: aggregateFindingClassification([]),
 })
 
 const overlapsConstructionPeriod = (project: Project, rangeStart: number, rangeEnd: number): boolean => {
@@ -106,7 +82,12 @@ export function calculateAccidentAnalysis(
   for (const project of projects) {
     if (project.id && !projectMap.has(project.id)) projectMap.set(project.id, project)
   }
-  if (projectMap.size === 0) return emptyAnalysis()
+  const hasExternalAccidentInRange = accidents.some((accident) => {
+    if (accident.project_id) return false
+    const timestamp = toSeoulCalendarDay(accident.accident_at)
+    return timestamp !== null && timestamp >= startTimestamp && timestamp < endExclusive
+  })
+  if (projectMap.size === 0 && !hasExternalAccidentInRange) return emptyAnalysis()
 
   const monthStarts = getMonthStarts(startTimestamp, endTimestamp)
   const recordedMonthsByProject = new Map<string, Set<number>>()
@@ -118,7 +99,9 @@ export function calculateAccidentAnalysis(
     recordedMonths.add(startOfMonth)
     recordedMonthsByProject.set(projectId, recordedMonths)
   }
-  for (const accident of accidents) addRecordedMonth(accident.project_id, toSeoulCalendarDay(accident.accident_at))
+  for (const accident of accidents) {
+    if (accident.project_id) addRecordedMonth(accident.project_id, toSeoulCalendarDay(accident.accident_at))
+  }
   for (const inspection of inspections) addRecordedMonth(inspection.project_id, parseCalendarDay(inspection.inspected_at))
 
   const eligibleMonthsByProject = new Map<string, number[]>()
@@ -135,7 +118,7 @@ export function calculateAccidentAnalysis(
     })
     if (eligibleMonths.length > 0) eligibleMonthsByProject.set(projectId, eligibleMonths)
   }
-  if (eligibleMonthsByProject.size === 0) return emptyAnalysis()
+  if (eligibleMonthsByProject.size === 0 && !hasExternalAccidentInRange) return emptyAnalysis()
 
   const isEligibleDay = (projectId: string, timestamp: number): boolean => {
     const date = new Date(timestamp)
@@ -145,8 +128,10 @@ export function calculateAccidentAnalysis(
 
   const scopedAccidents = accidents.filter((accident) => {
     const timestamp = toSeoulCalendarDay(accident.accident_at)
-    return timestamp !== null && timestamp >= startTimestamp && timestamp < endExclusive &&
-      isEligibleDay(accident.project_id, timestamp)
+    if (timestamp === null || timestamp < startTimestamp || timestamp >= endExclusive) return false
+    // 미등록 현장 사고는 프로젝트-월 관측 없이도 기간 내 건으로 포함한다.
+    if (!accident.project_id) return true
+    return isEligibleDay(accident.project_id, timestamp)
   })
   const loadedInspections = inspections.filter((inspection) => {
     const timestamp = parseCalendarDay(inspection.inspected_at)
@@ -157,8 +142,21 @@ export function calculateAccidentAnalysis(
     return timestamp !== null && timestamp >= startTimestamp && isEligibleDay(inspection.project_id, timestamp)
   })
 
+  // 지적 분류 집계: 분석 기간·조직 필터 내 정기·본부불시점검 지적만 사용한다(관리자점검 제외).
+  const findingClassification = aggregateFindingClassification(
+    periodInspections
+      .filter((inspection) => inspection.source_type !== 'manager')
+      .flatMap((inspection) =>
+        inspection.findings.map((finding) => ({
+          code: finding.code,
+          source: inspection.source_type === 'headquarters' ? ('headquarters' as const) : ('safety' as const),
+        })),
+      ),
+  )
+
   const accidentsByProject = new Map<string, ProjectAccident[]>()
   for (const accident of scopedAccidents) {
+    if (!accident.project_id) continue
     const current = accidentsByProject.get(accident.project_id) || []
     accidentsByProject.set(accident.project_id, [...current, accident])
   }
@@ -186,9 +184,15 @@ export function calculateAccidentAnalysis(
       const timestamp = parseCalendarDay(inspection.inspected_at)
       return timestamp !== null && timestamp >= observationStart && timestamp < observationEnd
     })
+    const safetyInspectionCount = monthInspections.filter((item) => item.source_type === 'safety').length
+    const managerInspectionCount = monthInspections.filter((item) => item.source_type === 'manager').length
+    const headquartersInspectionCount = monthInspections.filter((item) => item.source_type === 'headquarters').length
     return {
       month: monthKey(startOfMonth),
       inspectionCount: monthInspections.length,
+      safetyInspectionCount,
+      managerInspectionCount,
+      headquartersInspectionCount,
       accidentCount: monthAccidents.length,
       injuredCount: monthAccidents.reduce((sum, accident) => sum + accident.injured_count, 0),
       fatalCount: monthAccidents.reduce((sum, accident) => sum + accident.fatal_count, 0),
@@ -227,66 +231,44 @@ export function calculateAccidentAnalysis(
 
   const accidentDetails = scopedAccidents.map((accident) => {
     const accidentDay = toSeoulCalendarDay(accident.accident_at)
-    const projectInspections = inspectionsByProject.get(accident.project_id) || []
+    const projectInspections = accident.project_id
+      ? (inspectionsByProject.get(accident.project_id) || [])
+      : []
     const priorInspections = accidentDay === null
       ? []
       : projectInspections.filter((inspection) => {
           const timestamp = parseCalendarDay(inspection.inspected_at)
           return timestamp !== null && timestamp < accidentDay
         })
+    const latestInspection = priorInspections[0] || null
+    let daysSinceLatestInspection: number | null = null
+    if (latestInspection && accidentDay !== null) {
+      const inspectionDay = parseCalendarDay(latestInspection.inspected_at)
+      if (inspectionDay !== null) {
+        daysSinceLatestInspection = Math.round((accidentDay - inspectionDay) / DAY_MS)
+      }
+    }
     return {
       accident,
-      prior30Count: accidentDay === null
-        ? 0
-        : priorInspections.filter((inspection) =>
-            (parseCalendarDay(inspection.inspected_at) ?? -Infinity) >= accidentDay - 30 * DAY_MS
-          ).length,
-      prior90Count: accidentDay === null
-        ? 0
-        : priorInspections.filter((inspection) =>
-            (parseCalendarDay(inspection.inspected_at) ?? -Infinity) >= accidentDay - 90 * DAY_MS
-          ).length,
-      latestInspection: priorInspections[0] || null,
+      daysSinceLatestInspection,
+      latestInspection,
     }
   }).sort((left, right) => compareTimestampDescending(left.accident.accident_at, right.accident.accident_at))
 
-  const relation30Map = emptyRelationMap()
-  const relation90Map = emptyRelationMap()
+  // 표본 판정용: 사고 발생 프로젝트-월 수
   let accidentProjectMonthCount = 0
-
   for (const [projectId, eligibleMonths] of eligibleMonthsByProject) {
     const projectAccidents = accidentsByProject.get(projectId) || []
-    const projectInspections = inspectionsByProject.get(projectId) || []
     for (const startOfMonth of eligibleMonths) {
       const date = new Date(startOfMonth)
       const nextMonth = Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1)
       const observationStart = Math.max(startOfMonth, startTimestamp)
       const observationEnd = Math.min(nextMonth, endExclusive)
-      const monthAccidents = projectAccidents.filter((accident) => {
+      const hasAccident = projectAccidents.some((accident) => {
         const timestamp = toSeoulCalendarDay(accident.accident_at)
         return timestamp !== null && timestamp >= observationStart && timestamp < observationEnd
       })
-      if (monthAccidents.length > 0) accidentProjectMonthCount += 1
-
-      const priorInspectionCount = (days: number): number => projectInspections.filter((inspection) => {
-        const timestamp = parseCalendarDay(inspection.inspected_at)
-        return timestamp !== null && timestamp < observationStart && timestamp >= observationStart - days * DAY_MS
-      }).length
-
-      const addObservation = (map: Map<InspectionCountBandKey, InspectionCountRelation>, count: number) => {
-        const key = relationBand(count)
-        const current = map.get(key)
-        if (!current) return
-        map.set(key, {
-          ...current,
-          projectMonthCount: current.projectMonthCount + 1,
-          accidentProjectMonthCount: current.accidentProjectMonthCount + (monthAccidents.length > 0 ? 1 : 0),
-          accidentCount: current.accidentCount + monthAccidents.length,
-        })
-      }
-
-      addObservation(relation30Map, priorInspectionCount(30))
-      addObservation(relation90Map, priorInspectionCount(90))
+      if (hasAccident) accidentProjectMonthCount += 1
     }
   }
 
@@ -317,15 +299,14 @@ export function calculateAccidentAnalysis(
     monthlyTrend,
     projectSummaries,
     accidentDetails,
-    relation30Days: finalizeRelation(relation30Map),
-    relation90Days: finalizeRelation(relation90Map),
     sampleSize: {
       projectMonthCount,
       accidentProjectMonthCount,
       isInsufficient,
       message: isInsufficient
         ? sampleReasons.join(' ')
-        : '관계 분석의 최소 표본 기준을 충족했습니다.',
+        : '분석의 최소 표본 기준을 충족했습니다.',
     },
+    findingClassification,
   }
 }

@@ -9,10 +9,18 @@
 - `manager_inspections` — 관리자 점검
 - `headquarters_inspections` — 본부불시점검
 - `tbm_safety_inspections` — TBM 일일 안전점검
-- `project_accidents` — 프로젝트별 사고 이력과 피해·예방조치 정보
+- `project_accidents` — 프로젝트별 사고 이력과 피해·예방조치 정보. 미등록 현장은 `project_id` NULL + `external_project_name`·본부·지사 직접입력
 - `workers` — 작업자 프로필/등록
 - `material_ledger` — 자재 원장
 - 모든 테이블에 RLS(Row Level Security) 적용
+
+### 점검 지적사항 분류코드
+
+정기점검의 사진 지적은 `safety_inspection_results.finding_category_code`, 본부불시점검의 두 지적 입력란은 `headquarters_inspections.issue1_category_code`와 `issue2_category_code`에 `F01_PPE`부터 `F20_WORK_METHOD`까지의 고정 코드를 저장한다. 메타·상태 문구는 `NULL`로 저장해 통계에서 제외한다.
+
+- 분류의 권위 있는 저장 경로는 PostgreSQL `BEFORE INSERT OR UPDATE` 트리거다. 신규 입력과 지적 원문 변경 때만 재계산하며, 조치사진·상태만 수정할 때는 기존 코드를 유지한다.
+- 정기점검은 `findings`가 비어 있으면 `field_item`으로 분류한다. 본부불시점검은 `issue_content1`, `issue_content2`를 각각 독립 분류한다.
+- 사고 통계 화면은 저장 코드를 우선 집계하고, `NULL` 또는 무효 코드에는 동일한 TypeScript 분류 규칙을 fallback으로 사용한다. 앱 조회가 새 컬럼을 직접 선택하므로 `database/20260718-1120_add_inspection_finding_category_codes.sql`과 상태 메타 보정 `database/20260718-1200_exclude_non_finding_status_texts.sql`을 이 순서로 Supabase 콘솔에 적용한 뒤 앱을 배포한다.
 
 ### 지급자재 나라장터 정산 캐시
 

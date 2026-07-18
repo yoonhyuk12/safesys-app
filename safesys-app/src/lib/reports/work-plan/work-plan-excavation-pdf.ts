@@ -8,6 +8,7 @@ import {
   EXCAVATION_BLASTING_SAFETY,
   EXCAVATION_CHECKLIST,
   EXCAVATION_DIRECTOR_RULES,
+  EXCAVATION_EMERGENCY_AGENCY_PRESETS,
   EXCAVATION_SAMPLE_NOTE,
   EXCAVATION_SHORING_SAFETY,
   EXCAVATION_STAGE_SAFETY,
@@ -43,6 +44,13 @@ const BORDER = '1px solid #000'
 const COVER_BORDER = '2px solid #000'
 const BLUE = '#1f4e78'
 
+// 빈 표 행 수 — 출력 후 수기 작성 여유
+const BLANK_EQUIPMENT_ROWS = 3
+const BLANK_MANPOWER_ROWS = 3
+const BLANK_RISK_ROWS = 5
+const BLANK_MATERIAL_ROWS = 3
+const BLANK_INSTRUMENT_ROWS = 3
+
 function bulletList(items: readonly string[], numbered = false): string {
   return `<div style="font-size:11px; line-height:1.55; text-align:left;">
     ${items.map((item, index) => `<div style="margin:2px 0;">${numbered ? `${index + 1}.` : '•'} ${escapeHtml(item)}</div>`).join('')}
@@ -56,6 +64,11 @@ function seal(signature: string | undefined): string {
   return `<span style="position:relative; display:inline-block; min-width:64px; height:36px; line-height:36px;">(인)${image}</span>`
 }
 
+function padBlankRows<T>(rows: T[], blankCount: number, blank: T): T[] {
+  if (rows.length > 0) return rows
+  return Array.from({ length: blankCount }, () => blank)
+}
+
 function coverPage(form: ExcavationForm, record: WorkPlanRecord): string {
   const signatures = form.signatures
   const createdDate = record.work_start_date || new Date().toISOString().slice(0, 10)
@@ -66,7 +79,7 @@ function coverPage(form: ExcavationForm, record: WorkPlanRecord): string {
     ['현장소장', signatures?.approvalApprover],
   ] as const
 
-  return `<div style="min-height:270mm; border:${COVER_BORDER}; padding:10mm; box-sizing:border-box; display:flex; flex-direction:column;">
+  return `<div style="min-height:260mm; border:${COVER_BORDER}; padding:10mm; box-sizing:border-box; display:flex; flex-direction:column;">
     <div style="color:${BLUE}; font-weight:bold; font-size:12px; text-align:right;">${escapeHtml('지반 굴착 작업계획서_고용노동부 표준 양식(2021)')}</div>
     <div style="font-size:31px; font-weight:bold; letter-spacing:5px; text-align:center; margin:18mm 0 11mm;">${escapeHtml('지반 굴착 작업계획서')}</div>
     <div style="font-size:18px; font-weight:bold; text-align:center; margin-bottom:7mm;">${escapeHtml('[목 차]')}</div>
@@ -124,6 +137,7 @@ function surveyPage(form: ExcavationForm): string {
   const utilities = form.utilities.length > 0 ? form.utilities : [{ kind: '', finding: '', action: '', agency: '' }]
   const surveyItems = CONSTRUCTION_SURVEY_ITEMS.excavation
 
+  // 지질·지반 조사 결과는 화면 입력 없이 출력물 빈칸으로 둔다.
   return `${sectionTitle('2. 사전조사')}
     <div style="font-weight:bold; margin:4mm 0 2mm;">${escapeHtml('지하매설물 조사')}</div>
     <table style="${TABLE}">${colgroup(4)}
@@ -136,20 +150,21 @@ function surveyPage(form: ExcavationForm): string {
     <table style="${TABLE}">
       <colgroup><col style="width:40%"><col style="width:60%"></colgroup>
       <tr>${cell('조사항목', LABEL)}${cell('조사결과', LABEL)}</tr>
-      ${surveyItems.map((item, itemIndex) => {
-        const entry = form.surveyEntries.find((candidate) => candidate.itemIndex === itemIndex)
-        return `<tr>${cell(escapeHtml(item), LEFT)}${cell(escapeHtml(entry?.finding || ''), LEFT)}</tr>`
-      }).join('')}
+      ${surveyItems.map((item) => `<tr>${cell(escapeHtml(item), LEFT)}${cell('', LEFT)}</tr>`).join('')}
     </table>`
 }
 
 function equipmentAndManpowerPage(form: ExcavationForm): string {
-  const equipmentRows = form.equipmentRows.length > 0
-    ? form.equipmentRows
-    : [{ name: '', spec: '', quantity: '', purpose: '', period: '', note: '' }]
-  const manpowerRows = form.manpowerRows.length > 0
-    ? form.manpowerRows
-    : [{ role: '', task: '', count: '', period: '', note: '' }]
+  const equipmentRows = padBlankRows(
+    form.equipmentRows,
+    BLANK_EQUIPMENT_ROWS,
+    { name: '', spec: '', quantity: '', purpose: '', period: '', note: '' },
+  )
+  const manpowerRows = padBlankRows(
+    form.manpowerRows,
+    BLANK_MANPOWER_ROWS,
+    { role: '', task: '', count: '', period: '', note: '' },
+  )
 
   return `${sectionTitle('3. 필요 인원 및 장비 사용계획')}
     <table style="${TABLE}">${colgroup(7)}
@@ -188,18 +203,24 @@ function procedurePage(
     ${groups.map((group, index) => `<div style="font-weight:bold; margin:5mm 0 2mm;">${escapeHtml(`${groupOffset + index + 1}) ${group.heading}`)}</div>${bulletList(group.items, true)}`).join('')}`
 }
 
+// 작업계획도 전용 페이지 — 지도가 페이지를 채우므로 부가 문구는 분리한다.
 function mapPage(record: WorkPlanRecord): string {
-  return `${mapSection('4. 굴착공사 계획 — 굴착 작업계획도', record.map_image_url)}
-    <div style="font-weight:bold; margin:5mm 0 2mm;">${escapeHtml('ㅇ 차량 운행·유도 기준')}</div>
-    ${bulletList(EXCAVATION_TRAFFIC_RULES)}`
+  return mapSection('4. 굴착공사 계획 — 굴착 작업계획도', record.map_image_url)
 }
 
-function drainagePage(form: ExcavationForm): string {
-  return `${sectionTitle('4. 굴착공사 계획 — 배수 및 단계별 안전대책')}
+// 배수계획 + 차량 운행 기준 (지도 페이지에서 분리)
+function drainageAndTrafficPage(form: ExcavationForm): string {
+  return `${sectionTitle('4. 굴착공사 계획 — 배수·차량 운행')}
     <div style="font-weight:bold; margin:4mm 0 2mm;">${escapeHtml('배수·양수 계획')}</div>
     <table style="${TABLE}">${colgroup(4)}
       <tr>${cell('배수방법', LABEL)}${cell(escapeHtml(form.drainagePlan) || '&nbsp;', LEFT, 3)}</tr>
     </table>
+    <div style="font-weight:bold; margin:7mm 0 2mm;">${escapeHtml('ㅇ 차량 운행·유도 기준')}</div>
+    ${bulletList(EXCAVATION_TRAFFIC_RULES)}`
+}
+
+function stageSafetyPage(): string {
+  return `${sectionTitle('4. 굴착공사 계획 — 단계별 안전대책')}
     ${stageTable('굴착 단계별 안전대책', EXCAVATION_STAGE_SAFETY)}`
 }
 
@@ -216,6 +237,11 @@ function blastingPage(form: ExcavationForm): string {
 
 function shoringPage(form: ExcavationForm, groupIndexes: readonly number[], includeOverview: boolean): string {
   const shoring = form.shoring
+  const materials = padBlankRows(
+    shoring.materials,
+    BLANK_MATERIAL_ROWS,
+    { item: '', spec: '', unit: '', quantity: '' },
+  )
   const overview = includeOverview
     ? `<table style="${TABLE}">${colgroup(4)}
          <tr>${cell('흙막이공법', LABEL)}${cell(escapeHtml(shoring.wallMethod), LEFT)}${cell('수량', LABEL)}${cell(escapeHtml(shoring.wallQuantity), LEFT)}</tr>
@@ -224,7 +250,7 @@ function shoringPage(form: ExcavationForm, groupIndexes: readonly number[], incl
        <div style="font-weight:bold; margin:5mm 0 2mm;">${escapeHtml('사용재료')}</div>
        <table style="${TABLE}">${colgroup(4)}
          <tr>${cell('품목', LABEL)}${cell('규격', LABEL)}${cell('단위', LABEL)}${cell('수량', LABEL)}</tr>
-         ${(shoring.materials.length > 0 ? shoring.materials : [{ item: '', spec: '', unit: '', quantity: '' }]).map((row) => `<tr>${cell(escapeHtml(row.item))}${cell(escapeHtml(row.spec))}${cell(escapeHtml(row.unit))}${cell(escapeHtml(row.quantity))}</tr>`).join('')}
+         ${materials.map((row) => `<tr>${cell(escapeHtml(row.item))}${cell(escapeHtml(row.spec))}${cell(escapeHtml(row.unit))}${cell(escapeHtml(row.quantity))}</tr>`).join('')}
        </table>`
     : ''
 
@@ -237,9 +263,11 @@ function shoringPage(form: ExcavationForm, groupIndexes: readonly number[], incl
 }
 
 function instrumentationPage(form: ExcavationForm): string {
-  const rows = form.instrumentation.rows.length > 0
-    ? form.instrumentation.rows
-    : [{ item: '', location: '', quantity: '', timing: '', frequency: '', note: '' }]
+  const rows = padBlankRows(
+    form.instrumentation.rows,
+    BLANK_INSTRUMENT_ROWS,
+    { item: '', location: '', quantity: '', timing: '', frequency: '', note: '' },
+  )
   return `${sectionTitle('6. 지반 계측계획')}
     <table style="${TABLE}">${colgroup(6)}
       <tr>${cell('계측항목', LABEL)}${cell('설치위치', LABEL)}${cell('수량', LABEL)}${cell('측정시기', LABEL)}${cell('측정빈도', LABEL)}${cell('비고', LABEL)}</tr>
@@ -248,25 +276,31 @@ function instrumentationPage(form: ExcavationForm): string {
     <div style="font-size:10px; margin-top:3mm;">${escapeHtml('※ 관리기준치는 구조기술자 승인값 기준')}</div>`
 }
 
-function directorAndEmergencyPage(form: ExcavationForm): string {
-  const contacts = form.emergencyContacts.length > 0
-    ? form.emergencyContacts
-    : [{ agency: '', phone: '' }]
+// 7. 작업지휘자 배치계획 전용
+function directorPage(form: ExcavationForm): string {
   const persons = [
     ['작업지휘자', form.workDirector],
     ['장비운전원', form.operator],
     ['유도자', form.guide],
   ] as const
 
-  return `${sectionTitle('7. 작업지휘자 배치계획 · 8. 연락 및 신호방법')}
+  return `${sectionTitle('7. 작업지휘자 배치계획')}
     <div style="font-weight:bold; margin:4mm 0 2mm;">${escapeHtml('작업지휘자 배치기준')}</div>
     ${bulletList(EXCAVATION_DIRECTOR_RULES)}
     <table style="${TABLE}">${colgroup(2)}
       <tr>${cell('구분', LABEL)}${cell('성명·직책·연락처', LABEL)}</tr>
       ${persons.map(([role, person]) => `<tr>${cell(escapeHtml(role), LABEL)}${cell(personBlock(person), LEFT)}</tr>`).join('')}
-    </table>
-    <div style="font-weight:bold; margin:5mm 0 2mm;">${escapeHtml('비상경보 발령조건')}</div>
+    </table>`
+}
+
+// 8. 연락·신호·비상연락망 전용 (과밀 방지를 위해 7과 분리)
+function signalAndEmergencyPage(): string {
+  const contacts = EXCAVATION_EMERGENCY_AGENCY_PRESETS.map((row) => ({ agency: row.agency, phone: '' }))
+
+  return `${sectionTitle('8. 사업장 내 연락방법 및 신호방법')}
+    <div style="font-weight:bold; margin:4mm 0 2mm;">${escapeHtml('비상경보 발령조건')}</div>
     ${bulletList(EXCAVATION_ALARM_CONDITIONS)}
+    <div style="font-weight:bold; margin:5mm 0 2mm;">${escapeHtml('비상경보 신호')}</div>
     <table style="${TABLE}">${colgroup(2)}
       <tr>${cell('구분', LABEL)}${cell('경보방법', LABEL)}</tr>
       ${EXCAVATION_ALARM_SIGNALS.map((row) => `<tr>${cell(escapeHtml(row.condition), LEFT)}${cell(escapeHtml(row.signal), LEFT)}</tr>`).join('')}
@@ -279,36 +313,61 @@ function directorAndEmergencyPage(form: ExcavationForm): string {
     <div style="font-weight:bold; margin:5mm 0 2mm;">${escapeHtml('비상연락망')}</div>
     <table style="${TABLE}">${colgroup(2)}
       <tr>${cell('기관·업체', LABEL)}${cell('전화번호', LABEL)}</tr>
-      ${contacts.map((row) => `<tr>${cell(escapeHtml(row.agency), LEFT)}${cell(escapeHtml(row.phone), LEFT)}</tr>`).join('')}
+      ${contacts.map((row) => `<tr>${cell(escapeHtml(row.agency), LEFT)}${cell('', LEFT)}</tr>`).join('')}
     </table>`
+}
+
+// 위험요인 표 — 입력 없으면 수기용 빈 행을 충분히 둔다.
+function riskPage(form: ExcavationForm): string {
+  const rows = form.riskControls.length > 0
+    ? form.riskControls
+    : Array.from({ length: BLANK_RISK_ROWS }, () => ({ workStep: '', riskFactor: '', improvementMeasure: '' }))
+  return riskControlTable('9. 중점 안전·보건 대책 — 위험요인 및 개선대책', '작업단계', rows)
+}
+
+// 체크리스트 15항목을 8+7로 나눠 축소·잘림을 방지한다.
+function checklistPages(): string[] {
+  const mid = 8
+  const first = EXCAVATION_CHECKLIST.slice(0, mid)
+  const second = EXCAVATION_CHECKLIST.slice(mid)
+  return [
+    checklistTable('9. 중점 안전·보건 대책 — 안전점검 체크리스트', first, []),
+    checklistTable('9. 중점 안전·보건 대책 — 안전점검 체크리스트(계속)', second, []),
+  ]
 }
 
 export async function downloadExcavationWorkPlanPdf(record: WorkPlanRecord): Promise<void> {
   const form = record.form_data.excavation
   if (!form) throw new Error('굴착 작업계획서 데이터가 없습니다.')
 
-  const pages = [
+  // 목차 순서에 맞춰 페이지를 배치한다. 과밀 구간은 분리한다.
+  const pages: string[] = [
     coverPage(form, record),
     overviewPage(form),
     surveyPage(form),
     equipmentAndManpowerPage(form),
+    // 4. 굴착공사 계획
     procedurePage(EXCAVATION_STANDARD_PROCEDURES.slice(0, 2)),
     procedurePage(EXCAVATION_STANDARD_PROCEDURES.slice(2), true, 2),
     mapPage(record),
-    drainagePage(form),
+    drainageAndTrafficPage(form),
+    stageSafetyPage(),
   ]
 
   if (form.blasting.applied) pages.push(blastingPage(form))
+
   if (form.shoring.applied) {
     pages.push(shoringPage(form, [0], true))
     pages.push(shoringPage(form, [1, 2], false))
   }
+
   if (form.instrumentation.applied) pages.push(instrumentationPage(form))
 
   pages.push(
-    directorAndEmergencyPage(form),
-    riskControlTable('9. 중점 안전·보건 대책 — 위험요인 및 개선대책', '작업단계', form.riskControls),
-    checklistTable('9. 중점 안전·보건 대책 — 안전점검 체크리스트', EXCAVATION_CHECKLIST, form.checklist),
+    directorPage(form),
+    signalAndEmergencyPage(),
+    riskPage(form),
+    ...checklistPages(),
   )
 
   await renderWorkPlanPdf(

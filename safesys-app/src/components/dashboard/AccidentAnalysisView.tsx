@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import AccidentEntryModal from '@/components/dashboard/AccidentEntryModal'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import { BRANCH_OPTIONS } from '@/lib/constants'
 import type { Project } from '@/lib/projects'
 import type { UserProfile } from '@/lib/supabase'
 import {
@@ -30,6 +31,92 @@ import {
   type NormalizedSafetyInspection,
   type ProjectAccident,
 } from '@/lib/accident-analysis'
+
+/** 월별 추이 콤보 차트(사고 막대 + 점검 선형)의 점검 시리즈 정의 */
+const MONTHLY_INSPECTION_SERIES = [
+  { key: 'managerInspectionCount' as const, label: '지사', color: '#6366f1', strokeWidth: 2 },
+  { key: 'headquartersInspectionCount' as const, label: '본부', color: '#f59e0b', strokeWidth: 2 },
+  { key: 'safetyInspectionCount' as const, label: '정기', color: '#14b8a6', strokeWidth: 2 },
+  { key: 'inspectionCount' as const, label: '합계', color: '#0f766e', strokeWidth: 2.5 },
+]
+
+type MonthlyInspectionSeriesKey = (typeof MONTHLY_INSPECTION_SERIES)[number]['key']
+type MonthlyChartSeriesKey = 'accidentCount' | MonthlyInspectionSeriesKey
+
+const INITIAL_MONTHLY_SERIES_VISIBILITY: Record<MonthlyChartSeriesKey, boolean> = {
+  accidentCount: true,
+  managerInspectionCount: true,
+  headquartersInspectionCount: true,
+  safetyInspectionCount: true,
+  inspectionCount: true,
+}
+
+const MONTHLY_CHART = {
+  height: 280,
+  padTop: 18,
+  padRight: 48,
+  padBottom: 40,
+  padLeft: 48,
+  minWidth: 640,
+  /** 라벨 최소 가로 간격(2글자 한글 라벨 기준) */
+  labelMinDx: 40,
+  /** 라벨 최소 세로 간격(회전 텍스트 여유) */
+  labelMinDy: 20,
+  /** 선에 수직 방향으로 띄우는 거리 */
+  labelOffset: 14,
+} as const
+
+/**
+ * 선분 중점에 라벨을 두고, 선 기울기와 평행한 각도·선 위쪽(화면 상단) 오프셋을 계산한다.
+ * 꼭지점이 아니라 두 점 사이 구간에 붙인다.
+ */
+const buildLineLabel = (
+  p0: { x: number; y: number },
+  p1: { x: number; y: number },
+  offset: number,
+): { labelX: number; labelY: number; labelAngle: number } => {
+  const midX = (p0.x + p1.x) / 2
+  const midY = (p0.y + p1.y) / 2
+  const dx = p1.x - p0.x
+  const dy = p1.y - p0.y
+  const len = Math.hypot(dx, dy) || 1
+
+  // 읽기 쉬운 각도(±90° 안)로 맞추고, 선과 평행하게 둔다.
+  let angleDeg = (Math.atan2(dy, dx) * 180) / Math.PI
+  if (angleDeg > 90) angleDeg -= 180
+  if (angleDeg < -90) angleDeg += 180
+
+  // 선에 수직인 단위 벡터 — SVG y가 아래로 커지므로 "화면 위쪽"을 고른다.
+  let nx = -dy / len
+  let ny = dx / len
+  if (ny > 0) {
+    nx = -nx
+    ny = -ny
+  }
+
+  return {
+    labelX: midX + nx * offset,
+    labelY: midY + ny * offset,
+    labelAngle: angleDeg,
+  }
+}
+
+const niceCeil = (value: number): number => {
+  if (value <= 0) return 1
+  const magnitude = 10 ** Math.floor(Math.log10(value))
+  const normalized = value / magnitude
+  if (normalized <= 1) return magnitude
+  if (normalized <= 2) return 2 * magnitude
+  if (normalized <= 5) return 5 * magnitude
+  return 10 * magnitude
+}
+
+const buildLinePath = (
+  points: Array<{ x: number; y: number }>,
+): string =>
+  points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+    .join(' ')
 
 interface AccidentAnalysisViewProps {
   projects: Project[]
@@ -53,17 +140,64 @@ const formatInputDate = (date: Date): string => {
   return `${year}-${month}-${day}`
 }
 
-const defaultDateRange = (): { startDate: string; endDate: string } => {
-  const end = new Date()
-  const start = new Date(end.getFullYear(), end.getMonth() - 11, 1)
-  return { startDate: formatInputDate(start), endDate: formatInputDate(end) }
+/** 분석 필터 기간 프리셋. custom은 사용자가 날짜를 직접 고른 경우 */
+type DatePreset = 'year_to_date' | 'h1' | 'h2' | 'rolling_1y' | 'custom'
+
+const DATE_PRESET_OPTIONS: ReadonlyArray<{ value: Exclude<DatePreset, 'custom'>; label: string }> = [
+  { value: 'year_to_date', label: '당해년도' },
+  { value: 'h1', label: '상반기' },
+  { value: 'h2', label: '하반기' },
+  { value: 'rolling_1y', label: '1년' },
+]
+
+const minDateString = (left: string, right: string): string => (left <= right ? left : right)
+const maxDateString = (left: string, right: string): string => (left >= right ? left : right)
+
+/** 종료일이 오늘보다 미래면 오늘로 맞춘다. */
+const clampToToday = (date: Date): Date => {
+  const today = new Date()
+  today.setHours(23, 59, 59, 999)
+  return date.getTime() > today.getTime() ? new Date() : date
 }
+
+const dateRangeForPreset = (preset: Exclude<DatePreset, 'custom'>): { startDate: string; endDate: string } => {
+  const now = new Date()
+  const year = now.getFullYear()
+  if (preset === 'year_to_date') {
+    return {
+      startDate: formatInputDate(new Date(year, 0, 1)),
+      endDate: formatInputDate(now),
+    }
+  }
+  if (preset === 'h1') {
+    return {
+      startDate: formatInputDate(new Date(year, 0, 1)),
+      endDate: formatInputDate(clampToToday(new Date(year, 5, 30))),
+    }
+  }
+  if (preset === 'h2') {
+    const start = new Date(year, 6, 1)
+    const end = clampToToday(new Date(year, 11, 31))
+    // 하반기 시작 전이면 올해 7/1~12/31 구간을 그대로 두어 빈 결과로 안내한다.
+    return {
+      startDate: formatInputDate(start),
+      endDate: formatInputDate(end.getTime() < start.getTime() ? new Date(year, 11, 31) : end),
+    }
+  }
+  // 최근 12개월 (월 단위, 시작월 1일 ~ 오늘)
+  return {
+    startDate: formatInputDate(new Date(now.getFullYear(), now.getMonth() - 11, 1)),
+    endDate: formatInputDate(now),
+  }
+}
+
+const defaultDateRange = (): { startDate: string; endDate: string } => dateRangeForPreset('year_to_date')
+
+/** 월별 파레토 도표 전용 기간. 분석 필터와 무관하게 항상 최근 1년 */
+const chartDateRange = (): { startDate: string; endDate: string } => dateRangeForPreset('rolling_1y')
 
 const formatDate = (value?: string | null): string =>
   value ? new Date(value).toLocaleDateString('ko-KR') : '-'
-
-const formatDateTime = (value?: string | null): string =>
-  value ? new Date(value).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' }) : '-'
 
 const formatRate = (value: number): string => `${value.toFixed(1)}%`
 
@@ -85,14 +219,31 @@ export default function AccidentAnalysisView({
   onBack,
 }: AccidentAnalysisViewProps) {
   const initialRange = useMemo(defaultDateRange, [])
-  const initialHq = useMemo(
-    () => projects.find((project) => project.managing_branch === initialBranch)?.managing_hq ?? '',
-    [initialBranch, projects],
-  )
+  const initialChartRange = useMemo(chartDateRange, [])
+  // 필터 기본값: 지사 딥링크 > 사용자 소속(본사·본부급은 전체)
+  const defaultHq = useMemo(() => {
+    if (initialBranch) {
+      return (
+        projects.find((project) => project.managing_branch === initialBranch)?.managing_hq
+        ?? userProfile?.hq_division
+        ?? ''
+      )
+    }
+    const hq = userProfile?.hq_division ?? ''
+    if (!hq || hq === '본사') return ''
+    return hq
+  }, [initialBranch, projects, userProfile?.hq_division])
+  const defaultBranch = useMemo(() => {
+    if (initialBranch) return initialBranch
+    const branch = userProfile?.branch_division ?? ''
+    if (!branch || branch === '본사' || branch.endsWith('본부')) return ''
+    return branch
+  }, [initialBranch, userProfile?.branch_division])
   const [startDate, setStartDate] = useState(initialRange.startDate)
   const [endDate, setEndDate] = useState(initialRange.endDate)
-  const [selectedHq, setSelectedHq] = useState(initialHq)
-  const [selectedBranch, setSelectedBranch] = useState(initialBranch ?? '')
+  const [datePreset, setDatePreset] = useState<DatePreset>('year_to_date')
+  const [selectedHq, setSelectedHq] = useState(defaultHq)
+  const [selectedBranch, setSelectedBranch] = useState(defaultBranch)
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [selectedAccidentType, setSelectedAccidentType] = useState('')
   const [selectedSeverity, setSelectedSeverity] = useState('')
@@ -105,7 +256,16 @@ export default function AccidentAnalysisView({
   const [editingAccident, setEditingAccident] = useState<ProjectAccident | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [visibleMonthlySeries, setVisibleMonthlySeries] =
+    useState<Record<MonthlyChartSeriesKey, boolean>>(INITIAL_MONTHLY_SERIES_VISIBILITY)
   const requestSequence = useRef(0)
+
+  const toggleMonthlySeries = (key: MonthlyChartSeriesKey) => {
+    setVisibleMonthlySeries((current) => ({
+      ...current,
+      [key]: !current[key],
+    }))
+  }
 
   const projectIds = useMemo(() => projects.map((project) => project.id), [projects])
 
@@ -124,9 +284,14 @@ export default function AccidentAnalysisView({
       return
     }
 
+    // 분석 필터 기간 + 파레토(최근 1년) 기간을 모두 커버하도록 조회한다.
+    const chartRange = chartDateRange()
+    const dataStart = minDateString(startDate, chartRange.startDate)
+    const dataEnd = maxDateString(endDate, chartRange.endDate)
+
     setLoading(true)
     setError('')
-    const result = await getAccidentAnalysisData(projectIds, startDate, endDate)
+    const result = await getAccidentAnalysisData(projectIds, dataStart, dataEnd)
     if (requestSequence.current !== requestId) return
 
     if (!result.success) {
@@ -147,28 +312,40 @@ export default function AccidentAnalysisView({
     }
   }, [loadData])
 
+  // 프로필·프로젝트 목록이 늦게 채워지거나 지사 딥링크가 바뀌면 기본 소속을 다시 맞춘다.
   useEffect(() => {
-    if (!initialBranch) return
-    const hq = projects.find((project) => project.managing_branch === initialBranch)?.managing_hq ?? ''
-    setSelectedHq(hq)
-    setSelectedBranch(initialBranch)
+    setSelectedHq(defaultHq)
+    setSelectedBranch(defaultBranch)
     setSelectedProjectId('')
-  }, [initialBranch, projects])
+  }, [defaultBranch, defaultHq])
 
   const hqOptions = useMemo(
     () => Array.from(new Set(projects.map((project) => project.managing_hq).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko')),
     [projects],
   )
 
-  const branchOptions = useMemo(
-    () => Array.from(new Set(
+  // 지사 드롭다운은 BRANCH_OPTIONS 목차 순서를 따른다 (가나다 정렬 X)
+  const branchOptions = useMemo(() => {
+    const branches = Array.from(new Set(
       projects
         .filter((project) => !selectedHq || project.managing_hq === selectedHq)
         .map((project) => project.managing_branch)
         .filter(Boolean),
-    )).sort((a, b) => a.localeCompare(b, 'ko')),
-    [projects, selectedHq],
-  )
+    ))
+    const branchOrder = selectedHq
+      ? (BRANCH_OPTIONS[selectedHq] || [])
+      : Array.from(new Set(Object.values(BRANCH_OPTIONS).flat()))
+
+    return branches.sort((a, b) => {
+      if (branchOrder.length === 0) return a.localeCompare(b, 'ko')
+      const ai = branchOrder.indexOf(a)
+      const bi = branchOrder.indexOf(b)
+      if (ai === -1 && bi === -1) return a.localeCompare(b, 'ko')
+      if (ai === -1) return 1
+      if (bi === -1) return -1
+      return ai - bi
+    })
+  }, [projects, selectedHq])
 
   const organizationProjects = useMemo(
     () => projects.filter((project) =>
@@ -186,12 +363,27 @@ export default function AccidentAnalysisView({
   const filteredProjectIds = useMemo(() => new Set(filteredProjects.map((project) => project.id)), [filteredProjects])
 
   const filteredAccidents = useMemo(
-    () => accidents.filter((accident) =>
-      filteredProjectIds.has(accident.project_id) &&
-      (!selectedAccidentType || accident.accident_type === selectedAccidentType) &&
-      (!selectedSeverity || accident.severity === selectedSeverity)
-    ),
-    [accidents, filteredProjectIds, selectedAccidentType, selectedSeverity],
+    () => accidents.filter((accident) => {
+      if (selectedAccidentType && accident.accident_type !== selectedAccidentType) return false
+      if (selectedSeverity && accident.severity !== selectedSeverity) return false
+      if (accident.project_id) {
+        return filteredProjectIds.has(accident.project_id)
+      }
+      // 미등록 현장: 특정 프로젝트 필터가 켜져 있으면 제외하고, 본부·지사 필터로 매칭한다.
+      if (selectedProjectId) return false
+      if (selectedHq && accident.external_managing_hq !== selectedHq) return false
+      if (selectedBranch && accident.external_managing_branch !== selectedBranch) return false
+      return true
+    }),
+    [
+      accidents,
+      filteredProjectIds,
+      selectedAccidentType,
+      selectedBranch,
+      selectedHq,
+      selectedProjectId,
+      selectedSeverity,
+    ],
   )
 
   const filteredInspections = useMemo(
@@ -204,6 +396,35 @@ export default function AccidentAnalysisView({
     [endDate, filteredAccidents, filteredInspections, filteredProjects, startDate],
   )
 
+  /** 분석 필터 기간 기준 사고 유형별 순위 (건수 내림차순) */
+  const accidentTypeRanking = useMemo(() => {
+    const countByType = new Map<string, number>()
+    for (const detail of analysis.accidentDetails) {
+      const type = detail.accident.accident_type?.trim() || '기타'
+      countByType.set(type, (countByType.get(type) || 0) + 1)
+    }
+    const total = analysis.accidentDetails.length
+    return Array.from(countByType.entries())
+      .map(([type, count]) => ({
+        type,
+        count,
+        share: total > 0 ? (count / total) * 100 : 0,
+      }))
+      .sort((left, right) => right.count - left.count || left.type.localeCompare(right.type, 'ko'))
+  }, [analysis.accidentDetails])
+
+  // 월별 파레토 도표는 분석 필터 기간과 무관하게 항상 최근 1년으로 산출한다.
+  const chartAnalysis = useMemo(
+    () => calculateAccidentAnalysis(
+      filteredProjects,
+      filteredAccidents,
+      filteredInspections,
+      initialChartRange.startDate,
+      initialChartRange.endDate,
+    ),
+    [filteredAccidents, filteredInspections, filteredProjects, initialChartRange.endDate, initialChartRange.startDate],
+  )
+
   const projectMap = useMemo(
     () => new Map(projects.map((project) => [project.id, project])),
     [projects],
@@ -214,8 +435,149 @@ export default function AccidentAnalysisView({
     [organizationProjects, selectedProjectId],
   )
 
-  const maxMonthlyInspection = Math.max(1, ...analysis.monthlyTrend.map((item) => item.inspectionCount))
-  const maxMonthlyAccident = Math.max(1, ...analysis.monthlyTrend.map((item) => item.accidentCount))
+  const applyDatePreset = (preset: Exclude<DatePreset, 'custom'>) => {
+    const range = dateRangeForPreset(preset)
+    setDatePreset(preset)
+    setStartDate(range.startDate)
+    setEndDate(range.endDate)
+  }
+
+  const monthlyChart = useMemo(() => {
+    const trend = chartAnalysis.monthlyTrend
+    const count = trend.length
+    if (count === 0) return null
+
+    const width = Math.max(MONTHLY_CHART.minWidth, count * 64 + MONTHLY_CHART.padLeft + MONTHLY_CHART.padRight)
+    const plotWidth = width - MONTHLY_CHART.padLeft - MONTHLY_CHART.padRight
+    const plotHeight = MONTHLY_CHART.height - MONTHLY_CHART.padTop - MONTHLY_CHART.padBottom
+    const maxInspection = niceCeil(Math.max(
+      1,
+      ...trend.map((item) => item.inspectionCount),
+      ...trend.map((item) => item.safetyInspectionCount),
+      ...trend.map((item) => item.managerInspectionCount),
+      ...trend.map((item) => item.headquartersInspectionCount),
+    ))
+    const maxAccident = niceCeil(Math.max(1, ...trend.map((item) => item.accidentCount)))
+    const step = count > 1 ? plotWidth / (count - 1) : plotWidth
+    const barWidth = Math.min(28, Math.max(10, (count > 1 ? step : plotWidth) * 0.45))
+
+    const xAt = (index: number): number =>
+      MONTHLY_CHART.padLeft + (count > 1 ? index * step : plotWidth / 2)
+    const yInspection = (value: number): number =>
+      MONTHLY_CHART.padTop + plotHeight * (1 - value / maxInspection)
+    const yAccident = (value: number): number =>
+      MONTHLY_CHART.padTop + plotHeight * (1 - value / maxAccident)
+
+    const inspectionTicks = [0, 0.25, 0.5, 0.75, 1].map((ratio) => ({
+      value: Math.round(maxInspection * ratio),
+      y: MONTHLY_CHART.padTop + plotHeight * (1 - ratio),
+    }))
+    const accidentTicks = [0, 0.5, 1].map((ratio) => ({
+      value: Math.round(maxAccident * ratio),
+      y: MONTHLY_CHART.padTop + plotHeight * (1 - ratio),
+    }))
+
+    // 시리즈마다 서로 다른 선분(꼭지점 사이)에 라벨을 붙이고, 그 구간의 기울기에 평행하게 회전한다.
+    const lastSegIndex = Math.max(0, count - 2)
+    const baseSegIndex = Math.floor(lastSegIndex / 2)
+    // 가운데 부근에서 시리즈별 선분을 어긋나게 (지사·본부·정기·합계)
+    const segIndexOffsets = [-2, -1, 1, 2]
+
+    const linePaths = MONTHLY_INSPECTION_SERIES.map((series, seriesIndex) => {
+      const points = trend.map((item, index) => ({
+        x: xAt(index),
+        y: yInspection(item[series.key]),
+        value: item[series.key],
+      }))
+
+      const segIndex = Math.min(
+        lastSegIndex,
+        Math.max(0, baseSegIndex + (segIndexOffsets[seriesIndex] ?? 0)),
+      )
+      // 점 1개뿐이면 동일 점으로 수평 라벨
+      const p0 = points[segIndex] ?? points[0]
+      const p1 = points[Math.min(points.length - 1, segIndex + 1)] ?? p0
+      const label = buildLineLabel(p0, p1, MONTHLY_CHART.labelOffset)
+
+      return {
+        ...series,
+        points,
+        path: buildLinePath(points),
+        segIndex,
+        labelOffset: MONTHLY_CHART.labelOffset,
+        labelX: label.labelX,
+        labelY: label.labelY,
+        labelAngle: label.labelAngle,
+      }
+    })
+
+    // 겹치면 같은 선분을 유지한 채 수직 오프셋만 키워 분리한다(기울기 정렬 유지).
+    const labelMinX = MONTHLY_CHART.padLeft + 16
+    const labelMaxX = MONTHLY_CHART.padLeft + plotWidth - 16
+    const labelMinY = MONTHLY_CHART.padTop + 8
+    const labelMaxY = MONTHLY_CHART.padTop + plotHeight - 8
+    for (let pass = 0; pass < 10; pass += 1) {
+      let moved = false
+      for (let i = 0; i < linePaths.length; i += 1) {
+        for (let j = i + 1; j < linePaths.length; j += 1) {
+          const a = linePaths[i]
+          const b = linePaths[j]
+          const dx = b.labelX - a.labelX
+          const dy = b.labelY - a.labelY
+          if (Math.abs(dx) >= MONTHLY_CHART.labelMinDx || Math.abs(dy) >= MONTHLY_CHART.labelMinDy) {
+            continue
+          }
+          a.labelOffset += 3
+          b.labelOffset += 5
+          const a0 = a.points[a.segIndex] ?? a.points[0]
+          const a1 = a.points[Math.min(a.points.length - 1, a.segIndex + 1)] ?? a0
+          const b0 = b.points[b.segIndex] ?? b.points[0]
+          const b1 = b.points[Math.min(b.points.length - 1, b.segIndex + 1)] ?? b0
+          const nextA = buildLineLabel(a0, a1, a.labelOffset)
+          const nextB = buildLineLabel(b0, b1, b.labelOffset)
+          a.labelX = nextA.labelX
+          a.labelY = nextA.labelY
+          a.labelAngle = nextA.labelAngle
+          b.labelX = nextB.labelX
+          b.labelY = nextB.labelY
+          b.labelAngle = nextB.labelAngle
+          moved = true
+        }
+      }
+      for (const series of linePaths) {
+        series.labelX = Math.min(labelMaxX, Math.max(labelMinX, series.labelX))
+        series.labelY = Math.min(labelMaxY, Math.max(labelMinY, series.labelY))
+      }
+      if (!moved) break
+    }
+
+    const bars = trend.map((item, index) => {
+      const x = xAt(index)
+      const y = yAccident(item.accidentCount)
+      const height = Math.max(0, MONTHLY_CHART.padTop + plotHeight - y)
+      return {
+        month: item.month,
+        accidentCount: item.accidentCount,
+        x: x - barWidth / 2,
+        y,
+        width: barWidth,
+        height: item.accidentCount > 0 ? Math.max(height, 2) : 0,
+        centerX: x,
+        item,
+      }
+    })
+
+    return {
+      width,
+      height: MONTHLY_CHART.height,
+      plotBottom: MONTHLY_CHART.padTop + plotHeight,
+      inspectionTicks,
+      accidentTicks,
+      linePaths,
+      bars,
+      trend,
+    }
+  }, [chartAnalysis.monthlyTrend])
 
   const openCreateModal = () => {
     setEditingAccident(null)
@@ -264,7 +626,9 @@ export default function AccidentAnalysisView({
 
   const handleDelete = async (accident: ProjectAccident) => {
     if (!canManageAccidents || deletingId) return
-    const projectName = projectMap.get(accident.project_id)?.project_name ?? '선택한 프로젝트'
+    const projectName = (accident.project_id ? projectMap.get(accident.project_id)?.project_name : null)
+      ?? accident.external_project_name
+      ?? '선택한 프로젝트'
     if (!window.confirm(`${projectName}의 ${formatDate(accident.accident_at)} 사고 이력을 삭제하시겠습니까?`)) return
 
     setDeletingId(accident.id)
@@ -285,63 +649,12 @@ export default function AccidentAnalysisView({
   }
 
   const resetFilters = () => {
-    const range = defaultDateRange()
-    setStartDate(range.startDate)
-    setEndDate(range.endDate)
-    setSelectedHq(initialHq)
-    setSelectedBranch(initialBranch ?? '')
+    applyDatePreset('year_to_date')
+    setSelectedHq(defaultHq)
+    setSelectedBranch(defaultBranch)
     setSelectedProjectId('')
     setSelectedAccidentType('')
     setSelectedSeverity('')
-  }
-
-  const renderRelation = (sectionId: string, title: string, rows: typeof analysis.relation30Days) => {
-    const maxRate = Math.max(1, ...rows.map((row) => row.accidentOccurrenceRate))
-    return (
-      <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm" aria-labelledby={sectionId}>
-        <h3 id={sectionId} className="text-sm font-semibold text-gray-900">{title}</h3>
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          점검 건수 구간별 사고발생 프로젝트-월 비율입니다. 막대 길이는 구간 중 가장 높은 사고발생률을 기준으로 한 상대 길이입니다.
-        </p>
-        <div className="mt-4 space-y-3">
-          {rows.map((row) => (
-            <div key={row.key}>
-              <div className="mb-1 flex items-center justify-between text-xs">
-                <span className="font-medium text-gray-700">{row.label}</span>
-                <span className="tabular-nums text-gray-600">{formatRate(row.accidentOccurrenceRate)}</span>
-              </div>
-              <div className="h-3 overflow-hidden rounded-full bg-indigo-50" aria-label={`${row.label} 사고발생률 ${formatRate(row.accidentOccurrenceRate)}`}>
-                <div className="h-full rounded-full bg-indigo-500" style={{ width: `${Math.max(0, row.accidentOccurrenceRate / maxRate * 100)}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full min-w-[420px] text-sm">
-            <thead className="bg-gray-50 text-xs text-gray-500">
-              <tr>
-                <th className="px-2 py-2 text-left font-medium">점검 건수</th>
-                <th className="px-2 py-2 text-right font-medium">프로젝트-월</th>
-                <th className="px-2 py-2 text-right font-medium">사고발생 월</th>
-                <th className="px-2 py-2 text-right font-medium">사고 건수</th>
-                <th className="px-2 py-2 text-right font-medium">발생률</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {rows.map((row) => (
-                <tr key={row.key}>
-                  <td className="px-2 py-2 font-medium text-gray-700">{row.label}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-gray-600">{row.projectMonthCount.toLocaleString()}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-gray-600">{row.accidentProjectMonthCount.toLocaleString()}</td>
-                  <td className="px-2 py-2 text-right tabular-nums text-gray-600">{row.accidentCount.toLocaleString()}</td>
-                  <td className="px-2 py-2 text-right font-medium tabular-nums text-indigo-700">{formatRate(row.accidentOccurrenceRate)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    )
   }
 
   const kpiItems = [
@@ -385,18 +698,60 @@ export default function AccidentAnalysisView({
       </div>
 
       <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm" aria-labelledby="accident-filter-title">
-        <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h3 id="accident-filter-title" className="text-sm font-semibold text-gray-900">분석 필터</h3>
-          <button type="button" onClick={resetFilters} className="text-xs font-medium text-indigo-600 hover:text-indigo-800">최근 12개월로 초기화</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex flex-wrap rounded-md border border-gray-200 bg-gray-50 p-0.5" role="group" aria-label="조회 기간 프리셋">
+              {DATE_PRESET_OPTIONS.map((option) => {
+                const isActive = datePreset === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => applyDatePreset(option.value)}
+                    className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                      isActive
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'text-gray-600 hover:bg-white hover:text-gray-900'
+                    }`}
+                    aria-pressed={isActive}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+            <button type="button" onClick={resetFilters} className="text-xs font-medium text-indigo-600 hover:text-indigo-800">
+              당해년도로 초기화
+            </button>
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
           <div>
             <label htmlFor="analysis-start-date" className={filterLabelClassName}>시작일</label>
-            <input id="analysis-start-date" type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className={selectClassName} />
+            <input
+              id="analysis-start-date"
+              type="date"
+              value={startDate}
+              onChange={(event) => {
+                setDatePreset('custom')
+                setStartDate(event.target.value)
+              }}
+              className={selectClassName}
+            />
           </div>
           <div>
             <label htmlFor="analysis-end-date" className={filterLabelClassName}>종료일</label>
-            <input id="analysis-end-date" type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} className={selectClassName} />
+            <input
+              id="analysis-end-date"
+              type="date"
+              value={endDate}
+              onChange={(event) => {
+                setDatePreset('custom')
+                setEndDate(event.target.value)
+              }}
+              className={selectClassName}
+            />
           </div>
           <div>
             <label htmlFor="analysis-hq" className={filterLabelClassName}>본부</label>
@@ -483,36 +838,340 @@ export default function AccidentAnalysisView({
             </div>
           )}
 
-          <div className="grid gap-4 xl:grid-cols-2">
-            {renderRelation('accident-relation-30-title', '사고 전 30일 점검과 사고발생', analysis.relation30Days)}
-            {renderRelation('accident-relation-90-title', '사고 전 90일 점검과 사고발생', analysis.relation90Days)}
-          </div>
-
           <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm" aria-labelledby="monthly-trend-title">
-            <div className="flex items-start justify-between gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h3 id="monthly-trend-title" className="text-sm font-semibold text-gray-900">월별 점검·사고 추이</h3>
-                <p className="mt-1 text-xs text-gray-500">막대 길이는 각 항목의 기간 내 최댓값을 기준으로 표시합니다.</p>
               </div>
-              <div className="flex gap-3 text-xs text-gray-500">
-                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-teal-500" />점검</span>
-                <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-sm bg-red-500" />사고</span>
+              <div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-gray-600">
+                <button
+                  type="button"
+                  aria-label={`사고 막대 ${visibleMonthlySeries.accidentCount ? '숨기기' : '표시하기'}`}
+                  aria-pressed={visibleMonthlySeries.accidentCount}
+                  onClick={() => toggleMonthlySeries('accidentCount')}
+                  className={`flex cursor-pointer items-center gap-1.5 rounded px-1.5 py-1 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1 ${
+                    visibleMonthlySeries.accidentCount ? 'opacity-100' : 'opacity-35'
+                  }`}
+                >
+                  <span className="inline-block h-2.5 w-3.5 rounded-sm bg-red-400/80" />
+                  사고
+                </button>
+                {MONTHLY_INSPECTION_SERIES.map((series) => {
+                  const isVisible = visibleMonthlySeries[series.key]
+
+                  return (
+                    <button
+                      key={series.key}
+                      type="button"
+                      aria-label={`${series.label} 점검 선 ${isVisible ? '숨기기' : '표시하기'}`}
+                      aria-pressed={isVisible}
+                      onClick={() => toggleMonthlySeries(series.key)}
+                      className={`flex cursor-pointer items-center gap-1.5 rounded px-1.5 py-1 transition hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-1 ${
+                        isVisible ? 'opacity-100' : 'opacity-35'
+                      }`}
+                    >
+                      <span
+                        className="inline-block h-0.5 w-4 rounded-full"
+                        style={{ backgroundColor: series.color, height: series.strokeWidth }}
+                      />
+                      {series.label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
-            <div className="mt-4 overflow-x-auto">
-              <div className="min-w-[680px] space-y-2">
-                {analysis.monthlyTrend.map((item) => (
-                  <div key={item.month} className="grid grid-cols-[72px_1fr_50px_1fr_50px] items-center gap-2 text-xs">
-                    <span className="font-medium text-gray-600">{item.month}</span>
-                    <div className="h-3 overflow-hidden rounded-full bg-teal-50"><div className="h-full rounded-full bg-teal-500" style={{ width: `${item.inspectionCount / maxMonthlyInspection * 100}%` }} /></div>
-                    <span className="text-right tabular-nums text-gray-600">{item.inspectionCount}건</span>
-                    <div className="h-3 overflow-hidden rounded-full bg-red-50"><div className="h-full rounded-full bg-red-500" style={{ width: `${item.accidentCount / maxMonthlyAccident * 100}%` }} /></div>
-                    <span className="text-right tabular-nums text-gray-600">{item.accidentCount}건</span>
-                  </div>
-                ))}
+            {monthlyChart ? (
+              <div className="mt-4 overflow-x-auto">
+                <svg
+                  role="img"
+                  aria-labelledby="monthly-trend-title"
+                  width={monthlyChart.width}
+                  height={monthlyChart.height}
+                  className="min-w-full"
+                  viewBox={`0 0 ${monthlyChart.width} ${monthlyChart.height}`}
+                >
+                  <title>월별 점검 횟수 선형 그래프와 사고 발생 건수 막대 그래프</title>
+                  {monthlyChart.inspectionTicks.map((tick) => (
+                    <g key={`grid-${tick.value}-${tick.y}`}>
+                      <line
+                        x1={MONTHLY_CHART.padLeft}
+                        x2={monthlyChart.width - MONTHLY_CHART.padRight}
+                        y1={tick.y}
+                        y2={tick.y}
+                        stroke="#f3f4f6"
+                        strokeWidth={1}
+                      />
+                      <text
+                        x={MONTHLY_CHART.padLeft - 8}
+                        y={tick.y + 3}
+                        textAnchor="end"
+                        className="fill-gray-400"
+                        fontSize={10}
+                      >
+                        {tick.value}
+                      </text>
+                    </g>
+                  ))}
+                  {monthlyChart.accidentTicks.map((tick) => (
+                    <text
+                      key={`accident-tick-${tick.value}-${tick.y}`}
+                      x={monthlyChart.width - MONTHLY_CHART.padRight + 8}
+                      y={tick.y + 3}
+                      textAnchor="start"
+                      className="fill-red-400"
+                      fontSize={10}
+                    >
+                      {tick.value}
+                    </text>
+                  ))}
+                  <text
+                    x={MONTHLY_CHART.padLeft}
+                    y={12}
+                    textAnchor="start"
+                    className="fill-gray-400"
+                    fontSize={10}
+                  >
+                    점검(건)
+                  </text>
+                  <text
+                    x={monthlyChart.width - MONTHLY_CHART.padRight}
+                    y={12}
+                    textAnchor="end"
+                    className="fill-red-400"
+                    fontSize={10}
+                  >
+                    사고(건)
+                  </text>
+                  {monthlyChart.bars.map((bar) => (
+                    <g key={`bar-${bar.month}`}>
+                      {visibleMonthlySeries.accidentCount && bar.height > 0 && (
+                        <rect
+                          x={bar.x}
+                          y={bar.y}
+                          width={bar.width}
+                          height={bar.height}
+                          rx={3}
+                          className="fill-red-400/75"
+                        >
+                          <title>{`${bar.month} 사고 ${bar.accidentCount}건`}</title>
+                        </rect>
+                      )}
+                      <text
+                        x={bar.centerX}
+                        y={monthlyChart.plotBottom + 16}
+                        textAnchor="middle"
+                        className="fill-gray-600"
+                        fontSize={10}
+                      >
+                        {bar.month.slice(2)}
+                      </text>
+                      {visibleMonthlySeries.accidentCount && bar.accidentCount > 0 && (
+                        <text
+                          x={bar.centerX}
+                          y={bar.y - 4}
+                          textAnchor="middle"
+                          className="fill-red-600"
+                          fontSize={9}
+                          fontWeight={600}
+                        >
+                          {bar.accidentCount}
+                        </text>
+                      )}
+                    </g>
+                  ))}
+                  {monthlyChart.linePaths
+                    .filter((series) => visibleMonthlySeries[series.key])
+                    .map((series) => (
+                      <g key={series.key}>
+                      <path
+                        d={series.path}
+                        fill="none"
+                        stroke={series.color}
+                        strokeWidth={series.strokeWidth}
+                        strokeLinejoin="round"
+                        strokeLinecap="round"
+                      />
+                      {series.points.map((point, index) => (
+                        <circle
+                          key={`${series.key}-${index}`}
+                          cx={point.x}
+                          cy={point.y}
+                          r={series.key === 'inspectionCount' ? 3.5 : 2.5}
+                          fill={series.color}
+                          stroke="#fff"
+                          strokeWidth={1}
+                        >
+                          <title>
+                            {`${monthlyChart.trend[index]?.month ?? ''} ${series.label} 점검 ${point.value}건`}
+                          </title>
+                        </circle>
+                      ))}
+                      <text
+                        x={series.labelX}
+                        y={series.labelY}
+                        transform={`rotate(${series.labelAngle.toFixed(2)} ${series.labelX.toFixed(2)} ${series.labelY.toFixed(2)})`}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fontSize={11}
+                        fontWeight={700}
+                        fill={series.color}
+                        stroke="#fff"
+                        strokeWidth={3}
+                        paintOrder="stroke"
+                        style={{ pointerEvents: 'none' }}
+                      >
+                        {series.label}
+                      </text>
+                      </g>
+                    ))}
+                </svg>
               </div>
-            </div>
+            ) : (
+              <p className="mt-4 text-center text-sm text-gray-500">표시할 월별 추이 데이터가 없습니다.</p>
+            )}
           </section>
+
+          <div className="grid gap-3 lg:grid-cols-2">
+          <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm" aria-labelledby="accident-type-rank-title">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <h3 id="accident-type-rank-title" className="text-sm font-semibold text-gray-900">사고 유형별 순위</h3>
+                  <span className="text-[11px] tabular-nums text-gray-400" aria-label="조회 기간">
+                    {startDate} ~ {endDate}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  위 분석 필터 기간·조직 조건에 해당하는 사고 건수를 유형별로 집계한 순위입니다.
+                </p>
+              </div>
+              <span className="shrink-0 text-xs text-gray-500">
+                총 {analysis.accidentDetails.length.toLocaleString()}건
+              </span>
+            </div>
+            {accidentTypeRanking.length === 0 ? (
+              <p className="mt-6 text-center text-sm text-gray-500">표시할 사고 유형 데이터가 없습니다.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {accidentTypeRanking.map((row, index) => {
+                  const maxCount = accidentTypeRanking[0]?.count || 1
+                  const barWidth = Math.max(0, (row.count / maxCount) * 100)
+                  const rank = index + 1
+                  return (
+                    <div key={row.type} className="grid grid-cols-[2rem_7.5rem_1fr_4.5rem_3.5rem] items-center gap-2 text-xs sm:grid-cols-[2.25rem_9rem_1fr_5rem_4rem] sm:gap-3 sm:text-sm">
+                      <span
+                        className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums ${
+                          rank === 1
+                            ? 'bg-indigo-600 text-white'
+                            : rank === 2
+                              ? 'bg-indigo-100 text-indigo-800'
+                              : rank === 3
+                                ? 'bg-indigo-50 text-indigo-700'
+                                : 'bg-gray-100 text-gray-600'
+                        }`}
+                        aria-label={`${rank}위`}
+                      >
+                        {rank}
+                      </span>
+                      <span className="truncate font-medium text-gray-800" title={row.type}>{row.type}</span>
+                      <div
+                        className="h-3 overflow-hidden rounded-full bg-indigo-50"
+                        aria-label={`${row.type} ${row.count}건`}
+                      >
+                        <div
+                          className={`h-full rounded-full ${
+                            rank === 1 ? 'bg-indigo-600' : rank <= 3 ? 'bg-indigo-400' : 'bg-indigo-300'
+                          }`}
+                          style={{ width: `${barWidth}%` }}
+                        />
+                      </div>
+                      <span className="text-right font-semibold tabular-nums text-indigo-700">
+                        {row.count.toLocaleString()}건
+                      </span>
+                      <span className="text-right tabular-nums text-gray-500">
+                        {row.share.toFixed(1)}%
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm" aria-labelledby="finding-class-rank-title">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <h3 id="finding-class-rank-title" className="text-sm font-semibold text-gray-900">지적사항 분류 순위</h3>
+                  <span className="text-[11px] tabular-nums text-gray-400" aria-label="조회 기간">
+                    {startDate} ~ {endDate}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  위 분석 필터 기간·조직 조건의 정기·본부불시점검 사진 지적 입력란을 고정 코드로 분류한 순위입니다(관리자점검 제외).
+                </p>
+              </div>
+              <span className="shrink-0 text-right text-xs text-gray-500">
+                총 {analysis.findingClassification.totalFindings.toLocaleString()}건
+                <span className="mt-0.5 block text-[11px] text-gray-400">
+                  정기 {analysis.findingClassification.regularFindings.toLocaleString()} · 본부 {analysis.findingClassification.headquartersFindings.toLocaleString()}
+                </span>
+              </span>
+            </div>
+            {analysis.findingClassification.rows.length === 0 ? (
+              <p className="mt-6 text-center text-sm text-gray-500">표시할 지적 데이터가 없습니다.</p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {analysis.findingClassification.rows.map((row, index) => {
+                  const maxCount = analysis.findingClassification.rows[0]?.count || 1
+                  const barWidth = Math.max(0, (row.count / maxCount) * 100)
+                  const rank = index + 1
+                  return (
+                    <div key={row.code} className="grid grid-cols-[2rem_7.5rem_1fr_4.5rem_3.5rem] items-center gap-2 text-xs sm:grid-cols-[2.25rem_9rem_1fr_5rem_4rem] sm:gap-3 sm:text-sm">
+                      <span
+                        className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums ${
+                          rank === 1
+                            ? 'bg-indigo-600 text-white'
+                            : rank === 2
+                              ? 'bg-indigo-100 text-indigo-800'
+                              : rank === 3
+                                ? 'bg-indigo-50 text-indigo-700'
+                                : 'bg-gray-100 text-gray-600'
+                        }`}
+                        aria-label={`${rank}위`}
+                      >
+                        {rank}
+                      </span>
+                      <span
+                        className="truncate font-medium text-gray-800"
+                        title={`${row.name} (정기 ${row.regularCount} · 본부 ${row.headquartersCount})`}
+                      >
+                        {row.name}
+                      </span>
+                      <div
+                        className="h-3 overflow-hidden rounded-full bg-indigo-50"
+                        aria-label={`${row.name} ${row.count}건`}
+                      >
+                        <div
+                          className={`h-full rounded-full ${
+                            rank === 1 ? 'bg-indigo-600' : rank <= 3 ? 'bg-indigo-400' : 'bg-indigo-300'
+                          }`}
+                          style={{ width: `${barWidth}%` }}
+                        />
+                      </div>
+                      <span className="text-right font-semibold tabular-nums text-indigo-700">
+                        {row.count.toLocaleString()}건
+                      </span>
+                      <span className="text-right tabular-nums text-gray-500">
+                        {row.ratio.toFixed(1)}%
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+          </div>
 
           {SHOW_PROJECT_SUMMARY && (
             <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm" aria-labelledby="project-summary-title">
@@ -557,8 +1216,13 @@ export default function AccidentAnalysisView({
           <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm" aria-labelledby="accident-history-title">
             <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
               <div>
-                <h3 id="accident-history-title" className="text-sm font-semibold text-gray-900">사고 이력</h3>
-                <p className="mt-1 text-xs text-gray-500">사고 전 점검 횟수와 가장 최근 점검 내용을 함께 표시합니다.</p>
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <h3 id="accident-history-title" className="text-sm font-semibold text-gray-900">사고 이력</h3>
+                  <span className="text-[11px] tabular-nums text-gray-400" aria-label="조회 기간">
+                    {startDate} ~ {endDate}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">최근 점검으로부터 사고일까지 경과 일수와 점검 내용을 함께 표시합니다.</p>
               </div>
               <span className="text-xs text-gray-500">{analysis.accidentDetails.length.toLocaleString()}건</span>
             </div>
@@ -569,30 +1233,44 @@ export default function AccidentAnalysisView({
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1180px] text-sm">
+                <table className="w-full min-w-[1100px] text-sm">
                   <thead className="bg-gray-50 text-xs text-gray-500">
                     <tr>
-                      <th className="px-3 py-3 text-left font-medium">프로젝트</th>
-                      <th className="px-3 py-3 text-center font-medium">사고 일시</th>
+                      <th className="px-3 py-3 text-center font-medium">프로젝트</th>
+                      <th className="px-3 py-3 text-center font-medium">사고일자</th>
                       <th className="px-3 py-3 text-center font-medium">중대도·유형</th>
-                      <th className="px-3 py-3 text-left font-medium">사고 개요</th>
-                      <th className="px-3 py-3 text-right font-medium">30일 점검</th>
-                      <th className="px-3 py-3 text-right font-medium">90일 점검</th>
-                      <th className="px-3 py-3 text-left font-medium">최근 점검</th>
+                      <th className="px-3 py-3 text-center font-medium">사고 개요</th>
+                      <th className="px-3 py-3 text-center font-medium">점검 후 경과일</th>
+                      <th className="px-3 py-3 text-center font-medium">최근 점검</th>
                       {canManageAccidents && <th className="px-3 py-3 text-center font-medium">관리</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {analysis.accidentDetails.map((detail) => {
                       const accident = detail.accident
-                      const project = projectMap.get(accident.project_id)
+                      const project = accident.project_id ? projectMap.get(accident.project_id) : undefined
+                      const projectName = project?.project_name
+                        ?? accident.external_project_name
+                        ?? '프로젝트 미상'
+                      const managingHq = project?.managing_hq ?? accident.external_managing_hq ?? ''
+                      const managingBranch = project?.managing_branch ?? accident.external_managing_branch ?? ''
+                      const isExternalSite = !accident.project_id
                       return (
                         <tr key={accident.id} className="align-top">
                           <td className="px-3 py-3">
-                            <p className="font-medium text-gray-900">{project?.project_name ?? '프로젝트 미상'}</p>
-                            <p className="mt-1 text-xs text-gray-500">{project?.managing_hq} · {project?.managing_branch}</p>
+                            <p className="font-medium text-gray-900">
+                              {projectName}
+                              {isExternalSite && (
+                                <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                                  미등록
+                                </span>
+                              )}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {[managingHq, managingBranch].filter(Boolean).join(' · ') || '-'}
+                            </p>
                           </td>
-                          <td className="whitespace-nowrap px-3 py-3 text-center text-gray-600">{formatDateTime(accident.accident_at)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-center text-gray-600">{formatDate(accident.accident_at)}</td>
                           <td className="px-3 py-3 text-center">
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${severityBadgeClass(accident.severity)}`}>{severityLabel(accident.severity)}</span>
                             <p className="mt-1 text-xs text-gray-600">{accident.accident_type}</p>
@@ -624,8 +1302,11 @@ export default function AccidentAnalysisView({
                               <p className="mt-1 text-xs text-gray-500">부상 {accident.injured_count}명 · 사망 {accident.fatal_count}명 · 휴업 {accident.lost_workdays}일</p>
                             )}
                           </td>
-                          <td className="px-3 py-3 text-right font-medium tabular-nums text-indigo-700">{detail.prior30Count}건</td>
-                          <td className="px-3 py-3 text-right font-medium tabular-nums text-indigo-700">{detail.prior90Count}건</td>
+                          <td className="px-3 py-3 text-right font-medium tabular-nums text-indigo-700">
+                            {detail.daysSinceLatestInspection !== null
+                              ? `${detail.daysSinceLatestInspection.toLocaleString()}일`
+                              : <span className="text-xs font-normal text-gray-400">-</span>}
+                          </td>
                           <td className="max-w-sm px-3 py-3 text-gray-600">
                             {detail.latestInspection ? (
                               <>

@@ -139,7 +139,7 @@ src/components/
 
 `/safe/accident-analysis` 또는 `/safe/branch/[branch]/accident-analysis` → `Dashboard` → `AccidentAnalysisView` → `accident-analysis.ts` → Supabase 순서로 연결된다. `AccidentEntryModal`은 본부급 이상 사용자에게 사고 입력·수정 폼을 제공하며, 저장·수정·삭제 권한은 데이터베이스 RLS에서도 다시 제한한다.
 
-`project_accidents.project_id`는 `projects.id`를 참조하고 프로젝트 삭제 시 함께 삭제된다. 발주청 사용자는 조직 관할 사고를 조회하고, 본사·본부급 사용자는 관할 프로젝트 사고를 등록·수정·삭제한다. 조회 모듈은 이 사고 이력과 정기안전점검·관리자점검·본부불시점검을 공통 점검 타입으로 정규화하며, 계산 모듈이 프로젝트-월 및 사고 전 30일·90일 관계를 산출한다.
+`project_accidents.project_id`는 `projects.id`를 참조하고 프로젝트 삭제 시 함께 삭제된다. 시스템에 없는 현장은 `project_id`를 비우고 `external_project_name`·`external_managing_hq`·`external_managing_branch`로 직접 입력할 수 있다. 발주청 사용자는 조직 관할 사고를 조회하고, 본사·본부급 사용자는 관할 프로젝트·미등록 현장 사고를 등록·수정·삭제한다. 조회 모듈은 이 사고 이력과 정기안전점검·관리자점검·본부불시점검을 공통 점검 타입으로 정규화하며, 계산 모듈이 프로젝트-월 및 사고 전 30일·90일 관계를 산출한다.
 
 **문서 생성:**
 
