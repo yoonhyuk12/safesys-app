@@ -22,7 +22,7 @@ interface AiReviewStepProps {
   scheduleCandidates: string[]
 }
 
-type CommonType = 'loading' | 'construction' | 'heavy'
+type CommonType = 'loading' | 'construction' | 'heavy' | 'excavation'
 
 const INPUT_CLASS =
   'w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100'
@@ -107,6 +107,7 @@ export default function AiReviewStep({
         formData.loading?.sharedWorkContent ??
         formData.construction?.sharedWorkContent ??
         formData.heavy?.sharedWorkContent ??
+        formData.excavation?.sharedWorkContent ??
         formData.electric?.purposeAndContent ??
         '',
       workMethod: formData.construction?.workMethod,

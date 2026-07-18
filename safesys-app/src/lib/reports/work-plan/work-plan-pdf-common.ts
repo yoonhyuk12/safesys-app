@@ -382,6 +382,7 @@ function waitForImages(el: HTMLElement): Promise<unknown> {
 }
 
 // 페이지별 HTML 문자열 배열을 받아 A4 세로 PDF로 저장.
+// 하단 여백을 남기고 본문을 배치한 뒤, 모든 페이지 하단에 "현재/전체" 페이지 번호를 표기한다.
 export async function renderWorkPlanPdf(pagesHtml: string[], fileName: string): Promise<void> {
   const html2canvas = (await import('html2canvas')).default
   const jsPDF = (await import('jspdf')).jsPDF
@@ -389,12 +390,16 @@ export async function renderWorkPlanPdf(pagesHtml: string[], fileName: string): 
   const pdf = new jsPDF('p', 'mm', 'a4')
   const pageWidth = 210
   const pageHeight = 297
+  // 페이지 번호 영역(하단) — 본문이 번호를 가리지 않도록 콘텐츠 최대 높이를 제한한다.
+  const footerReserveMm = 10
+  const contentMaxHeight = pageHeight - footerReserveMm
+  const totalPages = pagesHtml.length
   const restoreTextFix = applyHtml2canvasTextFix()
 
   try {
     for (let i = 0; i < pagesHtml.length; i++) {
       const container = document.createElement('div')
-      container.style.cssText = `position:absolute; top:0; left:-9999px; width:210mm; min-height:297mm; padding:10mm 10mm; background-color:#ffffff; box-sizing:border-box; font-family:${FONT}; color:#000; font-size:12px;`
+      container.style.cssText = `position:absolute; top:0; left:-9999px; width:210mm; min-height:297mm; padding:10mm 10mm ${footerReserveMm}mm; background-color:#ffffff; box-sizing:border-box; font-family:${FONT}; color:#000; font-size:12px;`
       container.innerHTML = pagesHtml[i]
       document.body.appendChild(container)
       try {
@@ -408,13 +413,19 @@ export async function renderWorkPlanPdf(pagesHtml: string[], fileName: string): 
         })
         let imgW = pageWidth
         let imgH = (canvas.height * imgW) / canvas.width
-        // 한 페이지를 넘으면 비율을 유지하며 축소(좌우 여백 발생).
-        if (imgH > pageHeight) {
-          imgW = (imgW * pageHeight) / imgH
-          imgH = pageHeight
+        // 한 페이지(번호 영역 제외)를 넘으면 비율을 유지하며 축소한다.
+        if (imgH > contentMaxHeight) {
+          imgW = (imgW * contentMaxHeight) / imgH
+          imgH = contentMaxHeight
         }
         if (i > 0) pdf.addPage()
         pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', (pageWidth - imgW) / 2, 0, imgW, imgH, undefined, 'FAST')
+
+        // 페이지 하단 중앙 번호 (예: 3 / 12)
+        pdf.setFont('helvetica', 'normal')
+        pdf.setFontSize(9)
+        pdf.setTextColor(90)
+        pdf.text(`${i + 1} / ${totalPages}`, pageWidth / 2, pageHeight - 5, { align: 'center' })
       } finally {
         document.body.removeChild(container)
       }

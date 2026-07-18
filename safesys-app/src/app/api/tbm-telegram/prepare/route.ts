@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest } from '../auth'
 import { isProjectItemRef, resolveProjects, type ProjectItemRef } from '../resolve-projects'
+import { isOrganizationInUserScope } from '@/lib/organization-scope'
 
 const MAX_PREPARE_ITEMS = 100
 
@@ -42,6 +43,15 @@ export async function POST(request: NextRequest) {
     const items: ProjectItemRef[] = itemsValue
 
     const resolved = await resolveProjects(authentication.supabase, items)
+    const hasUnauthorizedProject = resolved.some(project => (
+      project && !isOrganizationInUserScope(authentication.organizationScope, project)
+    ))
+    if (hasUnauthorizedProject) {
+      return NextResponse.json(
+        { error: '조회 권한이 없는 현장이 포함되어 있습니다.' },
+        { status: 403 }
+      )
+    }
 
     const results: PrepareResult[] = items.map((item, index) => {
       const project = resolved[index]

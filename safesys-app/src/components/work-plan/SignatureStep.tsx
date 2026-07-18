@@ -32,6 +32,7 @@ const TYPE_LABELS: Record<PlanType, string> = {
   construction: '붙임 2-2 차량계 건설기계',
   electric: '붙임 2-3 전기 작업',
   heavy: '붙임 2-4 중량물 취급',
+  excavation: '표준 양식 지반 굴착',
 }
 
 const COMMON_ROLES: Array<{ role: WorkPlanSignatureRole; label: string }> = [
@@ -44,10 +45,19 @@ function buildSlots(selectedTypes: PlanType[], formData: WorkPlanFormData): Sign
   const slots: SignatureSlot[] = []
   selectedTypes.forEach((type) => {
     if (formData[type]) {
-      slots.push(
-        { type, role: 'approvalManager', roleLabel: '결재란 담당', name: '', showName: false },
-        { type, role: 'approvalApprover', roleLabel: '결재란 승인', name: '', showName: false },
-      )
+      if (type === 'excavation') {
+        slots.push(
+          { type, role: 'approvalManager', roleLabel: '작성자', name: '', showName: false },
+          { type, role: 'approvalReviewer1', roleLabel: '검토자 1', name: '', showName: false },
+          { type, role: 'approvalReviewer2', roleLabel: '검토자 2', name: '', showName: false },
+          { type, role: 'approvalApprover', roleLabel: '현장소장', name: '', showName: false },
+        )
+      } else {
+        slots.push(
+          { type, role: 'approvalManager', roleLabel: '결재란 담당', name: '', showName: false },
+          { type, role: 'approvalApprover', roleLabel: '결재란 승인', name: '', showName: false },
+        )
+      }
     }
     if (type === 'electric') {
       const form = formData.electric

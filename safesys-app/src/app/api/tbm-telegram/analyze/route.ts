@@ -1,11 +1,12 @@
-// TBM 일괄 텔레그램 발송 — 사용자 검토 요청을 Gemini로 분석해 현장별 텔레그램 문안을 생성하는 API
+// TBM 일괄 텔레그램 발송 — 사용자 검토 요청을 OpenAI로 분석해 현장별 텔레그램 문안을 생성하는 API
 import { NextRequest, NextResponse } from 'next/server'
 import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
+import { isOrganizationInUserScope } from '@/lib/organization-scope'
 import { authenticateRequest } from '../auth'
 import { isCanonicalUuid, resolveProjects } from '../resolve-projects'
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-const GEMINI_MODEL = 'gemini-3.1-flash'
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY
+const OPENAI_MODEL = 'gpt-5.6-luna'
 const CHUNK_SIZE = 15
 const MAX_ANALYZE_SITES = 50
 const MAX_USER_REQUEST_LENGTH = 1000
@@ -35,14 +36,16 @@ interface TbmSubmissionRow {
   id: string
   project_id: string | null
   project_name: string | null
+  headquarters: string | null
+  branch: string | null
   today_work: string | null
   personnel_total_count: number | null
   personnel_count: string | null
   equipment_input: string | null
 }
 
-interface GeminiGenerateResponse {
-  candidates?: { content?: { parts?: { text?: string }[] } }[]
+interface OpenAIChatCompletionResponse {
+  choices?: { message?: { content?: string | null } }[]
 }
 
 function isBoundedString(value: unknown, maxLength: number, required = false): value is string {
@@ -145,54 +148,52 @@ ${siteLines}
 - results에는 입력된 모든 현장을 순서대로 포함합니다.
 `
 
-  const geminiResponse = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+  const openAIResponse = await fetch(
+    'https://api.openai.com/v1/chat/completions',
     {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemMessage }] },
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.4,
-          responseMimeType: 'application/json',
-        },
+        model: OPENAI_MODEL,
+        messages: [
+          { role: 'system', content: systemMessage },
+          { role: 'user', content: prompt },
+        ],
+        response_format: { type: 'json_object' },
       }),
     }
   )
 
-  if (!geminiResponse.ok) {
-    const errorData = await geminiResponse.json().catch(() => ({}))
-    console.error('Gemini API Error:', geminiResponse.status, errorData)
-    return { error: 'AI 분석 중 오류가 발생했습니다. (Gemini)' }
+  if (!openAIResponse.ok) {
+    const errorData = await openAIResponse.json().catch(() => ({}))
+    console.error('OpenAI API 오류:', openAIResponse.status, errorData)
+    return { error: 'AI 분석 중 오류가 발생했습니다. (OpenAI)' }
   }
 
-  const geminiResult = (await geminiResponse.json()) as GeminiGenerateResponse
-  const geminiContent = geminiResult.candidates?.[0]?.content?.parts
-    ?.map((part) => part.text || '')
-    .join('')
+  const openAIResult = (await openAIResponse.json()) as OpenAIChatCompletionResponse
+  const openAIContent = openAIResult.choices?.[0]?.message?.content
 
-  if (!geminiContent) {
-    console.error('Gemini 응답 없음:', JSON.stringify(geminiResult).slice(0, 500))
-    return { error: 'AI 응답을 받지 못했습니다. (Gemini)' }
+  if (!openAIContent) {
+    console.error('OpenAI 응답 없음:', JSON.stringify(openAIResult).slice(0, 500))
+    return { error: 'AI 응답을 받지 못했습니다. (OpenAI)' }
   }
 
   try {
-    const parsed: unknown = JSON.parse(geminiContent)
+    const parsed: unknown = JSON.parse(openAIContent)
     const parsedResults = parsed && typeof parsed === 'object'
       ? (parsed as Record<string, unknown>).results
       : null
     const results = validateAnalyzeResults(parsedResults, sites)
     if (!results) {
-      console.error('Gemini 분석 응답 형식 오류:', geminiContent.slice(0, 500))
+      console.error('OpenAI 분석 응답 형식 오류:', openAIContent.slice(0, 500))
       return { error: 'AI 분석 결과를 해석할 수 없습니다.' }
     }
     return { results }
   } catch {
-    console.error('Gemini 분석 응답 파싱 실패:', geminiContent.slice(0, 500))
+    console.error('OpenAI 분석 응답 파싱 실패:', openAIContent.slice(0, 500))
     return { error: 'AI 분석 결과를 해석할 수 없습니다.' }
   }
 }
@@ -238,7 +239,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await authentication.supabase
       .from('tbm_submissions')
       .select(
-        'id, project_id, project_name, today_work, personnel_total_count, personnel_count, equipment_input'
+        'id, project_id, project_name, headquarters, branch, today_work, personnel_total_count, personnel_count, equipment_input'
       )
       .in('id', keys)
       .eq('meeting_date', date)
@@ -258,7 +259,11 @@ export async function POST(request: NextRequest) {
     const submissionById = new Map(submissions.map((row) => [row.id, row]))
     if (
       submissions.length !== keys.length ||
-      keys.some((key) => !submissionById.has(key))
+      keys.some((key) => !submissionById.has(key)) ||
+      submissions.some(row => !isOrganizationInUserScope(
+        authentication.organizationScope,
+        { managing_hq: row.headquarters, managing_branch: row.branch }
+      ))
     ) {
       return NextResponse.json(
         { error: '조회 권한이 없거나 분석할 수 없는 TBM 항목이 포함되어 있습니다.' },
@@ -289,9 +294,9 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    if (!GEMINI_API_KEY) {
+    if (!OPENAI_API_KEY) {
       return NextResponse.json(
-        { error: 'GEMINI_API_KEY가 설정되지 않았습니다. (.env.local 확인)' },
+        { error: 'OPENAI_API_KEY가 설정되지 않았습니다. (.env.local 확인)' },
         { status: 500 }
       )
     }
@@ -300,7 +305,7 @@ export async function POST(request: NextRequest) {
     const results: AnalyzeResult[] = []
     for (let i = 0; i < authoritativeSites.length; i += CHUNK_SIZE) {
       const chunk = authoritativeSites.slice(i, i + CHUNK_SIZE)
-      const outcome = await analyzeChunk(GEMINI_API_KEY, userRequest, date, chunk)
+      const outcome = await analyzeChunk(OPENAI_API_KEY, userRequest, date, chunk)
       if ('error' in outcome) {
         return NextResponse.json({ error: outcome.error }, { status: 500 })
       }

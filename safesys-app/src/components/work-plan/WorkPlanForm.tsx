@@ -3,9 +3,14 @@
 // 프로젝트·근로자·공정표 값을 자동 인입해 작업계획서 기본정보와 현장 즉시 정보를 입력하는 폼
 
 import { useRef, useState, type ReactNode } from 'react'
-import { CalendarRange, History, Loader2, Users } from 'lucide-react'
+import { CalendarRange, History, Loader2, Plus, Trash2, Users } from 'lucide-react'
 import { fetchRecentTbm, type TbmCandidate } from '@/lib/ptw/recent-tbm'
 import { GUIDE_SIGNAL_METHODS, HEAVY_FIXING_METHODS, HEAVY_LOAD_SHAPE_EXAMPLES } from '@/lib/work-plan/constants'
+import {
+  EXCAVATION_DRAINAGE_PRESETS,
+  EXCAVATION_EQUIPMENT_PRESETS,
+  EXCAVATION_METHOD_PRESETS,
+} from '@/lib/work-plan/excavation-constants'
 import type {
   CommonWorkPlanFields,
   PersonContact,
@@ -40,6 +45,7 @@ const TYPE_LABELS: Record<PlanType, string> = {
   construction: '붙임 2-2 차량계 건설기계',
   electric: '붙임 2-3 전기 작업',
   heavy: '붙임 2-4 중량물 취급',
+  excavation: '표준 양식 지반 굴착',
 }
 
 function Field({ label, value, onChange, type = 'text', placeholder, list, suffix }: FieldProps) {
@@ -190,6 +196,72 @@ function Section({ title, description, children }: { title: string; description?
   )
 }
 
+// 포커스 시 플로팅 프리셋 목록을 띄워 한 번에 채우는 textarea
+function PresetTextarea({
+  label,
+  value,
+  onChange,
+  presets,
+  placeholder,
+  rows = 3,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  presets: readonly string[]
+  placeholder?: string
+  rows?: number
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div className="relative block">
+      <span className="mb-1 block text-xs font-medium text-gray-600">{label}</span>
+      <textarea
+        rows={rows}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        placeholder={placeholder}
+        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+      />
+      {open && (
+        <div
+          role="listbox"
+          aria-label={`${label} 프리셋`}
+          className="absolute left-0 right-0 top-full z-30 mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg"
+          // blur보다 먼저 클릭이 처리되도록 포커스 이탈을 막는다
+          onMouseDown={(event) => event.preventDefault()}
+        >
+          <div className="border-b border-gray-100 bg-gray-50 px-3 py-1.5 text-[11px] font-medium text-gray-500">
+            프리셋 선택 · 클릭하면 입력됩니다
+          </div>
+          <ul className="max-h-56 overflow-y-auto py-1">
+            {presets.map((preset) => {
+              const selected = value.trim() === preset
+              return (
+                <li key={preset} role="option" aria-selected={selected}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange(preset)
+                      setOpen(false)
+                    }}
+                    className={`w-full px-3 py-2.5 text-left text-sm leading-snug hover:bg-blue-50 ${selected ? 'bg-blue-50 font-medium text-blue-700' : 'text-gray-700'}`}
+                  >
+                    {preset}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function nullableNumber(value: string) {
   if (value === '') return null
   const parsed = Number(value)
@@ -295,7 +367,7 @@ export default function WorkPlanForm({
     </div>
   )
 
-  const renderWorkerPicker = (type: 'loading' | 'construction' | 'heavy', common: CommonWorkPlanFields) => (
+  const renderWorkerPicker = (type: 'loading' | 'construction' | 'heavy' | 'excavation', common: CommonWorkPlanFields) => (
     <div>
       <div className="mb-2 flex items-center gap-2 text-xs font-medium text-gray-600">
         <Users className="h-4 w-4" /> 작업자 선택
@@ -370,7 +442,7 @@ export default function WorkPlanForm({
     </div>
   )
 
-  const renderCommon = (type: 'loading' | 'construction' | 'heavy') => {
+  const renderCommon = (type: 'loading' | 'construction' | 'heavy' | 'excavation') => {
     const current = formData[type]
     if (!current) return null
     return (
@@ -591,6 +663,119 @@ export default function WorkPlanForm({
     </>
   }
 
+  const renderExcavation = () => {
+    const current = formData.excavation
+    if (!current) return null
+
+    const updateUtility = (index: number, patch: Partial<(typeof current.utilities)[number]>) =>
+      updatePlan('excavation', {
+        utilities: current.utilities.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row),
+      })
+
+    return (
+      <>
+        {renderCommon('excavation')}
+        <Section title="굴착공사 개요">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="현장 전화번호" value={current.overview.sitePhone} onChange={(value) => updateNested('excavation', 'overview', { sitePhone: value })} />
+            <Field label="공사규모" value={current.overview.siteScale} onChange={(value) => updateNested('excavation', 'overview', { siteScale: value })} />
+            <Field label="협력업체명" value={current.overview.partnerCompany} onChange={(value) => updateNested('excavation', 'overview', { partnerCompany: value })} />
+            <Field label="업체 전화번호" value={current.overview.partnerPhone} onChange={(value) => updateNested('excavation', 'overview', { partnerPhone: value })} />
+            <div className="sm:col-span-2">
+              {renderPerson('작업담당자', current.overview.partnerManager, (value) => updateNested('excavation', 'overview', { partnerManager: value }))}
+            </div>
+            <Field label="굴착 깊이" value={current.overview.depth} placeholder="예: GL(-)4.5m" onChange={(value) => updateNested('excavation', 'overview', { depth: value })} />
+            <Field label="굴착면적" value={current.overview.area} placeholder="예: 500㎡" onChange={(value) => updateNested('excavation', 'overview', { area: value })} />
+            <Field label="터파기 물량" value={current.overview.volume} placeholder="예: 2,000㎥" onChange={(value) => updateNested('excavation', 'overview', { volume: value })} />
+            <div className="min-w-0">
+              <Field label="굴착방법" value={current.overview.method} placeholder="예: 개착식 굴착(기계식)" onChange={(value) => updateNested('excavation', 'overview', { method: value })} />
+              {renderQuickFill(EXCAVATION_METHOD_PRESETS, current.overview.method, (next) => updateNested('excavation', 'overview', { method: next }))}
+            </div>
+            <div className="sm:col-span-2">
+              <Field label="사용기계 및 장비" value={current.overview.equipmentSummary} placeholder="예: 굴착기, 덤프트럭" onChange={(value) => updateNested('excavation', 'overview', { equipmentSummary: value })} />
+              {renderQuickFill(EXCAVATION_EQUIPMENT_PRESETS, current.overview.equipmentSummary, (next) => updateNested('excavation', 'overview', { equipmentSummary: next }))}
+            </div>
+          </div>
+        </Section>
+
+        <Section title="지하매설물 조사" description="도면·탐지기·관계기관 확인 결과를 매설물별로 기록해주세요.">
+          <div className="space-y-3">
+            {current.utilities.map((row, index) => (
+              <div key={`utility-${index}`} className="rounded-lg border border-gray-200 p-3">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Field label="종류" value={row.kind} onChange={(value) => updateUtility(index, { kind: value })} />
+                  <Field label="확인결과/위치" value={row.finding} onChange={(value) => updateUtility(index, { finding: value })} />
+                  <Field label="조치 여부" value={row.action} onChange={(value) => updateUtility(index, { action: value })} />
+                  <Field label="담당기관/연락처" value={row.agency} onChange={(value) => updateUtility(index, { agency: value })} />
+                </div>
+                <div className="mt-2 flex justify-end gap-2">
+                  <button type="button" onClick={() => updateUtility(index, { finding: '해당없음', action: '해당없음' })} className="rounded-full border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-50">해당없음</button>
+                  <button type="button" onClick={() => updatePlan('excavation', { utilities: current.utilities.filter((_, rowIndex) => rowIndex !== index) })} className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-50" aria-label={`${row.kind || index + 1} 매설물 행 삭제`}>
+                    <Trash2 className="h-3.5 w-3.5" /> 삭제
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={() => updatePlan('excavation', { utilities: [...current.utilities, { kind: '', finding: '', action: '', agency: '' }] })} className="mt-3 inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700">
+            <Plus className="h-3.5 w-3.5" /> 매설물 행 추가
+          </button>
+        </Section>
+
+        <Section title="배수·조건부 공정">
+          <PresetTextarea
+            label="배수방법"
+            value={current.drainagePlan}
+            onChange={(value) => updatePlan('excavation', { drainagePlan: value })}
+            presets={EXCAVATION_DRAINAGE_PRESETS}
+            placeholder="예: 집수정 설치 후 양수기 2대로 우수관 배수"
+          />
+
+          <div className="mt-4 space-y-3">
+            <div className="rounded-lg border border-gray-200 p-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-gray-700">
+                <input type="checkbox" checked={current.blasting.applied} onChange={(event) => updateNested('excavation', 'blasting', { applied: event.target.checked })} className="h-4 w-4 rounded border-gray-300" />
+                발파 작업 있음
+              </label>
+              {current.blasting.applied && (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Field label="발파공법" value={current.blasting.method} onChange={(value) => updateNested('excavation', 'blasting', { method: value })} />
+                  <Field label="발파구역" value={current.blasting.area} onChange={(value) => updateNested('excavation', 'blasting', { area: value })} />
+                  <Field label="발파량" value={current.blasting.amount} onChange={(value) => updateNested('excavation', 'blasting', { amount: value })} />
+                  <Field label="화약관리자" value={current.blasting.managerName} onChange={(value) => updateNested('excavation', 'blasting', { managerName: value })} />
+                  <div className="sm:col-span-2"><Field label="경보·통제방법" value={current.blasting.controlMeasure} onChange={(value) => updateNested('excavation', 'blasting', { controlMeasure: value })} /></div>
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-lg border border-gray-200 p-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-gray-700">
+                <input type="checkbox" checked={current.shoring.applied} onChange={(event) => updateNested('excavation', 'shoring', { applied: event.target.checked })} className="h-4 w-4 rounded border-gray-300" />
+                흙막이 가시설 있음
+              </label>
+              {current.shoring.applied && (
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Field label="흙막이공법" value={current.shoring.wallMethod} placeholder="예: H-Pile + 토류판" onChange={(value) => updateNested('excavation', 'shoring', { wallMethod: value })} />
+                  <Field label="흙막이 수량" value={current.shoring.wallQuantity} onChange={(value) => updateNested('excavation', 'shoring', { wallQuantity: value })} />
+                  <Field label="지보공법" value={current.shoring.supportMethod} placeholder="예: 어스앙카" onChange={(value) => updateNested('excavation', 'shoring', { supportMethod: value })} />
+                  <Field label="지보공 수량" value={current.shoring.supportQuantity} onChange={(value) => updateNested('excavation', 'shoring', { supportQuantity: value })} />
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-lg border border-gray-200 p-3">
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-gray-700">
+                <input type="checkbox" checked={current.instrumentation.applied} onChange={(event) => updateNested('excavation', 'instrumentation', { applied: event.target.checked })} className="h-4 w-4 rounded border-gray-300" />
+                지반 계측 있음
+              </label>
+              {current.instrumentation.applied && <p className="mt-2 text-xs text-blue-700">계측기 상세는 5단계(나중 확인 정보)에서 입력합니다.</p>}
+            </div>
+          </div>
+        </Section>
+      </>
+    )
+  }
+
   return (
     <div className="space-y-5">
       <div>
@@ -606,6 +791,7 @@ export default function WorkPlanForm({
           {type === 'construction' && renderConstruction()}
           {type === 'electric' && renderElectric()}
           {type === 'heavy' && renderHeavy()}
+          {type === 'excavation' && renderExcavation()}
         </div>
       ))}
     </div>

@@ -1,0 +1,910 @@
+{
+  "total_classified": 1352,
+  "by_source": {
+    "safety_results": 271,
+    "safety_additional": 62,
+    "hq_issue_content": 515,
+    "hq_json_bad": 504
+  },
+  "by_code_all": {
+    "F12_FLOOD": 38,
+    "F02_FALL": 177,
+    "F01_PPE": 50,
+    "F11_MATERIAL": 82,
+    "F03_ACCESS": 144,
+    "F06_LIFTING": 53,
+    "F09_SIGNAGE": 129,
+    "F08_ACCESS_CTRL": 61,
+    "F07_SIGNAL": 64,
+    "F19_OTHER": 177,
+    "F16_DOC": 149,
+    "F10_HOUSEKEEP": 91,
+    "F18_QUALITY": 10,
+    "F17_WELFARE": 7,
+    "F15_HAZMAT": 13,
+    "F05_MACHINERY": 75,
+    "F04_SCAFFOLD": 20,
+    "F14_TOOL": 2,
+    "F13_ELEC": 10
+  },
+  "by_code_primary": {
+    "F12_FLOOD": 25,
+    "F02_FALL": 111,
+    "F01_PPE": 28,
+    "F11_MATERIAL": 76,
+    "F03_ACCESS": 72,
+    "F06_LIFTING": 29,
+    "F09_SIGNAGE": 68,
+    "F08_ACCESS_CTRL": 42,
+    "F07_SIGNAL": 25,
+    "F19_OTHER": 91,
+    "F16_DOC": 62,
+    "F10_HOUSEKEEP": 76,
+    "F18_QUALITY": 9,
+    "F17_WELFARE": 5,
+    "F15_HAZMAT": 12,
+    "F05_MACHINERY": 37,
+    "F04_SCAFFOLD": 8,
+    "F14_TOOL": 2,
+    "F13_ELEC": 8
+  },
+  "by_code_photo_primary": {
+    "F12_FLOOD": 25,
+    "F02_FALL": 111,
+    "F01_PPE": 27,
+    "F11_MATERIAL": 75,
+    "F03_ACCESS": 72,
+    "F06_LIFTING": 29,
+    "F09_SIGNAGE": 68,
+    "F08_ACCESS_CTRL": 42,
+    "F07_SIGNAL": 24,
+    "F19_OTHER": 90,
+    "F16_DOC": 59,
+    "F10_HOUSEKEEP": 76,
+    "F18_QUALITY": 9,
+    "F17_WELFARE": 5,
+    "F15_HAZMAT": 12,
+    "F05_MACHINERY": 36,
+    "F04_SCAFFOLD": 8,
+    "F14_TOOL": 2,
+    "F13_ELEC": 8
+  },
+  "by_code_regular": {
+    "F12_FLOOD": 20,
+    "F02_FALL": 24,
+    "F01_PPE": 3,
+    "F11_MATERIAL": 40,
+    "F03_ACCESS": 8,
+    "F06_LIFTING": 2,
+    "F09_SIGNAGE": 14,
+    "F08_ACCESS_CTRL": 13,
+    "F07_SIGNAL": 10,
+    "F19_OTHER": 22,
+    "F16_DOC": 36,
+    "F10_HOUSEKEEP": 54,
+    "F18_QUALITY": 9,
+    "F17_WELFARE": 2,
+    "F15_HAZMAT": 3,
+    "F05_MACHINERY": 8,
+    "F04_SCAFFOLD": 2,
+    "F14_TOOL": 1
+  },
+  "by_code_hq": {
+    "F03_ACCESS": 64,
+    "F16_DOC": 26,
+    "F05_MACHINERY": 29,
+    "F10_HOUSEKEEP": 22,
+    "F19_OTHER": 69,
+    "F11_MATERIAL": 36,
+    "F17_WELFARE": 3,
+    "F09_SIGNAGE": 54,
+    "F02_FALL": 87,
+    "F01_PPE": 25,
+    "F08_ACCESS_CTRL": 29,
+    "F15_HAZMAT": 9,
+    "F13_ELEC": 8,
+    "F07_SIGNAL": 15,
+    "F06_LIFTING": 27,
+    "F12_FLOOD": 5,
+    "F04_SCAFFOLD": 6,
+    "F14_TOOL": 1
+  },
+  "by_code_hq_json": {
+    "F13_ELEC": 2,
+    "F02_FALL": 54,
+    "F04_SCAFFOLD": 11,
+    "F08_ACCESS_CTRL": 15,
+    "F03_ACCESS": 70,
+    "F16_DOC": 81,
+    "F01_PPE": 22,
+    "F10_HOUSEKEEP": 7,
+    "F11_MATERIAL": 4,
+    "F19_OTHER": 78,
+    "F06_LIFTING": 23,
+    "F07_SIGNAL": 38,
+    "F05_MACHINERY": 35,
+    "F09_SIGNAGE": 56,
+    "F17_WELFARE": 1,
+    "F12_FLOOD": 6,
+    "F15_HAZMAT": 1
+  },
+  "by_code_additional": {
+    "F19_OTHER": 8,
+    "F08_ACCESS_CTRL": 4,
+    "F02_FALL": 12,
+    "F03_ACCESS": 2,
+    "F09_SIGNAGE": 5,
+    "F05_MACHINERY": 3,
+    "F12_FLOOD": 7,
+    "F11_MATERIAL": 2,
+    "F17_WELFARE": 1,
+    "F06_LIFTING": 1,
+    "F16_DOC": 6,
+    "F07_SIGNAL": 1,
+    "F04_SCAFFOLD": 1,
+    "F18_QUALITY": 1,
+    "F10_HOUSEKEEP": 8
+  },
+  "examples": {
+    "F03_ACCESS": [
+      {
+        "text": "굴착부 진입 계단 미설치",
+        "source": "hq_issue_content",
+        "date": "2025-08-27",
+        "branch": "강화·옹진지사",
+        "has_photo": true
+      },
+      {
+        "text": "작업자 안전통로 확보 미비",
+        "source": "hq_issue_content",
+        "date": "2025-10-01",
+        "branch": "여주·이천지사",
+        "has_photo": true
+      },
+      {
+        "text": "안전통로 미확보",
+        "source": "hq_issue_content",
+        "date": "2025-10-01",
+        "branch": "안성지사",
+        "has_photo": true
+      }
+    ],
+    "F16_DOC": [
+      {
+        "text": "폭염 관리 대장 미작성(2시간 단위)",
+        "source": "hq_issue_content",
+        "date": "2025-08-27",
+        "branch": "강화·옹진지사",
+        "has_photo": true
+      },
+      {
+        "text": "휴게소 관리 대장 미작성",
+        "source": "hq_issue_content",
+        "date": "2025-09-29",
+        "branch": "평택지사",
+        "has_photo": true
+      },
+      {
+        "text": "착공지구 안전서류 컨설팅 실시",
+        "source": "hq_issue_content",
+        "date": "2025-10-21",
+        "branch": "여주·이천지사",
+        "has_photo": true
+      }
+    ],
+    "F05_MACHINERY": [
+      {
+        "text": "미사용 스카이 방치",
+        "source": "hq_issue_content",
+        "date": "2025-08-28",
+        "branch": "경기본부",
+        "has_photo": true
+      },
+      {
+        "text": "장비 주변 출입 금지 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-09-29",
+        "branch": "평택지사",
+        "has_photo": true
+      },
+      {
+        "text": "장비작업중 신호수 미배치 및 작업지휘자 장비와 거리 가까워 일정거리 두도록 지시",
+        "source": "hq_issue_content",
+        "date": "2025-11-04",
+        "branch": "화성·수원지사",
+        "has_photo": true
+      }
+    ],
+    "F10_HOUSEKEEP": [
+      {
+        "text": "전선 정리 상태 불량",
+        "source": "hq_issue_content",
+        "date": "2025-08-28",
+        "branch": "경기본부",
+        "has_photo": true
+      },
+      {
+        "text": "위험물 보관함 내 품목별 분리 및 주변정리 필요",
+        "source": "hq_issue_content",
+        "date": "2025-10-21",
+        "branch": "여주·이천지사",
+        "has_photo": true
+      },
+      {
+        "text": "근로자 휴게실 정리 및 물품보완 필요",
+        "source": "hq_issue_content",
+        "date": "2025-10-21",
+        "branch": "여주·이천지사",
+        "has_photo": true
+      }
+    ],
+    "F19_OTHER": [
+      {
+        "text": "방수 환기 상태 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-08-28",
+        "branch": "경기본부",
+        "has_photo": true
+      },
+      {
+        "text": "과상승방지 폴 미사용",
+        "source": "hq_issue_content",
+        "date": "2025-09-05",
+        "branch": "김포지사",
+        "has_photo": true
+      },
+      {
+        "text": "작업자 안전 통로 미확보",
+        "source": "hq_issue_content",
+        "date": "2025-10-17",
+        "branch": "김포지사",
+        "has_photo": true
+      }
+    ],
+    "F11_MATERIAL": [
+      {
+        "text": "그라인더 덮개 전부 미사용",
+        "source": "hq_issue_content",
+        "date": "2025-09-05",
+        "branch": "김포지사",
+        "has_photo": true
+      },
+      {
+        "text": "위험물 보관 표시 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-09-29",
+        "branch": "평택지사",
+        "has_photo": true
+      },
+      {
+        "text": "위험물 보관 목록 최신화 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-10-20",
+        "branch": "평택지사",
+        "has_photo": true
+      }
+    ],
+    "F17_WELFARE": [
+      {
+        "text": "작업장내 온도계 미비치",
+        "source": "hq_issue_content",
+        "date": "2025-09-09",
+        "branch": "김포지사",
+        "has_photo": true
+      },
+      {
+        "text": "근로자 휴게시설 없음",
+        "source": "safety_results",
+        "date": "2026-03-13",
+        "branch": "강화·옹진지사",
+        "has_photo": true
+      },
+      {
+        "text": "작업공간 주변 근로자 휴게시설 미설치",
+        "source": "hq_issue_content",
+        "date": "2026-03-13",
+        "branch": "강화·옹진지사",
+        "has_photo": true
+      }
+    ],
+    "F09_SIGNAGE": [
+      {
+        "text": "가설도로 제한속도 표지 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-09-09",
+        "branch": "김포지사",
+        "has_photo": true
+      },
+      {
+        "text": "공사 안내 간판 추가 설치 필요",
+        "source": "hq_issue_content",
+        "date": "2025-10-01",
+        "branch": "평택지사",
+        "has_photo": true
+      },
+      {
+        "text": "안전 실명제 미설치",
+        "source": "hq_issue_content",
+        "date": "2025-10-01",
+        "branch": "안성지사",
+        "has_photo": true
+      }
+    ],
+    "F02_FALL": [
+      {
+        "text": "안전난간 간격 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-09-12",
+        "branch": "김포지사",
+        "has_photo": true
+      },
+      {
+        "text": "추락 구간 안전 조치 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-09-25",
+        "branch": "양평·광주·서울지사",
+        "has_photo": true
+      },
+      {
+        "text": "안전 난간 중앙 난간대 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-09-29",
+        "branch": "평택지사",
+        "has_photo": true
+      }
+    ],
+    "F01_PPE": [
+      {
+        "text": "안전모 미착용",
+        "source": "hq_issue_content",
+        "date": "2025-09-25",
+        "branch": "양평·광주·서울지사",
+        "has_photo": true
+      },
+      {
+        "text": "작업시 안전벨트 미착용",
+        "source": "hq_issue_content",
+        "date": "2025-10-11",
+        "branch": "평택지사",
+        "has_photo": true
+      },
+      {
+        "text": "현장사무실 정리작업 중 장비 작업시 안전모 미착용 현장 지적 및 즉각시정",
+        "source": "hq_issue_content",
+        "date": "2025-10-21",
+        "branch": "여주·이천지사",
+        "has_photo": true
+      }
+    ],
+    "F08_ACCESS_CTRL": [
+      {
+        "text": "공사장 출입금지 및 교통안전 표기 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-09-26",
+        "branch": "강화·옹진지사",
+        "has_photo": true
+      },
+      {
+        "text": "휴게실 뒤편 철근 접근 금지 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-10-17",
+        "branch": "김포지사",
+        "has_photo": true
+      },
+      {
+        "text": "관계자 외 출입 차단 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-11-06",
+        "branch": "강화·옹진지사",
+        "has_photo": true
+      }
+    ],
+    "F15_HAZMAT": [
+      {
+        "text": "위험물 관리자 정부 표시 미흡 목록 표시 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-10-17",
+        "branch": "파주지사",
+        "has_photo": true
+      },
+      {
+        "text": "소화기 월 단위 점검표 기록 미흡",
+        "source": "hq_issue_content",
+        "date": "2025-10-17",
+        "branch": "김포지사",
+        "has_photo": true
+      },
+      {
+        "text": "MSDS물질안전보건자료 미게시",
+        "source": "hq_issue_content",
+        "date": "2025-11-07",
+        "branch": "여주·이천지사",
+        "has_photo": true
+      }
+    ],
+    "F13_ELEC": [
+      {
+        "text": "우천 대비 전기선로 감전 방지 조치 필요",
+        "source": "hq_issue_content",
+        "date": "2025-10-17",
+        "branch": "화성·수원지사",
+        "has_photo": true
+      },
+      {
+        "text": "노후 콘센트 교체",
+        "source": "hq_issue_content",
+        "date": "2025-10-29",
+        "branch": "강화·옹진지사",
+        "has_photo": true
+      },
+      {
+        "text": "콘센트 불량(피복 벗겨짐)",
+        "source": "hq_issue_content",
+        "date": "2025-11-06",
+        "branch": "양평·광주·서울지사",
+        "has_photo": true
+      }
+    ],
+    "F07_SIGNAL": [
+      {
+        "text": "작업지휘자 미배치",
+        "source": "hq_issue_content",
+        "date": "2025-10-22",
+        "branch": "평택지사",
+        "has_photo": true
+      },
+      {
+        "text": "신호수 미배치 관",
+        "source": "hq_issue_content",
+        "date": "2025-11-06",
+        "branch": "강화·옹진지사",
+        "has_photo": true
+      },
+      {
+        "text": "신호수 미배치",
+        "source": "hq_issue_content",
+        "date": "2025-11-06",
+        "branch": "김포지사",
+        "has_photo": true
+      }
+    ],
+    "F06_LIFTING": [
+      {
+        "text": "끊어진 슬링벨트 사용으로 교체지시",
+        "source": "hq_issue_content",
+        "date": "2025-10-23",
+        "branch": "여주·이천지사",
+        "has_photo": true
+      },
+      {
+        "text": "슬링벨트 교체",
+        "source": "hq_issue_content",
+        "date": "2025-10-24",
+        "branch": "김포지사",
+        "has_photo": true
+      },
+      {
+        "text": "실링벨트 교체",
+        "source": "hq_issue_content",
+        "date": "2025-11-10",
+        "branch": "안성지사",
+        "has_photo": true
+      }
+    ],
+    "F12_FLOOD": [
+      {
+        "text": "사면부 방수천막 설치",
+        "source": "hq_issue_content",
+        "date": "2025-11-10",
+        "branch": "안성지사",
+        "has_photo": true
+      },
+      {
+        "text": "성토사면 불안정",
+        "source": "safety_results",
+        "date": "2026-02-26",
+        "branch": "경기본부",
+        "has_photo": true
+      },
+      {
+        "text": "성토사면 불안정",
+        "source": "hq_issue_content",
+        "date": "2026-02-26",
+        "branch": "경기본부",
+        "has_photo": true
+      }
+    ],
+    "F04_SCAFFOLD": [
+      {
+        "text": "비계 외부 수직안전망 미설치",
+        "source": "hq_issue_content",
+        "date": "2025-12-10",
+        "branch": "양평·광주·서울지사",
+        "has_photo": true
+      },
+      {
+        "text": "비계 밑받침 부적절",
+        "source": "hq_issue_content",
+        "date": "2025-12-19",
+        "branch": "강화·옹진지사",
+        "has_photo": true
+      },
+      {
+        "text": "비계 강관 보호캡 미설치",
+        "source": "hq_issue_content",
+        "date": "2026-03-07",
+        "branch": "화성·수원지사",
+        "has_photo": true
+      }
+    ],
+    "F18_QUALITY": [
+      {
+        "text": "품질, 시공, 환경관리계획서 공사감독자 서명누락",
+        "source": "safety_results",
+        "date": "2026-03-10",
+        "branch": "안성지사",
+        "has_photo": true
+      },
+      {
+        "text": "품질, 환경, 시공 계획서 26년도 작성 누락",
+        "source": "safety_results",
+        "date": "2026-03-13",
+        "branch": "안성지사",
+        "has_photo": true
+      },
+      {
+        "text": "시공안전, 품질, 환경관리계획서 미비치 및 승인서 누락",
+        "source": "safety_results",
+        "date": "2026-03-16",
+        "branch": "안성지사",
+        "has_photo": true
+      }
+    ],
+    "F14_TOOL": [
+      {
+        "text": "그라인더 덮게 미설치",
+        "source": "hq_issue_content",
+        "date": "2026-04-08",
+        "branch": "강화·옹진지사",
+        "has_photo": true
+      },
+      {
+        "text": "기초말뚝파일 절단부 캡 보호 미흡",
+        "source": "safety_results",
+        "date": "2026-04-20",
+        "branch": "김포지사",
+        "has_photo": true
+      }
+    ]
+  },
+  "codes": [
+    {
+      "code": "F01_PPE",
+      "name": "개인보호구",
+      "definition": "안전모·안전대·안전화·안전띠·보호복 등 개인보호구 미착용/부적정",
+      "keywords": [
+        "안전모",
+        "안전대",
+        "안전화",
+        "안전띠",
+        "안전벨트",
+        "보호구",
+        "보호복",
+        "턱끈",
+        "안전복",
+        "용접\\s*안전"
+      ]
+    },
+    {
+      "code": "F02_FALL",
+      "name": "추락·개구부 방지",
+      "definition": "안전난간·개구부·추락방지망·안전줄 등 추락 위험 구간 조치 미흡",
+      "keywords": [
+        "추락",
+        "개구부",
+        "안전난간",
+        "난간",
+        "추락방지",
+        "안전줄",
+        "타이거",
+        "낙하방지",
+        "중간난간",
+        "난간\\s*캡",
+        "안전캡",
+        "방호벽",
+        "안전\\s*휀스",
+        "안전휀스",
+        "추락\\s*주의"
+      ]
+    },
+    {
+      "code": "F03_ACCESS",
+      "name": "가설통로·계단·사다리",
+      "definition": "가설통로·안전계단·사다리·작업발판 등 이동로 부적정",
+      "keywords": [
+        "가설통로",
+        "안전계단",
+        "가설계단",
+        "사다리",
+        "작업발판",
+        "이동통로",
+        "안전통로",
+        "통행로",
+        "진입로",
+        "경사로",
+        "계단",
+        "발판",
+        "아웃트리거",
+        "말비계"
+      ]
+    },
+    {
+      "code": "F04_SCAFFOLD",
+      "name": "비계·동바리",
+      "definition": "시스템/강관 비계·동바리 구조·설치 기준 미준수",
+      "keywords": [
+        "비계",
+        "동바리",
+        "시스템\\s*비계",
+        "강관\\s*비계",
+        "수평재",
+        "받침철물"
+      ]
+    },
+    {
+      "code": "F05_MACHINERY",
+      "name": "건설기계·중장비",
+      "definition": "굴삭기 등 건설기계 안전장치·작업반경·계획 미흡",
+      "keywords": [
+        "건설기계",
+        "굴삭기",
+        "굴착기",
+        "차량계",
+        "중장비",
+        "후방\\s*경고",
+        "후방영상",
+        "후사경",
+        "버킷",
+        "스카이",
+        "장비",
+        "운전자",
+        "전조등"
+      ]
+    },
+    {
+      "code": "F06_LIFTING",
+      "name": "인양·줄걸이",
+      "definition": "슬링벨트·인양로프·훅해지·줄걸이 방법 등 인양 작업 위험",
+      "keywords": [
+        "인양",
+        "슬링",
+        "실링벨트",
+        "줄걸이",
+        "훅",
+        "인양벨트",
+        "인양밴드",
+        "인양로프",
+        "와이어"
+      ]
+    },
+    {
+      "code": "F07_SIGNAL",
+      "name": "신호수·작업지휘",
+      "definition": "신호수·작업지휘자 미배치 또는 위치 부적정",
+      "keywords": [
+        "신호수",
+        "작업지휘",
+        "유도원",
+        "교통\\s*유도"
+      ]
+    },
+    {
+      "code": "F08_ACCESS_CTRL",
+      "name": "출입·접근 통제",
+      "definition": "민간인/근로자 출입통제·접근금지·휀스 미흡",
+      "keywords": [
+        "출입",
+        "접근금지",
+        "접근\\s*금지",
+        "통제",
+        "민간인",
+        "출입금지",
+        "시건",
+        "휀스",
+        "펜스"
+      ]
+    },
+    {
+      "code": "F09_SIGNAGE",
+      "name": "안전표지·안내간판",
+      "definition": "안전보건표지·공사안내·실명제·허가제 간판 미설치",
+      "keywords": [
+        "안전보건\\s*표지",
+        "안전\\s*보건\\s*표지",
+        "안전표지",
+        "안내\\s*간판",
+        "공사\\s*안내",
+        "표지판",
+        "간판",
+        "실명제",
+        "사전\\s*작업\\s*허가",
+        "허가제\\s*간판",
+        "현수막",
+        "속도\\s*제한\\s*표지",
+        "MSDS\\s*표지",
+        "경고등",
+        "표지"
+      ]
+    },
+    {
+      "code": "F10_HOUSEKEEP",
+      "name": "정리정돈·폐기물",
+      "definition": "현장 정리정돈·폐기물·부산물 방치",
+      "keywords": [
+        "정리",
+        "폐기물",
+        "부산물",
+        "쓰레기",
+        "방치",
+        "주변정리",
+        "현장\\s*정리",
+        "청소"
+      ]
+    },
+    {
+      "code": "F11_MATERIAL",
+      "name": "자재 적치·보관",
+      "definition": "자재 적치·덮개·보관상태 미흡",
+      "keywords": [
+        "자재",
+        "적치",
+        "덮개",
+        "보관",
+        "철근",
+        "파이프",
+        "노출",
+        "야적"
+      ]
+    },
+    {
+      "code": "F12_FLOOD",
+      "name": "수방·우기·사면",
+      "definition": "수방자재·사면·배수·우기 대비 미흡",
+      "keywords": [
+        "수방",
+        "우기",
+        "사면",
+        "법면",
+        "배수",
+        "물넘이",
+        "성토",
+        "침하",
+        "유실",
+        "되메",
+        "터파기",
+        "굴착면",
+        "흙막이"
+      ]
+    },
+    {
+      "code": "F13_ELEC",
+      "name": "전기·감전",
+      "definition": "전선·콘센트·배전반·감전 위험 조치 미흡",
+      "keywords": [
+        "전선",
+        "감전",
+        "콘센트",
+        "배전",
+        "전기",
+        "꽂음접속",
+        "누전",
+        "발전기"
+      ]
+    },
+    {
+      "code": "F14_TOOL",
+      "name": "수공구·기계안전",
+      "definition": "그라인더 덮개 등 공구·기계 방호장치 미흡",
+      "keywords": [
+        "그라인더",
+        "핸드그라인더",
+        "회전\\s*날",
+        "안전덮개",
+        "가공\\s*기구",
+        "절단"
+      ]
+    },
+    {
+      "code": "F15_HAZMAT",
+      "name": "위험물·MSDS",
+      "definition": "위험물 보관·MSDS·책임자 표시 미흡",
+      "keywords": [
+        "위험물",
+        "MSDS",
+        "유류",
+        "소화기",
+        "위험\\s*물품"
+      ]
+    },
+    {
+      "code": "F16_DOC",
+      "name": "서류·계획·평가",
+      "definition": "작업계획서·위험성평가·허가제·법정서류 미비",
+      "keywords": [
+        "작업계획서",
+        "위험성\\s*평가",
+        "위험성평가",
+        "허가",
+        "서류",
+        "일지",
+        "대장",
+        "규정",
+        "실시규정",
+        "산업안전",
+        "안전관리계획",
+        "재해예방",
+        "VAR",
+        "검교정",
+        "성적서",
+        "품질검사",
+        "수불부",
+        "시험",
+        "명단",
+        "조직도",
+        "휴게시설\\s*운영",
+        "폭염\\s*관리",
+        "법령"
+      ]
+    },
+    {
+      "code": "F17_WELFARE",
+      "name": "휴게·보건시설",
+      "definition": "휴게실·생수·온도계 등 근로자 복지·보건 시설 미비",
+      "keywords": [
+        "휴게",
+        "생수",
+        "온도계",
+        "쉼터"
+      ]
+    },
+    {
+      "code": "F18_QUALITY",
+      "name": "품질·환경 기타",
+      "definition": "품질·환경 관리 관련 지적(시험/검교정 외)",
+      "keywords": [
+        "품질",
+        "환경",
+        "비산",
+        "분진",
+        "오염"
+      ]
+    },
+    {
+      "code": "F19_OTHER",
+      "name": "기타 안전관리",
+      "definition": "위 분류에 해당하지 않는 기타 현장 안전 지적",
+      "keywords": []
+    }
+  ],
+  "primary_n": 786,
+  "primary_photo_n": 778,
+  "hq_json_n": 504,
+  "additional_n": 62,
+  "raw_counts": {
+    "safety_results_rows": 284,
+    "safety_results_valid": 271,
+    "hq_issue_rows": 617,
+    "hq_issue_valid": 515,
+    "hq_json_bad_rows": 504,
+    "additional_raw_meaningful_action": 148,
+    "additional_defect_like": 62
+  },
+  "date_range": {
+    "all_min": "2025-08-27",
+    "all_max": "2026-07-16",
+    "regular_min": "2026-02-26",
+    "regular_max": "2026-05-13",
+    "hq_min": "2025-08-27",
+    "hq_max": "2026-07-16"
+  }
+}
