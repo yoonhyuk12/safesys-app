@@ -1,4 +1,4 @@
-// TBM 일괄 텔레그램 발송 — 대상 현장의 소관사업·텔레그램 수신 가능 여부를 조회하는 API
+// TBM 일괄 텔레그램 발송 — 대상 현장의 소관사업·알림(텔레그램/앱) 수신 가능 여부를 조회하는 API
 import { NextRequest, NextResponse } from 'next/server'
 import { authenticateRequest } from '../auth'
 import { isProjectItemRef, resolveProjects, type ProjectItemRef } from '../resolve-projects'
@@ -59,8 +59,9 @@ export async function POST(request: NextRequest) {
         projectId: project?.id ?? null,
         projectName: item.projectName,
         projectCategory: project?.project_category?.trim() ? project.project_category : '미분류',
-        hasClientTelegram: Boolean(project?.client_telegram_id?.trim()),
-        hasContractorTelegram: Boolean(project?.contractor_telegram_id?.trim()),
+        // 필드명은 모달 호환을 위해 유지 — 의미는 "텔레그램 또는 알림앱 수신 가능"
+        hasClientTelegram: Boolean(project?.client_telegram_id?.trim() || project?.client_app_code?.trim()),
+        hasContractorTelegram: Boolean(project?.contractor_telegram_id?.trim() || project?.contractor_app_code?.trim()),
       }
     })
 

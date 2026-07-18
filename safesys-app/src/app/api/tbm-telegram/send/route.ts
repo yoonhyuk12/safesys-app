@@ -176,6 +176,36 @@ async function sendAppAlertToRecipient(
   }
 }
 
+// 텔레그램·앱 결과를 수신자 단위로 합산한다 — 한 채널이라도 도달하면 성공으로 본다
+function mergeRecipientOutcome(
+  telegram: RecipientResult,
+  app: AppAlertResponse[]
+): RecipientResult {
+  if (app.length === 0) return telegram
+  const appOkCount = app.filter(r => r.ok).length
+  const appFailCount = app.length - appOkCount
+  const appSummary = appFailCount === 0
+    ? `앱 ${app.length}건 발송`
+    : appOkCount === 0
+      ? `앱 발송 실패(${app.find(r => !r.ok)?.description || '사유 미상'})`
+      : `앱 ${appOkCount}건 발송·${appFailCount}건 실패`
+
+  // 텔레그램 미등록 → 앱 결과가 곧 수신자 결과
+  if (!telegram.attempted) {
+    return { attempted: true, ok: appOkCount > 0, description: appSummary }
+  }
+  if (telegram.ok) {
+    return { attempted: true, ok: true, description: appSummary }
+  }
+  return {
+    attempted: true,
+    ok: appOkCount > 0,
+    description: appOkCount > 0
+      ? `${appSummary} (텔레그램은 실패)`
+      : `${telegram.description || '텔레그램 발송 실패'}, ${appSummary}`,
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const authentication = await authenticateRequest(request)
@@ -280,10 +310,10 @@ export async function POST(request: NextRequest) {
         const project = resolved[index]
         const message = escapeHtml(item.message)
 
-        const client = item.recipients.client
+        const clientTelegram = item.recipients.client
           ? await sendToRecipient(project, project?.client_telegram_id, message)
           : null
-        const contractor = item.recipients.contractor
+        const contractorTelegram = item.recipients.contractor
           ? await sendToRecipient(project, project?.contractor_telegram_id, message)
           : null
 
@@ -300,8 +330,12 @@ export async function POST(request: NextRequest) {
           key: item.key,
           projectId: project?.id ?? null,
           projectName: project?.project_name ?? item.projectName,
-          client,
-          contractor,
+          client: clientTelegram
+            ? mergeRecipientOutcome(clientTelegram, clientApp ?? [])
+            : null,
+          contractor: contractorTelegram
+            ? mergeRecipientOutcome(contractorTelegram, contractorApp ?? [])
+            : null,
           ...(clientApp ? { clientApp } : {}),
           ...(contractorApp ? { contractorApp } : {}),
         })
