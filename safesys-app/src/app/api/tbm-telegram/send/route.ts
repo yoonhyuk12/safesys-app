@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { sendTelegramMessage } from '@/lib/telegram'
+import { sendAppAlertBulk, stripTelegramHtml, type AppAlertResponse } from '@/lib/app-alert'
 import { isOrganizationInUserScope } from '@/lib/organization-scope'
 import { authenticateRequest } from '../auth'
 import {
@@ -36,6 +37,8 @@ interface SendResult {
   projectName: string
   client: RecipientResult | null
   contractor: RecipientResult | null
+  clientApp?: AppAlertResponse[]
+  contractorApp?: AppAlertResponse[]
 }
 
 type DispatchReservation =
@@ -153,6 +156,26 @@ async function sendToRecipient(
   }
 }
 
+async function sendAppAlertToRecipient(
+  project: ResolvedProject | null,
+  appCode: string | null | undefined,
+  message: string
+): Promise<AppAlertResponse[]> {
+  if (!project || !appCode?.trim()) {
+    return []
+  }
+  try {
+    return await sendAppAlertBulk(appCode, message, project.project_name)
+  } catch (error) {
+    console.error('TBM 앱 알림 발송 오류:', {
+      projectId: project.id,
+      projectName: project.project_name,
+      error,
+    })
+    return [{ ok: false, description: '앱 알림 발송 중 오류가 발생했습니다.' }]
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const authentication = await authenticateRequest(request)
@@ -264,12 +287,23 @@ export async function POST(request: NextRequest) {
           ? await sendToRecipient(project, project?.contractor_telegram_id, message)
           : null
 
+        // 별도 알림앱 병행 발송. 실패해도 텔레그램 예약/응답에는 영향을 주지 않는다.
+        const appMessage = stripTelegramHtml(message)
+        const clientApp = item.recipients.client
+          ? await sendAppAlertToRecipient(project, project?.client_app_code, appMessage)
+          : undefined
+        const contractorApp = item.recipients.contractor
+          ? await sendAppAlertToRecipient(project, project?.contractor_app_code, appMessage)
+          : undefined
+
         results.push({
           key: item.key,
           projectId: project?.id ?? null,
           projectName: project?.project_name ?? item.projectName,
           client,
           contractor,
+          ...(clientApp ? { clientApp } : {}),
+          ...(contractorApp ? { contractorApp } : {}),
         })
       }
 

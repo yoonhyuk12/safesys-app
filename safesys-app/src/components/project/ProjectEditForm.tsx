@@ -32,6 +32,8 @@ interface FormData {
   business_card_pdf_url?: string
   client_telegram_id?: string
   contractor_telegram_id?: string
+  client_app_code?: string
+  contractor_app_code?: string
   // 공사기간 (작업일보 공정률 계산: 착공일 0% → 준공일 100%)
   construction_start_date?: string
   construction_end_date?: string
@@ -61,6 +63,8 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
   const [isOptionalExpanded, setIsOptionalExpanded] = useState(false)
   const [telegramTestLoading, setTelegramTestLoading] = useState<'client' | 'contractor' | null>(null)
   const [telegramTestResult, setTelegramTestResult] = useState<{ type: 'client' | 'contractor', success: boolean, message: string } | null>(null)
+  const [appTestLoading, setAppTestLoading] = useState<'client' | 'contractor' | null>(null)
+  const [appTestResult, setAppTestResult] = useState<{ type: 'client' | 'contractor', success: boolean, message: string } | null>(null)
   const [formData, setFormData] = useState<FormData>({
     project_name: project.project_name || '',
     managing_hq: project.managing_hq || '',
@@ -82,6 +86,8 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
     business_card_pdf_url: project.business_card_pdf_url || '',
     client_telegram_id: (project as any).client_telegram_id || '',
     contractor_telegram_id: (project as any).contractor_telegram_id || '',
+    client_app_code: (project as any).client_app_code || '',
+    contractor_app_code: (project as any).contractor_app_code || '',
     construction_start_date: project.construction_start_date || '',
     construction_end_date: project.construction_end_date || '',
     privacy_manager_name: project.privacy_manager_name || '',
@@ -249,6 +255,64 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
     }
   }
 
+  // 앱 알림 코드 테스트 발송
+  const handleAppTest = async (type: 'client' | 'contractor') => {
+    const targetCodes = type === 'client' ? formData.client_app_code : formData.contractor_app_code
+    const label = type === 'client' ? '발주청' : '시공사'
+
+    if (!targetCodes?.trim()) {
+      setAppTestResult({
+        type,
+        success: false,
+        message: `${label} 앱 알림 코드를 입력해주세요.`
+      })
+      return
+    }
+
+    setAppTestLoading(type)
+    setAppTestResult(null)
+
+    try {
+      const response = await fetch('/api/app-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          targetCodes: targetCodes.trim(),
+          projectName: formData.project_name || '안전관리시스템',
+          message: `SafeSys 테스트 메시지\n\n현장: ${formData.project_name || '(미입력)'}\n수신자: ${label}\n\n이 메시지가 정상적으로 수신되었다면 앱 알림 설정이 완료된 것입니다.`
+        })
+      })
+
+      const result = await response.json()
+
+      if (result.ok) {
+        const codeCount = targetCodes.trim().split(',').filter((code: string) => code.trim()).length
+        setAppTestResult({
+          type,
+          success: true,
+          message: codeCount > 1 ? `${label} ${codeCount}명 테스트 발송 성공!` : `${label} 테스트 발송 성공!`
+        })
+      } else {
+        const firstError = Array.isArray(result.results)
+          ? result.results.find((r: { ok: boolean, description?: string }) => !r.ok)?.description
+          : undefined
+        setAppTestResult({
+          type,
+          success: false,
+          message: firstError || '발송 실패. 코드를 확인해주세요.'
+        })
+      }
+    } catch {
+      setAppTestResult({
+        type,
+        success: false,
+        message: '네트워크 오류가 발생했습니다.'
+      })
+    } finally {
+      setAppTestLoading(null)
+    }
+  }
+
   const handleAddressSelect = (address: string, roadAddress: string, coords?: { lat: number, lng: number }) => {
     setFormData(prev => ({
       ...prev,
@@ -323,6 +387,8 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
         business_card_pdf_url: formData.business_card_pdf_url?.trim() || undefined,
         client_telegram_id: formData.client_telegram_id?.trim() || null,
         contractor_telegram_id: formData.contractor_telegram_id?.trim() || null,
+        client_app_code: formData.client_app_code?.trim() || null,
+        contractor_app_code: formData.contractor_app_code?.trim() || null,
         construction_start_date: formData.construction_start_date || null,
         construction_end_date: formData.construction_end_date || null,
         privacy_manager_name: formData.privacy_manager_name?.trim() || undefined,
@@ -841,6 +907,82 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
                   🔔 안전알림 봇 등록하기 (t.me/KRCSafe_bot) — 사전에 텔레그램 설치 필요
                 </a>
               </div>
+            </div>
+
+            {/* 앱 알림 수신용 개인코드 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                앱 알림 수신용 개인코드
+              </label>
+              <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                <div>
+                  <label htmlFor="client_app_code" className="block text-xs text-gray-500 mb-1">
+                    발주청 앱 알림 코드
+                  </label>
+                  <input
+                    type="text"
+                    id="client_app_code"
+                    name="client_app_code"
+                    value={formData.client_app_code}
+                    onChange={handleInputChange}
+                    placeholder="알림앱 개인코드 (복수: 쉼표 구분)"
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAppTest('client')}
+                    disabled={appTestLoading === 'client' || !formData.client_app_code?.trim()}
+                    className="mt-2 inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {appTestLoading === 'client' ? (
+                      <div className="animate-spin h-3 w-3 border-2 border-blue-700 border-t-transparent rounded-full mr-1"></div>
+                    ) : (
+                      <Send className="h-3 w-3 mr-1" />
+                    )}
+                    테스트 발송
+                  </button>
+                </div>
+                <div>
+                  <label htmlFor="contractor_app_code" className="block text-xs text-gray-500 mb-1">
+                    시공사 앱 알림 코드
+                  </label>
+                  <input
+                    type="text"
+                    id="contractor_app_code"
+                    name="contractor_app_code"
+                    value={formData.contractor_app_code}
+                    onChange={handleInputChange}
+                    placeholder="알림앱 개인코드 (복수: 쉼표 구분)"
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleAppTest('contractor')}
+                    disabled={appTestLoading === 'contractor' || !formData.contractor_app_code?.trim()}
+                    className="mt-2 inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 border border-blue-300 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {appTestLoading === 'contractor' ? (
+                      <div className="animate-spin h-3 w-3 border-2 border-blue-700 border-t-transparent rounded-full mr-1"></div>
+                    ) : (
+                      <Send className="h-3 w-3 mr-1" />
+                    )}
+                    테스트 발송
+                  </button>
+                </div>
+              </div>
+              {appTestResult && (
+                <div className={`mt-2 p-2 rounded-md text-xs ${appTestResult.success
+                    ? 'bg-green-50 text-green-700 border border-green-200'
+                    : 'bg-red-50 text-red-700 border border-red-200'
+                  }`}>
+                  {appTestResult.success ? '✅' : '❌'} {appTestResult.message}
+                </div>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                모바일 알림앱으로 안전점검 알림을 받을 개인코드를 입력하세요 (복수 입력 시 쉼표로 구분)
+              </p>
             </div>
 
             {/* 개인정보 관리책임자 */}

@@ -41,6 +41,8 @@ NEXT_PUBLIC_KMA_API_KEY=           # 기상청 API
 VWORLD_API_KEY=                     # V-World 주소/지도
 NEXT_PUBLIC_APP_NAME=SafeSys Safety Management System
 NEXT_PUBLIC_APP_VERSION=1.0.0
+AICCTV_ALERT_FUNCTION_URL=            # 알림앱(aicctvalert) send-alert Edge Function 주소 — Vercel에도 등록 필요
+AICCTV_ALERT_ANON_KEY=               # 알림앱(aicctvalert) anon key — Vercel에도 등록 필요
 ```
 
 `.env.local`은 `.env.example`을 복사해 작성하고 비밀 값은 Git에 올리지 않는다. Supabase 키가 로그나 공유 문서에 노출되면 즉시 교체한다.

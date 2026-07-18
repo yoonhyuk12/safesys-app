@@ -36,6 +36,11 @@ export interface Project {
   disaster_prevention_target?: boolean
   cctv_rtsp_url?: string
   business_card_pdf_url?: string  // 사업카드(PDF) 링크
+  // 텔레그램/앱 알림 수신 대상
+  client_telegram_id?: string | null
+  contractor_telegram_id?: string | null
+  client_app_code?: string | null  // 발주청 알림앱 개인코드 (복수: 쉼표 구분)
+  contractor_app_code?: string | null  // 시공사 알림앱 개인코드 (복수: 쉼표 구분)
   display_order?: number  // 지사별 순서 번호
   // 공사기간 (작업일보 공정률 계산: 착공일 0% → 준공일 100%)
   construction_start_date?: string | null
@@ -94,6 +99,8 @@ export interface CreateProjectData {
   business_card_pdf_url?: string  // 사업카드(PDF) 링크
   client_telegram_id?: string | null
   contractor_telegram_id?: string | null
+  client_app_code?: string | null  // 발주청 알림앱 개인코드 (복수: 쉼표 구분)
+  contractor_app_code?: string | null  // 시공사 알림앱 개인코드 (복수: 쉼표 구분)
   // 공사기간 (작업일보 공정률 계산용)
   construction_start_date?: string | null
   construction_end_date?: string | null

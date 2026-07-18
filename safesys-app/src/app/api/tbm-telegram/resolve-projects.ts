@@ -14,9 +14,11 @@ export interface ResolvedProject {
   managing_branch: string | null
   client_telegram_id: string | null
   contractor_telegram_id: string | null
+  client_app_code: string | null
+  contractor_app_code: string | null
 }
 
-const PROJECT_COLUMNS = 'id, project_name, project_category, managing_hq, managing_branch, client_telegram_id, contractor_telegram_id'
+const PROJECT_COLUMNS = 'id, project_name, project_category, managing_hq, managing_branch, client_telegram_id, contractor_telegram_id, client_app_code, contractor_app_code'
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const MAX_PROJECT_NAME_LENGTH = 200
 

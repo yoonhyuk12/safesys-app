@@ -8,6 +8,7 @@ import {
   createTBMStatusMessage,
   createUrgentMessage,
 } from '@/lib/telegram'
+import { sendProjectAppNotification } from '@/lib/app-alert'
 
 /**
  * POST /api/telegram
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
         // 프로젝트 정보 조회
         const { data: project, error } = await supabase
           .from('projects')
-          .select('project_name, client_telegram_id, contractor_telegram_id')
+          .select('project_name, client_telegram_id, contractor_telegram_id, client_app_code, contractor_app_code')
           .eq('id', projectId)
           .single()
 
@@ -67,8 +68,11 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        const result = await sendProjectNotification(project, message)
-        return NextResponse.json(result)
+        const [result, app] = await Promise.all([
+          sendProjectNotification(project, message),
+          sendProjectAppNotification(project, message),
+        ])
+        return NextResponse.json({ ...result, app })
       }
 
       case 'safety-check': {
@@ -82,7 +86,7 @@ export async function POST(request: NextRequest) {
 
         const { data: project, error } = await supabase
           .from('projects')
-          .select('project_name, client_telegram_id, contractor_telegram_id')
+          .select('project_name, client_telegram_id, contractor_telegram_id, client_app_code, contractor_app_code')
           .eq('id', projectId)
           .single()
 
@@ -98,8 +102,11 @@ export async function POST(request: NextRequest) {
           ...data,
         })
 
-        const result = await sendProjectNotification(project, safetyMessage)
-        return NextResponse.json(result)
+        const [result, app] = await Promise.all([
+          sendProjectNotification(project, safetyMessage),
+          sendProjectAppNotification(project, safetyMessage),
+        ])
+        return NextResponse.json({ ...result, app })
       }
 
       case 'tbm-status': {
@@ -113,7 +120,7 @@ export async function POST(request: NextRequest) {
 
         const { data: project, error } = await supabase
           .from('projects')
-          .select('project_name, client_telegram_id, contractor_telegram_id')
+          .select('project_name, client_telegram_id, contractor_telegram_id, client_app_code, contractor_app_code')
           .eq('id', projectId)
           .single()
 
@@ -129,8 +136,11 @@ export async function POST(request: NextRequest) {
           ...data,
         })
 
-        const result = await sendProjectNotification(project, tbmMessage)
-        return NextResponse.json(result)
+        const [result, app] = await Promise.all([
+          sendProjectNotification(project, tbmMessage),
+          sendProjectAppNotification(project, tbmMessage),
+        ])
+        return NextResponse.json({ ...result, app })
       }
 
       case 'urgent': {
@@ -144,7 +154,7 @@ export async function POST(request: NextRequest) {
 
         const { data: project, error } = await supabase
           .from('projects')
-          .select('project_name, client_telegram_id, contractor_telegram_id')
+          .select('project_name, client_telegram_id, contractor_telegram_id, client_app_code, contractor_app_code')
           .eq('id', projectId)
           .single()
 
@@ -160,8 +170,11 @@ export async function POST(request: NextRequest) {
           ...data,
         })
 
-        const result = await sendProjectNotification(project, urgentMessage)
-        return NextResponse.json(result)
+        const [result, app] = await Promise.all([
+          sendProjectNotification(project, urgentMessage),
+          sendProjectAppNotification(project, urgentMessage),
+        ])
+        return NextResponse.json({ ...result, app })
       }
 
       default:
