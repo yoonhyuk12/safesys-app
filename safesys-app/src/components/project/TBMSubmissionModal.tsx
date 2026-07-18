@@ -1165,7 +1165,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
 
           const projectDataPromise = supabase
             .from('projects')
-            .select('client_telegram_id')
+            .select('client_telegram_id, client_app_code')
             .eq('id', projectId)
             .single()
 
@@ -1174,7 +1174,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
             projectDataPromise
           ])
 
-          if (projectData?.client_telegram_id) {
+          if (projectData?.client_telegram_id || projectData?.client_app_code) {
             // 텔레그램 메시지 구성
             let telegramMessage = `📋 <b>TBM 일일안전교육 제출</b>\n\n` +
               `🏗️ <b>현장:</b> ${projectName}\n` +
@@ -1203,12 +1203,14 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 type: 'direct',
-                chatId: projectData.client_telegram_id,
+                chatId: projectData.client_telegram_id || undefined,
+                projectId,
+                recipients: { client: true, contractor: false },
                 message: telegramMessage
               })
             })
 
-            if (educationPhotoUrl) {
+            if (educationPhotoUrl && projectData.client_telegram_id) {
               await fetch('/api/telegram/photo', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

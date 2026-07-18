@@ -782,7 +782,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                 try {
                     const { data: projectTgData } = await supabase
                         .from('projects')
-                        .select('client_telegram_id, contractor_telegram_id')
+                        .select('client_telegram_id, contractor_telegram_id, client_app_code, contractor_app_code')
                         .eq('id', projectId)
                         .single()
 
@@ -791,7 +791,9 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                         projectTgData?.contractor_telegram_id
                     ].filter(Boolean).join(',')
 
-                    if (chatIds) {
+                    const hasAppCode = Boolean(projectTgData?.client_app_code || projectTgData?.contractor_app_code)
+
+                    if (chatIds || hasAppCode) {
                         const findingsItems = results
                             .filter(r => r.findings && r.findings.trim() !== '')
                             .map(r => `- ${r.field_item}: ${r.findings}`)
@@ -812,7 +814,8 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({
                                 type: 'direct',
-                                chatId: chatIds,
+                                chatId: chatIds || undefined,
+                                projectId,
                                 message: telegramMessage
                             })
                         })

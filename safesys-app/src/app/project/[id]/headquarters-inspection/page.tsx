@@ -1331,7 +1331,7 @@ export default function HeadquartersInspectionPage() {
         try {
           const { data: projectTgData } = await supabase
             .from('projects')
-            .select('client_telegram_id, contractor_telegram_id')
+            .select('client_telegram_id, contractor_telegram_id, client_app_code, contractor_app_code')
             .eq('id', projectId)
             .single()
 
@@ -1340,7 +1340,9 @@ export default function HeadquartersInspectionPage() {
             projectTgData?.contractor_telegram_id
           ].filter(Boolean).join(',')
 
-          if (chatIds) {
+          const hasAppCode = Boolean(projectTgData?.client_app_code || projectTgData?.contractor_app_code)
+
+          if (chatIds || hasAppCode) {
             const telegramMessage =
               `🔍 <b>본부불시점검 결과 알림</b>\n\n` +
               `🏗️ <b>현장:</b> ${project?.project_name}\n` +
@@ -1356,7 +1358,8 @@ export default function HeadquartersInspectionPage() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 type: 'direct',
-                chatId: chatIds,
+                chatId: chatIds || undefined,
+                projectId,
                 message: telegramMessage
               })
             })

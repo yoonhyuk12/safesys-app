@@ -469,11 +469,11 @@ export default function HeatWaveCheckPage() {
       try {
         const { data: projectTgData } = await supabase
           .from('projects')
-          .select('client_telegram_id')
+          .select('client_telegram_id, client_app_code')
           .eq('id', projectId)
           .single()
 
-        if (projectTgData?.client_telegram_id) {
+        if (projectTgData?.client_telegram_id || projectTgData?.client_app_code) {
           const telegramMessage =
             `🌡️ <b>폭염대비점검 결과 알림</b>\n\n` +
             `🏗️ <b>현장:</b> ${project?.project_name}\n` +
@@ -494,7 +494,9 @@ export default function HeatWaveCheckPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               type: 'direct',
-              chatId: projectTgData.client_telegram_id,
+              chatId: projectTgData.client_telegram_id || undefined,
+              projectId,
+              recipients: { client: true, contractor: false },
               message: telegramMessage
             })
           })

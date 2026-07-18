@@ -579,7 +579,7 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
       try {
         const { data: projectTgData } = await supabase
           .from('projects')
-          .select('client_telegram_id, contractor_telegram_id, project_name')
+          .select('client_telegram_id, contractor_telegram_id, project_name, client_app_code, contractor_app_code')
           .eq('id', projectId)
           .single()
 
@@ -588,7 +588,9 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
           projectTgData?.contractor_telegram_id
         ].filter(Boolean).join(',')
 
-        if (chatIds) {
+        const hasAppCode = Boolean(projectTgData?.client_app_code || projectTgData?.contractor_app_code)
+
+        if (chatIds || hasAppCode) {
           const nonCompliantItems = Object.entries(formData.checklistItems)
             .filter(([, value]) => value === '불이행')
             .map(([key]) => key)
@@ -612,7 +614,8 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               type: 'direct',
-              chatId: chatIds,
+              chatId: chatIds || undefined,
+              projectId,
               message: telegramMessage
             })
           })

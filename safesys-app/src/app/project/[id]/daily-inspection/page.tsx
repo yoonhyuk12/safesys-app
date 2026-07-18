@@ -231,7 +231,7 @@ export default function DailyInspectionPage() {
       try {
         const { data: projectTgData } = await supabase
           .from('projects')
-          .select('client_telegram_id, contractor_telegram_id, project_name')
+          .select('client_telegram_id, contractor_telegram_id, project_name, client_app_code, contractor_app_code')
           .eq('id', projectId)
           .single()
 
@@ -240,7 +240,9 @@ export default function DailyInspectionPage() {
           projectTgData?.contractor_telegram_id
         ].filter(Boolean).join(',')
 
-        if (chatIds) {
+        const hasAppCode = Boolean(projectTgData?.client_app_code || projectTgData?.contractor_app_code)
+
+        if (chatIds || hasAppCode) {
           const cautionItems = inspectionItems.filter(item => item.status === 'caution')
           const dangerItems = inspectionItems.filter(item => item.status === 'danger')
 
@@ -266,7 +268,8 @@ export default function DailyInspectionPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               type: 'direct',
-              chatId: chatIds,
+              chatId: chatIds || undefined,
+              projectId,
               message: telegramMessage
             })
           })
