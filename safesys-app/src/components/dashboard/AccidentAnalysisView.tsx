@@ -17,6 +17,7 @@ import {
 import AccidentEntryModal from '@/components/dashboard/AccidentEntryModal'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { BRANCH_OPTIONS } from '@/lib/constants'
+import { isOrganizationInUserScope } from '@/lib/organization-scope'
 import type { Project } from '@/lib/projects'
 import type { UserProfile } from '@/lib/supabase'
 import {
@@ -31,6 +32,7 @@ import {
   type NormalizedSafetyInspection,
   type ProjectAccident,
 } from '@/lib/accident-analysis'
+import { getRegularWorkersByOrg } from '@/lib/tbm'
 
 /** 월별 추이 콤보 차트(사고 막대 + 점검 선형)의 점검 시리즈 정의 */
 const MONTHLY_INSPECTION_SERIES = [
@@ -220,11 +222,23 @@ export default function AccidentAnalysisView({
 }: AccidentAnalysisViewProps) {
   const initialRange = useMemo(defaultDateRange, [])
   const initialChartRange = useMemo(chartDateRange, [])
+
+  // 사용자 소속 기준 읽기 권한 범위의 프로젝트만 사용한다. 전체 등록 목록을 그대로 쓰지 않는다.
+  const accessibleProjects = useMemo(
+    () => projects.filter((project) =>
+      isOrganizationInUserScope(userProfile, {
+        managing_hq: project.managing_hq,
+        managing_branch: project.managing_branch,
+      })
+    ),
+    [projects, userProfile],
+  )
+
   // 필터 기본값: 지사 딥링크 > 사용자 소속(본사·본부급은 전체)
   const defaultHq = useMemo(() => {
     if (initialBranch) {
       return (
-        projects.find((project) => project.managing_branch === initialBranch)?.managing_hq
+        accessibleProjects.find((project) => project.managing_branch === initialBranch)?.managing_hq
         ?? userProfile?.hq_division
         ?? ''
       )
@@ -232,7 +246,7 @@ export default function AccidentAnalysisView({
     const hq = userProfile?.hq_division ?? ''
     if (!hq || hq === '본사') return ''
     return hq
-  }, [initialBranch, projects, userProfile?.hq_division])
+  }, [accessibleProjects, initialBranch, userProfile?.hq_division])
   const defaultBranch = useMemo(() => {
     if (initialBranch) return initialBranch
     const branch = userProfile?.branch_division ?? ''
@@ -258,7 +272,13 @@ export default function AccidentAnalysisView({
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [visibleMonthlySeries, setVisibleMonthlySeries] =
     useState<Record<MonthlyChartSeriesKey, boolean>>(INITIAL_MONTHLY_SERIES_VISIBILITY)
+  // 재해율 분모: 분석 필터 기간 기준 프로젝트별 상시근로자 (TBM 누적÷제출일수)
+  const [regularByProject, setRegularByProject] = useState<Map<string, number>>(new Map())
+  // 프로젝트 미등록 현장의 상시근로자 (key: `${본부}||${지사}`) — 분모에 본부·지사 필터로 합산
+  const [regularUnregistered, setRegularUnregistered] = useState<Map<string, number>>(new Map())
+  const [regularLoading, setRegularLoading] = useState(false)
   const requestSequence = useRef(0)
+  const regularRequestSequence = useRef(0)
 
   const toggleMonthlySeries = (key: MonthlyChartSeriesKey) => {
     setVisibleMonthlySeries((current) => ({
@@ -266,51 +286,6 @@ export default function AccidentAnalysisView({
       [key]: !current[key],
     }))
   }
-
-  const projectIds = useMemo(() => projects.map((project) => project.id), [projects])
-
-  const loadData = useCallback(async () => {
-    const requestId = ++requestSequence.current
-    if (projectIds.length === 0) {
-      setAccidents([])
-      setInspections([])
-      setLoading(false)
-      setError('')
-      return
-    }
-    if (!startDate || !endDate || startDate > endDate) {
-      setLoading(false)
-      setError('조회 시작일은 종료일보다 늦을 수 없습니다.')
-      return
-    }
-
-    // 분석 필터 기간 + 파레토(최근 1년) 기간을 모두 커버하도록 조회한다.
-    const chartRange = chartDateRange()
-    const dataStart = minDateString(startDate, chartRange.startDate)
-    const dataEnd = maxDateString(endDate, chartRange.endDate)
-
-    setLoading(true)
-    setError('')
-    const result = await getAccidentAnalysisData(projectIds, dataStart, dataEnd)
-    if (requestSequence.current !== requestId) return
-
-    if (!result.success) {
-      setAccidents([])
-      setInspections([])
-      setError(result.error || '사고 통계 분석 데이터를 불러오지 못했습니다.')
-    } else {
-      setAccidents(result.accidents ?? [])
-      setInspections(result.inspections ?? [])
-    }
-    setLoading(false)
-  }, [endDate, projectIds, startDate])
-
-  useEffect(() => {
-    void loadData()
-    return () => {
-      requestSequence.current += 1
-    }
-  }, [loadData])
 
   // 프로필·프로젝트 목록이 늦게 채워지거나 지사 딥링크가 바뀌면 기본 소속을 다시 맞춘다.
   useEffect(() => {
@@ -320,14 +295,14 @@ export default function AccidentAnalysisView({
   }, [defaultBranch, defaultHq])
 
   const hqOptions = useMemo(
-    () => Array.from(new Set(projects.map((project) => project.managing_hq).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko')),
-    [projects],
+    () => Array.from(new Set(accessibleProjects.map((project) => project.managing_hq).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'ko')),
+    [accessibleProjects],
   )
 
   // 지사 드롭다운은 BRANCH_OPTIONS 목차 순서를 따른다 (가나다 정렬 X)
   const branchOptions = useMemo(() => {
     const branches = Array.from(new Set(
-      projects
+      accessibleProjects
         .filter((project) => !selectedHq || project.managing_hq === selectedHq)
         .map((project) => project.managing_branch)
         .filter(Boolean),
@@ -345,20 +320,89 @@ export default function AccidentAnalysisView({
       if (bi === -1) return -1
       return ai - bi
     })
-  }, [projects, selectedHq])
+  }, [accessibleProjects, selectedHq])
 
   const organizationProjects = useMemo(
-    () => projects.filter((project) =>
+    () => accessibleProjects.filter((project) =>
       (!selectedHq || project.managing_hq === selectedHq) &&
       (!selectedBranch || project.managing_branch === selectedBranch)
     ),
-    [projects, selectedBranch, selectedHq],
+    [accessibleProjects, selectedBranch, selectedHq],
   )
 
   const filteredProjects = useMemo(
     () => organizationProjects.filter((project) => !selectedProjectId || project.id === selectedProjectId),
     [organizationProjects, selectedProjectId],
   )
+
+  // 사고·점검 조회는 소속 범위 + 현재 본부·지사·프로젝트 필터에 해당하는 ID만 사용한다.
+  const queryProjectIds = useMemo(
+    () => filteredProjects.map((project) => project.id),
+    [filteredProjects],
+  )
+
+  const loadData = useCallback(async () => {
+    const requestId = ++requestSequence.current
+    if (!startDate || !endDate || startDate > endDate) {
+      setLoading(false)
+      setError('조회 시작일은 종료일보다 늦을 수 없습니다.')
+      return
+    }
+
+    // 분석 필터 기간 + 파레토(최근 1년) 기간을 모두 커버하도록 조회한다.
+    // 프로젝트가 없어도 미등록 현장 사고(RLS 관할)는 조회한다.
+    const chartRange = chartDateRange()
+    const dataStart = minDateString(startDate, chartRange.startDate)
+    const dataEnd = maxDateString(endDate, chartRange.endDate)
+
+    setLoading(true)
+    setError('')
+    const result = await getAccidentAnalysisData(queryProjectIds, dataStart, dataEnd)
+    if (requestSequence.current !== requestId) return
+
+    if (!result.success) {
+      setAccidents([])
+      setInspections([])
+      setError(result.error || '사고 통계 분석 데이터를 불러오지 못했습니다.')
+    } else {
+      setAccidents(result.accidents ?? [])
+      setInspections(result.inspections ?? [])
+    }
+    setLoading(false)
+  }, [endDate, queryProjectIds, startDate])
+
+  useEffect(() => {
+    void loadData()
+    return () => {
+      requestSequence.current += 1
+    }
+  }, [loadData])
+
+  // 상시근로자: 분석 필터 기간(시작일~종료일) 기준으로 로드. 필터는 합산 시 반영한다.
+  useEffect(() => {
+    if (!startDate || !endDate || startDate > endDate) return
+    const requestId = ++regularRequestSequence.current
+    setRegularLoading(true)
+    void getRegularWorkersByOrg(endDate, startDate)
+      .then((totals) => {
+        if (regularRequestSequence.current !== requestId) return
+        setRegularByProject(totals.byProject)
+        setRegularUnregistered(totals.unregisteredByBranch)
+      })
+      .catch((caught) => {
+        console.error('상시근로자 집계 실패', caught)
+        if (regularRequestSequence.current !== requestId) return
+        setRegularByProject(new Map())
+        setRegularUnregistered(new Map())
+      })
+      .finally(() => {
+        if (regularRequestSequence.current !== requestId) return
+        setRegularLoading(false)
+      })
+    return () => {
+      regularRequestSequence.current += 1
+    }
+  }, [endDate, startDate])
 
   const filteredProjectIds = useMemo(() => new Set(filteredProjects.map((project) => project.id)), [filteredProjects])
 
@@ -426,8 +470,8 @@ export default function AccidentAnalysisView({
   )
 
   const projectMap = useMemo(
-    () => new Map(projects.map((project) => [project.id, project])),
-    [projects],
+    () => new Map(accessibleProjects.map((project) => [project.id, project])),
+    [accessibleProjects],
   )
 
   const managementProjects = useMemo(
@@ -666,6 +710,26 @@ export default function AccidentAnalysisView({
     { key: 'latest', label: '마지막 사고일', value: formatDate(analysis.kpis.latestAccidentAt) },
   ]
 
+  // 재해자 = 부상자 + 사망자. 재해율(%) = 재해자 ÷ 상시근로자 × 100 (분석 필터 범위)
+  // 분모는 등록 프로젝트 + 미등록 현장 합산. 미등록 현장은 사고(분자) 필터와 같은 규칙으로
+  // 특정 프로젝트 선택 시 제외하고, 사용자 범위·본부·지사 필터로 매칭한다.
+  const regularWorkerCount = useMemo(() => {
+    const registered = filteredProjects.reduce((sum, project) => sum + (regularByProject.get(project.id) || 0), 0)
+    if (selectedProjectId) return registered
+    let unregistered = 0
+    regularUnregistered.forEach((value, key) => {
+      const [hq, branch] = key.split('||')
+      if (!isOrganizationInUserScope(userProfile, { managing_hq: hq, managing_branch: branch })) return
+      if (selectedHq && hq !== selectedHq) return
+      if (selectedBranch && branch !== selectedBranch) return
+      unregistered += value
+    })
+    return registered + unregistered
+  }, [filteredProjects, regularByProject, regularUnregistered, selectedBranch, selectedHq, selectedProjectId, userProfile])
+  const casualtyCount = analysis.kpis.injuredCount + analysis.kpis.fatalCount
+  const accidentRatePercent = regularWorkerCount > 0 ? (casualtyCount / regularWorkerCount) * 100 : 0
+  const regularWorkerDisplay = Math.round(regularWorkerCount)
+
   return (
     <div className="space-y-5">
       <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
@@ -828,7 +892,18 @@ export default function AccidentAnalysisView({
           </section>
 
           <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
-            총 {analysis.kpis.projectMonthCount.toLocaleString()} 프로젝트-월을 관측했고, 100 프로젝트-월당 사고는 <strong>{analysis.kpis.accidentsPer100ProjectMonths.toFixed(2)}건</strong>입니다.
+            {regularLoading ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                상시근로자·재해율을 계산하는 중…
+              </span>
+            ) : (
+              <>
+                상시근로자는 <strong>{regularWorkerDisplay.toLocaleString()}명</strong>, 재해자는{' '}
+                <strong>{casualtyCount.toLocaleString()}명</strong>으로 재해율은{' '}
+                <strong>{accidentRatePercent.toFixed(2)}%</strong> 입니다.
+              </>
+            )}
           </div>
 
           {analysis.sampleSize.isInsufficient && (

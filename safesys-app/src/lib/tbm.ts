@@ -237,26 +237,31 @@ export async function getYearlyPersonnelByOrg(asOfDate: string): Promise<YearlyP
   return { byHq, byBranch }
 }
 
-// 프로젝트별 상시근로자를 본부·지사로 합산한 결과
+// 프로젝트별 상시근로자를 본부·지사·프로젝트로 합산한 결과
 export interface RegularWorkerTotals {
   byHq: Map<string, number>       // key: 본부명
   byBranch: Map<string, number>   // key: `${본부}||${지사}`
+  byProject: Map<string, number>  // key: project_id
+  unregisteredByBranch: Map<string, number> // key: `${본부}||${지사}` — 프로젝트 미등록 현장분만
 }
 
-// 프로젝트별 상시근로자 = (연초~기준일 누적 투입인원) ÷ (그 프로젝트의 TBM 제출일수, distinct meeting_date).
+// 프로젝트별 상시근로자 = (기간 누적 투입인원) ÷ (그 프로젝트의 TBM 제출일수, distinct meeting_date).
 // 제출일수가 프로젝트마다 달라 단일 분모로 나눌 수 없으므로, 프로젝트 단위로 구한 뒤 지사·본부로 더한다.
-// getYearlyPersonnelByOrg와 동일한 필터(연초~기준일, submitted, 작업없음 제외)로 분자·분모를 같은 행 집합에서 산출한다.
-export async function getRegularWorkersByOrg(asOfDate: string): Promise<RegularWorkerTotals> {
+// startDate 생략 시 기준일 연도의 1/1부터(당해년도 기준) 집계한다. getYearlyPersonnelByOrg와
+// 동일한 필터(submitted, 작업없음 제외)로 분자·분모를 같은 행 집합에서 산출한다.
+export async function getRegularWorkersByOrg(asOfDate: string, startDate?: string): Promise<RegularWorkerTotals> {
   const byHq = new Map<string, number>()
   const byBranch = new Map<string, number>()
-  if (!USE_SUPABASE || !asOfDate) return { byHq, byBranch }
+  const byProject = new Map<string, number>()
+  const unregisteredByBranch = new Map<string, number>()
+  if (!USE_SUPABASE || !asOfDate) return { byHq, byBranch, byProject, unregisteredByBranch }
 
-  const start = `${asOfDate.slice(0, 4)}-01-01`
+  const start = startDate || `${asOfDate.slice(0, 4)}-01-01`
   const end = asOfDate
   const pageSize = 1000
 
   // 프로젝트별 누적인원(total)·제출일(distinct meeting_date) 집계
-  const perProject = new Map<string, { hq: string; branch: string; total: number; dates: Set<string> }>()
+  const perProject = new Map<string, { projectId: string | null; hq: string; branch: string; total: number; dates: Set<string> }>()
 
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
@@ -279,9 +284,10 @@ export async function getRegularWorkersByOrg(asOfDate: string): Promise<RegularW
       const hq = row.headquarters || ''
       const branch = row.branch || ''
       if (!hq) continue
-      const key = row.project_id || `${hq}||${branch}||${row.project_name || ''}`
+      const projectId = typeof row.project_id === 'string' && row.project_id ? row.project_id : null
+      const key = projectId || `${hq}||${branch}||${row.project_name || ''}`
       const total = typeof row.personnel_total_count === 'number' ? row.personnel_total_count : 0
-      const entry = perProject.get(key) || { hq, branch, total: 0, dates: new Set<string>() }
+      const entry = perProject.get(key) || { projectId, hq, branch, total: 0, dates: new Set<string>() }
       entry.total += total
       if (row.meeting_date) entry.dates.add(row.meeting_date)
       perProject.set(key, entry)
@@ -290,7 +296,7 @@ export async function getRegularWorkersByOrg(asOfDate: string): Promise<RegularW
   }
 
   // 프로젝트별 상시근로자를 지사·본부로 합산
-  perProject.forEach(({ hq, branch, total, dates }) => {
+  perProject.forEach(({ projectId, hq, branch, total, dates }) => {
     const days = dates.size
     if (days === 0) return
     const regular = total / days
@@ -299,9 +305,15 @@ export async function getRegularWorkersByOrg(asOfDate: string): Promise<RegularW
       const bkey = `${hq}||${branch}`
       byBranch.set(bkey, (byBranch.get(bkey) || 0) + regular)
     }
+    if (projectId) {
+      byProject.set(projectId, (byProject.get(projectId) || 0) + regular)
+    } else {
+      const ukey = `${hq}||${branch}`
+      unregisteredByBranch.set(ukey, (unregisteredByBranch.get(ukey) || 0) + regular)
+    }
   })
 
-  return { byHq, byBranch }
+  return { byHq, byBranch, byProject, unregisteredByBranch }
 }
 
 export async function getTBMStats(
