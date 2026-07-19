@@ -1,11 +1,10 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { X, Save, User, Building, Phone, UserCircle } from 'lucide-react'
+import { X, Save, User, Building, Phone, UserCircle, Loader2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import PasswordChangeModal from './PasswordChangeModal'
 
 interface ProfileEditModalProps {
@@ -34,7 +33,8 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
   })
   const [availableBranches, setAvailableBranches] = useState<string[]>([])
 
-  // 모달이 열릴 때 현재 프로필 정보로 폼 초기화
+  // 모달이 열릴 때(또는 프로필 사용자가 바뀔 때)만 폼 초기화.
+  // 저장 후 refreshProfile로 userProfile 객체가 바뀌어도 저장 중 UI가 리셋되지 않게 한다.
   useEffect(() => {
     if (isOpen && userProfile) {
       setFormData({
@@ -47,8 +47,9 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
         company_name: userProfile.company_name || ''
       })
       setError('')
+      setLoading(false)
     }
-  }, [isOpen, userProfile])
+  }, [isOpen, userProfile?.id])
 
   // 본부 선택 시 지사 목록 업데이트
   useEffect(() => {
@@ -387,17 +388,18 @@ const ProfileEditModal: React.FC<ProfileEditModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors inline-flex items-center justify-center min-w-[7.5rem] whitespace-nowrap disabled:cursor-not-allowed disabled:hover:bg-blue-600"
                   disabled={loading}
+                  aria-busy={loading}
                 >
                   {loading ? (
                     <>
-                      <LoadingSpinner />
-                      <span className="ml-2">저장 중...</span>
+                      <Loader2 className="h-4 w-4 mr-2 shrink-0 animate-spin" />
+                      저장 중...
                     </>
                   ) : (
                     <>
-                      <Save className="h-4 w-4 mr-2" />
+                      <Save className="h-4 w-4 mr-2 shrink-0" />
                       저장
                     </>
                   )}

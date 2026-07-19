@@ -1,9 +1,8 @@
 'use client'
 
 import React, { useState } from 'react'
-import { X, Lock, Eye, EyeOff } from 'lucide-react'
+import { X, Lock, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
-import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 interface PasswordChangeModalProps {
   isOpen: boolean
@@ -261,8 +260,8 @@ const PasswordChangeModal: React.FC<PasswordChangeModalProps> = ({
               >
                 {loading ? (
                   <>
-                    <LoadingSpinner />
-                    <span className="ml-2">변경 중...</span>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    변경 중...
                   </>
                 ) : (
                   <>
