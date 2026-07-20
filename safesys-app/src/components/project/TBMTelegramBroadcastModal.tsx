@@ -1,11 +1,12 @@
 'use client'
 // TBM 제출 현장을 AI로 분석해 발주청·시공사에 텔레그램 메시지를 일괄 발송하는 모달
 import React, { useState, useEffect, useRef, useMemo } from 'react'
-import { X, Loader2, Send, ArrowLeft } from 'lucide-react'
+import { X, Loader2, Send, ArrowLeft, FileSpreadsheet } from 'lucide-react'
 import type { TBMRecord } from '@/lib/tbm'
 import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
 import { supabase } from '@/lib/supabase'
 import { BRANCH_OPTIONS } from '@/lib/constants'
+import { exportTbmTelegramAnalysis, type TbmAnalysisExportRow } from '@/lib/excel/tbm-telegram-analysis-export'
 
 const BRANCH_SORT_INDEX = new Map(
   Object.entries(BRANCH_OPTIONS).flatMap(([hq, branches], hqIndex) =>
@@ -674,6 +675,36 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
             )}
           </div>
           <div className="flex shrink-0 items-center gap-3">
+            {step === 'results' && rows.length > 0 && (
+              <button
+                type="button"
+                disabled={sending}
+                onClick={async () => {
+                  try {
+                    const exportRows: TbmAnalysisExportRow[] = rows.map((row) => ({
+                      projectName: row.record.project_name,
+                      branch: row.record.managing_branch || '지사 미분류',
+                      projectCategory: row.projectCategory || '소관사업 미분류',
+                      todayWork: row.record.today_work || '',
+                      personnelText: row.personnelText,
+                      equipment: row.record.equipment_input || '',
+                      analysis: row.analysis,
+                      message: row.message,
+                      hasClientTelegram: row.hasClientTelegram,
+                      hasContractorTelegram: row.hasContractorTelegram,
+                    }))
+                    await exportTbmTelegramAnalysis(exportRows, selectedDate)
+                  } catch (err) {
+                    console.error(err)
+                    alert('엑셀 생성에 실패했습니다.')
+                  }
+                }}
+                className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                엑셀
+              </button>
+            )}
             <span className="text-xs text-gray-500">사용 모델 · GPT-5.6 Luna</span>
             <button
               type="button"
