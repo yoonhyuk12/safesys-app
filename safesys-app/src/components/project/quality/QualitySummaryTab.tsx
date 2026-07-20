@@ -27,6 +27,7 @@ interface QualitySummaryTabProps {
   projectId: string
   userId: string
   currentUserRole?: '발주청' | '감리단' | '시공사'
+  canDeleteReports?: boolean // 작성자 외 삭제 허용(소유자·공유자·발주청) — RLS 삭제 정책 확장과 짝
   projectName: string
   constructionPeriod: string // "YYYY-MM-DD ~ YYYY-MM-DD" (없으면 '')
   currentProgressRate?: string // 현재 공정률(%) — 새 총괄표 기본값
@@ -109,6 +110,7 @@ export default function QualitySummaryTab({
   projectId,
   userId,
   currentUserRole,
+  canDeleteReports = false,
   projectName,
   constructionPeriod,
   currentProgressRate = '',
@@ -282,13 +284,22 @@ export default function QualitySummaryTab({
 
   const handleDelete = async (report: QualitySummaryReport) => {
     if (!confirm("정말 삭제하시겠습니까? 하위 실시대장 기록은 '총괄표 미지정'으로 남습니다.")) return
-    const { error } = await (supabase as any).from('quality_summary_reports').delete().eq('id', report.id)
-    if (!error) {
-      if (editingReportId === report.id) resetForm()
-      loadReports()
-    } else {
+    const { data: deleted, error } = await (supabase as any)
+      .from('quality_summary_reports')
+      .delete()
+      .eq('id', report.id)
+      .select('id')
+    if (error) {
       alert('삭제 실패: ' + error.message)
+      return
     }
+    // RLS가 걸러 0건 삭제되면 오류 없이 끝나므로 별도 안내
+    if (!deleted?.length) {
+      alert('삭제 권한이 없습니다.')
+      return
+    }
+    if (editingReportId === report.id) resetForm()
+    loadReports()
   }
 
   const handleDownload = async (report: QualitySummaryFormData, id: string) => {
@@ -542,7 +553,7 @@ export default function QualitySummaryTab({
                       </button>
                     </td>
                     <td className="px-2 py-2 text-center">
-                      {report.created_by === userId && (
+                      {(report.created_by === userId || canDeleteReports) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()

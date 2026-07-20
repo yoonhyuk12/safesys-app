@@ -89,6 +89,7 @@ export default function QualityTestLedgerPage() {
   const [projectOwner, setProjectOwner] = useState<{
     company_name?: string
   } | null>(null)
+  const [isSharedWithMe, setIsSharedWithMe] = useState(false)
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
   const [activeTab, setActiveTab] = useState<TabKey | null>(null)
   const [summaryUnreadRejectionCount, setSummaryUnreadRejectionCount] = useState(0)
@@ -118,6 +119,14 @@ export default function QualityTestLedgerPage() {
         .single()
       if (data) {
         setProject(data as Project)
+        // 현재 사용자가 이 프로젝트를 공유받았는지 확인 (성과총괄표 삭제 권한 판정용)
+        const { data: shareRows } = await supabase
+          .from('project_shares')
+          .select('id')
+          .eq('project_id', projectId)
+          .eq('shared_with', user.id)
+          .limit(1)
+        setIsSharedWithMe(!!(shareRows && shareRows.length))
         const createdBy = (data as Project).created_by
         if (createdBy) {
           const { data: ownerProfile } = await supabase
@@ -195,6 +204,8 @@ export default function QualityTestLedgerPage() {
   )
   const canDeleteQualityRecords =
     userProfile?.role === '발주청' || project?.created_by === user.id
+  // 성과총괄표 삭제 — 소유자·발주청에 더해 공유자도 허용
+  const canDeleteQualitySummary = canDeleteQualityRecords || isSharedWithMe
 
   return (
     <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
@@ -383,6 +394,7 @@ export default function QualityTestLedgerPage() {
             projectId={projectId}
             userId={user.id}
             currentUserRole={userProfile?.role}
+            canDeleteReports={canDeleteQualitySummary}
             projectName={project?.project_name || ''}
             constructionPeriod={constructionPeriod}
             currentProgressRate={currentProgressRate}
