@@ -82,15 +82,6 @@ export const BULK_SIGN_SIGNERS: Record<BulkSignSigner, BulkSignSignerConfig> = {
         toItem: (r) => ({ date: str(r.inspection_date), label: r.inspector_name ? `점검자 ${str(r.inspector_name)}` : '' }),
       },
       {
-        type: 'tbm_safety_inspection',
-        title: 'TBM 안전활동 점검표',
-        table: 'tbm_safety_inspections',
-        signColumn: 'signature',
-        selectColumns: 'id, tbm_date, work_content',
-        orderColumn: 'tbm_date',
-        toItem: (r) => ({ date: str(r.tbm_date), label: str(r.work_content) }),
-      },
-      {
         type: 'safety_inspection_supervisor',
         title: '정기안전점검 (공사감독원 서명)',
         table: 'safety_inspections',

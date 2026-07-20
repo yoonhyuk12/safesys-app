@@ -12,5 +12,6 @@
 - [x] npx tsc --noEmit 통과 (exit 0)
 - [x] eslint 통과 — 신규 파일 0건, 경고 8건은 page.tsx 기존 코드
 - [x] docs/architecture.md에 신규 API 라우트 반영
-- [ ] 의미 단위 커밋
+- [x] 의미 단위 커밋 (0235a2f)
+- [x] 피드백 반영 — TBM 안전활동 점검표를 감독 미서명 대상에서 제외
 - [ ] (보류) 사용자 확인 후 main 푸시 = 운영 배포

@@ -16,7 +16,6 @@ export interface UnsignedTargetDetail {
 const TARGET_DATE_COLUMNS: Record<string, string> = {
   manager_inspections: 'inspection_date',
   headquarters_inspections: 'inspection_date',
-  tbm_safety_inspections: 'tbm_date',
   safety_inspections: 'inspection_date',
   ptw_permits: 'permit_date',
   inspection_requests: 'request_date',
