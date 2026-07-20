@@ -3,7 +3,7 @@
 // 감독(공사감독원)·시공사(현장소장 및 기타 확인자)가 프로젝트의 미서명 문서를 전체/부분 선택해 일괄 서명하는 모달
 // 대상 서류 목록은 src/lib/bulk-sign/bulk-sign-targets.ts 단일 레지스트리를 따른다 — 새 서류는 그 파일에만 추가하면 된다.
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { X, PenTool, RefreshCw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -39,6 +39,9 @@ const SIGNER_THEMES: Record<BulkSignSigner, { headerClass: string; accentClass: 
   supervisor: { headerClass: 'bg-purple-700', accentClass: 'accent-purple-600', buttonClass: 'bg-purple-600 hover:bg-purple-700' },
   contractor: { headerClass: 'bg-blue-700', accentClass: 'accent-blue-600', buttonClass: 'bg-blue-600 hover:bg-blue-700' },
 }
+
+// 조회 전용 서명 주체 — 목록만 보여주고 닫기 외 조작(선택·새로고침·서명)은 막는다
+const VIEW_ONLY_SIGNERS: BulkSignSigner[] = ['supervisor']
 
 // 레지스트리 항목 하나의 미서명 목록 조회 — TEXT 서명 base64 컬럼은 용량 문제로 select하지 않는다
 const loadTargetItems = async (projectId: string, target: BulkSignTarget): Promise<UnsignedItem[]> => {
@@ -87,9 +90,21 @@ export default function BulkSignModal({ isOpen, onClose, projectId, projectName,
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [showSignaturePad, setShowSignaturePad] = useState(false)
   const [signing, setSigning] = useState(false)
+  const [viewOnlyNotice, setViewOnlyNotice] = useState(false)
+  const noticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const config = BULK_SIGN_SIGNERS[signer]
   const theme = SIGNER_THEMES[signer]
+  const viewOnly = VIEW_ONLY_SIGNERS.includes(signer)
+
+  // 조회 전용일 때 조작을 막고 가운데 안내 메시지를 잠시 표시
+  const blockIfViewOnly = () => {
+    if (!viewOnly) return false
+    if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
+    setViewOnlyNotice(true)
+    noticeTimerRef.current = setTimeout(() => setViewOnlyNotice(false), 1800)
+    return true
+  }
 
   const loadUnsigned = useCallback(async () => {
     setLoading(true)
@@ -124,6 +139,7 @@ export default function BulkSignModal({ isOpen, onClose, projectId, projectName,
   const allSelected = totalCount > 0 && selectedCount === totalCount
 
   const toggleItem = (item: UnsignedItem) => {
+    if (blockIfViewOnly()) return
     const key = itemKey(item)
     setSelected((prev) => {
       const next = new Set(prev)
@@ -134,10 +150,12 @@ export default function BulkSignModal({ isOpen, onClose, projectId, projectName,
   }
 
   const toggleAll = () => {
+    if (blockIfViewOnly()) return
     setSelected(allSelected ? new Set() : new Set(allItems.map(itemKey)))
   }
 
   const toggleGroup = (group: UnsignedGroup) => {
+    if (blockIfViewOnly()) return
     const keys = group.items.map(itemKey)
     const groupAllSelected = keys.length > 0 && keys.every((k) => selected.has(k))
     setSelected((prev) => {
@@ -190,9 +208,17 @@ export default function BulkSignModal({ isOpen, onClose, projectId, projectName,
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" onClick={onClose}>
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+        className="relative bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* 조회 전용 안내 메시지 */}
+        {viewOnlyNotice && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+            <div className="bg-gray-900/80 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg">
+              현재는 조회만 가능합니다
+            </div>
+          </div>
+        )}
         {/* 헤더 */}
         <div className={`${theme.headerClass} text-white px-4 py-3 rounded-t-lg flex items-center justify-between`}>
           <div className="flex items-center gap-2 min-w-0">
@@ -273,7 +299,7 @@ export default function BulkSignModal({ isOpen, onClose, projectId, projectName,
               전체선택
             </label>
             <button
-              onClick={loadUnsigned}
+              onClick={() => { if (blockIfViewOnly()) return; loadUnsigned() }}
               disabled={loading}
               className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 disabled:opacity-50"
               title="목록 새로고침"
@@ -283,8 +309,8 @@ export default function BulkSignModal({ isOpen, onClose, projectId, projectName,
             </button>
           </div>
           <button
-            onClick={() => setShowSignaturePad(true)}
-            disabled={selectedCount === 0}
+            onClick={() => { if (blockIfViewOnly()) return; setShowSignaturePad(true) }}
+            disabled={!viewOnly && selectedCount === 0}
             className={`flex items-center gap-1.5 px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed ${theme.buttonClass}`}
           >
             <PenTool className="h-4 w-4" />
