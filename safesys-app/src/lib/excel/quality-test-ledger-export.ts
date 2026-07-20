@@ -12,6 +12,20 @@ import {
 
 const MIN_ROWS = 10
 
+// 비고는 'CSI 성적서 IS-2025-201889-00'처럼 길어질 수 있는데 열 너비(9)·행 높이(30)가 서식상 고정이라
+// 기본 크기 9로는 잘린다. 내용 폭에 맞춰 글자 크기를 낮춰 칸 안에 들어오게 한다.
+// 폭은 한글을 영문의 두 배로 계산하고, 기준값은 크기 9에서 2줄(약 22폭)이 들어가는 것에서 잡았다.
+const noteDisplayWidth = (text: string): number =>
+  [...text].reduce((sum, ch) => sum + (/[^\x00-\xFF]/.test(ch) ? 2 : 1), 0)
+
+const noteFontSize = (text: string): number => {
+  const width = noteDisplayWidth(text)
+  if (width <= 22) return 9
+  if (width <= 36) return 8
+  if (width <= 42) return 7
+  return 6
+}
+
 export async function downloadQualityTestLedgerExcel(
   records: QualityTestRecord[],
   projectName: string
@@ -141,7 +155,8 @@ export async function downloadQualityTestLedgerExcel(
     setCell(ws, `L${r}`, '', {})
     setCell(ws, `M${r}`, record?.supervision_engineer_name || '', { size: 9, align: { horizontal: 'center' } })
     setCell(ws, `N${r}`, '', {})
-    setCell(ws, `O${r}`, record?.note || '', { size: 9, align: { horizontal: 'center' } })
+    const noteText = record?.note || ''
+    setCell(ws, `O${r}`, noteText, { size: noteFontSize(noteText), align: { horizontal: 'center' } })
     if (record) {
       signatureCells.push({ signature: record.quality_engineer_signature, col: 11.05, row: r })
       signatureCells.push({ signature: record.supervision_engineer_signature, col: 13.05, row: r })
