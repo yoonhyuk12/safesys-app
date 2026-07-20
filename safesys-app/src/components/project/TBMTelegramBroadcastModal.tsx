@@ -121,6 +121,13 @@ function isSendOutcome(value: unknown): value is SendOutcome {
   )
 }
 
+// 메시지 textarea 높이를 내용에 맞춘다 — border-box 기준이라 위아래 테두리 2px를 더한다
+function autoResizeTextarea(el: HTMLTextAreaElement | null) {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight + 2}px`
+}
+
 function toUserFacingMessage(message: string): string {
   return message
     .replace(/텔레그램 메시지/g, '메시지')
@@ -867,8 +874,12 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                           </td>
                           <td className="px-2 py-1.5">
                             <textarea
+                              ref={autoResizeTextarea}
                               value={row.message}
-                              onChange={e => updateMessage(row.record.id, e.target.value)}
+                              onChange={e => {
+                                updateMessage(row.record.id, e.target.value)
+                                autoResizeTextarea(e.target)
+                              }}
                               disabled={sending}
                               maxLength={1000}
                               rows={4}
