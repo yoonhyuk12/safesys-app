@@ -6,6 +6,7 @@ import {
   getUnsignedSupervisorDetails,
   type UnsignedTargetDetail,
 } from '@/lib/bulk-sign/unsigned-supervisor-details'
+import { PROJECT_ROUTE_MAP } from '@/lib/project-assistant/route-map'
 
 const OPENAI_MODEL = 'gpt-5.6-luna'
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
@@ -196,7 +197,12 @@ function buildSystemPrompt(context: BriefingContext, mode: 'briefing' | 'chat'):
     : `대화 지침:
 1. 아래 현장 데이터를 우선 근거로 답변하세요.
 2. 추가 현장 기록이 필요하면 query_project_table 도구를 사용하세요.
-3. 도구 결과에도 없는 내용은 현재 데이터에서 확인할 수 없다고 안내하세요.`
+3. 도구 결과에도 없는 내용은 현재 데이터에서 확인할 수 없다고 안내하세요.
+4. 사용자가 화면 위치나 이동 방법을 물으면 아래 화면 목록에서 찾아 마크다운 링크 [화면명](/project/${context.project.id}/세그먼트) 형식으로 정확한 경로를 답변에 포함하세요.
+5. 화면 목록에 없는 화면은 링크를 만들지 말고 해당 화면은 안내할 수 없다고 답하세요.
+
+화면 목록(화면명 → 세그먼트):
+${PROJECT_ROUTE_MAP.map((route) => `- ${route.label} → ${route.segment}`).join('\n')}`
 
   const data = {
     기준일: context.today,

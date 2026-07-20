@@ -3,8 +3,10 @@
 // 프로젝트 현장 AI 비서 챗봇 — 오늘 TBM 브리핑·감독 미서명 안내(플로팅)
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { MessageCircle, X, Send, Bot, User, Loader2, Minimize2, Maximize2, RotateCcw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { PROJECT_ROUTE_SEGMENTS } from '@/lib/project-assistant/route-map'
 
 interface Message {
   id: string
@@ -301,7 +303,11 @@ export default function ProjectAssistantBot({ projectId, projectName }: ProjectA
                         ? 'bg-emerald-600 text-white rounded-br-md'
                         : 'bg-gray-100 text-gray-800 rounded-bl-md'
                     }`}>
-                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      {message.role === 'assistant' ? (
+                        <AssistantMessageContent content={message.content} projectId={projectId} />
+                      ) : (
+                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -374,4 +380,45 @@ export default function ProjectAssistantBot({ projectId, projectName }: ProjectA
       )}
     </>
   )
+}
+
+interface AssistantMessageContentProps {
+  content: string
+  projectId: string
+}
+
+// 어시스턴트 메시지의 [화면명](/project/{id}/세그먼트) 마크다운 링크를 화이트리스트 검증 후 클릭 링크로 렌더링
+function AssistantMessageContent({ content, projectId }: AssistantMessageContentProps) {
+  const router = useRouter()
+  const linkPattern = /\[([^\]\n]+)\]\(([^)\s]+)\)/g
+  const routePrefix = `/project/${projectId}/`
+  const parts: React.ReactNode[] = []
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+  while ((match = linkPattern.exec(content)) !== null) {
+    const [fullMatch, label, path] = match
+    if (match.index > lastIndex) {
+      parts.push(content.slice(lastIndex, match.index))
+    }
+    const segment = path.startsWith(routePrefix) ? path.slice(routePrefix.length) : ''
+    if (PROJECT_ROUTE_SEGMENTS.has(segment)) {
+      parts.push(
+        <button
+          key={match.index}
+          type="button"
+          onClick={() => router.push(path)}
+          className="text-emerald-700 underline underline-offset-2 hover:text-emerald-800"
+        >
+          {label}
+        </button>
+      )
+    } else {
+      parts.push(label)
+    }
+    lastIndex = match.index + fullMatch.length
+  }
+  if (lastIndex < content.length) {
+    parts.push(content.slice(lastIndex))
+  }
+  return <p className="text-sm whitespace-pre-wrap">{parts}</p>
 }
