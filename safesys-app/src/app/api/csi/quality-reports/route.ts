@@ -117,6 +117,14 @@ export async function GET(request: NextRequest) {
     const json = (await res.json()) as CsiApiResponse
     const header = json.response?.header
 
+    // resultCode 22(status 204) = 조건에 맞는 성적서 없음 — 오류가 아니라 정상적인 빈 결과다
+    if (header?.resultCode === '22') {
+      return NextResponse.json({
+        success: true,
+        data: { totalCount: 0, fetchedRowCount: 0, reports: [] },
+      })
+    }
+
     if (header?.resultCode !== '00') {
       const reason = json.response?.errors?.[0]?.reason
       console.error('CSI 성적서 조회 실패:', header?.resultCode, header?.resultMsg, reason)
