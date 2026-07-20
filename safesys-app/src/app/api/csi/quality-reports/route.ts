@@ -1,6 +1,7 @@
-// CSI(건설공사 안전관리 종합정보망) 품질검사 성적서 서비스(QTM006) 조회 API 라우트 — 실시대장 가져오기용
+// CSI(건설공사 안전관리 종합정보망) 품질검사 성적서 조회 API 라우트 — 기본은 공개 웹 화면 스크래핑, ?source=api면 공식 API
 import { NextRequest, NextResponse } from 'next/server'
 import { CsiQualityReport, CsiReportTestItem } from '@/lib/quality/csi-report-types'
+import { scrapeCsiQualityReports } from '@/lib/quality/csi-scrape'
 
 // CSI 응답이 조회 범위·서버 혼잡에 따라 60초까지도 걸린다(2026-07-20 실측) — Fluid Compute 활성이라 60초 초과 허용
 export const maxDuration = 120
@@ -79,24 +80,50 @@ const groupByIssueNo = (rows: CsiRawItem[]): CsiQualityReport[] => {
   return Array.from(map.values())
 }
 
+// YYYYMMDD(공식 API·쿼리 파라미터 형식) → yyyy-mm-dd(CSI 웹 화면 형식)
+const toDashedYmd = (ymd: string): string => `${ymd.slice(0, 4)}-${ymd.slice(4, 6)}-${ymd.slice(6, 8)}`
+
 export async function GET(request: NextRequest) {
   try {
+    const st = request.nextUrl.searchParams.get('st') || ''
+    const end = request.nextUrl.searchParams.get('end') || ''
+    const constNm = request.nextUrl.searchParams.get('constNm')?.trim() || ''
+    // 공식 API는 인증키 기관 스코프 때문에 발주청·감리 키로는 항상 0건이라, 기본 경로는 공개 웹 화면 스크래핑이다
+    const useOfficialApi = request.nextUrl.searchParams.get('source') === 'api'
+    if (!/^\d{8}$/.test(st) || !/^\d{8}$/.test(end)) {
+      return NextResponse.json(
+        { success: false, error: '발급일자 시작일과 종료일을 입력해주세요.' },
+        { status: 400 }
+      )
+    }
+
+    if (!useOfficialApi) {
+      const scraped = await scrapeCsiQualityReports({
+        startYmd: toDashedYmd(st),
+        endYmd: toDashedYmd(end),
+        constNm,
+      })
+      if (scraped.truncated) {
+        console.warn(
+          `CSI 성적서 스크래핑 결과가 상한으로 잘림: 전체 ${scraped.totalCount}건 중 ${scraped.fetchedRowCount}건만 조회`
+        )
+      }
+      return NextResponse.json({
+        success: true,
+        data: {
+          totalCount: scraped.totalCount,
+          fetchedRowCount: scraped.fetchedRowCount,
+          reports: scraped.reports,
+        },
+      })
+    }
+
     const apiKey = process.env.CSI_API_KEY
     if (!apiKey) {
       console.error('CSI_API_KEY 환경변수가 설정되지 않음')
       return NextResponse.json(
         { success: false, error: 'CSI API 인증키가 설정되지 않았습니다. 관리자에게 문의해주세요.' },
         { status: 500 }
-      )
-    }
-
-    const st = request.nextUrl.searchParams.get('st') || ''
-    const end = request.nextUrl.searchParams.get('end') || ''
-    const constNm = request.nextUrl.searchParams.get('constNm')?.trim() || ''
-    if (!/^\d{8}$/.test(st) || !/^\d{8}$/.test(end)) {
-      return NextResponse.json(
-        { success: false, error: '발급일자 시작일과 종료일을 입력해주세요.' },
-        { status: 400 }
       )
     }
 
