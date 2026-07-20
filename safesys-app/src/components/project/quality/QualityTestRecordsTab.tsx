@@ -186,9 +186,11 @@ export default function QualityTestRecordsTab({
   const [showTestCategorySelector, setShowTestCategorySelector] = useState(false)
   const [showCsiImport, setShowCsiImport] = useState(false)
   const [isSupervisorSignMode, setIsSupervisorSignMode] = useState(false)
+  const [isBulkDeleteMode, setIsBulkDeleteMode] = useState(false)
   const [selectedRecordIds, setSelectedRecordIds] = useState<Set<string>>(() => new Set())
   const [showSupervisorSignature, setShowSupervisorSignature] = useState(false)
   const [supervisorSigning, setSupervisorSigning] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
   const nextKeyRef = useRef(0)
   const newKey = () => String(nextKeyRef.current++)
 
@@ -675,6 +677,77 @@ export default function QualityTestRecordsTab({
     }
   }
 
+  const handleBulkDelete = async () => {
+    if (selectedRecordIds.size === 0) {
+      alert('삭제할 기록을 선택해주세요.')
+      return
+    }
+    if (!canDeleteQualityRecords) {
+      alert('프로젝트 소유자 또는 발주청만 삭제할 수 있습니다.')
+      return
+    }
+    if (
+      !confirm(
+        `선택한 ${selectedRecordIds.size}건을 삭제하시겠습니까?\n(같은 일련번호의 모든 항목이 함께 삭제되고, 일련번호가 다시 정렬됩니다)`
+      )
+    ) {
+      return
+    }
+
+    setBulkDeleting(true)
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      const accessToken = sessionData.session?.access_token
+      if (sessionError || !accessToken) {
+        throw new Error('로그인 정보를 확인할 수 없습니다. 다시 로그인해 주세요.')
+      }
+
+      const response = await fetch(`/api/projects/${projectId}/quality-test-records/bulk-delete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ recordIds: Array.from(selectedRecordIds) }),
+      })
+      const result = (await response.json()) as {
+        success?: boolean
+        error?: string
+        deletedCount?: number
+        deletedSerialCount?: number
+        renumberedSerialNos?: Array<{ currentSerialNo: number; nextSerialNo: number }>
+      }
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || '일괄 삭제에 실패했습니다.')
+      }
+
+      const renumberPlan = result.renumberedSerialNos ?? []
+      const deletedSerialNos = new Set(
+        records
+          .filter((record) => selectedRecordIds.has(record.id))
+          .map((record) => record.serial_no)
+      )
+      if (editingSerialNo !== null && deletedSerialNos.has(editingSerialNo)) {
+        resetForm()
+      } else if (editingSerialNo !== null) {
+        const editingRenumber = renumberPlan.find(({ currentSerialNo }) => currentSerialNo === editingSerialNo)
+        if (editingRenumber) setEditingSerialNo(editingRenumber.nextSerialNo)
+      }
+
+      const deletedGroupCount = result.deletedSerialCount ?? selectedRecordIds.size
+      const deletedRowCount = result.deletedCount ?? 0
+      closeBulkDeleteMode()
+      await loadRecords()
+      alert(`${deletedGroupCount}건(행 ${deletedRowCount}개)이 삭제되었습니다.`)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '알 수 없는 오류'
+      alert('일괄 삭제 실패: ' + message)
+      await loadRecords()
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
   const handleLedgerDownload = async () => {
     setLedgerDownloading(true)
     try {
@@ -785,8 +858,11 @@ export default function QualityTestRecordsTab({
   const allRecordsSelected =
     selectableRecordIds.length > 0 && selectableRecordIds.every((id) => selectedRecordIds.has(id))
 
+  const isSelectionMode = isSupervisorSignMode || isBulkDeleteMode
+
   const startSupervisorSignMode = () => {
     setIsListExpanded(true)
+    setIsBulkDeleteMode(false)
     setSelectedRecordIds(new Set())
     setIsSupervisorSignMode(true)
   }
@@ -795,6 +871,23 @@ export default function QualityTestRecordsTab({
     setShowSupervisorSignature(false)
     setSelectedRecordIds(new Set())
     setIsSupervisorSignMode(false)
+  }
+
+  const startBulkDeleteMode = () => {
+    if (!canDeleteQualityRecords) {
+      alert('프로젝트 소유자 또는 발주청만 삭제할 수 있습니다.')
+      return
+    }
+    setIsListExpanded(true)
+    setShowSupervisorSignature(false)
+    setIsSupervisorSignMode(false)
+    setSelectedRecordIds(new Set())
+    setIsBulkDeleteMode(true)
+  }
+
+  const closeBulkDeleteMode = () => {
+    setSelectedRecordIds(new Set())
+    setIsBulkDeleteMode(false)
   }
 
   const toggleRecordSelection = (record: QualityTestRecord) => {
@@ -879,16 +972,20 @@ export default function QualityTestRecordsTab({
     <tr
       key={record.id}
       onClick={() => {
-        if (isSupervisorSignMode) toggleRecordSelection(record)
+        if (isSelectionMode) toggleRecordSelection(record)
         else handleSelectRecord(record)
       }}
-      aria-selected={isSupervisorSignMode ? selectedRecordIds.has(record.id) : undefined}
-      className={`border-t border-gray-100 ${
-        isSupervisorSignMode
-          ? 'cursor-pointer hover:bg-amber-50'
-          : 'cursor-pointer hover:bg-amber-50'
+      aria-selected={isSelectionMode ? selectedRecordIds.has(record.id) : undefined}
+      className={`border-t border-gray-100 cursor-pointer ${
+        isBulkDeleteMode ? 'hover:bg-red-50' : 'hover:bg-amber-50'
       } ${
-        selectedRecordIds.has(record.id) || editingSerialNo === record.serial_no ? 'bg-amber-50' : ''
+        selectedRecordIds.has(record.id)
+          ? isBulkDeleteMode
+            ? 'bg-red-50'
+            : 'bg-amber-50'
+          : editingSerialNo === record.serial_no
+            ? 'bg-amber-50'
+            : ''
       }`}
     >
       {isSupervisorSignMode && (
@@ -906,17 +1003,29 @@ export default function QualityTestRecordsTab({
       )}
       <td className="px-2 py-2 text-center text-gray-500">{record.serial_no ?? index + 1}</td>
       <td className="px-2 py-2 text-center">
-        {canDeleteQualityRecords && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              handleDelete(record)
-            }}
-            className="p-1 text-gray-400 hover:text-red-600"
-            title="삭제"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+        {isBulkDeleteMode ? (
+          <input
+            type="checkbox"
+            checked={selectedRecordIds.has(record.id)}
+            onClick={(event) => event.stopPropagation()}
+            onChange={() => toggleRecordSelection(record)}
+            aria-label={`일련번호 ${record.serial_no ?? index + 1} 삭제 선택`}
+            title="삭제 선택"
+            className="h-4 w-4 accent-red-600"
+          />
+        ) : (
+          canDeleteQualityRecords && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                handleDelete(record)
+              }}
+              className="p-1 text-gray-400 hover:text-red-600"
+              title="삭제"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          )
         )}
       </td>
       <td className="px-2 py-2 text-center whitespace-nowrap">
@@ -1032,7 +1141,7 @@ export default function QualityTestRecordsTab({
               <FileDown className="h-4 w-4" />
               <span className="hidden sm:inline">HWP 양식</span>
             </a>
-            {canSignQualityRecords && (
+            {canSignQualityRecords && !isBulkDeleteMode && (
               <button
                 type="button"
                 onClick={() => {
@@ -1062,12 +1171,51 @@ export default function QualityTestRecordsTab({
                 </span>
               </button>
             )}
-            {isSupervisorSignMode ? (
+            {canDeleteQualityRecords && !isSupervisorSignMode && (
               <button
                 type="button"
-                onClick={closeSupervisorSignMode}
-                className="flex items-center gap-1 rounded-lg border border-white/60 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/10 sm:text-sm"
-                title="감독 서명 모드 취소"
+                onClick={() => {
+                  if (isBulkDeleteMode) void handleBulkDelete()
+                  else startBulkDeleteMode()
+                }}
+                disabled={
+                  records.length === 0 ||
+                  bulkDeleting ||
+                  (isBulkDeleteMode && selectedRecordIds.size === 0)
+                }
+                className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${
+                  isBulkDeleteMode
+                    ? 'bg-red-700 text-white hover:bg-red-800'
+                    : 'bg-white text-amber-700 hover:bg-amber-50'
+                }`}
+                title={
+                  records.length === 0
+                    ? '삭제할 항목이 없습니다.'
+                    : isBulkDeleteMode
+                      ? `선택한 ${selectedRecordIds.size}건 일괄 삭제`
+                      : '목록에서 항목을 선택해 일괄 삭제'
+                }
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="hidden sm:inline">
+                  {isBulkDeleteMode
+                    ? bulkDeleting
+                      ? '삭제중'
+                      : `${selectedRecordIds.size}건 삭제`
+                    : '일괄삭제'}
+                </span>
+              </button>
+            )}
+            {isSelectionMode ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isBulkDeleteMode) closeBulkDeleteMode()
+                  else closeSupervisorSignMode()
+                }}
+                disabled={bulkDeleting}
+                className="flex items-center gap-1 rounded-lg border border-white/60 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-white/10 sm:text-sm disabled:opacity-50"
+                title={isBulkDeleteMode ? '일괄 삭제 모드 취소' : '감독 서명 모드 취소'}
               >
                 <X className="h-4 w-4" />
                 <span className="hidden sm:inline">취소</span>
@@ -1118,6 +1266,12 @@ export default function QualityTestRecordsTab({
             <span className="shrink-0 font-semibold">{selectedRecordIds.size}건 선택</span>
           </div>
         )}
+        {isBulkDeleteMode && (
+          <div className="flex items-center justify-between gap-3 border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-900">
+            <span>삭제할 행을 체크한 뒤 상단의 삭제 버튼을 눌러주세요. 같은 일련번호 항목은 함께 삭제됩니다.</span>
+            <span className="shrink-0 font-semibold">{selectedRecordIds.size}건 선택</span>
+          </div>
+        )}
 
         {isListExpanded && (
           <div id="quality-test-record-list">
@@ -1154,7 +1308,33 @@ export default function QualityTestRecordsTab({
                         </th>
                       )}
                       <th className="px-2 py-2 text-center whitespace-nowrap">일련번호</th>
-                      <th className="px-2 py-2 text-center whitespace-nowrap">삭제</th>
+                      <th className="px-2 py-2 text-center whitespace-nowrap">
+                        {isBulkDeleteMode ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <input
+                              type="checkbox"
+                              checked={allRecordsSelected}
+                              onChange={toggleAllRecords}
+                              aria-label="삭제 항목 전체 선택"
+                              title="삭제 항목 전체 선택"
+                              className="h-4 w-4 accent-red-600"
+                            />
+                            <span>삭제</span>
+                          </div>
+                        ) : canDeleteQualityRecords ? (
+                          <button
+                            type="button"
+                            onClick={startBulkDeleteMode}
+                            disabled={records.length === 0}
+                            className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 font-medium text-gray-600 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40"
+                            title="일괄 삭제 모드 시작"
+                          >
+                            삭제
+                          </button>
+                        ) : (
+                          '삭제'
+                        )}
+                      </th>
                       <th className="px-2 py-2 text-center whitespace-nowrap">연월일</th>
                       <th className="px-2 py-2 text-center whitespace-nowrap">구분</th>
                       <th className="px-2 py-2 text-center whitespace-nowrap">공종</th>
