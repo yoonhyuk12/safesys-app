@@ -109,6 +109,7 @@ const ALL_CATEGORY = '전체'
 const PREPARE_CHUNK_SIZE = 100
 const MAX_ANALYZE_TARGETS = 50
 const MAX_SEND_TARGETS = 30
+const MIN_MODAL_HEIGHT = 320
 
 function isSendOutcome(value: unknown): value is SendOutcome {
   if (!value || typeof value !== 'object') return false
@@ -280,6 +281,10 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
   const [sendProgress, setSendProgress] = useState<SendProgressState | null>(null)
   const [sendElapsedSeconds, setSendElapsedSeconds] = useState(0)
 
+  // 창 높이 드래그 조절 — null이면 내용 크기(max-h-[90vh] 상한) 그대로
+  const [modalHeight, setModalHeight] = useState<number | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
   // records는 호출부에서 렌더마다 새 배열로 계산되므로 ref로 받아 effect 재실행을 막는다
   const recordsRef = useRef(records)
   recordsRef.current = records
@@ -417,6 +422,27 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     if (sending) return
     analyzeRequestGenerationRef.current += 1
     onClose()
+  }
+
+  // 하단 핸들 드래그로 창 높이 조절 — 모달이 세로 중앙 정렬이라 커서 이동량의 2배로 키워야 핸들이 커서를 따라온다
+  const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const handle = e.currentTarget
+    const startY = e.clientY
+    const startHeight = panelRef.current?.getBoundingClientRect().height
+    if (!startHeight) return
+    handle.setPointerCapture(e.pointerId)
+    const onMove = (ev: PointerEvent) => {
+      setModalHeight(Math.max(MIN_MODAL_HEIGHT, startHeight + (ev.clientY - startY) * 2))
+    }
+    const onEnd = () => {
+      handle.removeEventListener('pointermove', onMove)
+      handle.removeEventListener('pointerup', onEnd)
+      handle.removeEventListener('pointercancel', onEnd)
+    }
+    handle.addEventListener('pointermove', onMove)
+    handle.addEventListener('pointerup', onEnd)
+    handle.addEventListener('pointercancel', onEnd)
   }
 
   const startAnalyze = async () => {
@@ -617,7 +643,11 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className={`bg-white rounded-lg shadow-xl w-full max-w-5xl ${step === 'results' ? 'lg:max-w-none' : ''} max-h-[90vh] flex flex-col`}>
+      <div
+        ref={panelRef}
+        style={modalHeight === null ? undefined : { height: modalHeight }}
+        className={`bg-white rounded-lg shadow-xl w-full max-w-5xl ${step === 'results' ? 'lg:max-w-none' : ''} max-h-[90vh] flex flex-col`}
+      >
         {/* 헤더 */}
         <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -645,14 +675,14 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
         </div>
 
         {step === 'targets' && (
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col">
             {prepareLoading ? (
-              <div className="flex flex-col items-center justify-center py-16">
+              <div className="flex-1 flex flex-col items-center justify-center py-16">
                 <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
                 <p className="mt-3 text-sm text-gray-600">대상 현장 정보를 불러오는 중…</p>
               </div>
             ) : prepareError ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="flex-1 flex flex-col items-center justify-center py-16 gap-3">
                 <p className="text-sm text-red-600">{prepareError}</p>
                 <button
                   type="button"
@@ -681,8 +711,8 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                   <span className="text-xs text-gray-500">대상 {filteredTargets.length}건</span>
                 </div>
 
-                {/* 대상 표 */}
-                <div className="border border-gray-200 rounded-md max-h-[45vh] overflow-y-auto">
+                {/* 대상 표 — 창 높이를 끌어 키우면 함께 늘어난다 */}
+                <div className="border border-gray-200 rounded-md flex-1 min-h-0 overflow-y-auto">
                   <table className="w-full text-xs">
                     <thead className="bg-gray-50 sticky top-0">
                       <tr className="text-left text-gray-600">
@@ -763,15 +793,15 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
 
         {step === 'results' && (
           <>
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col">
               {analyzing ? (
-                <div className="flex flex-col items-center justify-center py-16">
+                <div className="flex-1 flex flex-col items-center justify-center py-16">
                   <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
                   <p className="mt-3 text-sm text-gray-600">AI 분석 중…</p>
                   <p className="mt-1 text-xs text-gray-400">현장 수에 따라 시간이 걸릴 수 있습니다.</p>
                 </div>
               ) : analyzeError ? (
-                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                <div className="flex-1 flex flex-col items-center justify-center py-16 gap-3">
                   <p className="text-sm text-red-600">{analyzeError}</p>
                   <button
                     type="button"
@@ -782,7 +812,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                   </button>
                 </div>
               ) : (
-                <div className="border border-gray-200 rounded-md max-h-[55vh] overflow-auto">
+                <div className="border border-gray-200 rounded-md flex-1 min-h-0 overflow-auto">
                   <table className="w-full min-w-[1500px] table-fixed text-xs">
                     <colgroup>
                       <col className="w-[14%]" />
@@ -935,6 +965,15 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
             )}
           </>
         )}
+
+        {/* 높이 조절 핸들 — 아래로 끌면 창이 커진다 */}
+        <div
+          onPointerDown={handleResizeStart}
+          className="flex h-3 shrink-0 cursor-ns-resize items-center justify-center touch-none"
+          title="끌어서 창 높이 조절"
+        >
+          <div className="h-1 w-10 rounded-full bg-gray-300" />
+        </div>
       </div>
 
       {/* 발송 진행·결과 모달 */}
