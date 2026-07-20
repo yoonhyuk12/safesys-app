@@ -2,7 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { CsiQualityReport, CsiReportTestItem } from '@/lib/quality/csi-report-types'
 
-export const maxDuration = 60
+// CSI 응답이 조회 범위·서버 혼잡에 따라 60초까지도 걸린다(2026-07-20 실측) — Fluid Compute 활성이라 60초 초과 허용
+export const maxDuration = 120
 
 // API 기술문서(CSI-AN22-201) 명세 경로 — [발급완료] 단계 이후 성적서만 제공, 1회 최대 100건
 const CSI_ENDPOINT = 'https://api.csi.go.kr/api/service/qtm/qrptbReprtInfo'
@@ -110,7 +111,7 @@ export async function GET(request: NextRequest) {
     if (constNm) params.set('schConstNm', constNm)
 
     const res = await fetch(`${CSI_ENDPOINT}?${params.toString()}`, {
-      signal: AbortSignal.timeout(25000),
+      signal: AbortSignal.timeout(110000),
       cache: 'no-store',
     })
     const json = (await res.json()) as CsiApiResponse

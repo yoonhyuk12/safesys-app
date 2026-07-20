@@ -21,18 +21,29 @@ const toDateInputValue = (date: Date) => {
   return local.toISOString().slice(0, 10)
 }
 
+// 조회 기간 프리셋 — CSI 응답 시간이 발급일자 범위에 비례해 길어지므로 범위 선택을 빠르게 돕는다
+const RANGE_PRESETS = [
+  { label: '3개월', months: 3 },
+  { label: '6개월', months: 6 },
+  { label: '1년', months: 12 },
+  { label: '2년', months: 24 },
+]
+
+const presetStartValue = (months: number) => {
+  const d = new Date()
+  d.setMonth(d.getMonth() - months)
+  return toDateInputValue(d)
+}
+
 export default function CsiReportImportModal({
   projectName,
   onClose,
   onImport,
 }: CsiReportImportModalProps) {
   // 필수 파라미터가 성적서 발급일자 범위라 기본값은 최근 3개월
-  const [startDate, setStartDate] = useState(() => {
-    const d = new Date()
-    d.setMonth(d.getMonth() - 3)
-    return toDateInputValue(d)
-  })
+  const [startDate, setStartDate] = useState(() => presetStartValue(3))
   const [endDate, setEndDate] = useState(() => toDateInputValue(new Date()))
+  const todayValue = toDateInputValue(new Date())
   const [constNm, setConstNm] = useState(projectName)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -97,6 +108,29 @@ export default function CsiReportImportModal({
             건설공사 안전관리 종합정보망(csi.go.kr)의 [발급완료] 품질검사 성적서를 발급일자
             기준으로 조회합니다. 가져오면 실시대장 등록 폼에 자동 입력됩니다.
           </p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-medium text-gray-600">조회 기간</span>
+            {RANGE_PRESETS.map(({ label, months }) => {
+              const active = startDate === presetStartValue(months) && endDate === todayValue
+              return (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => {
+                    setStartDate(presetStartValue(months))
+                    setEndDate(todayValue)
+                  }}
+                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
+                    active
+                      ? 'border-amber-600 bg-amber-600 text-white'
+                      : 'border-gray-300 bg-white text-gray-600 hover:border-amber-400 hover:text-amber-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1.4fr_auto]">
             <div>
               <label className={labelCls}>발급일자 시작 *</label>
@@ -146,8 +180,11 @@ export default function CsiReportImportModal({
 
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
-            <div className="flex justify-center py-10">
+            <div className="flex flex-col items-center gap-2 py-10">
               <LoadingSpinner />
+              <p className="text-xs text-gray-400">
+                조회 기간이 길면 응답에 1~2분가량 걸릴 수 있습니다.
+              </p>
             </div>
           ) : !searched ? (
             <p className="py-10 text-center text-sm text-gray-400">
