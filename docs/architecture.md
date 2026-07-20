@@ -96,6 +96,7 @@ daily-inspection, edit, headquarters-inspection, heatwave, holiday-work, issue-m
 - `/api/telegram/*` — Telegram 알림 (텍스트/사진)
 - `/api/hwp/*` — HWP 문서 변환/내보내기
 - `/api/chat/tbm` — TBM AI 챗봇
+- `/api/chat/project-assistant` — 프로젝트 현장 AI 비서(오늘 TBM 브리핑·감독 미서명 안내·tool calling 조회, gpt-5.6-luna)
 
 ## 컴포넌트 구조
 
