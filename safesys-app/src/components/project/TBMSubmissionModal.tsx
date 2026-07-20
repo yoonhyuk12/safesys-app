@@ -1210,12 +1210,14 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
               })
             })
 
-            if (educationPhotoUrl && projectData.client_telegram_id) {
+            if (educationPhotoUrl && (projectData.client_telegram_id || projectData.client_app_code)) {
               await fetch('/api/telegram/photo', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  chatId: projectData.client_telegram_id,
+                  chatId: projectData.client_telegram_id || undefined,
+                  projectId,
+                  recipients: { client: true, contractor: false },
                   photoUrl: educationPhotoUrl,
                   caption: `${projectName} - ${formData.educationDate} TBM 교육사진`
                 })

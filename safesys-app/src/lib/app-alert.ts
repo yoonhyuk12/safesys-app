@@ -27,11 +27,13 @@ export function stripTelegramHtml(text: string): string {
  * @param targetCode - 수신자 앱 개인코드 (1개)
  * @param message - 발송할 plain text 메시지
  * @param projectName - 알림 제목으로 표시될 프로젝트명
+ * @param imageBase64 - 첨부 이미지(JPEG 권장) base64 — Edge Function이 스토리지 업로드 후 푸시에 포함
  */
 export async function sendAppAlert(
   targetCode: string,
   message: string,
-  projectName?: string
+  projectName?: string,
+  imageBase64?: string
 ): Promise<AppAlertResponse> {
   if (!AICCTV_ALERT_FUNCTION_URL || !AICCTV_ALERT_ANON_KEY) {
     console.warn('AICCTV_ALERT 환경변수가 설정되지 않았습니다. 앱 알림을 건너뜁니다.')
@@ -60,6 +62,7 @@ export async function sendAppAlert(
           detection_type: '안전알림',
           message,
           source_device: 'SafeSys',
+          ...(imageBase64 ? { image_base64: imageBase64 } : {}),
         }),
         signal: controller.signal,
       })
@@ -101,11 +104,13 @@ export async function sendAppAlert(
  * @param codesCsv - 쉼표 구분 개인코드 문자열
  * @param message - 발송할 plain text 메시지
  * @param projectName - 알림 제목으로 표시될 프로젝트명
+ * @param imageBase64 - 첨부 이미지 base64 (선택)
  */
 export async function sendAppAlertBulk(
   codesCsv: string | null | undefined,
   message: string,
-  projectName?: string
+  projectName?: string,
+  imageBase64?: string
 ): Promise<AppAlertResponse[]> {
   const codes = (codesCsv ?? '')
     .split(',')
@@ -115,7 +120,7 @@ export async function sendAppAlertBulk(
   if (codes.length === 0) return []
 
   return Promise.all(
-    codes.map(code => sendAppAlert(code, message, projectName))
+    codes.map(code => sendAppAlert(code, message, projectName, imageBase64))
   )
 }
 
