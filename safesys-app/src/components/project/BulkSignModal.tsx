@@ -310,7 +310,7 @@ export default function BulkSignModal({ isOpen, onClose, projectId, projectName,
           </div>
           <button
             onClick={() => { if (blockIfViewOnly()) return; setShowSignaturePad(true) }}
-            disabled={!viewOnly && selectedCount === 0}
+            disabled={viewOnly || selectedCount === 0}
             className={`flex items-center gap-1.5 px-4 py-2 text-white rounded-lg text-sm font-medium disabled:opacity-40 disabled:cursor-not-allowed ${theme.buttonClass}`}
           >
             <PenTool className="h-4 w-4" />
