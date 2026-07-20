@@ -159,13 +159,10 @@ const parseDetail = (html: string): CsiDetail => {
 
   const flush = (results: Array<ReturnType<typeof parseResultLabel>>) => {
     if (!pending) return
-    // 결과 불릿 1개당 항목 1개로 펼친다 (공식 API도 평탄화 구조였다). 결과가 없으면 종목·방법만 담은 1건을 남긴다.
+    // 결과 불릿 1개당 항목 1개로 펼친다 (공식 API도 평탄화 구조였다).
+    // 결과가 하나도 없는 종목은 실제 시험이 수행되지 않은 것이라 대장에 올리지 않는다.
     const base = { tsNm: '', teNm, testMthd, tsiStartDt, tsiEndDt }
-    if (results.length === 0) {
-      items.push({ ...base, itmTitle: '', itmRslt: '', itmUnit: '' })
-    } else {
-      results.forEach((r) => items.push({ ...base, ...r }))
-    }
+    results.forEach((r) => items.push({ ...base, ...r }))
     pending = false
   }
 

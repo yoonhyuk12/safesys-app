@@ -35,6 +35,10 @@ const presetStartValue = (months: number) => {
   return toDateInputValue(d)
 }
 
+// CSI에 등록된 공사명은 우리 프로젝트명과 띄어쓰기가 달라(예: '점동지구다목적농촌용수개발사업토목공사')
+// 전체 이름으로 부분일치를 걸면 0건이 된다. 첫 낱말만 기본값으로 넣고 나머지는 사용자가 조정한다.
+const defaultSearchTerm = (projectName: string) => projectName.trim().split(/\s+/)[0] || ''
+
 export default function CsiReportImportModal({
   projectName,
   onClose,
@@ -44,7 +48,7 @@ export default function CsiReportImportModal({
   const [startDate, setStartDate] = useState(() => presetStartValue(3))
   const [endDate, setEndDate] = useState(() => toDateInputValue(new Date()))
   const todayValue = toDateInputValue(new Date())
-  const [constNm, setConstNm] = useState(projectName)
+  const [constNm, setConstNm] = useState(() => defaultSearchTerm(projectName))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [searched, setSearched] = useState(false)
