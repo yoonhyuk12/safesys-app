@@ -10,7 +10,6 @@ import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import ProjectDeleteModal from '@/components/project/ProjectDeleteModal'
-import ProjectAssistantBot from '@/components/project/ProjectAssistantBot'
 import DocumentFolder from '@/components/project/DocumentFolder'
 import DocumentCabinet from '@/components/project/DocumentCabinet'
 import BusinessCardEasel from '@/components/project/BusinessCardEasel'
@@ -1862,8 +1861,6 @@ export default function ProjectDetailPage() {
         onClose={handleDeleteModalClose}
         onConfirm={handleDeleteConfirm}
       />
-
-      <ProjectAssistantBot projectId={projectId} projectName={project?.project_name} />
 
       {/* 위험성평가 도구 선택 모달 */}
       {riskAssessmentChooserOpen && (
