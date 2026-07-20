@@ -397,10 +397,15 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     return () => window.clearInterval(timer)
   }, [sendProgress?.status])
 
-  // 소관사업 드롭다운 옵션 — prepare 결과의 distinct 카테고리(가나다순)
+  // 소관사업 드롭다운 옵션 — prepare 결과의 distinct 카테고리(가나다순)와 대상 건수
   const categories = useMemo(() => {
-    const set = new Set(targets.map(t => t.projectCategory))
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ko'))
+    const countByCategory = new Map<string, number>()
+    for (const t of targets) {
+      countByCategory.set(t.projectCategory, (countByCategory.get(t.projectCategory) ?? 0) + 1)
+    }
+    return Array.from(countByCategory.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
   }, [targets])
 
   // 사용자가 선택한 소관사업으로 필터된 대상 — 이후 분석·발송은 모두 이 배열만 사용
@@ -703,9 +708,11 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                     onChange={e => setCategoryFilter(e.target.value)}
                     className="border border-gray-300 rounded-md px-2 py-1 text-xs text-gray-800 bg-white"
                   >
-                    <option value={ALL_CATEGORY}>{ALL_CATEGORY}</option>
+                    <option value={ALL_CATEGORY}>{ALL_CATEGORY} ({targets.length})</option>
                     {categories.map(category => (
-                      <option key={category} value={category}>{category}</option>
+                      <option key={category.name} value={category.name}>
+                        {category.name} ({category.count})
+                      </option>
                     ))}
                   </select>
                   <span className="text-xs text-gray-500">대상 {filteredTargets.length}건</span>
