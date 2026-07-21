@@ -1624,7 +1624,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-gray-700">AI 위험요인 분석</h3>
-                  <div className="text-xs text-gray-500">powered by GPT-5.4 nano</div>
+                  <div className="text-xs text-gray-500">powered by GPT-5.6 Luna</div>
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -1723,7 +1723,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                         onChange={(e) => handleInputChange(`potentialRisk${num}` as keyof FormData, e.target.value)}
                         className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         required
-                        maxLength={15}
+                        maxLength={50}
                       />
                     </div>
                     <div>
@@ -1736,7 +1736,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                         onChange={(e) => handleInputChange(`solution${num}` as keyof FormData, e.target.value)}
                         className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         required
-                        maxLength={15}
+                        maxLength={50}
                       />
                     </div>
                   </div>
@@ -1787,6 +1787,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                         onChange={(e) => handleInputChange(`riskFactor${num}` as keyof FormData, e.target.value)}
                         className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         required
+                        maxLength={50}
                       />
                     </div>
                   ))}
