@@ -13,6 +13,7 @@
 - 잠재위험요인·대책·잠재위험요소 수기 입력칸은 최대 50자다.
 - AI 프롬프트에는 `각각의 칸에 30자 이내로 작성해주세요.`를 그대로 포함한다.
 - AI 모델 식별자는 `gpt-5.6-luna`다.
+- GPT-5.6 Luna 요청에는 `temperature` 파라미터를 포함하지 않는다.
 - 화면 모델명은 `powered by GPT-5.6 Luna`다.
 - AI 응답을 강제로 절단하지 않고 데이터베이스 스키마도 변경하지 않는다.
 - 프로덕션 빌드는 사용자 동의 없이 실행하지 않는다.
@@ -22,6 +23,7 @@
 ### Task 1: 위험분석 API 프롬프트와 모델 변경
 
 **Files:**
+- Create: `safesys-app/tests/tbm-risk-analysis-config.test.mjs`
 - Modify: `safesys-app/src/app/api/ai/write-risk-analysis/route.ts:32`
 - Modify: `safesys-app/src/app/api/ai/write-risk-analysis/route.ts:58`
 
@@ -29,19 +31,56 @@
 - Consumes: `todayWork`, `personnelInput`, `equipmentInput` 요청 본문과 `OPENAI_API_KEY` 환경 변수
 - Produces: 기존 `{ success: true, data: result }` 응답 형식을 유지한 GPT-5.6 Luna 위험분석 결과
 
-- [ ] **Step 1: 변경 전 검증이 실패하는지 확인**
+- [ ] **Step 1: 모델·프롬프트·입력 제한 회귀 테스트 작성**
+
+`safesys-app/tests/tbm-risk-analysis-config.test.mjs`를 다음 내용으로 생성한다.
+
+```javascript
+// TBM 위험분석 모델·문구·입력 길이 설정을 검증하는 정적 회귀 테스트
+import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import test from 'node:test'
+
+const routeSource = await readFile(
+  new URL('../src/app/api/ai/write-risk-analysis/route.ts', import.meta.url),
+  'utf8'
+)
+const modalSource = await readFile(
+  new URL('../src/components/project/TBMSubmissionModal.tsx', import.meta.url),
+  'utf8'
+)
+
+test('TBM 위험분석 API가 Luna 모델과 칸별 30자 프롬프트를 사용한다', () => {
+  assert.match(routeSource, /각각의 칸에 30자 이내로 작성해주세요\./)
+  assert.match(routeSource, /model: 'gpt-5\.6-luna'/)
+  assert.doesNotMatch(routeSource, /\btemperature\s*:/)
+})
+
+test('TBM 위험분석 화면이 Luna를 표시하고 각 수기 입력을 50자로 제한한다', () => {
+  assert.match(modalSource, /powered by GPT-5\.6 Luna/)
+
+  const riskSection = modalSource.match(
+    /\{\/\* 잠재위험요인\/대책 \*\/\}([\s\S]*?)\{\/\* 기타사항 \*\/\}/
+  )?.[1] ?? ''
+  const fiftyCharacterLimits = riskSection.match(/maxLength=\{50\}/g) ?? []
+
+  assert.equal(fiftyCharacterLimits.length, 3)
+})
+```
+
+- [ ] **Step 2: 변경 전 테스트가 올바른 이유로 실패하는지 확인**
 
 Run:
 
 ```powershell
-rg -n "각각의 칸에 30자 이내로 작성해주세요.|model: 'gpt-5.6-luna'" safesys-app/src/app/api/ai/write-risk-analysis/route.ts
+node --test tests/tbm-risk-analysis-config.test.mjs
 ```
 
-Expected: 일치 항목이 없어 종료 코드 1.
+Expected: API와 UI 테스트가 모두 기대 문자열 불일치로 실패.
 
-- [ ] **Step 2: 프롬프트와 모델을 최소 변경**
+- [ ] **Step 3: 프롬프트와 모델을 변경하고 비호환 파라미터 제거**
 
-`route.ts`의 길이 지시와 모델 값을 다음과 같이 변경한다.
+`route.ts`의 길이 지시와 모델 값을 다음과 같이 변경하고, 기존 `temperature: 0.7` 속성은 제거한다.
 
 ```typescript
         각각의 칸에 30자 이내로 작성해주세요. 서로 중복되지 않게 해주세요:
@@ -51,20 +90,20 @@ Expected: 일치 항목이 없어 종료 코드 1.
         model: 'gpt-5.6-luna',
 ```
 
-- [ ] **Step 3: 변경된 API 문자열을 정적 검증**
+- [ ] **Step 4: API 테스트가 통과하는지 확인**
 
 Run:
 
 ```powershell
-rg -n "각각의 칸에 30자 이내로 작성해주세요.|model: 'gpt-5.6-luna'" safesys-app/src/app/api/ai/write-risk-analysis/route.ts
+node --test --test-name-pattern="API" tests/tbm-risk-analysis-config.test.mjs
 ```
 
-Expected: 프롬프트 한 줄과 모델 한 줄, 총 2개 일치.
+Expected: API 테스트 1개 통과, UI 테스트 1개 건너뜀.
 
-- [ ] **Step 4: API 변경 커밋**
+- [ ] **Step 5: API 변경과 회귀 테스트 커밋**
 
 ```powershell
-git add -- safesys-app/src/app/api/ai/write-risk-analysis/route.ts
+git add -- safesys-app/tests/tbm-risk-analysis-config.test.mjs safesys-app/src/app/api/ai/write-risk-analysis/route.ts
 git commit -m "feat: TBM 위험분석을 Luna 모델로 변경"
 ```
 
@@ -126,10 +165,10 @@ maxLength={50}
 Run:
 
 ```powershell
-rg -n "powered by GPT-5.6 Luna|maxLength=\{50\}" safesys-app/src/components/project/TBMSubmissionModal.tsx
+node --test tests/tbm-risk-analysis-config.test.mjs
 ```
 
-Expected: 모델 안내 1개와 반복 렌더링 입력 속성 3개, 총 4개 일치.
+Expected: API와 UI 테스트, 총 2개 통과.
 
 - [ ] **Step 5: TypeScript 타입 검사**
 
