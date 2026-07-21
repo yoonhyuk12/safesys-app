@@ -65,8 +65,7 @@ ${equipmentInput ? `        투입장비: "${equipmentInput}"` : ''}
             role: 'user',
             content: prompt
           }
-        ],
-        temperature: 0.7
+        ]
       })
     })
 

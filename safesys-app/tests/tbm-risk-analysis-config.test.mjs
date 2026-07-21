@@ -15,6 +15,7 @@ const modalSource = await readFile(
 test('TBM 위험분석 API가 Luna 모델과 칸별 30자 프롬프트를 사용한다', () => {
   assert.match(routeSource, /각각의 칸에 30자 이내로 작성해주세요\./)
   assert.match(routeSource, /model: 'gpt-5\.6-luna'/)
+  assert.doesNotMatch(routeSource, /\btemperature\s*:/)
 })
 
 test('TBM 위험분석 화면이 Luna를 표시하고 각 수기 입력을 50자로 제한한다', () => {
