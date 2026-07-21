@@ -717,40 +717,60 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
     setTranslatedText('')
   }
 
-  // 선택한 데이터를 폼에 적용
+  // 선택한 데이터를 폼에 적용 (미입력·공백 값은 덮어쓰지 않음)
   const applyRecentData = (data: any) => {
+    // 원본이 비어 있으면 현재 폼 값을 유지한다.
+    const pick = (value: unknown, fallback: string) => {
+      if (value === null || value === undefined) return fallback
+      const s = String(value).trim()
+      return s ? s : fallback
+    }
+    const pickTime = (value: unknown, fallback: string) => {
+      const raw = pick(value, '')
+      if (!raw) return fallback
+      return raw.length > 5 ? raw.substring(0, 5) : raw
+    }
+
     const recentAuto = parsePersonnelCount(data.personnel_count || '')
     const recentStored = data.personnel_total_count
     const recentHasStored = recentStored !== null && recentStored !== undefined
+    const importedTodayWork = pick(data.today_work, '')
     setFormData(prev => ({
       ...prev,
-      todayWork: data.today_work || prev.todayWork,
-      baseAddress: data.address || prev.baseAddress,
-      detailAddress: data.detail_address || prev.detailAddress,
-      personnelInput: data.personnel_count || prev.personnelInput,
-      personnelTotalCount: recentHasStored ? String(recentStored) : (recentAuto ? String(recentAuto) : prev.personnelTotalCount),
-      newWorkerCount: data.new_worker_count?.toString() || prev.newWorkerCount,
-      equipmentInput: data.equipment_input || prev.equipmentInput,
-      riskWorkType: data.risk_work_type || prev.riskWorkType,
-      cctvUsage: data.cctv_usage || prev.cctvUsage,
-      educationStartTime: data.education_start_time ? (data.education_start_time.length > 5 ? data.education_start_time.substring(0, 5) : data.education_start_time) : prev.educationStartTime,
-      educationEndTime: data.education_end_time ? (data.education_end_time.length > 5 ? data.education_end_time.substring(0, 5) : data.education_end_time) : prev.educationEndTime,
-      potentialRisk1: data.potential_risk_1 || prev.potentialRisk1,
-      solution1: data.solution_1 || prev.solution1,
-      potentialRisk2: data.potential_risk_2 || prev.potentialRisk2,
-      solution2: data.solution_2 || prev.solution2,
-      potentialRisk3: data.potential_risk_3 || prev.potentialRisk3,
-      solution3: data.solution_3 || prev.solution3,
-      mainRiskSelection: data.main_risk_selection || prev.mainRiskSelection,
-      mainRiskSolution: data.main_risk_solution || prev.mainRiskSolution,
-      riskFactor1: data.risk_factor_1 || prev.riskFactor1,
-      riskFactor2: data.risk_factor_2 || prev.riskFactor2,
-      riskFactor3: data.risk_factor_3 || prev.riskFactor3,
-      otherRemarks: data.other_remarks || prev.otherRemarks,
-      name: data.reporter_name || prev.name,
-      contact: data.reporter_contact || prev.contact,
-      latitude: data.latitude?.toString() || prev.latitude,
-      longitude: data.longitude?.toString() || prev.longitude,
+      todayWork: importedTodayWork || prev.todayWork,
+      noWorkCheck: importedTodayWork ? importedTodayWork === '작업없음' : prev.noWorkCheck,
+      baseAddress: pick(data.address, prev.baseAddress),
+      detailAddress: pick(data.detail_address, prev.detailAddress),
+      personnelInput: pick(data.personnel_count, prev.personnelInput),
+      personnelTotalCount: recentHasStored
+        ? String(recentStored)
+        : (recentAuto ? String(recentAuto) : prev.personnelTotalCount),
+      // 0은 유효 입력이므로 null/undefined만 스킵
+      newWorkerCount:
+        data.new_worker_count !== null && data.new_worker_count !== undefined
+          ? String(data.new_worker_count)
+          : prev.newWorkerCount,
+      equipmentInput: pick(data.equipment_input, prev.equipmentInput),
+      riskWorkType: pick(data.risk_work_type, prev.riskWorkType),
+      cctvUsage: pick(data.cctv_usage, prev.cctvUsage),
+      educationStartTime: pickTime(data.education_start_time, prev.educationStartTime),
+      educationEndTime: pickTime(data.education_end_time, prev.educationEndTime),
+      potentialRisk1: pick(data.potential_risk_1, prev.potentialRisk1),
+      solution1: pick(data.solution_1, prev.solution1),
+      potentialRisk2: pick(data.potential_risk_2, prev.potentialRisk2),
+      solution2: pick(data.solution_2, prev.solution2),
+      potentialRisk3: pick(data.potential_risk_3, prev.potentialRisk3),
+      solution3: pick(data.solution_3, prev.solution3),
+      mainRiskSelection: pick(data.main_risk_selection, prev.mainRiskSelection),
+      mainRiskSolution: pick(data.main_risk_solution, prev.mainRiskSolution),
+      riskFactor1: pick(data.risk_factor_1, prev.riskFactor1),
+      riskFactor2: pick(data.risk_factor_2, prev.riskFactor2),
+      riskFactor3: pick(data.risk_factor_3, prev.riskFactor3),
+      otherRemarks: pick(data.other_remarks, prev.otherRemarks),
+      name: pick(data.reporter_name, prev.name),
+      contact: pick(data.reporter_contact, prev.contact),
+      latitude: pick(data.latitude, prev.latitude),
+      longitude: pick(data.longitude, prev.longitude),
     }))
     setPersonnelTotalManual(recentHasStored && Number(recentStored) !== recentAuto)
     setRecentCandidates([])
@@ -761,12 +781,14 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
     try {
       // 최근 제출 데이터를 여러 날짜에 걸쳐 조회 (제출일 최신순)
       // 특정 날짜만이 아니라 최근 제출자 전체를 후보로 보여주기 위함
+      // 임시저장·제출자 미입력 건은 제외 (불완전 데이터 가져오기 방지)
       const { data: rows, error: rowsError } = await supabase
         .from('tbm_submissions')
         .select('*')
         .eq('project_name', projectName)
         .eq('headquarters', managingHq)
         .eq('branch', managingBranch)
+        .eq('status', 'submitted')
         .order('submitted_at', { ascending: false })
         .limit(100)
 
@@ -778,19 +800,22 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       }
 
       // 제출자별로 가장 최근 제출 1건만 남기고 중복 제거
-      // (어제 다른 사람이 제출한 건도 후보로 노출되도록)
+      // 제출자명이 비어 있는(미입력) 건은 후보에서 제외
       const seen = new Set<string>()
       const candidates: any[] = []
       for (const row of rows) {
-        const key =
-          (row.reporter_name || '').trim() && (row.reporter_contact || '').trim()
-            ? `${row.reporter_name}|${row.reporter_contact}`
-            : (row.reporter_name || '').trim()
-              ? `name:${row.reporter_name}`
-              : `id:${row.id}`
+        const name = (row.reporter_name || '').trim()
+        if (!name) continue
+        const contact = (row.reporter_contact || '').trim()
+        const key = contact ? `${name}|${contact}` : `name:${name}`
         if (seen.has(key)) continue
         seen.add(key)
         candidates.push(row)
+      }
+
+      if (candidates.length === 0) {
+        alert('최근 제출 데이터가 없습니다.')
+        return
       }
 
       // 1건이면 바로 적용, 2건 이상이면 선택 UI 표시
