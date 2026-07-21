@@ -29,7 +29,7 @@ ${equipmentInput ? `        투입장비: "${equipmentInput}"` : ''}
 
         ${personnelInput || equipmentInput ? '위 정보를 종합적으로 고려하여 작업 시 발생할 수 있는 위험요인과 안전대책을 분석해주세요.' : '위 작업에서 발생할 수 있는 위험요인과 안전대책을 분석해주세요.'}
 
-        다음 항목들을 모두 20자 이내로 작성해주시되, 서로 중복되지 않게 해주세요:
+        각각의 칸에 30자 이내로 작성해주세요. 서로 중복되지 않게 해주세요:
         1. 잠재위험요인 3가지와 각각의 대책
         2. 중점위험요인 1가지(반드시 위 잠재위험요인 3가지 중 하나를 그대로 선택)와 그에 대한 대책
         3. 잠재위험요소 3가지 — 각 잠재위험요인과 연관된 "단순 위험 요소"(위험을 유발하는 상태·대상 자체)로만 작성하세요. 제거/설치/착용 같은 대책·조치 표현은 절대 쓰지 마세요.
@@ -55,7 +55,7 @@ ${equipmentInput ? `        투입장비: "${equipmentInput}"` : ''}
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-5.4-nano',
+        model: 'gpt-5.6-luna',
         messages: [
           {
             role: 'system',
