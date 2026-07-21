@@ -1624,7 +1624,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-gray-700">AI 위험요인 분석</h3>
-                  <div className="text-xs text-gray-500">powered by GPT-5.6 Luna</div>
+                  <div className="text-xs text-gray-500">powered by GPT-5.4 nano</div>
                 </div>
                 <div className="flex gap-2">
                   <button
