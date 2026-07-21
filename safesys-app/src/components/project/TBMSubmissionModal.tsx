@@ -539,7 +539,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         } else if (formData.equipmentInput) {
           completionMessage += ', 투입장비'
         }
-        completionMessage += '에 대해 AI작성을 완료했습니다. 필요한 경우 수정해주세요.'
+        completionMessage += '에 대해 AI작성을 완료했습니다.\n\n수시 위험성평가와 연계성을 확인하고 필요시 수정 바랍니다.'
 
         alert(completionMessage)
       }

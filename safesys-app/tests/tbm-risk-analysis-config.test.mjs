@@ -28,3 +28,10 @@ test('TBM 위험분석 화면이 GPT-5.4 nano를 표시하고 각 수기 입력�
 
   assert.equal(fiftyCharacterLimits.length, 3)
 })
+
+test('TBM AI 작성 완료 알림이 수시 위험성평가 연계 확인을 안내한다', () => {
+  assert.match(
+    modalSource,
+    /수시 위험성평가와 연계성을 확인하고 필요시 수정 바랍니다\./
+  )
+})
