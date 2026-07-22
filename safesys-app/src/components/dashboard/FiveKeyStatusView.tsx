@@ -206,6 +206,99 @@ const computeAverageScore = (rows: ProjectStatusRow[]): number | null => {
   return averageCategoryScore(grades)
 }
 
+const categoryGradesFromInspection = (
+  inspection: HeadquartersInspectionRow
+): CategoryGrade[] => {
+  const items = readFiveKeyItems(inspection.five_key_items)
+  return CATEGORY_COLUMNS.map(({ prefix }) => getCategoryGrade(items, prefix))
+}
+
+/**
+ * 점수 목록 순위 (높을수록 상위). 동점이면 동일 순위·다음 순위 건너뜀 (1·2·2·4).
+ * 점수 없으면 null.
+ */
+const rankByScores = (scores: Array<number | null>): Array<number | null> =>
+  scores.map((score) => {
+    if (score === null) return null
+    const betterCount = scores.filter(
+      (other) => other !== null && (other as number) > score
+    ).length
+    return betterCount + 1
+  })
+
+/** 순위 산정에서 제외 (○○본부·지하수지질부). 목록에는 남기고 순위만 미표시 */
+const isExcludedFromRank = (branchName: string): boolean =>
+  branchName === '지하수지질부' || branchName.endsWith('본부')
+
+/** 프로젝트 연간 점수. 해당 연도 분기별 대표 점검 점수의 산술평균 */
+const buildYearScoresByProject = (
+  projects: Project[],
+  inspections: HeadquartersInspectionRow[],
+  year: number
+): Map<string, number | null> => {
+  const byProject = new Map<string, HeadquartersInspectionRow[]>()
+  for (const inspection of inspections) {
+    if (!hasEnteredGrade(inspection)) continue
+    const list = byProject.get(inspection.project_id)
+    if (list) list.push(inspection)
+    else byProject.set(inspection.project_id, [inspection])
+  }
+
+  const result = new Map<string, number | null>()
+  for (const project of projects) {
+    const projectInspections = byProject.get(project.id) || []
+    const quarterScores: number[] = []
+    for (let quarter = 1; quarter <= 4; quarter++) {
+      const { start, end } = getQuarterRange(`${year}Q${quarter}`)
+      let latest: HeadquartersInspectionRow | null = null
+      for (const inspection of projectInspections) {
+        const timestamp = getInspectionTimestamp(inspection.inspection_date)
+        if (timestamp < start || timestamp > end) continue
+        if (
+          !latest ||
+          timestamp > getInspectionTimestamp(latest.inspection_date)
+        ) {
+          latest = inspection
+        }
+      }
+      if (!latest) continue
+      const score = averageCategoryScore(categoryGradesFromInspection(latest))
+      if (score !== null) quarterScores.push(score)
+    }
+    result.set(
+      project.id,
+      quarterScores.length === 0
+        ? null
+        : quarterScores.reduce((sum, score) => sum + score, 0) / quarterScores.length
+    )
+  }
+  return result
+}
+
+/** 프로젝트 집합의 연간 평균 점수 (연간 점수 있는 프로젝트만 평균) */
+const averageYearScoreForProjects = (
+  projects: Project[],
+  yearScoresByProject: Map<string, number | null>
+): number | null => {
+  const scores: number[] = []
+  for (const project of projects) {
+    const score = yearScoresByProject.get(project.id)
+    if (score !== null && score !== undefined) scores.push(score)
+  }
+  if (scores.length === 0) return null
+  return scores.reduce((sum, score) => sum + score, 0) / scores.length
+}
+
+const RankCell = ({ rank }: { rank: number | null }) => (
+  <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm font-semibold tabular-nums text-gray-800">
+    {rank === null ? (
+      <span className="font-normal text-gray-400">-</span>
+    ) : (
+      `${rank}위`
+    )}
+  </td>
+)
+
 /** 건수 표시. 0이면 "-" */
 const formatCount = (count: number): string => (count === 0 ? '-' : `${count}개`)
 
@@ -340,6 +433,11 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
 
   const [selectedYear, selectedQuarterNumber] = selectedQuarter.split('Q').map(Number)
 
+  const yearScoresByProject = useMemo(
+    () => buildYearScoresByProject(projects, inspections, selectedYear),
+    [projects, inspections, selectedYear]
+  )
+
   const aggregateRows = (rows: ProjectStatusRow[]): LevelAgg => {
     const agg = emptyAgg()
     agg.projectCount = rows.length
@@ -365,14 +463,35 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
       ...Array.from(byHq.keys()).filter((hq) => !hqOrder.includes(hq)),
     ]
 
-    return ordered.map((hq) => ({
-      hq,
-      stats: aggregateRows(byHq.get(hq) || []),
+    const items = ordered.map((hq) => {
+      const rows = byHq.get(hq) || []
+      return {
+        hq,
+        stats: aggregateRows(rows),
+        yearScore: averageYearScoreForProjects(
+          rows.map((row) => row.project),
+          yearScoresByProject
+        ),
+      }
+    })
+    const ranks = rankByScores(items.map((item) => item.stats.averageScore))
+    const yearRanks = rankByScores(items.map((item) => item.yearScore))
+    return items.map((item, index) => ({
+      ...item,
+      rank: ranks[index],
+      yearRank: yearRanks[index],
     }))
-  }, [projectRows])
+  }, [projectRows, yearScoresByProject])
 
   const branchStats = useMemo(() => {
-    if (!selectedHq) return [] as { branch: string; stats: LevelAgg }[]
+    if (!selectedHq) {
+      return [] as {
+        branch: string
+        stats: LevelAgg
+        rank: number | null
+        yearRank: number | null
+      }[]
+    }
     const byBranch = new Map<string, ProjectStatusRow[]>()
     for (const row of projectRows) {
       if (row.project.managing_hq !== selectedHq) continue
@@ -389,11 +508,32 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
       ...Array.from(byBranch.keys()).filter((branch) => !preferred.includes(branch)),
     ]
 
-    return ordered.map((branch) => ({
-      branch,
-      stats: aggregateRows(byBranch.get(branch) || []),
+    const items = ordered.map((branch) => {
+      const rows = byBranch.get(branch) || []
+      const excluded = isExcludedFromRank(branch)
+      return {
+        branch,
+        stats: aggregateRows(rows),
+        yearScore: averageYearScoreForProjects(
+          rows.map((row) => row.project),
+          yearScoresByProject
+        ),
+        excluded,
+      }
+    })
+    // 제외 대상은 순위 비교 점수에서 빼서 다른 지사 순위에 영향 없음
+    const ranks = rankByScores(
+      items.map((item) => (item.excluded ? null : item.stats.averageScore))
+    )
+    const yearRanks = rankByScores(
+      items.map((item) => (item.excluded ? null : item.yearScore))
+    )
+    return items.map((item, index) => ({
+      ...item,
+      rank: ranks[index],
+      yearRank: yearRanks[index],
     }))
-  }, [projectRows, selectedHq])
+  }, [projectRows, selectedHq, yearScoresByProject])
 
   const projectList = useMemo(
     () =>
@@ -553,11 +693,17 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
         ) : (
           <div className="overflow-x-auto rounded-md border border-gray-200">
             {viewLevel === 'hq' && (
-              <table className="min-w-[600px] w-full divide-y divide-gray-200">
+              <table className="min-w-[700px] w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
                       본부
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      해당년도 순위
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      해당분기 순위
                     </th>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
                       대상 프로젝트 수
@@ -574,7 +720,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {hqStats.map(({ hq, stats }) => (
+                  {hqStats.map(({ hq, stats, rank, yearRank }) => (
                     <tr
                       key={hq}
                       onClick={() => {
@@ -586,6 +732,8 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm font-medium text-blue-700">
                         {hqDisplay(hq)}
                       </td>
+                      <RankCell rank={yearRank} />
+                      <RankCell rank={rank} />
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
                         {formatCount(stats.projectCount)}
                       </td>
@@ -602,7 +750,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                   ))}
                   {hqStats.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
+                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">
                         등록된 프로젝트가 없습니다.
                       </td>
                     </tr>
@@ -612,11 +760,17 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
             )}
 
             {viewLevel === 'branch' && selectedHq && (
-              <table className="min-w-[600px] w-full divide-y divide-gray-200">
+              <table className="min-w-[700px] w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
                       지사
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      해당년도 순위
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      해당분기 순위
                     </th>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
                       대상 프로젝트 수
@@ -633,7 +787,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {branchStats.map(({ branch, stats }) => (
+                  {branchStats.map(({ branch, stats, rank, yearRank }) => (
                     <tr
                       key={branch}
                       onClick={() => {
@@ -645,6 +799,8 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm font-medium text-blue-700">
                         {branch}
                       </td>
+                      <RankCell rank={yearRank} />
+                      <RankCell rank={rank} />
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
                         {formatCount(stats.projectCount)}
                       </td>
@@ -661,7 +817,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                   ))}
                   {branchStats.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
+                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">
                         해당 본부에 등록된 프로젝트가 없습니다.
                       </td>
                     </tr>
