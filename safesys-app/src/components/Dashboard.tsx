@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2, ClipboardCheck, ClipboardList, GitMerge, FlaskConical, TestTubes, Coins, ScrollText, BarChart3 } from 'lucide-react'
+import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2, ClipboardCheck, ClipboardList, GitMerge, FlaskConical, TestTubes, Coins, ScrollText, BarChart3, ShieldCheck } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, getHeatWaveCheckCountByUserBranch, getManagerInspectionCountByUserBranch, getHeadquartersInspectionCountByUserBranch, getTBMSafetyInspectionCountByUserBranch, getSafeDocumentInspectionCountByUserBranch, getPtwPermitsByUserBranch, getPtwPermitCountByUserBranch, getInspectionRequestCountsByUserBranch, getQualityMonthlyReportStatusByUserBranch, getQualityTestCountsByUserBranch, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type PtwPermitSummary, type WorkerCountByProject, type MaterialCountByProject, type InspectionRequestCountByProject, type QualityReportStatusByProject, type QualityTestCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
@@ -37,6 +37,7 @@ import SafetyWorkerView from '@/components/dashboard/SafetyWorkerView'
 import SafetyNewWorkerOrientationView from '@/components/dashboard/SafetyNewWorkerOrientationView'
 import SafetyInspectionLedgerView from '@/components/dashboard/SafetyInspectionLedgerView'
 import LegalComplianceView from '@/components/dashboard/LegalComplianceView'
+import FiveKeyStatusView from '@/components/dashboard/FiveKeyStatusView'
 import WorkPlanStatusView from '@/components/dashboard/WorkPlanStatusView'
 import AccidentAnalysisView from '@/components/dashboard/AccidentAnalysisView'
 import BusinessMaterialView from '@/components/dashboard/BusinessMaterialView'
@@ -513,7 +514,7 @@ const Dashboard: React.FC = () => {
           setSelectedBranch(branchName || '')
         }
         const card = segments[3]
-        if (card === 'heatwave' || card === 'manager' || card === 'headquarters' || card === 'tbm' || card === 'ptw' || card === 'worker' || card === 'newWorkerOrientation' || card === 'safetyInspection' || card === 'legal-compliance' || card === 'work-plan' || card === 'accident-analysis') {
+        if (card === 'heatwave' || card === 'manager' || card === 'headquarters' || card === 'tbm' || card === 'ptw' || card === 'worker' || card === 'newWorkerOrientation' || card === 'safetyInspection' || card === 'legal-compliance' || card === 'work-plan' || card === 'accident-analysis' || card === 'five-key') {
           if (selectedSafetyCard !== card) {
             setSelectedSafetyCard(card)
           }
@@ -525,7 +526,7 @@ const Dashboard: React.FC = () => {
       } else {
         const card = segments[1]
         console.log('🔍 경로 처리:', { pathname, segments, card, selectedSafetyCard })
-        if (card === 'heatwave' || card === 'manager' || card === 'headquarters' || card === 'tbm' || card === 'safeDocument' || card === 'ptw' || card === 'worker' || card === 'newWorkerOrientation' || card === 'safetyInspection' || card === 'legal-compliance' || card === 'work-plan' || card === 'accident-analysis') {
+        if (card === 'heatwave' || card === 'manager' || card === 'headquarters' || card === 'tbm' || card === 'safeDocument' || card === 'ptw' || card === 'worker' || card === 'newWorkerOrientation' || card === 'safetyInspection' || card === 'legal-compliance' || card === 'work-plan' || card === 'accident-analysis' || card === 'five-key') {
           if (selectedSafetyCard !== card) {
             console.log('✅ selectedSafetyCard 설정:', card)
             setSelectedSafetyCard(card)
@@ -3580,6 +3581,23 @@ const Dashboard: React.FC = () => {
                   />
                 )}
 
+                {selectedSafetyCard === 'five-key' && (
+                  <FiveKeyStatusView
+                    initialHq={selectedSafetyHq}
+                    initialBranch={selectedSafetyBranch}
+                    onBack={() => {
+                      setSelectedSafetyCard(null)
+                      setSelectedSafetyHq(null)
+                      setSelectedSafetyBranch(null)
+                      if (selectedSafetyBranch) {
+                        router.push(`/safe/branch/${encodeURIComponent(selectedSafetyBranch)}`)
+                      } else {
+                        router.push('/safe')
+                      }
+                    }}
+                  />
+                )}
+
                 {selectedSafetyCard === 'work-plan' && (
                   <WorkPlanStatusView
                     initialHq={selectedSafetyHq}
@@ -4012,6 +4030,31 @@ const Dashboard: React.FC = () => {
                     <h4 className="text-xs font-medium text-gray-900 mb-1">법적이행확인</h4>
                     <div className="text-xs text-gray-600">
                       <div className="text-sm font-semibold text-blue-600 mb-0.5">
+                        현황
+                      </div>
+                      <div className="text-xs">확인하기</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5대 핵심이행사항 카드 */}
+                <div
+                  className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-emerald-300 hover:bg-emerald-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]"
+                  onClick={() => {
+                    if (selectedSafetyBranch) {
+                      router.push(`/safe/branch/${encodeURIComponent(selectedSafetyBranch)}/five-key`)
+                    } else {
+                      router.push('/safe/five-key')
+                    }
+                  }}
+                >
+                  <div className="flex flex-col items-center text-center">
+                    <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center mb-2 group-hover:bg-emerald-200 transition-colors">
+                      <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <h4 className="text-xs font-medium text-gray-900 mb-1">5대 핵심이행사항</h4>
+                    <div className="text-xs text-gray-600">
+                      <div className="text-sm font-semibold text-emerald-600 mb-0.5">
                         현황
                       </div>
                       <div className="text-xs">확인하기</div>
