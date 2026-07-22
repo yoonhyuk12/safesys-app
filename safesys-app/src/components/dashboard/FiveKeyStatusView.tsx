@@ -43,7 +43,8 @@ interface LevelAgg {
   projectCount: number
   inspectedCount: number
   concernCount: number
-  averageGrade: CategoryGrade
+  /** 5점 체계 평균 (5=매우우수 … 1=불이행, 미입력 시 null) */
+  averageScore: number | null
 }
 
 const CATEGORY_COLUMNS = [
@@ -79,7 +80,7 @@ const emptyAgg = (): LevelAgg => ({
   projectCount: 0,
   inspectedCount: 0,
   concernCount: 0,
-  averageGrade: null,
+  averageScore: null,
 })
 
 const hqDisplay = (hq: string): string =>
@@ -107,6 +108,16 @@ const isCompleted = (project: Project): boolean => {
   if (typeof isActive === 'boolean') return !isActive
   if (typeof isActive === 'object') {
     return (isActive as { completed?: boolean }).completed === true
+  }
+  return false
+}
+
+/** 선택 분기 공사중 여부 — is_active.q{N}(JSONB). 레거시 boolean은 분기판별 불가 → false */
+const isActiveThisQuarter = (project: Project, quarterNum: number): boolean => {
+  const isActive = project.is_active as unknown
+  if (isActive && typeof isActive === 'object') {
+    const key = `q${quarterNum}` as 'q1' | 'q2' | 'q3' | 'q4'
+    return !!(isActive as Record<string, boolean>)[key]
   }
   return false
 }
@@ -169,28 +180,53 @@ const findHqByBranch = (branch: string | null): string => {
 const isConcernRow = (categoryGrades: CategoryGrade[]): boolean =>
   categoryGrades.some((grade) => grade === '4' || grade === '5')
 
-/** 카테고리 등급 목록의 산술평균을 1~5 등급으로 반올림. N/A·미입력은 제외 */
-const averageCategoryGrade = (grades: CategoryGrade[]): CategoryGrade => {
+/**
+ * DB 등급(1=매우우수 … 5=불이행) → 표시 점수(5=매우우수 … 1=불이행)
+ * 변환. 점수 = 6 - 등급
+ */
+const gradeToScore = (grade: Exclude<FiveKeyGrade, 'N/A'>): number => 6 - Number(grade)
+
+/** 카테고리 등급을 5점 체계(5=매우우수) 산술평균. N/A·미입력 제외, 없으면 null */
+const averageCategoryScore = (grades: CategoryGrade[]): number | null => {
   const numeric = grades.filter(
     (grade): grade is Exclude<FiveKeyGrade, 'N/A'> =>
       grade !== null && grade !== 'N/A'
   )
-  if (numeric.length === 0) {
-    return grades.some((grade) => grade === 'N/A') ? 'N/A' : null
-  }
-  const avg = numeric.reduce((sum, grade) => sum + Number(grade), 0) / numeric.length
-  const rounded = Math.min(5, Math.max(1, Math.round(avg)))
-  return String(rounded) as Exclude<FiveKeyGrade, 'N/A'>
+  if (numeric.length === 0) return null
+  return numeric.reduce((sum, grade) => sum + gradeToScore(grade), 0) / numeric.length
 }
 
-/** 점검 실시 프로젝트의 카테고리 등급을 모아 평균 등급 산출 */
-const computeAverageGrade = (rows: ProjectStatusRow[]): CategoryGrade => {
+/** 점검 실시 프로젝트의 카테고리 등급을 모아 5점 체계 평균 점수 산출 */
+const computeAverageScore = (rows: ProjectStatusRow[]): number | null => {
   const grades: CategoryGrade[] = []
   for (const { inspection, categoryGrades } of rows) {
     if (!inspection) continue
     grades.push(...categoryGrades)
   }
-  return averageCategoryGrade(grades)
+  return averageCategoryScore(grades)
+}
+
+/** 건수 표시. 0이면 "-" */
+const formatCount = (count: number): string => (count === 0 ? '-' : `${count}개`)
+
+/** 평균 점수(5=매우우수 … 1=불이행) 표시. 반올림 구간 색상 적용. 0·null은 "-" */
+const ScoreBadge = ({ score }: { score: number | null }) => {
+  if (score === null || score === 0) {
+    return <span className="text-sm text-gray-400">-</span>
+  }
+  // 색상 밴드용 DB 등급으로 역변환 (5점→1, 1점→5)
+  const band = String(Math.min(5, Math.max(1, Math.round(6 - score)))) as Exclude<
+    FiveKeyGrade,
+    'N/A'
+  >
+  return (
+    <span
+      className={`inline-flex min-w-[58px] justify-center rounded-full px-2 py-1 text-xs font-semibold tabular-nums ring-1 ring-inset ${GRADE_BADGE_CLASSES[band]}`}
+      title={`5 매우우수 · 4 우수 · 3 보통 · 2 미흡 · 1 불이행`}
+    >
+      {score.toFixed(1)}점
+    </span>
+  )
 }
 
 const GradeBadge = ({ grade }: { grade: CategoryGrade }) => {
@@ -309,7 +345,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
     agg.projectCount = rows.length
     agg.inspectedCount = rows.filter(({ inspection }) => inspection !== null).length
     agg.concernCount = rows.filter(({ categoryGrades }) => isConcernRow(categoryGrades)).length
-    agg.averageGrade = computeAverageGrade(rows)
+    agg.averageScore = computeAverageScore(rows)
     return agg
   }
 
@@ -373,11 +409,11 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
     [projectRows, selectedHq, selectedBranch]
   )
 
-  /** 프로젝트 테이블 헤더 바로 아래 평균행용 — 카테고리별 평균 등급 */
-  const projectAverageGrades = useMemo(
+  /** 프로젝트 테이블 헤더 바로 아래 평균행용 — 카테고리별 5점 체계 평균 */
+  const projectAverageScores = useMemo(
     () =>
       CATEGORY_COLUMNS.map((_, index) =>
-        averageCategoryGrade(projectList.map((row) => row.categoryGrades[index] ?? null))
+        averageCategoryScore(projectList.map((row) => row.categoryGrades[index] ?? null))
       ),
     [projectList]
   )
@@ -551,16 +587,16 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                         {hqDisplay(hq)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
-                        {stats.projectCount}개
+                        {formatCount(stats.projectCount)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
-                        {stats.inspectedCount}개
+                        {formatCount(stats.inspectedCount)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
-                        {stats.concernCount}개
+                        {formatCount(stats.concernCount)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-center">
-                        <GradeBadge grade={stats.averageGrade} />
+                        <ScoreBadge score={stats.averageScore} />
                       </td>
                     </tr>
                   ))}
@@ -610,16 +646,16 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                         {branch}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
-                        {stats.projectCount}개
+                        {formatCount(stats.projectCount)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
-                        {stats.inspectedCount}개
+                        {formatCount(stats.inspectedCount)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
-                        {stats.concernCount}개
+                        {formatCount(stats.concernCount)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 text-center">
-                        <GradeBadge grade={stats.averageGrade} />
+                        <ScoreBadge score={stats.averageScore} />
                       </td>
                     </tr>
                   ))}
@@ -635,11 +671,14 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
             )}
 
             {viewLevel === 'project' && selectedBranch && (
-              <table className="min-w-[860px] w-full divide-y divide-gray-200">
+              <table className="min-w-[940px] w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="min-w-[260px] px-3 py-2.5 text-left text-xs font-medium text-gray-500">
                       프로젝트명
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      해당분기 공사중
                     </th>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
                       최근 점검일
@@ -661,46 +700,69 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-500">
                         -
                       </td>
-                      {projectAverageGrades.map((grade, index) => (
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-500">
+                        -
+                      </td>
+                      {projectAverageScores.map((score, index) => (
                         <td
                           key={CATEGORY_COLUMNS[index].prefix}
                           className="px-3 py-2.5 text-center"
                         >
-                          <GradeBadge grade={grade} />
+                          <ScoreBadge score={score} />
                         </td>
                       ))}
                     </tr>
                   )}
-                  {projectList.map(({ project, inspection, categoryGrades }) => (
-                    <tr
-                      key={project.id}
-                      role="link"
-                      tabIndex={0}
-                      onClick={() => navigateToProject(project.id)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault()
-                          navigateToProject(project.id)
-                        }
-                      }}
-                      className="cursor-pointer transition-colors hover:bg-blue-50/50 focus:bg-blue-50/50 focus:outline-none"
-                    >
-                      <td className="px-3 py-2.5 text-sm font-medium text-blue-700">
-                        {project.project_name || '-'}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-600">
-                        {formatInspectionDate(inspection?.inspection_date || null)}
-                      </td>
-                      {categoryGrades.map((grade, index) => (
-                        <td key={CATEGORY_COLUMNS[index].prefix} className="px-3 py-2.5 text-center">
-                          <GradeBadge grade={grade} />
+                  {projectList.map(({ project, inspection, categoryGrades }) => {
+                    const underConstruction = isActiveThisQuarter(
+                      project,
+                      selectedQuarterNumber
+                    )
+                    return (
+                      <tr
+                        key={project.id}
+                        role="link"
+                        tabIndex={0}
+                        onClick={() => navigateToProject(project.id)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            navigateToProject(project.id)
+                          }
+                        }}
+                        className="cursor-pointer transition-colors hover:bg-blue-50/50 focus:bg-blue-50/50 focus:outline-none"
+                      >
+                        <td className="px-3 py-2.5 text-sm font-medium text-blue-700">
+                          {project.project_name || '-'}
                         </td>
-                      ))}
-                    </tr>
-                  ))}
+                        <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm">
+                          {underConstruction ? (
+                            <span className="inline-flex min-w-[28px] justify-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
+                              O
+                            </span>
+                          ) : (
+                            <span className="inline-flex min-w-[28px] justify-center text-xs font-medium text-gray-400">
+                              X
+                            </span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-600">
+                          {formatInspectionDate(inspection?.inspection_date || null)}
+                        </td>
+                        {categoryGrades.map((grade, index) => (
+                          <td
+                            key={CATEGORY_COLUMNS[index].prefix}
+                            className="px-3 py-2.5 text-center"
+                          >
+                            <GradeBadge grade={grade} />
+                          </td>
+                        ))}
+                      </tr>
+                    )
+                  })}
                   {projectList.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">
+                      <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">
                         해당 지사에 등록된 프로젝트가 없습니다.
                       </td>
                     </tr>
