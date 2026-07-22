@@ -64,6 +64,28 @@ const GRADE_BADGE_CLASSES: Record<FiveKeyGrade, string> = {
   'N/A': 'bg-gray-50 text-gray-500 ring-gray-200',
 }
 
+const CURRENT_YEAR = new Date().getFullYear()
+const YEAR_OPTIONS = Array.from(
+  { length: Math.max(CURRENT_YEAR - 2024 + 1, 1) },
+  (_, index) => 2024 + index
+)
+
+const getCurrentQuarter = (): string => {
+  const today = new Date()
+  return `${today.getFullYear()}Q${Math.floor(today.getMonth() / 3) + 1}`
+}
+
+const getQuarterRange = (quarterKey: string): { start: number; end: number } => {
+  const [yearText, quarterText] = quarterKey.split('Q')
+  const year = Number(yearText)
+  const quarter = Number(quarterText)
+  const startMonth = (quarter - 1) * 3
+  return {
+    start: new Date(year, startMonth, 1).getTime(),
+    end: new Date(year, startMonth + 3, 0, 23, 59, 59, 999).getTime(),
+  }
+}
+
 const isCompleted = (project: Project): boolean => {
   const isActive = project.is_active as unknown
   if (isActive === undefined || isActive === null) return false
@@ -148,6 +170,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
   const initialSelectedHq = initialHq || findHqByBranch(initialBranch)
   const [selectedHq, setSelectedHq] = useState(initialSelectedHq)
   const [selectedBranch, setSelectedBranch] = useState(initialBranch || '')
+  const [selectedQuarter, setSelectedQuarter] = useState(getCurrentQuarter)
   const [projects, setProjects] = useState<Project[]>([])
   const [inspections, setInspections] = useState<HeadquartersInspectionRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -200,19 +223,21 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
 
   const representativeInspections = useMemo(() => {
     const latestByProject = new Map<string, HeadquartersInspectionRow>()
+    const { start, end } = getQuarterRange(selectedQuarter)
     for (const inspection of inspections) {
+      const inspectionTimestamp = getInspectionTimestamp(inspection.inspection_date)
+      if (inspectionTimestamp < start || inspectionTimestamp > end) continue
       if (!hasEnteredGrade(inspection)) continue
       const current = latestByProject.get(inspection.project_id)
       if (
         !current ||
-        getInspectionTimestamp(inspection.inspection_date) >
-          getInspectionTimestamp(current.inspection_date)
+        inspectionTimestamp > getInspectionTimestamp(current.inspection_date)
       ) {
         latestByProject.set(inspection.project_id, inspection)
       }
     }
     return latestByProject
-  }, [inspections])
+  }, [inspections, selectedQuarter])
 
   const projectRows = useMemo<ProjectStatusRow[]>(
     () =>
@@ -231,6 +256,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
   )
 
   const branchOptions = selectedHq ? BRANCH_OPTIONS[selectedHq] || [] : []
+  const [selectedYear, selectedQuarterNumber] = selectedQuarter.split('Q').map(Number)
 
   const filteredRows = useMemo(
     () =>
@@ -325,6 +351,38 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
               {branchOptions.map((branch) => (
                 <option key={branch} value={branch}>
                   {branch}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[120px] flex-col gap-1 text-xs font-medium text-gray-600">
+            연도
+            <select
+              value={selectedYear}
+              onChange={(event) =>
+                setSelectedQuarter(`${event.target.value}Q${selectedQuarterNumber}`)
+              }
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {YEAR_OPTIONS.map((year) => (
+                <option key={year} value={year}>
+                  {year}년
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-[120px] flex-col gap-1 text-xs font-medium text-gray-600">
+            분기
+            <select
+              value={selectedQuarterNumber}
+              onChange={(event) =>
+                setSelectedQuarter(`${selectedYear}Q${event.target.value}`)
+              }
+              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {[1, 2, 3, 4].map((quarter) => (
+                <option key={quarter} value={quarter}>
+                  {quarter}분기
                 </option>
               ))}
             </select>
