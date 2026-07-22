@@ -3,7 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, ShieldCheck } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useAuth } from '@/contexts/AuthContext'
 import { BRANCH_OPTIONS, HEADQUARTERS_OPTIONS } from '@/lib/constants'
@@ -43,6 +43,7 @@ interface LevelAgg {
   projectCount: number
   inspectedCount: number
   concernCount: number
+  averageGrade: CategoryGrade
 }
 
 const CATEGORY_COLUMNS = [
@@ -71,16 +72,14 @@ const GRADE_BADGE_CLASSES: Record<FiveKeyGrade, string> = {
   'N/A': 'bg-gray-50 text-gray-500 ring-gray-200',
 }
 
+const MIN_YEAR = 2024
 const CURRENT_YEAR = new Date().getFullYear()
-const YEAR_OPTIONS = Array.from(
-  { length: Math.max(CURRENT_YEAR - 2024 + 1, 1) },
-  (_, index) => 2024 + index
-)
 
 const emptyAgg = (): LevelAgg => ({
   projectCount: 0,
   inspectedCount: 0,
   concernCount: 0,
+  averageGrade: null,
 })
 
 const hqDisplay = (hq: string): string =>
@@ -169,6 +168,30 @@ const findHqByBranch = (branch: string | null): string => {
 
 const isConcernRow = (categoryGrades: CategoryGrade[]): boolean =>
   categoryGrades.some((grade) => grade === '4' || grade === '5')
+
+/** 카테고리 등급 목록의 산술평균을 1~5 등급으로 반올림. N/A·미입력은 제외 */
+const averageCategoryGrade = (grades: CategoryGrade[]): CategoryGrade => {
+  const numeric = grades.filter(
+    (grade): grade is Exclude<FiveKeyGrade, 'N/A'> =>
+      grade !== null && grade !== 'N/A'
+  )
+  if (numeric.length === 0) {
+    return grades.some((grade) => grade === 'N/A') ? 'N/A' : null
+  }
+  const avg = numeric.reduce((sum, grade) => sum + Number(grade), 0) / numeric.length
+  const rounded = Math.min(5, Math.max(1, Math.round(avg)))
+  return String(rounded) as Exclude<FiveKeyGrade, 'N/A'>
+}
+
+/** 점검 실시 프로젝트의 카테고리 등급을 모아 평균 등급 산출 */
+const computeAverageGrade = (rows: ProjectStatusRow[]): CategoryGrade => {
+  const grades: CategoryGrade[] = []
+  for (const { inspection, categoryGrades } of rows) {
+    if (!inspection) continue
+    grades.push(...categoryGrades)
+  }
+  return averageCategoryGrade(grades)
+}
 
 const GradeBadge = ({ grade }: { grade: CategoryGrade }) => {
   if (!grade) {
@@ -286,6 +309,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
     agg.projectCount = rows.length
     agg.inspectedCount = rows.filter(({ inspection }) => inspection !== null).length
     agg.concernCount = rows.filter(({ categoryGrades }) => isConcernRow(categoryGrades)).length
+    agg.averageGrade = computeAverageGrade(rows)
     return agg
   }
 
@@ -349,6 +373,15 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
     [projectRows, selectedHq, selectedBranch]
   )
 
+  /** 프로젝트 테이블 헤더 바로 아래 평균행용 — 카테고리별 평균 등급 */
+  const projectAverageGrades = useMemo(
+    () =>
+      CATEGORY_COLUMNS.map((_, index) =>
+        averageCategoryGrade(projectList.map((row) => row.categoryGrades[index] ?? null))
+      ),
+    [projectList]
+  )
+
   const scopeRows = useMemo(() => {
     if (viewLevel === 'project') return projectList
     if (viewLevel === 'branch') {
@@ -392,7 +425,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
         : '지사로 돌아가기'
 
   return (
-    <div className="w-fit max-w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+    <div className="w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center gap-3 border-b border-gray-200 px-3 py-3 sm:px-4">
         <button
           type="button"
@@ -425,22 +458,38 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
         </div>
 
         <div className="flex flex-wrap items-end gap-2">
-          <label className="flex min-w-[120px] flex-col gap-1 text-xs font-medium text-gray-600">
+          <div className="flex flex-col gap-1 text-xs font-medium text-gray-600">
             연도
-            <select
-              value={selectedYear}
-              onChange={(event) =>
-                setSelectedQuarter(`${event.target.value}Q${selectedQuarterNumber}`)
-              }
-              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              {YEAR_OPTIONS.map((year) => (
-                <option key={year} value={year}>
-                  {year}년
-                </option>
-              ))}
-            </select>
-          </label>
+            <div className="flex items-center gap-1 rounded-md border border-gray-300 bg-white py-0.5 pl-2 pr-1">
+              <span className="min-w-[52px] text-center text-sm tabular-nums text-gray-900">
+                {selectedYear}년
+              </span>
+              <div className="flex flex-col">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedQuarter(`${selectedYear + 1}Q${selectedQuarterNumber}`)
+                  }
+                  disabled={selectedYear >= CURRENT_YEAR}
+                  aria-label="다음 연도"
+                  className="text-gray-400 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelectedQuarter(`${selectedYear - 1}Q${selectedQuarterNumber}`)
+                  }
+                  disabled={selectedYear <= MIN_YEAR}
+                  aria-label="이전 연도"
+                  className="text-gray-400 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
           <label className="flex min-w-[120px] flex-col gap-1 text-xs font-medium text-gray-600">
             분기
             <select
@@ -468,7 +517,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
         ) : (
           <div className="overflow-x-auto rounded-md border border-gray-200">
             {viewLevel === 'hq' && (
-              <table className="min-w-[520px] w-full divide-y divide-gray-200">
+              <table className="min-w-[600px] w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
@@ -482,6 +531,9 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                     </th>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
                       미흡·불이행 보유 수
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      평균 등급
                     </th>
                   </tr>
                 </thead>
@@ -507,11 +559,14 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
                         {stats.concernCount}개
                       </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center">
+                        <GradeBadge grade={stats.averageGrade} />
+                      </td>
                     </tr>
                   ))}
                   {hqStats.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-4 py-10 text-center text-sm text-gray-500">
+                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
                         등록된 프로젝트가 없습니다.
                       </td>
                     </tr>
@@ -521,7 +576,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
             )}
 
             {viewLevel === 'branch' && selectedHq && (
-              <table className="min-w-[520px] w-full divide-y divide-gray-200">
+              <table className="min-w-[600px] w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
@@ -535,6 +590,9 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                     </th>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
                       미흡·불이행 보유 수
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      평균 등급
                     </th>
                   </tr>
                 </thead>
@@ -560,11 +618,14 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
                         {stats.concernCount}개
                       </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center">
+                        <GradeBadge grade={stats.averageGrade} />
+                      </td>
                     </tr>
                   ))}
                   {branchStats.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-4 py-10 text-center text-sm text-gray-500">
+                      <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
                         해당 본부에 등록된 프로젝트가 없습니다.
                       </td>
                     </tr>
@@ -574,7 +635,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
             )}
 
             {viewLevel === 'project' && selectedBranch && (
-              <table className="min-w-[860px] divide-y divide-gray-200">
+              <table className="min-w-[860px] w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="min-w-[260px] px-3 py-2.5 text-left text-xs font-medium text-gray-500">
@@ -594,6 +655,22 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
+                  {projectList.length > 0 && (
+                    <tr className="border-b-2 border-gray-300 bg-gray-100 font-semibold">
+                      <td className="px-3 py-2.5 text-sm text-gray-900">평균</td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-500">
+                        -
+                      </td>
+                      {projectAverageGrades.map((grade, index) => (
+                        <td
+                          key={CATEGORY_COLUMNS[index].prefix}
+                          className="px-3 py-2.5 text-center"
+                        >
+                          <GradeBadge grade={grade} />
+                        </td>
+                      ))}
+                    </tr>
+                  )}
                   {projectList.map(({ project, inspection, categoryGrades }) => (
                     <tr
                       key={project.id}
