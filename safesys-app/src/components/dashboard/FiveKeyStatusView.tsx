@@ -558,6 +558,17 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
     [projectList]
   )
 
+  /** 평균행 집계. 해당분기 공사중 건수 · 점검 실시 건수 */
+  const projectSummaryCounts = useMemo(() => {
+    let underConstructionCount = 0
+    let inspectedCount = 0
+    for (const { project, inspection } of projectList) {
+      if (isActiveThisQuarter(project, selectedQuarterNumber)) underConstructionCount += 1
+      if (inspection) inspectedCount += 1
+    }
+    return { underConstructionCount, inspectedCount }
+  }, [projectList, selectedQuarterNumber])
+
   const scopeRows = useMemo(() => {
     if (viewLevel === 'project') return projectList
     if (viewLevel === 'branch') {
@@ -853,11 +864,11 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                   {projectList.length > 0 && (
                     <tr className="border-b-2 border-gray-300 bg-gray-100 font-semibold">
                       <td className="px-3 py-2.5 text-sm text-gray-900">평균</td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-500">
-                        -
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
+                        {formatCount(projectSummaryCounts.underConstructionCount)}
                       </td>
-                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-500">
-                        -
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
+                        {formatCount(projectSummaryCounts.inspectedCount)}
                       </td>
                       {projectAverageScores.map((score, index) => (
                         <td
