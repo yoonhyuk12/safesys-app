@@ -490,6 +490,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
         stats: LevelAgg
         rank: number | null
         yearRank: number | null
+        yearScore: number | null
       }[]
     }
     const byBranch = new Map<string, ProjectStatusRow[]>()
@@ -704,7 +705,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
         ) : (
           <div className="overflow-x-auto rounded-md border border-gray-200">
             {viewLevel === 'hq' && (
-              <table className="min-w-[700px] w-full divide-y divide-gray-200">
+              <table className="min-w-[780px] w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
@@ -712,6 +713,9 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                     </th>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
                       해당년도 순위
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      해당년도 평균 점수
                     </th>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
                       해당분기 순위
@@ -731,7 +735,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {hqStats.map(({ hq, stats, rank, yearRank }) => (
+                  {hqStats.map(({ hq, stats, rank, yearRank, yearScore }) => (
                     <tr
                       key={hq}
                       onClick={() => {
@@ -744,6 +748,9 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                         {hqDisplay(hq)}
                       </td>
                       <RankCell rank={yearRank} />
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center">
+                        <ScoreBadge score={yearScore} />
+                      </td>
                       <RankCell rank={rank} />
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
                         {formatCount(stats.projectCount)}
@@ -761,7 +768,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                   ))}
                   {hqStats.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">
+                      <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">
                         등록된 프로젝트가 없습니다.
                       </td>
                     </tr>
@@ -771,7 +778,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
             )}
 
             {viewLevel === 'branch' && selectedHq && (
-              <table className="min-w-[700px] w-full divide-y divide-gray-200">
+              <table className="min-w-[780px] w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
@@ -779,6 +786,9 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                     </th>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
                       해당년도 순위
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      해당년도 평균 점수
                     </th>
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
                       해당분기 순위
@@ -798,7 +808,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {branchStats.map(({ branch, stats, rank, yearRank }) => (
+                  {branchStats.map(({ branch, stats, rank, yearRank, yearScore }) => (
                     <tr
                       key={branch}
                       onClick={() => {
@@ -811,6 +821,9 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                         {branch}
                       </td>
                       <RankCell rank={yearRank} />
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center">
+                        <ScoreBadge score={yearScore} />
+                      </td>
                       <RankCell rank={rank} />
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
                         {formatCount(stats.projectCount)}
@@ -828,7 +841,7 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
                   ))}
                   {branchStats.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">
+                      <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">
                         해당 본부에 등록된 프로젝트가 없습니다.
                       </td>
                     </tr>
