@@ -9,4 +9,5 @@
 - 진행 기록. codex(Task A, 뷰)·grok(Task B, 배선·라우트) 병렬 디스패치. codex 터미널에서 inject 프롬프트가 입력창에 머무는 미제출 함정이 재현되어 terminal read로 감지하고 빈 Enter 전송으로 해결함. grok 약 4분, codex 약 10분 만에 worker_done 수신. 두 diff 모두 스펙 외 변경 없음 확인.
 - 코디네이터 직접 보정 1건. 뷰 정렬부의 `managing_branch.localeCompare`가 레거시 null 데이터에서 예외를 낼 수 있어 `|| ''` 방어 추가(코드베이스 다른 곳도 null 방어 중이라 타입 선언만 믿을 수 없음).
 - 검증 결과. `npx tsc --noEmit` 오류 0, ESLint 신규 파일 3개 무경고(Dashboard.tsx 경고 17건은 기존 미사용 import·훅 의존성 경고로 이번 변경과 무관). main 푸시는 운영 배포이므로 커밋만 하고 푸시는 사용자 결정에 맡김.
+- Task D(후속, 2026-07-22). 사용자 요청으로 본부→지사→프로젝트 3단 드릴다운 전환(LegalComplianceView 패턴). 진행 중 Orca 런타임이 재시작되어 터미널 핸들이 전부 바뀌고 미기록 디스패치가 생겨, 태스크를 ready로 되돌린 뒤 재디스패치로 복구함. codex는 refresh token 폐기로 로그인 불능 상태가 되어 Task D는 grok이 수행(사용자 재로그인 전까지 codex 사용 불가). grok 작업 중 터미널이 멈춘 듯 보였으나 실제로는 진행 중이었음 — 활동 중인 워커는 재시작하지 않는다는 원칙 준수.
 - Task C(후속, 2026-07-22). 사용자 요청으로 뷰를 분기 조회 형식으로 전환 — 전체 기간 최신 점검 대신 선택 분기(YYYYQN, 기본 현재 분기) 범위 내 최신 유효 점검으로 집계. codex 동일 터미널에 재디스패치, inject 미제출 함정 재재현(빈 Enter로 해결). 분기 경계는 SafetyHeadquartersView와 동일하게 로컬 분기 범위 vs Date.parse 비교(KST에서 경계일 포함 문제 없음). 데이터는 여전히 1회 조회 후 클라이언트 필터.

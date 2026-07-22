@@ -1,5 +1,5 @@
 'use client'
-// 관할 프로젝트별 5대 핵심 안전수칙 이행 등급을 요약하는 현황 뷰
+// 관할 프로젝트별 5대 핵심 안전수칙 이행 등급을 본부→지사→프로젝트 3단으로 보는 현황 뷰
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -18,6 +18,7 @@ interface FiveKeyStatusViewProps {
 
 type FiveKeyGrade = '1' | '2' | '3' | '4' | '5' | 'N/A'
 type CategoryGrade = FiveKeyGrade | null
+type ViewLevel = 'hq' | 'branch' | 'project'
 
 interface FiveKeyItem {
   category?: unknown
@@ -36,6 +37,12 @@ interface ProjectStatusRow {
   project: Project
   inspection: HeadquartersInspectionRow | null
   categoryGrades: CategoryGrade[]
+}
+
+interface LevelAgg {
+  projectCount: number
+  inspectedCount: number
+  concernCount: number
 }
 
 const CATEGORY_COLUMNS = [
@@ -69,6 +76,15 @@ const YEAR_OPTIONS = Array.from(
   { length: Math.max(CURRENT_YEAR - 2024 + 1, 1) },
   (_, index) => 2024 + index
 )
+
+const emptyAgg = (): LevelAgg => ({
+  projectCount: 0,
+  inspectedCount: 0,
+  concernCount: 0,
+})
+
+const hqDisplay = (hq: string): string =>
+  hq !== '본사' && hq !== '기타' && !hq.endsWith('본부') ? `${hq}본부` : hq
 
 const getCurrentQuarter = (): string => {
   const today = new Date()
@@ -151,6 +167,9 @@ const findHqByBranch = (branch: string | null): string => {
   return HEADQUARTERS_OPTIONS.find((hq) => BRANCH_OPTIONS[hq]?.includes(branch)) ?? ''
 }
 
+const isConcernRow = (categoryGrades: CategoryGrade[]): boolean =>
+  categoryGrades.some((grade) => grade === '4' || grade === '5')
+
 const GradeBadge = ({ grade }: { grade: CategoryGrade }) => {
   if (!grade) {
     return <span className="text-sm text-gray-400">-</span>
@@ -167,9 +186,14 @@ const GradeBadge = ({ grade }: { grade: CategoryGrade }) => {
 const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusViewProps) => {
   const router = useRouter()
   const { userProfile } = useAuth()
-  const initialSelectedHq = initialHq || findHqByBranch(initialBranch)
-  const [selectedHq, setSelectedHq] = useState(initialSelectedHq)
-  const [selectedBranch, setSelectedBranch] = useState(initialBranch || '')
+
+  const hq0 = initialHq || findHqByBranch(initialBranch) || null
+  const branch0 = initialBranch || null
+  const [viewLevel, setViewLevel] = useState<ViewLevel>(
+    branch0 ? 'project' : hq0 ? 'branch' : 'hq'
+  )
+  const [selectedHq, setSelectedHq] = useState<string | null>(hq0)
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(branch0)
   const [selectedQuarter, setSelectedQuarter] = useState(getCurrentQuarter)
   const [projects, setProjects] = useState<Project[]>([])
   const [inspections, setInspections] = useState<HeadquartersInspectionRow[]>([])
@@ -255,52 +279,132 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
     [projects, representativeInspections]
   )
 
-  const branchOptions = selectedHq ? BRANCH_OPTIONS[selectedHq] || [] : []
   const [selectedYear, selectedQuarterNumber] = selectedQuarter.split('Q').map(Number)
 
-  const filteredRows = useMemo(
+  const aggregateRows = (rows: ProjectStatusRow[]): LevelAgg => {
+    const agg = emptyAgg()
+    agg.projectCount = rows.length
+    agg.inspectedCount = rows.filter(({ inspection }) => inspection !== null).length
+    agg.concernCount = rows.filter(({ categoryGrades }) => isConcernRow(categoryGrades)).length
+    return agg
+  }
+
+  const hqStats = useMemo(() => {
+    const byHq = new Map<string, ProjectStatusRow[]>()
+    for (const row of projectRows) {
+      const hq = row.project.managing_hq || ''
+      if (!hq) continue
+      const list = byHq.get(hq)
+      if (list) list.push(row)
+      else byHq.set(hq, [row])
+    }
+
+    const hqOrder = HEADQUARTERS_OPTIONS as readonly string[]
+    const ordered: string[] = [
+      ...hqOrder.filter((hq) => byHq.has(hq)),
+      ...Array.from(byHq.keys()).filter((hq) => !hqOrder.includes(hq)),
+    ]
+
+    return ordered.map((hq) => ({
+      hq,
+      stats: aggregateRows(byHq.get(hq) || []),
+    }))
+  }, [projectRows])
+
+  const branchStats = useMemo(() => {
+    if (!selectedHq) return [] as { branch: string; stats: LevelAgg }[]
+    const byBranch = new Map<string, ProjectStatusRow[]>()
+    for (const row of projectRows) {
+      if (row.project.managing_hq !== selectedHq) continue
+      const branch = row.project.managing_branch || ''
+      if (!branch) continue
+      const list = byBranch.get(branch)
+      if (list) list.push(row)
+      else byBranch.set(branch, [row])
+    }
+
+    const preferred = BRANCH_OPTIONS[selectedHq] || []
+    const ordered: string[] = [
+      ...preferred.filter((branch) => byBranch.has(branch)),
+      ...Array.from(byBranch.keys()).filter((branch) => !preferred.includes(branch)),
+    ]
+
+    return ordered.map((branch) => ({
+      branch,
+      stats: aggregateRows(byBranch.get(branch) || []),
+    }))
+  }, [projectRows, selectedHq])
+
+  const projectList = useMemo(
     () =>
       projectRows
-        .filter(({ project }) => !selectedHq || project.managing_hq === selectedHq)
-        .filter(({ project }) => !selectedBranch || project.managing_branch === selectedBranch)
-        .sort((a, b) => {
-          const branchComparison = (a.project.managing_branch || '').localeCompare(
-            b.project.managing_branch || '',
-            'ko'
-          )
-          if (branchComparison !== 0) return branchComparison
-          return (a.project.project_name || '').localeCompare(b.project.project_name || '', 'ko')
-        }),
+        .filter(({ project }) => {
+          if (selectedHq && project.managing_hq !== selectedHq) return false
+          if (selectedBranch && project.managing_branch !== selectedBranch) return false
+          return true
+        })
+        .sort((a, b) =>
+          (a.project.project_name || '').localeCompare(b.project.project_name || '', 'ko')
+        ),
     [projectRows, selectedHq, selectedBranch]
   )
 
-  const inspectedProjectCount = filteredRows.filter(({ inspection }) => inspection !== null).length
-  const concernProjectCount = filteredRows.filter(({ categoryGrades }) =>
-    categoryGrades.some((grade) => grade === '4' || grade === '5')
-  ).length
+  const scopeRows = useMemo(() => {
+    if (viewLevel === 'project') return projectList
+    if (viewLevel === 'branch') {
+      return projectRows.filter(({ project }) => project.managing_hq === selectedHq)
+    }
+    return projectRows
+  }, [viewLevel, projectList, projectRows, selectedHq])
+
+  const summary = useMemo(() => aggregateRows(scopeRows), [scopeRows])
+
+  const handleBack = () => {
+    if (viewLevel === 'project') {
+      setSelectedBranch(null)
+      setViewLevel(selectedHq ? 'branch' : 'hq')
+    } else if (viewLevel === 'branch') {
+      setSelectedHq(null)
+      setViewLevel('hq')
+    } else {
+      onBack()
+    }
+  }
 
   const navigateToProject = (projectId: string) => {
     router.push(
-      `/project/${encodeURIComponent(projectId)}/headquarters-inspection?fromBranch=${encodeURIComponent(selectedBranch)}`
+      `/project/${encodeURIComponent(projectId)}/headquarters-inspection?fromBranch=${encodeURIComponent(selectedBranch || '')}`
     )
   }
+
+  const title =
+    viewLevel === 'project'
+      ? `${selectedBranch ?? ''} - 프로젝트별 5대 핵심이행사항`
+      : viewLevel === 'branch'
+        ? `${selectedHq ? hqDisplay(selectedHq) : ''} - 지사별 5대 핵심이행사항`
+        : '본부별 5대 핵심이행사항'
+
+  const backLabel =
+    viewLevel === 'hq'
+      ? '안전현황으로 돌아가기'
+      : viewLevel === 'branch'
+        ? '본부로 돌아가기'
+        : '지사로 돌아가기'
 
   return (
     <div className="w-fit max-w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center gap-3 border-b border-gray-200 px-3 py-3 sm:px-4">
         <button
           type="button"
-          onClick={onBack}
+          onClick={handleBack}
           className="inline-flex items-center gap-1 text-sm text-gray-600 transition-colors hover:text-gray-900"
         >
           <ArrowLeft className="h-4 w-4" />
-          안전현황으로 돌아가기
+          {backLabel}
         </button>
         <div className="flex items-center gap-2 border-l border-gray-200 pl-3">
           <ShieldCheck className="h-5 w-5 text-emerald-600" />
-          <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
-            5대 핵심이행사항 이행 현황
-          </h2>
+          <h2 className="text-base font-semibold text-gray-900 sm:text-lg">{title}</h2>
         </div>
       </div>
 
@@ -308,53 +412,19 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
         <div className="grid grid-cols-3 gap-2">
           <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
             <p className="text-xs text-gray-500">대상 프로젝트 수</p>
-            <p className="mt-0.5 text-lg font-semibold text-gray-900">{filteredRows.length}개</p>
+            <p className="mt-0.5 text-lg font-semibold text-gray-900">{summary.projectCount}개</p>
           </div>
           <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2">
             <p className="text-xs text-blue-700">점검 실시 수</p>
-            <p className="mt-0.5 text-lg font-semibold text-blue-900">{inspectedProjectCount}개</p>
+            <p className="mt-0.5 text-lg font-semibold text-blue-900">{summary.inspectedCount}개</p>
           </div>
           <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
             <p className="text-xs text-amber-700">미흡·불이행 보유 수</p>
-            <p className="mt-0.5 text-lg font-semibold text-amber-900">{concernProjectCount}개</p>
+            <p className="mt-0.5 text-lg font-semibold text-amber-900">{summary.concernCount}개</p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-end gap-2">
-          <label className="flex min-w-[180px] flex-col gap-1 text-xs font-medium text-gray-600">
-            본부
-            <select
-              value={selectedHq}
-              onChange={(event) => {
-                setSelectedHq(event.target.value)
-                setSelectedBranch('')
-              }}
-              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            >
-              <option value="">전체 본부</option>
-              {HEADQUARTERS_OPTIONS.map((hq) => (
-                <option key={hq} value={hq}>
-                  {hq}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="flex min-w-[200px] flex-col gap-1 text-xs font-medium text-gray-600">
-            지사
-            <select
-              value={selectedBranch}
-              onChange={(event) => setSelectedBranch(event.target.value)}
-              disabled={!selectedHq}
-              className="rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
-            >
-              <option value="">전체 지사</option>
-              {branchOptions.map((branch) => (
-                <option key={branch} value={branch}>
-                  {branch}
-                </option>
-              ))}
-            </select>
-          </label>
           <label className="flex min-w-[120px] flex-col gap-1 text-xs font-medium text-gray-600">
             연도
             <select
@@ -397,68 +467,170 @@ const FiveKeyStatusView = ({ initialHq, initialBranch, onBack }: FiveKeyStatusVi
           <div className="min-h-[180px] py-16 text-center text-sm text-red-600">{error}</div>
         ) : (
           <div className="overflow-x-auto rounded-md border border-gray-200">
-            <table className="min-w-[960px] divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
-                    지사
-                  </th>
-                  <th className="min-w-[260px] px-3 py-2.5 text-left text-xs font-medium text-gray-500">
-                    프로젝트명
-                  </th>
-                  <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
-                    최근 점검일
-                  </th>
-                  {CATEGORY_COLUMNS.map(({ prefix, label }) => (
-                    <th
-                      key={prefix}
-                      className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500"
-                    >
-                      {label}
+            {viewLevel === 'hq' && (
+              <table className="min-w-[520px] w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      본부
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
-                {filteredRows.map(({ project, inspection, categoryGrades }) => (
-                  <tr
-                    key={project.id}
-                    role="link"
-                    tabIndex={0}
-                    onClick={() => navigateToProject(project.id)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault()
-                        navigateToProject(project.id)
-                      }
-                    }}
-                    className="cursor-pointer transition-colors hover:bg-blue-50/50 focus:bg-blue-50/50 focus:outline-none"
-                  >
-                    <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-600">
-                      {project.managing_branch || '-'}
-                    </td>
-                    <td className="px-3 py-2.5 text-sm font-medium text-blue-700">
-                      {project.project_name || '-'}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-600">
-                      {formatInspectionDate(inspection?.inspection_date || null)}
-                    </td>
-                    {categoryGrades.map((grade, index) => (
-                      <td key={CATEGORY_COLUMNS[index].prefix} className="px-3 py-2.5 text-center">
-                        <GradeBadge grade={grade} />
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      대상 프로젝트 수
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      점검 실시 수
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      미흡·불이행 보유 수
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 bg-white">
+                  {hqStats.map(({ hq, stats }) => (
+                    <tr
+                      key={hq}
+                      onClick={() => {
+                        setSelectedHq(hq)
+                        setViewLevel('branch')
+                      }}
+                      className="cursor-pointer transition-colors hover:bg-blue-50/50"
+                    >
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm font-medium text-blue-700">
+                        {hqDisplay(hq)}
                       </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
+                        {stats.projectCount}개
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
+                        {stats.inspectedCount}개
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
+                        {stats.concernCount}개
+                      </td>
+                    </tr>
+                  ))}
+                  {hqStats.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-10 text-center text-sm text-gray-500">
+                        등록된 프로젝트가 없습니다.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            {viewLevel === 'branch' && selectedHq && (
+              <table className="min-w-[520px] w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      지사
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      대상 프로젝트 수
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      점검 실시 수
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      미흡·불이행 보유 수
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 bg-white">
+                  {branchStats.map(({ branch, stats }) => (
+                    <tr
+                      key={branch}
+                      onClick={() => {
+                        setSelectedBranch(branch)
+                        setViewLevel('project')
+                      }}
+                      className="cursor-pointer transition-colors hover:bg-blue-50/50"
+                    >
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm font-medium text-blue-700">
+                        {branch}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
+                        {stats.projectCount}개
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
+                        {stats.inspectedCount}개
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
+                        {stats.concernCount}개
+                      </td>
+                    </tr>
+                  ))}
+                  {branchStats.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-10 text-center text-sm text-gray-500">
+                        해당 본부에 등록된 프로젝트가 없습니다.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
+
+            {viewLevel === 'project' && selectedBranch && (
+              <table className="min-w-[860px] divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="min-w-[260px] px-3 py-2.5 text-left text-xs font-medium text-gray-500">
+                      프로젝트명
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
+                      최근 점검일
+                    </th>
+                    {CATEGORY_COLUMNS.map(({ prefix, label }) => (
+                      <th
+                        key={prefix}
+                        className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500"
+                      >
+                        {label}
+                      </th>
                     ))}
                   </tr>
-                ))}
-                {filteredRows.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-sm text-gray-500">
-                      해당 조건에 등록된 프로젝트가 없습니다.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-200 bg-white">
+                  {projectList.map(({ project, inspection, categoryGrades }) => (
+                    <tr
+                      key={project.id}
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => navigateToProject(project.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault()
+                          navigateToProject(project.id)
+                        }
+                      }}
+                      className="cursor-pointer transition-colors hover:bg-blue-50/50 focus:bg-blue-50/50 focus:outline-none"
+                    >
+                      <td className="px-3 py-2.5 text-sm font-medium text-blue-700">
+                        {project.project_name || '-'}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-600">
+                        {formatInspectionDate(inspection?.inspection_date || null)}
+                      </td>
+                      {categoryGrades.map((grade, index) => (
+                        <td key={CATEGORY_COLUMNS[index].prefix} className="px-3 py-2.5 text-center">
+                          <GradeBadge grade={grade} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  {projectList.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">
+                        해당 지사에 등록된 프로젝트가 없습니다.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
       </div>
