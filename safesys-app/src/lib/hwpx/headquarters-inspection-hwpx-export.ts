@@ -477,10 +477,10 @@ function buildPage1Rows(ins: any): Row[] {
     const dataRow = (title: string, status: any, remarks: string): Row => ({
         height: 2600,
         cells: [
-            { text: title, cp: 7, align: 'left', top: true },
+            { text: title, cp: 7, align: 'left' },
             { text: yesNo(status, 'yes'), cp: 0, align: 'center' },
             { text: yesNo(status, 'no'), cp: 0, align: 'center' },
-            { text: remarks || '', cp: 7, align: 'left', top: true },
+            { text: remarks || '', cp: 7, align: 'left' },
         ],
     })
 
@@ -663,14 +663,14 @@ function buildPage3Rows(ins: any): Row[] {
         group.items.forEach(it => {
             const trimmed = (it.remarks || '').trim()
             const resultText = trimmed && trimmed !== '특이사항 없음' ? trimmed : '특이사항 없음'
-            const cells: Cell[] = [{ text: it.title, cp: 3, align: 'left', top: true }]
+            const cells: Cell[] = [{ text: it.title, cp: 3, align: 'left' }]
             if (isCountItem(it.title)) {
                 const cnt = typeof it.count === 'number' ? it.count : 0
                 cells.push({ text: `${cnt}건`, span: 6, cp: 1, align: 'center' })
             } else {
                 ;['1', '2', '3', '4', '5', 'N/A'].forEach(g => cells.push({ text: gradeCheck(it.grade, g), cp: 5, align: 'center' }))
             }
-            cells.push({ text: resultText, cp: 3, align: 'left', top: true })
+            cells.push({ text: resultText, cp: 3, align: 'left' })
             rows.push({ height: P3_ITEM_H, cells })
         })
     })

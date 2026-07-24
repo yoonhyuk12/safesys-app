@@ -463,12 +463,12 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: num
             height: ROW_H.workDesc,
             cells: [
                 { text: '작업내용', span: 2, header: true, cp: 1, center: true },
-                { text: left, span: 3, top: true },
-                { text: right, span: 4, top: true },
+                { text: left, span: 3 },
+                { text: right, span: 4 },
             ],
         })
     } else {
-        rows.push({ height: ROW_H.workDesc, cells: [{ text: '작업내용', span: 2, header: true, cp: 1, center: true }, { text: workDesc, span: 7, top: true }] })
+        rows.push({ height: ROW_H.workDesc, cells: [{ text: '작업내용', span: 2, header: true, cp: 1, center: true }, { text: workDesc, span: 7 }] })
     }
     // TBM 장소
     rows.push({
@@ -493,8 +493,8 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: num
         rows.push({
             height: ROW_H.risk,
             cells: [
-                { text: `${i + 1}. ${(it.r || '').trim()}`, span: 3, top: true },
-                { text: `${i + 1}. ${(it.s || '').trim()}`, span: 6, top: true },
+                { text: `${i + 1}. ${(it.r || '').trim()}`, span: 3 },
+                { text: `${i + 1}. ${(it.s || '').trim()}`, span: 6 },
             ],
         })
     })
@@ -503,8 +503,8 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: num
         height: ROW_H.mainRisk,
         cells: [
             { text: '중점위험\n요인', span: 2, header: true, cp: 1, center: true },
-            { text: `선정: ${(f.mainRiskSelection || '').trim()}`, span: 3, top: true },
-            { text: `대책: ${(f.mainRiskSolution || '').trim()}`, span: 4, top: true },
+            { text: `선정: ${(f.mainRiskSelection || '').trim()}`, span: 3 },
+            { text: `대책: ${(f.mainRiskSolution || '').trim()}`, span: 4 },
         ],
     })
     // 안전조치 확인 머리
@@ -522,7 +522,7 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: num
         rows.push({
             height: ROW_H.factor,
             cells: [
-                { text: `${i + 1}. ${(fa || '').trim()}`, span: 7, top: true },
+                { text: `${i + 1}. ${(fa || '').trim()}`, span: 7 },
                 { text: '예 ☑ 아니오 ☐', span: 2, center: true },
             ],
         })
@@ -532,7 +532,7 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: num
     // 기타사항 머리
     rows.push({ height: ROW_H.etcHead, cells: [{ text: '■ 기타사항(교육내용, 제안제도, 아차사고 등)', span: 9, header: true, cp: 1 }] })
     // 기타사항 내용
-    rows.push({ height: ROW_H.etcBody, cells: [{ text: (f.otherRemarks || '').trimStart(), span: 9, top: true }] })
+    rows.push({ height: ROW_H.etcBody, cells: [{ text: (f.otherRemarks || '').trimStart(), span: 9 }] })
     // 사진/투입 머리
     rows.push({
         height: ROW_H.photoHead,
@@ -549,8 +549,8 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: num
             photo
                 ? { span: 4, picId: photo.id, picW: photo.w, picH: photo.h, center: true }
                 : { text: '사진 없음', span: 4, cp: 7, center: true },
-            { text: personnel, span: 3, top: true },
-            { text: equipment, span: 2, top: true },
+            { text: personnel, span: 3 },
+            { text: equipment, span: 2 },
         ],
     })
 
