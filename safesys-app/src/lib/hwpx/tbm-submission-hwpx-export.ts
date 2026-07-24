@@ -155,11 +155,11 @@ const PRV_TEXT = '일일안전교육일지(TBM 회의록)'
 
 const SEC_XMLNS = `xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hp10="http://www.hancom.co.kr/hwpml/2016/paragraph" xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:hhs="http://www.hancom.co.kr/hwpml/2011/history" xmlns:hm="http://www.hancom.co.kr/hwpml/2011/master-page" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf/" xmlns:ooxmlchart="http://www.hancom.co.kr/hwpml/2016/ooxmlchart" xmlns:hwpunitchar="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0"`
 
-// A4 세로 페이지 본문 폭(HWPUNIT): 59528 - 좌우여백 5669*2 = 48190
-const CONTENT_WIDTH = 48190
+// A4 세로 페이지 본문 폭(HWPUNIT): 59528 - 좌우여백 15mm(4252)*2 = 51024
+const CONTENT_WIDTH = 51024
 
 // 첫 문단에 들어가는 구역 속성(A4 세로)
-const SECPR = `<hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="1" memoShapeIDRef="1" textVerticalWidthHead="0" masterPageCnt="0"><hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/><hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/><hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/><hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/><hp:pagePr landscape="WIDELY" width="59528" height="84188" gutterType="LEFT_ONLY"><hp:margin header="3600" footer="3600" gutter="0" left="5669" right="5669" top="3600" bottom="3600"/></hp:pagePr><hp:footNotePr><hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="283" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="EACH_COLUMN" beneathText="0"/></hp:footNotePr><hp:endNotePr><hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="14692344" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="0" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="END_OF_DOCUMENT" beneathText="0"/></hp:endNotePr><hp:pageBorderFill type="BOTH" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill><hp:pageBorderFill type="EVEN" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill><hp:pageBorderFill type="ODD" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill></hp:secPr>`
+const SECPR = `<hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="1" memoShapeIDRef="1" textVerticalWidthHead="0" masterPageCnt="0"><hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/><hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/><hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/><hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/><hp:pagePr landscape="WIDELY" width="59528" height="84188" gutterType="LEFT_ONLY"><hp:margin header="3600" footer="3600" gutter="0" left="4252" right="4252" top="3600" bottom="3600"/></hp:pagePr><hp:footNotePr><hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="283" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="EACH_COLUMN" beneathText="0"/></hp:footNotePr><hp:endNotePr><hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="14692344" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="0" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="END_OF_DOCUMENT" beneathText="0"/></hp:endNotePr><hp:pageBorderFill type="BOTH" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill><hp:pageBorderFill type="EVEN" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill><hp:pageBorderFill type="ODD" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill></hp:secPr>`
 
 // ── header.xml 조립 ──
 // borderFill: 1=테두리없음, 2=실선 사방테두리(셀), 3=실선+회색채움(머리셀)
@@ -330,8 +330,8 @@ function buildFirstParagraph(lawText: string): string {
 
 // ── 본문(TBM 일지) 표 구성 ──
 
-// 9열 그리드 폭(합 = 48190) — 사용자 수정본(성남 골프장 _직접수정.hwpx)의 열 경계 실측값
-const COLS_MAIN = [3012, 3012, 14056, 566, 6179, 4481, 2264, 7594, 7026]
+// 9열 그리드 폭(합 = 51024) — 사용자 수정본(성남 골프장 _직접수정.hwpx) 열 비율을 15mm 여백 본문 폭으로 스케일
+const COLS_MAIN = [3189, 3189, 14883, 599, 6542, 4744, 2397, 8041, 7440]
 
 function getDayOfWeek(dateStr: string): string {
     const days = ['일', '월', '화', '수', '목', '금', '토']
@@ -472,7 +472,7 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: num
 
 // ── 근로자 교육 확인 서명부(별지) 표 구성 ──
 
-const COLS_SIG = [2648, 6353, 5825, 4766, 5296, 5296, 5296, 5296, 7414]
+const COLS_SIG = [2804, 6727, 6168, 5046, 5607, 5607, 5607, 5607, 7851]
 
 // 서명 이미지 표준 크기(HWPUNIT)
 const SIG_W = 3000
@@ -514,15 +514,15 @@ async function buildTbmHwpxBlob(
 
     // section0.xml 본문 조립
     const parts: string[] = []
-    // 쪽 기준 절대 배치 상수 (A4 세로, HWPUNIT). 왼쪽 여백 5669, 본문 시작 = 위 여백 3600 + 머리말 3600.
-    const PAGE_LEFT = 5669
+    // 쪽 기준 절대 배치 상수 (A4 세로, HWPUNIT). 왼쪽 여백 15mm=4252, 본문 시작 = 위 여백 3600 + 머리말 3600.
+    const PAGE_LEFT = 4252
     const PAGE_CONTENT_TOP = 7200
     const line = (cpHeight: number) => Math.round(cpHeight * 1.3) // 줄간격 130%
 
     // 사진은 원본 비율을 유지해 사진 셀(20646×photoBody) 안에 맞춘다. 크기 측정 불가 환경은 셀 채움.
     let photo: { id: string; w: number; h: number } | null = null
     if (photoId) {
-        const availW = 20646 - 282
+        const availW = COLS_MAIN.slice(0, 4).reduce((a, b) => a + b, 0) - 282
         const availH = ROW_H.photoBody - 282
         const entry = collector.find(photoId)
         let w = availW
@@ -540,7 +540,9 @@ async function buildTbmHwpxBlob(
     // 작성자 서명: "(서명)" 문구 위에 크게 겹침. 크기·좌표는 사용자 수정본 실측값(표 오른쪽 밖 일부 돌출 허용).
     const mainFloats: string[] = []
     if (sigId) {
-        mainFloats.push(buildFloatingPicXml(sigId, 10260, 3762, 45860, 10149))
+        // "(서명)" 셀 왼쪽 973 앞에서 시작해 표 오른쪽 밖까지 겹침 — 사용자 수정본의 상대 위치를 유지
+        const sigX = PAGE_LEFT + COLS_MAIN.slice(0, 8).reduce((a, b) => a + b, 0) - 973
+        mainFloats.push(buildFloatingPicXml(sigId, 10260, 3762, sigX, 10149))
     }
     parts.push(buildTableParagraph(COLS_MAIN, buildTbmTableRows(formData, photo), 1000000001, 1, mainFloats))
     parts.push(buildTextParagraph('붙임) TBM 참여 서명부 _ 작업장 출입 전.후 근로자 작업가능상태 점검', 5, false, false))
