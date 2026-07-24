@@ -96,17 +96,23 @@ class ImageCollector {
     }
 }
 
-// 셀 안에 꽉 채우는 인라인 그림(사진용)
-function buildInlinePicXml(binItemId: string, cellW: number, cellH: number): string {
-    const margin = 282
-    const imgW = Math.max(1, cellW - margin)
-    const imgH = Math.max(1, cellH - margin)
-    return `<hp:pic reverse="0"><hp:sz width="${imgW}" height="${imgH}" widthRelTo="ABSOLUTE" heightRelTo="ABSOLUTE"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:imgRect x="0" y="0" cx="${imgW}" cy="${imgH}"/><hp:imgClip left="0" right="0" top="0" bottom="0"/><hp:shapeComment>${binItemId}</hp:shapeComment><hc:img binaryItemIDRef="${binItemId}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/></hp:pic>`
+// 그림 개체 일련번호. id/instid는 문서 내 유일해야 하며, 필수 자식 요소가 빠지면 한글 2020이 열다 죽는다.
+let _picSeq = 0
+function resetPicSeq(): void { _picSeq = 0 }
+
+// 한글이 직접 저장한 hwpx의 hp:pic 구조를 그대로 답습한 공통 골격 (요소 순서 포함)
+function buildPicXml(binItemId: string, imgW: number, imgH: number, textWrap: string, pos: string): string {
+    _picSeq++
+    const id = 1149648000 + _picSeq
+    const instid = 75906000 + _picSeq
+    const identity = `<hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/><hc:scaMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/><hc:rotMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>`
+    return `<hp:pic id="${id}" zOrder="${10 + _picSeq}" numberingType="PICTURE" textWrap="${textWrap}" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" href="" groupLevel="0" instid="${instid}" reverse="0"><hp:offset x="0" y="0"/><hp:orgSz width="${imgW}" height="${imgH}"/><hp:curSz width="0" height="0"/><hp:flip horizontal="0" vertical="0"/><hp:rotationInfo angle="0" centerX="0" centerY="0" rotateimage="1"/><hp:renderingInfo>${identity}</hp:renderingInfo><hp:imgRect><hc:pt0 x="0" y="0"/><hc:pt1 x="${imgW}" y="0"/><hc:pt2 x="${imgW}" y="${imgH}"/><hc:pt3 x="0" y="${imgH}"/></hp:imgRect><hp:imgClip left="0" right="0" top="0" bottom="0"/><hp:inMargin left="0" right="0" top="0" bottom="0"/><hp:imgDim dimwidth="0" dimheight="0"/><hc:img binaryItemIDRef="${binItemId}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/><hp:effects/><hp:sz width="${imgW}" widthRelTo="ABSOLUTE" height="${imgH}" heightRelTo="ABSOLUTE" protect="0"/>${pos}<hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:shapeComment>${binItemId}</hp:shapeComment></hp:pic>`
 }
 
-// "(서명)" 안내 문구 위에 겹쳐 놓는 떠 있는 그림(서명용). treatAsChar="0"으로 텍스트와 겹침.
-function buildFloatingPicXml(binItemId: string, imgW: number, imgH: number, horzOffset: number, vertOffset: number): string {
-    return `<hp:pic reverse="0"><hp:sz width="${imgW}" height="${imgH}" widthRelTo="ABSOLUTE" heightRelTo="ABSOLUTE"/><hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="0" allowOverlap="1" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="PARA" vertAlign="TOP" horzAlign="LEFT" vertOffset="${vertOffset}" horzOffset="${horzOffset}"/><hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:imgRect x="0" y="0" cx="${imgW}" cy="${imgH}"/><hp:imgClip left="0" right="0" top="0" bottom="0"/><hp:shapeComment>signature</hp:shapeComment><hc:img binaryItemIDRef="${binItemId}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/></hp:pic>`
+// 셀 안에 넣는 인라인 그림 (사진·서명 공용, 최종 크기를 직접 지정)
+function buildInlinePicXml(binItemId: string, imgW: number, imgH: number): string {
+    const pos = `<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>`
+    return buildPicXml(binItemId, Math.max(1, imgW), Math.max(1, imgH), 'TOP_AND_BOTTOM', pos)
 }
 
 // ── OWPML 부속 파일(고정 보일러플레이트) ──
@@ -225,9 +231,9 @@ interface Cell {
     cp?: number            // charPrIDRef (기본 0)
     center?: boolean       // 가로 가운데 정렬
     top?: boolean          // 세로 위 정렬(기본 가운데)
-    picId?: string | null  // 인라인 그림(사진)
+    picId?: string | null  // 인라인 그림(사진·서명)
+    picW?: number          // 인라인 그림 너비(HWPUNIT, 생략 시 셀 폭 맞춤)
     picH?: number          // 인라인 그림 높이(HWPUNIT)
-    floatPicId?: string | null // 떠 있는 그림(서명)
 }
 
 interface Row {
@@ -249,18 +255,14 @@ function buildCellBody(cell: Cell, cellW: number): string {
     const innerW = Math.max(1, cellW - 282)
 
     if (cell.picId) {
-        const pic = buildInlinePicXml(cell.picId, cellW, cell.picH ?? 4000)
+        const pic = buildInlinePicXml(cell.picId, cell.picW ?? cellW - 282, cell.picH ?? 4000)
         return `<hp:p id="${nextId()}" paraPrIDRef="1" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0">${pic}</hp:run>${lineseg(innerW, 1000)}</hp:p>`
     }
 
     const lines = (cell.text ?? '').split('\n')
-    const floatRun = cell.floatPicId
-        ? `<hp:run charPrIDRef="${cp}">${buildFloatingPicXml(cell.floatPicId, 3000, 1100, Math.max(0, Math.round((innerW - 3000) / 2)), 150)}</hp:run>`
-        : ''
-    return lines.map((line, idx) => {
-        const fr = idx === 0 ? floatRun : ''
-        return `<hp:p id="${nextId()}" paraPrIDRef="${pp}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">${fr}<hp:run charPrIDRef="${cp}"><hp:t>${esc(line)}</hp:t></hp:run>${lineseg(innerW, h)}</hp:p>`
-    }).join('')
+    return lines.map(line =>
+        `<hp:p id="${nextId()}" paraPrIDRef="${pp}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="${cp}"><hp:t>${esc(line)}</hp:t></hp:run>${lineseg(innerW, h)}</hp:p>`
+    ).join('')
 }
 
 function buildCellXml(cell: Cell, colAddr: number, rowAddr: number, width: number, height: number): string {
@@ -342,7 +344,8 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photoId: string | null, sig
             { text: `◆ 소속 : ${f.constructionCompany || ''}`, span: 3 },
             { text: '이름', header: true, cp: 1, center: true },
             { text: f.name || '', center: true },
-            { text: '(서명)', center: true, floatPicId: sigId },
+            // 서명이 있으면 "(서명)" 자리에 서명 이미지를 넣는다 (한글 2020은 떠 있는 그림 겹침 좌표가 불안정)
+            sigId ? { picId: sigId, picW: SIG_W, picH: SIG_H, center: true } : { text: '(서명)', center: true },
         ],
     })
     // TBM 일시
@@ -440,6 +443,10 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photoId: string | null, sig
 
 const COLS_SIG = [2648, 6353, 5825, 4766, 5296, 5296, 5296, 5296, 7414]
 
+// 서명 이미지 표준 크기(HWPUNIT)
+const SIG_W = 3000
+const SIG_H = 1100
+
 function buildSignatureRows(entries: TBMWorkerSignatureEntry[], sigIds: (string | null)[]): Row[] {
     const rows: Row[] = []
     const headers = ['NO.', '성 명', 'TBM\n위.평확인', '음주여부', '혈압여부', '보호구\n착용여부', 'CCTV\n촬영동의', '몸(부상)\n여 부', '서 명']
@@ -454,8 +461,8 @@ function buildSignatureRows(entries: TBMWorkerSignatureEntry[], sigIds: (string 
             : [String(i + 1), '', '', '', '', '', '', '', '']
         rows.push({
             height: 1600,
-            cells: vals.map((v, c) => c === 8
-                ? { text: v, center: true, floatPicId: sigId }
+            cells: vals.map((v, c) => (c === 8 && sigId)
+                ? { picId: sigId, picW: SIG_W, picH: SIG_H, center: true }
                 : { text: v, center: true }),
         })
     }
@@ -468,6 +475,7 @@ async function buildTbmHwpxBlob(
     formData: TBMSubmissionFormData,
     signatures: TBMWorkerSignatureEntry[]
 ): Promise<Blob> {
+    resetPicSeq()
     const collector = new ImageCollector()
 
     // 이미지 수집: 사진(정규화 JPEG), 작성자 서명(원본 PNG-투명), 근로자 서명(원본 PNG-투명)
