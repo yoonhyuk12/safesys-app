@@ -3315,19 +3315,29 @@ const Dashboard: React.FC = () => {
                         setSelectedProjectIdsForReport([])
                       }
                     }}
-                    onGenerateReport={async (groups) => {
+                    onGenerateReport={async (groups, format) => {
                       try {
                         setIsGeneratingReport(true)
                         await new Promise(requestAnimationFrame)
                         const abortController = new AbortController()
                           ; (window as any).__safe_cancel_hq_report__ = () => abortController.abort()
-                        const { generateHeadquartersInspectionReportBulk } = await import('@/lib/reports/headquarters-inspection')
-                        await generateHeadquartersInspectionReportBulk(groups, undefined, {
-                          signal: abortController.signal,
-                          onProgress: (current, total) => {
-                            setReportProgress({ current, total })
-                          }
-                        })
+                        if (format === 'hwpx') {
+                          const { downloadHeadquartersInspectionBulkHwpx } = await import('@/lib/hwpx/headquarters-inspection-hwpx-export')
+                          await downloadHeadquartersInspectionBulkHwpx(groups, undefined, {
+                            signal: abortController.signal,
+                            onProgress: (current, total) => {
+                              setReportProgress({ current, total })
+                            }
+                          })
+                        } else {
+                          const { generateHeadquartersInspectionReportBulk } = await import('@/lib/reports/headquarters-inspection')
+                          await generateHeadquartersInspectionReportBulk(groups, undefined, {
+                            signal: abortController.signal,
+                            onProgress: (current, total) => {
+                              setReportProgress({ current, total })
+                            }
+                          })
+                        }
                         setIsHqDownloadMode(false)
                       } catch (e: any) {
                         if (e && (e.message === 'cancelled' || e.name === 'AbortError')) {

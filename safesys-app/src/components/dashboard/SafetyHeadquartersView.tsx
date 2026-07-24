@@ -27,7 +27,7 @@ interface SafetyHeadquartersViewProps {
   onBackToAllBranches: () => void
   onQuarterChange: (q: string) => void
   onToggleDownloadMode: (on: boolean) => void
-  onGenerateReport: (groups: { projectName: string; inspections: any[]; branchName?: string }[]) => Promise<void>
+  onGenerateReport: (groups: { projectName: string; inspections: any[]; branchName?: string }[], format?: 'pdf' | 'hwpx') => Promise<void>
   onCancelReport: () => void
   onProjectToggleForReport: (projectId: string) => void
   onBranchToggleForReport: (branch: string) => void
@@ -246,7 +246,7 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
                     disabled={isGeneratingReport}
                     aria-busy={isGeneratingReport}
                     aria-label="보고서 생성"
-                    title="보고서 생성"
+                    title="보고서 생성 (PDF)"
                   >
                     {isGeneratingReport ? (
                       <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -256,6 +256,17 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
                     ) : (
                       <span>프린터</span>
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => { const groups = buildGroups(); if (groups.length === 0) { alert('선택한 조건에 해당하는 점검 결과가 없습니다.'); return } await onGenerateReport(groups, 'hwpx') }}
+                    className="px-3 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+                    disabled={isGeneratingReport}
+                    aria-busy={isGeneratingReport}
+                    aria-label="HWPX 보고서 생성"
+                    title="보고서 생성 (HWPX)"
+                  >
+                    <span>HWPX</span>
                   </button>
                   <button type="button" onClick={onCancelReport} className="px-3 py-2 bg-gray-500 text-white text-sm font-medium rounded-lg hover:bg-gray-600 transition-colors">취소</button>
                 </>

@@ -741,15 +741,8 @@ export interface HeadquartersInspectionHwpxParams {
     hqName?: string
 }
 
-async function buildHwpxBlob(params: HeadquartersInspectionHwpxParams): Promise<Blob> {
-    resetPicSeq()
-    const { projectName, inspections, branchName, hqName } = params
-    const collector = new ImageCollector()
-    const parts: string[] = []
-    for (let i = 0; i < inspections.length; i++) {
-        parts.push(...await buildInspectionParts(collector, inspections[i], projectName, branchName, hqName, i === 0, 1000000000 + i * 10))
-    }
-
+// 조립된 문단들과 수집 이미지로 OWPML zip을 만든다
+async function assembleZip(collector: ImageCollector, parts: string[]): Promise<Blob> {
     const sectionXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hs:sec ${SEC_XMLNS}>${parts.join('')}</hs:sec>`
 
     const imageItems = collector.images.map(img =>
@@ -780,8 +773,42 @@ async function buildHwpxBlob(params: HeadquartersInspectionHwpxParams): Promise<
     })
 }
 
+async function buildHwpxBlob(params: HeadquartersInspectionHwpxParams): Promise<Blob> {
+    resetPicSeq()
+    const { projectName, inspections, branchName, hqName } = params
+    const collector = new ImageCollector()
+    const parts: string[] = []
+    for (let i = 0; i < inspections.length; i++) {
+        parts.push(...await buildInspectionParts(collector, inspections[i], projectName, branchName, hqName, i === 0, 1000000000 + i * 10))
+    }
+    return assembleZip(collector, parts)
+}
+
 // 본부불시점검 보고서(선택 건들)를 하나의 hwpx로 다운로드 (건마다 3페이지, 새 쪽 시작)
 export async function downloadHeadquartersInspectionHwpx(params: HeadquartersInspectionHwpxParams): Promise<void> {
     const blob = await buildHwpxBlob(params)
     triggerDownload(blob, `${params.projectName || 'project'}_본부불시점검_보고서.hwpx`)
+}
+
+// 여러 사업 그룹을 하나의 hwpx로 묶어 다운로드 (안전현황 본부 화면 벌크 출력용)
+export async function downloadHeadquartersInspectionBulkHwpx(
+    groups: HeadquartersInspectionHwpxParams[],
+    filename?: string,
+    options?: { onProgress?: (current: number, total: number) => void; signal?: AbortSignal }
+): Promise<void> {
+    resetPicSeq()
+    const collector = new ImageCollector()
+    const parts: string[] = []
+    const total = groups.reduce((n, g) => n + g.inspections.length, 0)
+    let done = 0
+    for (const g of groups) {
+        for (const ins of g.inspections) {
+            if (options?.signal?.aborted) throw new DOMException('cancelled', 'AbortError')
+            parts.push(...await buildInspectionParts(collector, ins, g.projectName, g.branchName, g.hqName, done === 0, 1000000000 + done * 10))
+            done++
+            options?.onProgress?.(done, total)
+        }
+    }
+    const blob = await assembleZip(collector, parts)
+    triggerDownload(blob, filename || '본부불시점검_보고서_통합.hwpx')
 }
