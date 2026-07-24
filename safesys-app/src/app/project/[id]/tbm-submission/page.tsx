@@ -12,6 +12,7 @@ import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import { generateTBMSubmissionReport, generateTBMSubmissionReportBlob, generateTBMSubmissionBulkReport, generateHTMLPagePDF, TBMSubmissionFormData } from '@/lib/reports/tbm-submission-report'
 import { createTBMTodayQRPosterHTML } from '@/lib/reports/tbm-today-qr-poster'
 import { downloadTBMSubmissionExcel, downloadTBMSubmissionBulkExcel } from '@/lib/excel/tbm-submission-export'
+import { downloadTBMSubmissionHwpx } from '@/lib/hwpx/tbm-submission-hwpx-export'
 import type { TBMWorkerSignatureEntry } from '@/lib/excel/tbm-worker-signature-export'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
 
@@ -354,7 +355,7 @@ export default function TBMSubmissionPage() {
     }
   }
 
-  const handleDownloadReport = async (submission: TBMSubmission, format: 'pdf' | 'excel') => {
+  const handleDownloadReport = async (submission: TBMSubmission, format: 'pdf' | 'excel' | 'hwpx') => {
     if (!project) return
 
     try {
@@ -372,12 +373,15 @@ export default function TBMSubmissionPage() {
       if (format === 'pdf') {
         const filename = `${projectName}_TBM_${dateStr}.pdf`
         await generateTBMSubmissionReport(formData, filename, { signatures })
+      } else if (format === 'hwpx') {
+        const filename = `${projectName}_TBM_${dateStr}.hwpx`
+        await downloadTBMSubmissionHwpx(formData, filename, { signatures })
       } else {
         const filename = `${projectName}_TBM_${dateStr}.xlsx`
         await downloadTBMSubmissionExcel(formData, filename, { signatures })
       }
     } catch (error: any) {
-      console.error(`${format === 'pdf' ? 'PDF' : '엑셀'} 생성 오류:`, error)
+      console.error(`${format === 'pdf' ? 'PDF' : format === 'hwpx' ? 'HWPX' : '엑셀'} 생성 오류:`, error)
       alert(`보고서 생성 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`)
     } finally {
       setDownloadingId(null)
@@ -990,10 +994,17 @@ export default function TBMSubmissionPage() {
                                               </button>
                                               <button
                                                 onClick={(e) => { e.stopPropagation(); handleDownloadReport(submission, 'excel') }}
-                                                className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 rounded-b-lg flex items-center gap-2 text-gray-700 border-t border-gray-100"
+                                                className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 flex items-center gap-2 text-gray-700 border-t border-gray-100"
                                               >
                                                 <span className="text-green-600 font-bold text-xs">XLS</span>
                                                 엑셀 다운로드
+                                              </button>
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); handleDownloadReport(submission, 'hwpx') }}
+                                                className="w-full px-4 py-2.5 text-sm text-left hover:bg-gray-50 rounded-b-lg flex items-center gap-2 text-gray-700 border-t border-gray-100"
+                                              >
+                                                <span className="text-blue-700 font-bold text-xs">HWP</span>
+                                                HWPX 다운로드
                                               </button>
                                             </div>
                                           </>
