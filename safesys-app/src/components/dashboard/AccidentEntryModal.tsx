@@ -492,7 +492,8 @@ export default function AccidentEntryModal({
   }
 
   const visibleError = validationError || submitError
-  const lockProject = Boolean(accident) || submitting
+  // 수정 모드에서도 프로젝트/미등록 현장 변경 허용. 제출 중에만 잠근다.
+  const lockProject = submitting
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6" role="presentation">
