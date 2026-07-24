@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Plus, Calendar, FileText, ChevronLeft, ChevronRight, X, Upload, Camera, ChevronDown, ChevronUp, CheckCircle, Clock, AlertCircle, Edit, Trash2, Download, Printer, RotateCw, Phone, Save, Crop, RotateCcw, Copy, Check, User, HardHat, PenTool } from 'lucide-react'
 import { generateHeadquartersInspectionReport } from '@/lib/reports/headquarters-inspection'
+import { downloadHeadquartersInspectionHwpx } from '@/lib/hwpx/headquarters-inspection-hwpx-export'
 import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -882,8 +883,8 @@ export default function HeadquartersInspectionPage() {
     ))
   }
 
-  // 선택 항목 보고서 생성 (임시 CSV - 양식 확정 후 교체)
-  const handleGenerateReport = async () => {
+  // 선택 항목 보고서 생성 (PDF 또는 HWPX)
+  const handleGenerateReport = async (format: 'pdf' | 'hwpx' = 'pdf') => {
     if (selectedForReport.length === 0) {
       alert('보고서로 내보낼 항목을 선택해주세요.')
       return
@@ -891,12 +892,17 @@ export default function HeadquartersInspectionPage() {
     try {
       setDownloading(true)
       const selected = inspections.filter(ins => selectedForReport.includes(ins.id))
-      await generateHeadquartersInspectionReport({
+      const reportParams = {
         projectName: project?.project_name || 'project',
         inspections: selected,
         branchName: project?.managing_branch || undefined,
         hqName: project?.managing_hq || undefined,
-      })
+      }
+      if (format === 'hwpx') {
+        await downloadHeadquartersInspectionHwpx(reportParams)
+      } else {
+        await generateHeadquartersInspectionReport(reportParams)
+      }
       setIsDownloadMode(false)
       setSelectedForReport([])
     } catch (e) {
@@ -1796,9 +1802,9 @@ export default function HeadquartersInspectionPage() {
                       {isDownloadMode ? (
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={handleGenerateReport}
+                            onClick={() => handleGenerateReport('pdf')}
                             className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                            title="선택한 항목 보고서 받기"
+                            title="선택한 항목 보고서 받기 (PDF)"
                             aria-label="보고서 받기"
                             disabled={downloading || selectedForReport.length === 0}
                           >
@@ -1809,6 +1815,22 @@ export default function HeadquartersInspectionPage() {
                               </svg>
                             ) : (
                               <Printer className="h-4 w-4" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleGenerateReport('hwpx')}
+                            className="px-3 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                            title="선택한 항목 보고서 받기 (HWPX)"
+                            aria-label="HWPX 보고서 받기"
+                            disabled={downloading || selectedForReport.length === 0}
+                          >
+                            {downloading ? (
+                              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                            ) : (
+                              <span className="flex items-center gap-1"><FileText className="h-4 w-4" />HWPX</span>
                             )}
                           </button>
                           <button
