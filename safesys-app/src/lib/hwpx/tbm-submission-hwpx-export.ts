@@ -379,6 +379,33 @@ function shouldSplitWorkDesc(workDesc: string, etcBody: string, personnel: strin
     return est > 69788 - 4420 - 2000
 }
 
+// 행의 예상 렌더 높이 — 선언 최소 높이와 셀 내용 높이 중 큰 값
+function estRenderRowH(row: Row): number {
+    let colAddr = 0
+    let maxH = row.height
+    for (const cell of row.cells) {
+        const span = cell.span ?? 1
+        const w = sumRange(COLS_MAIN, colAddr, span)
+        colAddr += span
+        const t = cell.text ?? ''
+        if (cell.picId || !t) continue
+        maxH = Math.max(maxH, estDisplayLines(t, w) * LINE_H + CELL_PAD)
+    }
+    return maxH
+}
+
+// 1페이지 하단 여백이 남지 않도록, 남는 높이를 행 높이에 비례 배분해 표를 늘린다.
+// 첫 행(TBM리더)은 서명 겹침 좌표가 고정이라 늘리지 않는다.
+function stretchRowsToFillPage(rows: Row[]): Row[] {
+    const capacity = 69788 - 4420 - 1500 // 본문 세로 - 법조문·제목·붙임 줄 - 안전 버퍼
+    const est = rows.map(estRenderRowH)
+    const total = est.reduce((a, b) => a + b, 0)
+    if (total >= capacity) return rows
+    const stretchable = total - est[0]
+    const scale = (capacity - est[0]) / stretchable
+    return rows.map((row, i) => (i === 0 ? row : { ...row, height: Math.round(est[i] * scale) }))
+}
+
 // 좌우 칸의 표시 높이가 비슷해지도록 줄 단위 분할 지점을 찾는다
 function splitWorkDescLines(text: string): [string, string] {
     const lines = text.split('\n')
@@ -527,7 +554,7 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: num
         ],
     })
 
-    return rows
+    return stretchRowsToFillPage(rows)
 }
 
 // ── 근로자 교육 확인 서명부(별지) 표 구성 ──
