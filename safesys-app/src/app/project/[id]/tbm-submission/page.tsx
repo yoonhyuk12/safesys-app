@@ -12,7 +12,7 @@ import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import { generateTBMSubmissionReport, generateTBMSubmissionReportBlob, generateTBMSubmissionBulkReport, generateHTMLPagePDF, TBMSubmissionFormData } from '@/lib/reports/tbm-submission-report'
 import { createTBMTodayQRPosterHTML } from '@/lib/reports/tbm-today-qr-poster'
 import { downloadTBMSubmissionExcel, downloadTBMSubmissionBulkExcel } from '@/lib/excel/tbm-submission-export'
-import { downloadTBMSubmissionHwpx } from '@/lib/hwpx/tbm-submission-hwpx-export'
+import { downloadTBMSubmissionHwpx, downloadTBMSubmissionBulkHwpx } from '@/lib/hwpx/tbm-submission-hwpx-export'
 import type { TBMWorkerSignatureEntry } from '@/lib/excel/tbm-worker-signature-export'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
 
@@ -53,7 +53,7 @@ export default function TBMSubmissionPage() {
   const [downloadMenuId, setDownloadMenuId] = useState<string | null>(null)
   const [isPrintMode, setIsPrintMode] = useState(false)
   const [selectedPrintDates, setSelectedPrintDates] = useState<string[]>([])
-  const [bulkDownloadingFormat, setBulkDownloadingFormat] = useState<'pdf' | 'excel' | null>(null)
+  const [bulkDownloadingFormat, setBulkDownloadingFormat] = useState<'pdf' | 'excel' | 'hwpx' | null>(null)
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null)
   const [editingSubmission, setEditingSubmission] = useState<TBMSubmission | null>(null)
   const [qrSubmission, setQrSubmission] = useState<TBMSubmission | null>(null)
@@ -471,7 +471,7 @@ export default function TBMSubmissionPage() {
     return map
   }
 
-  const handleBulkDownloadReport = async (format: 'pdf' | 'excel') => {
+  const handleBulkDownloadReport = async (format: 'pdf' | 'excel' | 'hwpx') => {
     if (!project) return
 
     const targetSubmissions = getSubmissionsForDates(selectedPrintDates)
@@ -503,6 +503,15 @@ export default function TBMSubmissionPage() {
           onProgress: (current, total) => setBulkProgress({ current, total }),
           signaturesList: targetSubmissions.map(s => signatureMap.get(s.id))
         })
+      } else if (format === 'hwpx') {
+        const items = targetSubmissions.map(submission => ({
+          formData: buildFormData(submission),
+          signatures: signatureMap.get(submission.id)
+        }))
+        const filename = `${projectName}_TBM_${dateLabel}_일괄.hwpx`
+        await downloadTBMSubmissionBulkHwpx(items, filename, {
+          onProgress: (current, total) => setBulkProgress({ current, total })
+        })
       } else {
         const items = targetSubmissions.map((submission, index) => ({
           formData: buildFormData(submission),
@@ -515,7 +524,7 @@ export default function TBMSubmissionPage() {
         })
       }
     } catch (error: any) {
-      console.error(`${format === 'pdf' ? 'PDF' : 'Excel'} 벌크 다운로드 오류:`, error)
+      console.error(`${format === 'pdf' ? 'PDF' : format === 'hwpx' ? 'HWPX' : 'Excel'} 벌크 다운로드 오류:`, error)
       alert(`벌크 다운로드 중 오류가 발생했습니다: ${error.message || '알 수 없는 오류'}`)
     } finally {
       setBulkDownloadingFormat(null)
@@ -814,7 +823,7 @@ export default function TBMSubmissionPage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => handleBulkDownloadReport('pdf')}
                     disabled={selectedPrintSubmissions.length === 0 || bulkDownloadingFormat !== null}
@@ -835,6 +844,17 @@ export default function TBMSubmissionPage() {
                       <div className="h-4 w-4 mx-auto animate-spin rounded-full border-2 border-white border-t-transparent" />
                     ) : (
                       'Excel 벌크'
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleBulkDownloadReport('hwpx')}
+                    disabled={selectedPrintSubmissions.length === 0 || bulkDownloadingFormat !== null}
+                    className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {bulkDownloadingFormat === 'hwpx' ? (
+                      <div className="h-4 w-4 mx-auto animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    ) : (
+                      'HWPX 벌크'
                     )}
                   </button>
                 </div>
@@ -1047,7 +1067,7 @@ export default function TBMSubmissionPage() {
           <div className="w-full max-w-sm bg-white rounded-xl shadow-2xl border border-gray-200 p-6 text-center">
             <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
             <h3 className="text-base font-semibold text-gray-900">
-              {bulkDownloadingFormat === 'pdf' ? 'PDF' : 'Excel'} 일괄 보고서 생성 중
+              {bulkDownloadingFormat === 'pdf' ? 'PDF' : bulkDownloadingFormat === 'hwpx' ? 'HWPX' : 'Excel'} 일괄 보고서 생성 중
             </h3>
             <p className="mt-2 text-sm text-gray-600">
               파일을 준비하고 있습니다. 완료될 때까지 잠시만 기다려 주세요.

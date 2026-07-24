@@ -79,6 +79,10 @@ $null = $h.Open($file, "HWPX", ""); $h.SaveAs($pdf, "PDF", ""); $h.Quit()
 - Node에서 브라우저 모듈을 그대로 실행해 hwpx를 뽑는 하니스: `tsx`로 임포트하고 `document`(더미 앵커), `URL.createObjectURL`(블롭 가로채기), `Image`(크기 스텁)만 스텁하면 된다. 타입 전용 임포트는 런타임에 지워지므로 경로 별칭 문제 없음.
 - 레이아웃 수치가 미세하게 어긋나면 스크린샷 픽셀 추정으로 헤매지 말고 **정답 hwpx(한글 저장본 또는 사용자가 수정한 파일)를 unzip해 cellSz/height·colSpan·pic 좌표를 추출**해 이식하라 — 사용자가 한글에서 직접 고친 파일이 최고의 스펙이다.
 
+## 여러 건 묶음(벌크) 문서
+
+한 섹션에 건별 문단을 이어 붙인다. 건마다 (1) 첫 문단을 `pageBreak="1"`로 새 쪽 시작(secPr는 섹션 첫 문단에만), (2) 표 id를 건별로 유일하게(tblIdBase + n), (3) ImageCollector·pic 일련번호는 문서 전체에서 하나로 공유. PAPER 절대좌표 떠 있는 그림은 **앵커 문단이 놓인 쪽 기준**으로 적용되므로 뒤 페이지에서도 좌표 재계산 없이 그대로 동작한다(검증됨). 구현 예: TBM 모듈 `buildSubmissionParts`/`downloadTBMSubmissionBulkHwpx`.
+
 ## UI 통합 체크리스트
 
 - 다운로드 드롭다운에 항목 추가, `handleDownloadReport`류 format 유니언에 `'hwpx'` 추가.

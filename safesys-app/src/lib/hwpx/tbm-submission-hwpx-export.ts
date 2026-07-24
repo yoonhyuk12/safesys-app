@@ -583,13 +583,16 @@ function buildSignatureRows(entries: TBMWorkerSignatureEntry[]): Row[] {
 
 // ── 최종 조립 ──
 
-async function buildTbmHwpxBlob(
-    formData: TBMSubmissionFormData,
-    signatures: TBMWorkerSignatureEntry[]
-): Promise<Blob> {
-    resetPicSeq()
-    const collector = new ImageCollector()
+const LAW_TEXT = '건설기술 진흥법 시행령 103조(안전교육) 제3항에 따른 안전교육내용 기록'
 
+// 제출 1건의 본문 표(+서명부 별지) 문단들을 조립한다. first=false면 법조문 문단이 새 쪽에서 시작한다.
+async function buildSubmissionParts(
+    collector: ImageCollector,
+    formData: TBMSubmissionFormData,
+    signatures: TBMWorkerSignatureEntry[],
+    first: boolean,
+    tblIdBase: number
+): Promise<string[]> {
     // 이미지 수집: 사진(정규화 JPEG), 작성자 서명(원본 PNG-투명), 근로자 서명(원본 PNG-투명)
     const photoId = await collector.collect(formData.photo, false)
     const sigId = formData.signature ? await collector.collect(formData.signature, true) : null
@@ -599,7 +602,6 @@ async function buildTbmHwpxBlob(
         workerSigIds.push(e.signature ? await collector.collect(e.signature, true) : null)
     }
 
-    // section0.xml 본문 조립
     const parts: string[] = []
     // 쪽 기준 절대 배치 상수 (A4 세로, HWPUNIT). 왼쪽 여백 15mm=4252, 본문 시작 = 위 여백 3600 + 머리말 3600.
     const PAGE_LEFT = 4252
@@ -622,7 +624,7 @@ async function buildTbmHwpxBlob(
         photo = { id: photoId, w, h }
     }
 
-    parts.push(buildFirstParagraph('건설기술 진흥법 시행령 103조(안전교육) 제3항에 따른 안전교육내용 기록'))
+    parts.push(first ? buildFirstParagraph(LAW_TEXT) : buildTextParagraph(LAW_TEXT, 3, false, true))
     parts.push(buildTextParagraph('일일안전교육일지(TBM 회의록)', 2, true, false))
     // 작성자 서명: "(서명)" 문구 위에 크게 겹침. 크기·좌표는 사용자 수정본 실측값(표 오른쪽 밖 일부 돌출 허용).
     const mainFloats: string[] = []
@@ -631,7 +633,7 @@ async function buildTbmHwpxBlob(
         const sigX = PAGE_LEFT + COLS_MAIN.slice(0, 8).reduce((a, b) => a + b, 0) - 973
         mainFloats.push(buildFloatingPicXml(sigId, 10260, 3762, sigX, 10149))
     }
-    parts.push(buildTableParagraph(COLS_MAIN, buildTbmTableRows(formData, photo), 1000000001, 1, mainFloats))
+    parts.push(buildTableParagraph(COLS_MAIN, buildTbmTableRows(formData, photo), tblIdBase + 1, 1, mainFloats))
     parts.push(buildTextParagraph('붙임) TBM 참여 서명부 _ 작업장 출입 전.후 근로자 작업가능상태 점검', 5, false, false))
 
     if (signatures.length > 0) {
@@ -648,9 +650,30 @@ async function buildTbmHwpxBlob(
             if (!id || i >= 38) return
             sigFloats.push(buildFloatingPicXml(id, SIG_W, SIG_H, sigX, sigTableTop + 2200 + i * 1600 + Math.round((1600 - SIG_H) / 2)))
         })
-        parts.push(buildTableParagraph(COLS_SIG, buildSignatureRows(signatures), 1000000002, 2, sigFloats))
+        parts.push(buildTableParagraph(COLS_SIG, buildSignatureRows(signatures), tblIdBase + 2, 2, sigFloats))
         parts.push(buildTextParagraph('※ 작업가능 혈압 : 수축기 150미만, 단, 의사 소견서 첨부 시 작업 가능(심혈관질환자포함)', 7, false, false))
         parts.push(buildTextParagraph('    CCTV 촬영 : 근로자 재해예방 목적의 안전관리 모니터링 CCTV 촬영(개인정보 보호법 제15조 1항)', 7, false, false))
+    }
+
+    return parts
+}
+
+interface TbmHwpxItem {
+    formData: TBMSubmissionFormData
+    signatures?: TBMWorkerSignatureEntry[]
+}
+
+// 제출 목록을 하나의 hwpx로 조립한다 (건마다 새 쪽에서 시작)
+async function buildTbmHwpxBlob(
+    items: TbmHwpxItem[],
+    onProgress?: (current: number, total: number) => void
+): Promise<Blob> {
+    resetPicSeq()
+    const collector = new ImageCollector()
+    const parts: string[] = []
+    for (let i = 0; i < items.length; i++) {
+        parts.push(...await buildSubmissionParts(collector, items[i].formData, items[i].signatures ?? [], i === 0, 1000000000 + i * 10))
+        onProgress?.(i + 1, items.length)
     }
 
     const sectionXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hs:sec ${SEC_XMLNS}>${parts.join('')}</hs:sec>`
@@ -691,8 +714,17 @@ export async function downloadTBMSubmissionHwpx(
     filename?: string,
     options?: { signatures?: TBMWorkerSignatureEntry[] }
 ): Promise<void> {
-    const signatures = options?.signatures ?? []
-    const blob = await buildTbmHwpxBlob(formData, signatures)
+    const blob = await buildTbmHwpxBlob([{ formData, signatures: options?.signatures }])
     const defaultFilename = `${formData.projectName || '사업명'}_TBM_${formData.educationDate || new Date().toISOString().split('T')[0]}.hwpx`
     triggerDownload(blob, filename || defaultFilename)
+}
+
+// TBM 일지 여러 건을 한 hwpx로 묶어 다운로드 (건마다 새 쪽에서 시작)
+export async function downloadTBMSubmissionBulkHwpx(
+    items: TbmHwpxItem[],
+    filename: string,
+    options?: { onProgress?: (current: number, total: number) => void }
+): Promise<void> {
+    const blob = await buildTbmHwpxBlob(items, options?.onProgress)
+    triggerDownload(blob, filename)
 }
