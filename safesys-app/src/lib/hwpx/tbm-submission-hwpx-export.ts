@@ -347,6 +347,35 @@ const ROW_H = {
     factor: 2000, dailyCheck: 1700, etcHead: 1700, etcBody: 5368, photoHead: 1700, photoBody: 11280,
 } as const
 
+// 표시 줄 수 추정(줄바꿈 + 폭 기준 자동 줄바꿈). 전체 폭 기준 한 줄 약 40자 가정.
+function countDisplayLines(text: string): number {
+    return text.split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / 40)), 0)
+}
+
+// 작업내용이 1페이지를 넘길 만큼 길면 true — 데이터 칸을 좌우 2칸으로 나눠 담는 조건.
+// 수용 한계 = 본문 세로(69788) - 법조문·제목·붙임 줄(약 4420) - 작업내용 외 행 높이 합 - 안전 버퍼(2000).
+function shouldSplitWorkDesc(text: string): boolean {
+    const otherRows = ROW_H.leader + ROW_H.datetime + ROW_H.workName + ROW_H.place + ROW_H.riskHead
+        + ROW_H.risk * 3 + ROW_H.mainRisk + ROW_H.checkHead + ROW_H.factorHead + ROW_H.factor * 3
+        + ROW_H.dailyCheck + ROW_H.etcHead + ROW_H.etcBody + ROW_H.photoHead + ROW_H.photoBody
+    const maxH = 69788 - 4420 - otherRows - 2000
+    return countDisplayLines(text) * 1300 + 282 > maxH
+}
+
+// 좌우 칸의 표시 높이가 비슷해지도록 줄 단위 분할 지점을 찾는다
+function splitWorkDescLines(text: string): [string, string] {
+    const lines = text.split('\n')
+    const disp = lines.map(l => Math.max(1, Math.ceil(l.length / 40)))
+    const total = disp.reduce((a, b) => a + b, 0)
+    let acc = 0
+    let cut = lines.length
+    for (let i = 0; i < lines.length; i++) {
+        acc += disp[i]
+        if (acc >= total / 2) { cut = i + 1; break }
+    }
+    return [lines.slice(0, cut).join('\n'), lines.slice(cut).join('\n')]
+}
+
 function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: number; h: number } | null): Row[] {
     const dateTime = `${f.educationDate || ''} ${f.educationStartTime || ''} (20분) 작업 날짜와 동일함`
     const workName = `${f.projectName || ''} (${f.headquarters || ''}-${f.branch || ''})`
@@ -381,8 +410,21 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: num
     rows.push({ height: ROW_H.datetime, cells: [{ text: 'TBM 일시', span: 2, header: true, cp: 1, center: true }, { text: dateTime, span: 7 }] })
     // 작업명
     rows.push({ height: ROW_H.workName, cells: [{ text: '작업명', span: 2, header: true, cp: 1, center: true }, { text: workName, span: 7 }] })
-    // 작업내용
-    rows.push({ height: ROW_H.workDesc, cells: [{ text: '작업내용', span: 2, header: true, cp: 1, center: true }, { text: f.todayWork || '', span: 7, top: true }] })
+    // 작업내용 — 내용이 길어 1페이지를 넘길 상황이면 데이터 칸을 좌우 2칸으로 나눠 담는다
+    const workDesc = f.todayWork || ''
+    if (shouldSplitWorkDesc(workDesc)) {
+        const [left, right] = splitWorkDescLines(workDesc)
+        rows.push({
+            height: ROW_H.workDesc,
+            cells: [
+                { text: '작업내용', span: 2, header: true, cp: 1, center: true },
+                { text: left, span: 3, top: true },
+                { text: right, span: 4, top: true },
+            ],
+        })
+    } else {
+        rows.push({ height: ROW_H.workDesc, cells: [{ text: '작업내용', span: 2, header: true, cp: 1, center: true }, { text: workDesc, span: 7, top: true }] })
+    }
     // TBM 장소
     rows.push({
         height: ROW_H.place,
