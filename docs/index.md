@@ -21,4 +21,5 @@
 - `plans/` — 계획서(일급 아티팩트). 파일명 `YYYYMMDD_주제.md`. 진행 중·완료·기술부채가 버전 관리된다.
 - `database/*.sql` — SQL 마이그레이션. 파일명 `YYYYMMDD-HHMM_설명.sql`로 적용 순서 정렬.
 - `.claude/rules/` — 이식형 룰셋(공통+언어별). 이 프로젝트의 canonical 규칙은 [conventions.md](./conventions.md)이며 rules는 그 미러다.
+- `.claude/skills/hwpx-authoring/` — HWPX(한글문서) 생성 참조 스킬. 새 HWPX 다운로드 기능 추가나 hwpx가 한글에서 안 열리는 문제를 다룰 때 연다 (OWPML 패키지 구조, hp:pic 필수 구조, 떠 있는 그림 좌표, 검증 루프).
 - `.claude/docs/` — 별도 운영 가이드(TROUBLESHOOTING, 보안/롱폼 가이드 등).
