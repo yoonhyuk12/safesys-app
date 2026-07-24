@@ -109,10 +109,17 @@ function buildPicXml(binItemId: string, imgW: number, imgH: number, textWrap: st
     return `<hp:pic id="${id}" zOrder="${10 + _picSeq}" numberingType="PICTURE" textWrap="${textWrap}" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" href="" groupLevel="0" instid="${instid}" reverse="0"><hp:offset x="0" y="0"/><hp:orgSz width="${imgW}" height="${imgH}"/><hp:curSz width="0" height="0"/><hp:flip horizontal="0" vertical="0"/><hp:rotationInfo angle="0" centerX="0" centerY="0" rotateimage="1"/><hp:renderingInfo>${identity}</hp:renderingInfo><hp:imgRect><hc:pt0 x="0" y="0"/><hc:pt1 x="${imgW}" y="0"/><hc:pt2 x="${imgW}" y="${imgH}"/><hc:pt3 x="0" y="${imgH}"/></hp:imgRect><hp:imgClip left="0" right="0" top="0" bottom="0"/><hp:inMargin left="0" right="0" top="0" bottom="0"/><hp:imgDim dimwidth="0" dimheight="0"/><hc:img binaryItemIDRef="${binItemId}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/><hp:effects/><hp:sz width="${imgW}" widthRelTo="ABSOLUTE" height="${imgH}" heightRelTo="ABSOLUTE" protect="0"/>${pos}<hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:shapeComment>${binItemId}</hp:shapeComment></hp:pic>`
 }
 
-// 셀 안에 넣는 인라인 그림 (사진·서명 공용, 최종 크기를 직접 지정)
+// 셀 안에 넣는 인라인 그림 (사진용, 최종 크기를 직접 지정)
 function buildInlinePicXml(binItemId: string, imgW: number, imgH: number): string {
     const pos = `<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>`
     return buildPicXml(binItemId, Math.max(1, imgW), Math.max(1, imgH), 'TOP_AND_BOTTOM', pos)
+}
+
+// "(서명)" 문구 위에 겹치는 떠 있는 그림(서명용). 쪽(PAPER) 기준 절대 좌표라 표 밖 돌출도 허용된다.
+// textWrap은 반드시 IN_FRONT_OF_TEXT(글 앞으로) — THROUGH는 한글 2020이 자리차지로 처리해 표를 밀어낸다.
+function buildFloatingPicXml(binItemId: string, imgW: number, imgH: number, xPaper: number, yPaper: number): string {
+    const pos = `<hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="0" allowOverlap="1" holdAnchorAndSO="0" vertRelTo="PAPER" horzRelTo="PAPER" vertAlign="TOP" horzAlign="LEFT" vertOffset="${yPaper}" horzOffset="${xPaper}"/>`
+    return buildPicXml(binItemId, imgW, imgH, 'IN_FRONT_OF_TEXT', pos)
 }
 
 // ── OWPML 부속 파일(고정 보일러플레이트) ──
@@ -273,8 +280,8 @@ function buildCellXml(cell: Cell, colAddr: number, rowAddr: number, width: numbe
     return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="${bf}">${subList}<hp:cellAddr colAddr="${colAddr}" rowAddr="${rowAddr}"/><hp:cellSpan colSpan="${span}" rowSpan="1"/><hp:cellSz width="${width}" height="${height}"/><hp:cellMargin left="141" right="141" top="141" bottom="141"/></hp:tc>`
 }
 
-// 표를 감싼 문단 XML 반환
-function buildTableParagraph(colWidths: number[], rows: Row[], tblId: number, zOrder: number): string {
+// 표를 감싼 문단 XML 반환. floats는 이 표가 놓인 쪽에 겹칠 떠 있는 그림 XML 목록.
+function buildTableParagraph(colWidths: number[], rows: Row[], tblId: number, zOrder: number, floats: string[] = []): string {
     const colCnt = colWidths.length
     const trs = rows.map((row, r) => {
         let colAddr = 0
@@ -289,7 +296,7 @@ function buildTableParagraph(colWidths: number[], rows: Row[], tblId: number, zO
     }).join('')
     const totalW = colWidths.reduce((a, b) => a + b, 0)
     const tbl = `<hp:tbl id="${tblId}" zOrder="${zOrder}" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${rows.length}" colCnt="${colCnt}" cellSpacing="0" borderFillIDRef="2" noAdjust="0"><hp:sz width="${totalW}" widthRelTo="ABSOLUTE" height="0" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/>${trs}</hp:tbl>`
-    return `<hp:p id="${nextId()}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0">${tbl}<hp:t/></hp:run>${lineseg(CONTENT_WIDTH, 1000)}</hp:p>`
+    return `<hp:p id="${nextId()}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0">${floats.join('')}${tbl}<hp:t/></hp:run>${lineseg(CONTENT_WIDTH, 1000)}</hp:p>`
 }
 
 // 표 밖 단독 문단(법조문·제목·하단메모·서명부 제목 등)
@@ -317,7 +324,15 @@ function getDayOfWeek(dateStr: string): string {
     return isNaN(d.getTime()) ? '' : days[d.getDay()]
 }
 
-function buildTbmTableRows(f: TBMSubmissionFormData, photoId: string | null, sigId: string | null): Row[] {
+// 1페이지 표 행 높이(HWPUNIT). 합계가 본문 세로(약 69,788)에서 법조문·제목·붙임 줄을 뺀 값에 맞아
+// 하단 여백 없이 페이지가 채워지도록 조절돼 있다. 사진 행이 잔여 높이를 흡수한다.
+const ROW_H = {
+    leader: 2600, datetime: 1700, workName: 1700, workDesc: 3600, place: 1800,
+    riskHead: 1800, risk: 2200, mainRisk: 2400, checkHead: 1700, factorHead: 1700,
+    factor: 2000, dailyCheck: 1700, etcHead: 1700, etcBody: 6500, photoHead: 1700, photoBody: 19500,
+} as const
+
+function buildTbmTableRows(f: TBMSubmissionFormData, photoId: string | null): Row[] {
     const dateTime = `${f.educationDate || ''} ${f.educationStartTime || ''} (20분) 작업 날짜와 동일함`
     const workName = `${f.projectName || ''} (${f.headquarters || ''}-${f.branch || ''})`
 
@@ -336,27 +351,26 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photoId: string | null, sig
 
     const rows: Row[] = []
 
-    // TBM리더
+    // TBM리더 — 서명 이미지는 쪽 기준 떠 있는 그림으로 "(서명)" 위에 겹친다
     rows.push({
-        height: 2600,
+        height: ROW_H.leader,
         cells: [
             { text: 'TBM리더', span: 2, header: true, cp: 1, center: true },
             { text: `◆ 소속 : ${f.constructionCompany || ''}`, span: 3 },
             { text: '이름', header: true, cp: 1, center: true },
             { text: f.name || '', center: true },
-            // 서명이 있으면 "(서명)" 자리에 서명 이미지를 넣는다 (한글 2020은 떠 있는 그림 겹침 좌표가 불안정)
-            sigId ? { picId: sigId, picW: SIG_W, picH: SIG_H, center: true } : { text: '(서명)', center: true },
+            { text: '(서명)', center: true },
         ],
     })
     // TBM 일시
-    rows.push({ height: 1500, cells: [{ text: 'TBM 일시', span: 2, header: true, cp: 1, center: true }, { text: dateTime, span: 6 }] })
+    rows.push({ height: ROW_H.datetime, cells: [{ text: 'TBM 일시', span: 2, header: true, cp: 1, center: true }, { text: dateTime, span: 6 }] })
     // 작업명
-    rows.push({ height: 1500, cells: [{ text: '작업명', span: 2, header: true, cp: 1, center: true }, { text: workName, span: 6 }] })
+    rows.push({ height: ROW_H.workName, cells: [{ text: '작업명', span: 2, header: true, cp: 1, center: true }, { text: workName, span: 6 }] })
     // 작업내용
-    rows.push({ height: 2400, cells: [{ text: '작업내용', span: 2, header: true, cp: 1, center: true }, { text: f.todayWork || '', span: 6, top: true }] })
+    rows.push({ height: ROW_H.workDesc, cells: [{ text: '작업내용', span: 2, header: true, cp: 1, center: true }, { text: f.todayWork || '', span: 6, top: true }] })
     // TBM 장소
     rows.push({
-        height: 1600,
+        height: ROW_H.place,
         cells: [
             { text: 'TBM 장소', span: 2, header: true, cp: 1, center: true },
             { text: f.address || '', span: 3 },
@@ -366,7 +380,7 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photoId: string | null, sig
     })
     // 잠재위험요인 머리
     rows.push({
-        height: 1600,
+        height: ROW_H.riskHead,
         cells: [
             { text: '잠재위험요인(수시위험성평가와 연계)', span: 4, header: true, cp: 1, center: true },
             { text: '대책(제거>대체>통제 순서고려)', span: 4, header: true, cp: 1, center: true },
@@ -375,7 +389,7 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photoId: string | null, sig
     // 잠재위험요인 1~3
     risks.forEach((it, i) => {
         rows.push({
-            height: 1600,
+            height: ROW_H.risk,
             cells: [
                 { text: `${i + 1}. ${(it.r || '').trim()}`, span: 4, top: true },
                 { text: `${i + 1}. ${(it.s || '').trim()}`, span: 4, top: true },
@@ -384,7 +398,7 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photoId: string | null, sig
     })
     // 중점위험요인
     rows.push({
-        height: 2000,
+        height: ROW_H.mainRisk,
         cells: [
             { text: '중점위험\n요인', span: 2, header: true, cp: 1, center: true },
             { text: `선정: ${(f.mainRiskSelection || '').trim()}`, span: 3, top: true },
@@ -392,10 +406,10 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photoId: string | null, sig
         ],
     })
     // 안전조치 확인 머리
-    rows.push({ height: 1500, cells: [{ text: '■ 작업 전 안전조치 확인 ※ 위 잠재위험요인(중점위험 포함) 안전조치 여부 재확인', span: 8, header: true, cp: 1 }] })
+    rows.push({ height: ROW_H.checkHead, cells: [{ text: '■ 작업 전 안전조치 확인 ※ 위 잠재위험요인(중점위험 포함) 안전조치 여부 재확인', span: 8, header: true, cp: 1 }] })
     // 잠재위험요소 머리
     rows.push({
-        height: 1500,
+        height: ROW_H.factorHead,
         cells: [
             { text: '잠재위험요소(중점위험 포함)', span: 6, header: true, cp: 1, center: true },
             { text: '조치여부', span: 2, header: true, cp: 1, center: true },
@@ -404,7 +418,7 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photoId: string | null, sig
     // 잠재위험요소 1~3
     factors.forEach((fa, i) => {
         rows.push({
-            height: 1500,
+            height: ROW_H.factor,
             cells: [
                 { text: `${i + 1}. ${(fa || '').trim()}`, span: 6, top: true },
                 { text: '예 ☑ 아니오 ☐', span: 2, center: true },
@@ -412,25 +426,25 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photoId: string | null, sig
         })
     })
     // 일일안전점검
-    rows.push({ height: 1500, cells: [{ text: '■ 작업 전 일일 안전점검 시행 결과 ※ 공사현장 일일안전점검을 통해 위험성평가 이행 확인', span: 8, header: true, cp: 1 }] })
+    rows.push({ height: ROW_H.dailyCheck, cells: [{ text: '■ 작업 전 일일 안전점검 시행 결과 ※ 공사현장 일일안전점검을 통해 위험성평가 이행 확인', span: 8, header: true, cp: 1 }] })
     // 기타사항 머리
-    rows.push({ height: 1500, cells: [{ text: '■ 기타사항(교육내용, 제안제도, 아차사고 등)', span: 8, header: true, cp: 1 }] })
+    rows.push({ height: ROW_H.etcHead, cells: [{ text: '■ 기타사항(교육내용, 제안제도, 아차사고 등)', span: 8, header: true, cp: 1 }] })
     // 기타사항 내용
-    rows.push({ height: 3200, cells: [{ text: (f.otherRemarks || '').trimStart(), span: 8, top: true }] })
+    rows.push({ height: ROW_H.etcBody, cells: [{ text: (f.otherRemarks || '').trimStart(), span: 8, top: true }] })
     // 사진/투입 머리
     rows.push({
-        height: 1500,
+        height: ROW_H.photoHead,
         cells: [
             { text: 'TBM 실시사진', span: 3, header: true, cp: 1, center: true },
             { text: '투입인원', span: 2, header: true, cp: 1, center: true },
             { text: '투입장비', span: 3, header: true, cp: 1, center: true },
         ],
     })
-    // 사진/투입 데이터
+    // 사진/투입 데이터 — 사진 행이 페이지 잔여 높이를 흡수한다
     rows.push({
-        height: 9500,
+        height: ROW_H.photoBody,
         cells: [
-            photoId ? { span: 3, picId: photoId, picH: 9000, center: true } : { text: '사진 없음', span: 3, cp: 7, center: true },
+            photoId ? { span: 3, picId: photoId, picH: ROW_H.photoBody - 600, center: true } : { text: '사진 없음', span: 3, cp: 7, center: true },
             { text: personnel, span: 2, top: true },
             { text: equipment, span: 3, top: true },
         ],
@@ -447,7 +461,7 @@ const COLS_SIG = [2648, 6353, 5825, 4766, 5296, 5296, 5296, 5296, 7414]
 const SIG_W = 3000
 const SIG_H = 1100
 
-function buildSignatureRows(entries: TBMWorkerSignatureEntry[], sigIds: (string | null)[]): Row[] {
+function buildSignatureRows(entries: TBMWorkerSignatureEntry[]): Row[] {
     const rows: Row[] = []
     const headers = ['NO.', '성 명', 'TBM\n위.평확인', '음주여부', '혈압여부', '보호구\n착용여부', 'CCTV\n촬영동의', '몸(부상)\n여 부', '서 명']
     rows.push({ height: 2200, cells: headers.map(h => ({ text: h, header: true, cp: 1, center: true })) })
@@ -455,16 +469,10 @@ function buildSignatureRows(entries: TBMWorkerSignatureEntry[], sigIds: (string 
     const count = Math.max(entries.length, 15)
     for (let i = 0; i < count; i++) {
         const e = entries[i]
-        const sigId = sigIds[i] || null
         const vals = e
             ? [String(i + 1), e.worker_name || '', e.tbm_confirmed ? '확인' : '', e.no_alcohol ? 'X' : '', e.blood_pressure_ok ? '150미만' : '', e.ppe_worn ? '착용' : '', e.cctv_consent ? '동의' : '', e.body_ok ? '이상없음' : '', '']
             : [String(i + 1), '', '', '', '', '', '', '', '']
-        rows.push({
-            height: 1600,
-            cells: vals.map((v, c) => (c === 8 && sigId)
-                ? { picId: sigId, picW: SIG_W, picH: SIG_H, center: true }
-                : { text: v, center: true }),
-        })
+        rows.push({ height: 1600, cells: vals.map(v => ({ text: v, center: true })) })
     }
     return rows
 }
@@ -489,9 +497,22 @@ async function buildTbmHwpxBlob(
 
     // section0.xml 본문 조립
     const parts: string[] = []
+    // 쪽 기준 절대 배치 상수 (A4 세로, HWPUNIT). 왼쪽 여백 5669, 본문 시작 = 위 여백 3600 + 머리말 3600.
+    const PAGE_LEFT = 5669
+    const PAGE_CONTENT_TOP = 7200
+    const line = (cpHeight: number) => Math.round(cpHeight * 1.3) // 줄간격 130%
+
     parts.push(buildFirstParagraph('건설기술 진흥법 시행령 103조(안전교육) 제3항에 따른 안전교육내용 기록'))
     parts.push(buildTextParagraph('일일안전교육일지(TBM 회의록)', 2, true, false))
-    parts.push(buildTableParagraph(COLS_MAIN, buildTbmTableRows(formData, photoId, sigId), 1000000001, 1))
+    // 작성자 서명: 1페이지 첫 행 "(서명)" 문구 위 (법조문·제목 줄 아래 표 첫 행 중앙)
+    const mainFloats: string[] = []
+    if (sigId) {
+        // 마지막 항은 한글 2020 렌더 실측 보정값
+        const x = PAGE_LEFT + COLS_MAIN.slice(0, 7).reduce((a, b) => a + b, 0) + Math.round((COLS_MAIN[7] - SIG_W) / 2) + 150
+        const y = PAGE_CONTENT_TOP + line(700) + line(1600) + Math.round((ROW_H.leader - SIG_H) / 2) + 1800
+        mainFloats.push(buildFloatingPicXml(sigId, SIG_W, SIG_H, x, y))
+    }
+    parts.push(buildTableParagraph(COLS_MAIN, buildTbmTableRows(formData, photoId), 1000000001, 1, mainFloats))
     parts.push(buildTextParagraph('붙임) TBM 참여 서명부 _ 작업장 출입 전.후 근로자 작업가능상태 점검', 5, false, false))
 
     if (signatures.length > 0) {
@@ -499,7 +520,16 @@ async function buildTbmHwpxBlob(
         parts.push(buildTextParagraph('일일안전교육 서명부', 2, true, true))
         parts.push(buildTextParagraph('작업장 출입 전 근로자 작업가능상태 점검', 6, true, false))
         parts.push(buildTextParagraph(`일자: ${formData.educationDate || ''}(${dow})`, 1, false, false))
-        parts.push(buildTableParagraph(COLS_SIG, buildSignatureRows(signatures, workerSigIds), 1000000002, 2))
+        // 근로자 서명: 2페이지 서명부 표의 서명 칸 위 (쪽 기준 좌표라 2페이지를 넘는 행은 생략)
+        const sigFloats: string[] = []
+        // 마지막 항은 한글 2020 렌더 실측 보정값
+        const sigX = PAGE_LEFT + COLS_SIG.slice(0, 8).reduce((a, b) => a + b, 0) + Math.round((COLS_SIG[8] - SIG_W) / 2) + 350
+        const sigTableTop = PAGE_CONTENT_TOP + line(1600) + line(1200) + line(1000) + 1250
+        workerSigIds.forEach((id, i) => {
+            if (!id || i >= 38) return
+            sigFloats.push(buildFloatingPicXml(id, SIG_W, SIG_H, sigX, sigTableTop + 2200 + i * 1600 + Math.round((1600 - SIG_H) / 2)))
+        })
+        parts.push(buildTableParagraph(COLS_SIG, buildSignatureRows(signatures), 1000000002, 2, sigFloats))
         parts.push(buildTextParagraph('※ 작업가능 혈압 : 수축기 150미만, 단, 의사 소견서 첨부 시 작업 가능(심혈관질환자포함)', 7, false, false))
         parts.push(buildTextParagraph('    CCTV 촬영 : 근로자 재해예방 목적의 안전관리 모니터링 CCTV 촬영(개인정보 보호법 제15조 1항)', 7, false, false))
     }
