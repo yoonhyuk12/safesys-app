@@ -186,6 +186,8 @@ const SEC_XMLNS = `xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:hp="h
 
 // A4 세로 페이지 본문 폭(HWPUNIT): 59528 - 좌우여백 15mm(4252)*2 = 51024
 const CONTENT_WIDTH = 51024
+// A4 세로 본문 세로: 84188 - 상하 (3600+3600)*2
+const CONTENT_HEIGHT = 69788
 const PAGE_LEFT = 4252
 const PAGE_CONTENT_TOP = 7200
 
@@ -202,8 +204,8 @@ const MIN_VERIFICATION_ROWS = 3
 
 const ROW_H_HEADER = 1800
 const ROW_H_DATA = 1600
-const ROW_H_SIGNER = 1600
-const ROW_H_GAP = 600
+const LINE_H = 1300 // 10pt × 줄간격 130%
+const CELL_PAD = 282
 
 // 첫 문단에 들어가는 구역 속성(A4 세로)
 const SECPR = `<hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="1" memoShapeIDRef="1" textVerticalWidthHead="0" masterPageCnt="0"><hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/><hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/><hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/><hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/><hp:pagePr landscape="WIDELY" width="59528" height="84188" gutterType="LEFT_ONLY"><hp:margin header="3600" footer="3600" gutter="0" left="4252" right="4252" top="3600" bottom="3600"/></hp:pagePr><hp:footNotePr><hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="283" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="EACH_COLUMN" beneathText="0"/></hp:footNotePr><hp:endNotePr><hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="14692344" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="0" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="END_OF_DOCUMENT" beneathText="0"/></hp:endNotePr><hp:pageBorderFill type="BOTH" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill><hp:pageBorderFill type="EVEN" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill><hp:pageBorderFill type="ODD" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill></hp:secPr>`
@@ -401,6 +403,71 @@ function tableHeight(rows: Row[]): number {
   return rows.reduce((s, r) => s + r.height, 0)
 }
 
+// 셀 폭 기준 표시 줄 수 추정(줄바꿈 + 자동 줄바꿈) — 10pt 한글 글자 폭 약 1000 HWPUNIT
+function estDisplayLines(text: string, cellW: number): number {
+  const charsPerLine = Math.max(10, Math.floor((cellW - CELL_PAD) / 1000))
+  return text.split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / charsPerLine)), 0)
+}
+
+// 선언 최소 높이와 셀 내용 높이 중 큰 값
+function estRenderRowH(row: Row): number {
+  let colAddr = 0
+  let maxH = row.height
+  for (const cell of row.cells) {
+    const span = cell.span ?? 1
+    const w = sumRange(COLS_9, colAddr, span)
+    colAddr += span
+    const t = cell.text ?? ''
+    if (!t) continue
+    maxH = Math.max(maxH, estDisplayLines(t, w) * LINE_H + CELL_PAD)
+  }
+  return maxH
+}
+
+// 표 밖 고정 문단 높이 합(조립 순서와 동일). 표 행 확대 여유 계산에 사용.
+function fixedNonTableHeight(): number {
+  return (
+    paraLineH(3) + // [별지 2호]
+    paraLineH(2) + // 제목
+    paraLineH(3) + // 부제
+    paraLineH(0) + // 1. 공사명
+    paraLineH(0) + // 2. 공사기간
+    paraLineH(1) + // 3. 기성…
+    paraLineH(3) + // 표 사이 간격
+    paraLineH(1) + // 4. 품질검사…
+    paraLineH(3) + // 표 사이 간격
+    paraLineH(1) + // 5. 확인시험…
+    paraLineH(3) + // 표 뒤 간격
+    paraLineH(0) + // 작성일시
+    3 * paraLineH(0) + // 작성·검토·확인자
+    4 * paraLineH(8) // 기입요령
+  )
+}
+
+// 하단 여백이 남으면 세 표의 모든 행 높이를 비례 확대해 1페이지를 채운다.
+// 내용이 이미 본문을 채우거나 넘치면 확대하지 않고 내용 기반 최소 높이만 반영한다.
+function stretchTablesToFillPage(
+  settlementRows: Row[],
+  qualityRows: Row[],
+  verificationRows: Row[]
+): [Row[], Row[], Row[]] {
+  const tables = [settlementRows, qualityRows, verificationRows]
+  const estTables = tables.map((rows) => rows.map(estRenderRowH))
+  const tableTotal = estTables.reduce((sum, hs) => sum + hs.reduce((a, b) => a + b, 0), 0)
+  // 추정 오차로 다음 페이지로 밀리지 않도록 소폭 버퍼
+  const capacity = CONTENT_HEIGHT - fixedNonTableHeight() - 400
+  if (tableTotal <= 0) return [settlementRows, qualityRows, verificationRows]
+  if (tableTotal >= capacity) {
+    return tables.map((rows, ti) =>
+      rows.map((row, ri) => ({ ...row, height: estTables[ti][ri] }))
+    ) as [Row[], Row[], Row[]]
+  }
+  const scale = capacity / tableTotal
+  return tables.map((rows, ti) =>
+    rows.map((row, ri) => ({ ...row, height: Math.round(estTables[ti][ri] * scale) }))
+  ) as [Row[], Row[], Row[]]
+}
+
 function buildSettlementRows(report: QualitySummaryFormData): Row[] {
   const rows: Row[] = []
   rows.push({
@@ -542,11 +609,13 @@ async function buildQualitySummaryHwpxBlob(
     sigIds.push(s.signature ? await collector.collect(s.signature, true) : null)
   }
 
-  const settlementRows = buildSettlementRows(report)
-  const qualityRows = buildQualityRows(report)
-  const verificationRows = buildVerificationRows(report)
+  const [settlementRows, qualityRows, verificationRows] = stretchTablesToFillPage(
+    buildSettlementRows(report),
+    buildQualityRows(report),
+    buildVerificationRows(report)
+  )
 
-  // 본문 높이 누적 → 서명 줄 Y 추정
+  // 본문 높이 누적 → 서명 줄 Y 추정 (표 확대 반영 후)
   let yCursor = PAGE_CONTENT_TOP
   yCursor += paraLineH(3) // [별지 2호]
   yCursor += paraLineH(2) // 제목
@@ -555,20 +624,21 @@ async function buildQualitySummaryHwpxBlob(
   yCursor += paraLineH(0) // 2. 공사기간
   yCursor += paraLineH(1) // 3. 기성…
   yCursor += tableHeight(settlementRows)
-  yCursor += ROW_H_GAP
+  yCursor += paraLineH(3) // 표 사이 간격
   yCursor += paraLineH(1) // 4. 품질검사…
   yCursor += tableHeight(qualityRows)
-  yCursor += ROW_H_GAP
+  yCursor += paraLineH(3) // 표 사이 간격
   yCursor += paraLineH(1) // 5. 확인시험…
   yCursor += tableHeight(verificationRows)
-  yCursor += 800 // 표 뒤 여유
+  yCursor += paraLineH(3) // 표 뒤 간격
   yCursor += paraLineH(0) // 작성일시
 
   // 서명 줄 Y (각 줄 시작 기준, 세로 가운데 근처 보정)
+  const signerLineH = paraLineH(0)
   const signerYs: number[] = []
   for (let i = 0; i < signers.length; i++) {
-    signerYs.push(yCursor + Math.round((ROW_H_SIGNER - SIG_H) / 2))
-    yCursor += ROW_H_SIGNER
+    signerYs.push(yCursor + Math.round((signerLineH - SIG_H) / 2))
+    yCursor += signerLineH
   }
 
   // (인) 근처 = 페이지 오른쪽
