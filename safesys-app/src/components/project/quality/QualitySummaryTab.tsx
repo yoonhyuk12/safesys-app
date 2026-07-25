@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignatureModal from '@/components/project/SignatureModal'
 import { downloadQualitySummaryExcel } from '@/lib/excel/quality-summary-export'
+import { downloadQualitySummaryHwpx } from '@/lib/hwpx/quality-summary-hwpx-export'
 import {
   QualitySummaryReport,
   QualitySummaryFormData,
@@ -302,13 +303,21 @@ export default function QualitySummaryTab({
     loadReports()
   }
 
-  const handleDownload = async (report: QualitySummaryFormData, id: string) => {
+  const handleDownload = async (
+    report: QualitySummaryFormData,
+    id: string,
+    format: 'excel' | 'hwpx'
+  ) => {
     setDownloadingId(id)
     try {
-      await downloadQualitySummaryExcel(report, projectName)
+      if (format === 'hwpx') {
+        await downloadQualitySummaryHwpx(report, projectName)
+      } else {
+        await downloadQualitySummaryExcel(report, projectName)
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '알 수 없는 오류'
-      alert('엑셀 생성 실패: ' + message)
+      alert(`${format === 'hwpx' ? 'HWPX' : '엑셀'} 생성 실패: ` + message)
     } finally {
       setDownloadingId(null)
     }
@@ -510,7 +519,7 @@ export default function QualitySummaryTab({
                   <th className="px-2 py-2 text-center whitespace-nowrap">작성일</th>
                   <th className="px-2 py-2 text-center whitespace-nowrap">공정(%)</th>
                   <th className="px-2 py-2 text-center whitespace-nowrap">작성자</th>
-                  <th className="px-2 py-2 text-center whitespace-nowrap">엑셀</th>
+                  <th className="px-2 py-2 text-center whitespace-nowrap">다운로드</th>
                   <th className="px-2 py-2 text-center whitespace-nowrap">삭제</th>
                 </tr>
               </thead>
@@ -540,17 +549,30 @@ export default function QualitySummaryTab({
                       </span>
                     </td>
                     <td className="px-2 py-2 text-center">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDownload(report, report.id)
-                        }}
-                        disabled={downloadingId === report.id}
-                        className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50"
-                        title="엑셀 다운로드"
-                      >
-                        <Download className="h-4 w-4" />
-                      </button>
+                      <div className="inline-flex items-center justify-center gap-0.5">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownload(report, report.id, 'excel')
+                          }}
+                          disabled={downloadingId === report.id}
+                          className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50"
+                          title="엑셀 다운로드"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDownload(report, report.id, 'hwpx')
+                          }}
+                          disabled={downloadingId === report.id}
+                          className="p-1 text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                          title="HWPX 다운로드"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                     <td className="px-2 py-2 text-center">
                       {(report.created_by === userId || canDeleteReports) && (
@@ -940,15 +962,26 @@ export default function QualitySummaryTab({
 
             <div className="flex justify-end gap-2 pt-1">
               {editingReportId && (
-                <button
-                  onClick={() => handleDownload(formData, editingReportId)}
-                  disabled={downloadingId === editingReportId}
-                  className="flex items-center gap-1 px-3 py-2 text-sm text-green-700 bg-green-50 border border-green-300 rounded-lg hover:bg-green-100 disabled:opacity-50"
-                  title="성과 총괄표 엑셀 다운로드"
-                >
-                  <Download className="h-4 w-4" />
-                  엑셀
-                </button>
+                <>
+                  <button
+                    onClick={() => handleDownload(formData, editingReportId, 'excel')}
+                    disabled={downloadingId === editingReportId}
+                    className="flex items-center gap-1 px-3 py-2 text-sm text-green-700 bg-green-50 border border-green-300 rounded-lg hover:bg-green-100 disabled:opacity-50"
+                    title="성과 총괄표 엑셀 다운로드"
+                  >
+                    <Download className="h-4 w-4" />
+                    엑셀
+                  </button>
+                  <button
+                    onClick={() => handleDownload(formData, editingReportId, 'hwpx')}
+                    disabled={downloadingId === editingReportId}
+                    className="flex items-center gap-1 px-3 py-2 text-sm text-blue-700 bg-blue-50 border border-blue-300 rounded-lg hover:bg-blue-100 disabled:opacity-50"
+                    title="성과 총괄표 HWPX 다운로드"
+                  >
+                    <FileText className="h-4 w-4" />
+                    HWPX
+                  </button>
+                </>
               )}
               <button
                 onClick={resetForm}
