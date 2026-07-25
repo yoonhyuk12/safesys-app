@@ -403,9 +403,9 @@ function tableHeight(rows: Row[]): number {
   return rows.reduce((s, r) => s + r.height, 0)
 }
 
-// 셀 폭 기준 표시 줄 수 추정(줄바꿈 + 자동 줄바꿈) — 10pt 한글 글자 폭 약 1000 HWPUNIT
+// 셀 폭 기준 표시 줄 수 추정 — 글자 폭을 여유 있게(1100) 잡아 줄바꿈 과소평가를 줄인다.
 function estDisplayLines(text: string, cellW: number): number {
-  const charsPerLine = Math.max(10, Math.floor((cellW - CELL_PAD) / 1000))
+  const charsPerLine = Math.max(8, Math.floor((cellW - CELL_PAD) / 1100))
   return text.split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / charsPerLine)), 0)
 }
 
@@ -424,7 +424,8 @@ function estRenderRowH(row: Row): number {
   return maxH
 }
 
-// 표 밖 고정 문단 높이 합(조립 순서와 동일). 표 행 확대 여유 계산에 사용.
+// 표 밖 고정 문단 높이 합(조립 순서와 동일). 표 행 배분 예산 계산에 사용.
+// 빈 간격 문단은 두지 않는다 — 페이지 넘김 원인이 되기 쉽다.
 function fixedNonTableHeight(): number {
   return (
     paraLineH(3) + // [별지 2호]
@@ -433,38 +434,62 @@ function fixedNonTableHeight(): number {
     paraLineH(0) + // 1. 공사명
     paraLineH(0) + // 2. 공사기간
     paraLineH(1) + // 3. 기성…
-    paraLineH(3) + // 표 사이 간격
     paraLineH(1) + // 4. 품질검사…
-    paraLineH(3) + // 표 사이 간격
     paraLineH(1) + // 5. 확인시험…
-    paraLineH(3) + // 표 뒤 간격
     paraLineH(0) + // 작성일시
     3 * paraLineH(0) + // 작성·검토·확인자
-    4 * paraLineH(8) // 기입요령
+    4 * paraLineH(8) + // 기입요령
+    // 표 래퍼 문단·줄간격 실측 오차 버퍼(표 3개)
+    3 * 800
   )
 }
 
-// 하단 여백이 남으면 세 표의 모든 행 높이를 비례 확대해 1페이지를 채운다.
-// 내용이 이미 본문을 채우거나 넘치면 확대하지 않고 내용 기반 최소 높이만 반영한다.
-function stretchTablesToFillPage(
+// 세 표 행 높이를 1페이지 예산에 맞춰 비례 배분한다.
+// - 내용이 짧으면 확대해 하단 여백을 줄이고
+// - 내용이 길면 축소해 반드시 1페이지 이내로 맞춘다
+// 합이 capacity를 절대 넘지 않게 floor + 잔여 분배한다.
+function fitTablesToOnePage(
   settlementRows: Row[],
   qualityRows: Row[],
   verificationRows: Row[]
 ): [Row[], Row[], Row[]] {
   const tables = [settlementRows, qualityRows, verificationRows]
   const estTables = tables.map((rows) => rows.map(estRenderRowH))
-  const tableTotal = estTables.reduce((sum, hs) => sum + hs.reduce((a, b) => a + b, 0), 0)
-  // 추정 오차로 다음 페이지로 밀리지 않도록 소폭 버퍼
-  const capacity = CONTENT_HEIGHT - fixedNonTableHeight() - 400
+  const flat = estTables.flat()
+  const tableTotal = flat.reduce((a, b) => a + b, 0)
+  // 한글이 행 선언값을 최소로만 쓰고 내용을 키우거나, 문단 간격이 더 클 수 있어 여유를 둔다.
+  const SAFETY = 2400
+  const capacity = Math.max(10000, CONTENT_HEIGHT - fixedNonTableHeight() - SAFETY)
   if (tableTotal <= 0) return [settlementRows, qualityRows, verificationRows]
-  if (tableTotal >= capacity) {
-    return tables.map((rows, ti) =>
-      rows.map((row, ri) => ({ ...row, height: estTables[ti][ri] }))
-    ) as [Row[], Row[], Row[]]
-  }
+
   const scale = capacity / tableTotal
-  return tables.map((rows, ti) =>
-    rows.map((row, ri) => ({ ...row, height: Math.round(estTables[ti][ri] * scale) }))
+  // floor로 예산 이하 → 남는 분을 앞에서부터 +1 해 합이 capacity에 도달(초과 금지)
+  const heights: number[] = flat.map((h) => Math.max(900, Math.floor(h * scale)))
+  let sum = heights.reduce((a, b) => a + b, 0)
+  let remain = capacity - sum
+  let i = 0
+  while (remain > 0 && heights.length > 0) {
+    heights[i % heights.length] += 1
+    remain -= 1
+    i += 1
+  }
+  // 방어: 합이 capacity 초과 시 뒤에서 깎음
+  sum = heights.reduce((a, b) => a + b, 0)
+  let over = sum - capacity
+  i = heights.length - 1
+  while (over > 0 && i >= 0) {
+    const cut = Math.min(over, Math.max(0, heights[i] - 900))
+    heights[i] -= cut
+    over -= cut
+    i -= 1
+  }
+
+  let idx = 0
+  return tables.map((rows) =>
+    rows.map((row) => {
+      const height = heights[idx++]
+      return { ...row, height }
+    })
   ) as [Row[], Row[], Row[]]
 }
 
@@ -609,13 +634,13 @@ async function buildQualitySummaryHwpxBlob(
     sigIds.push(s.signature ? await collector.collect(s.signature, true) : null)
   }
 
-  const [settlementRows, qualityRows, verificationRows] = stretchTablesToFillPage(
+  const [settlementRows, qualityRows, verificationRows] = fitTablesToOnePage(
     buildSettlementRows(report),
     buildQualityRows(report),
     buildVerificationRows(report)
   )
 
-  // 본문 높이 누적 → 서명 줄 Y 추정 (표 확대 반영 후)
+  // 본문 높이 누적 → 서명 줄 Y 추정 (1페이지 맞춤 반영 후)
   let yCursor = PAGE_CONTENT_TOP
   yCursor += paraLineH(3) // [별지 2호]
   yCursor += paraLineH(2) // 제목
@@ -624,13 +649,10 @@ async function buildQualitySummaryHwpxBlob(
   yCursor += paraLineH(0) // 2. 공사기간
   yCursor += paraLineH(1) // 3. 기성…
   yCursor += tableHeight(settlementRows)
-  yCursor += paraLineH(3) // 표 사이 간격
   yCursor += paraLineH(1) // 4. 품질검사…
   yCursor += tableHeight(qualityRows)
-  yCursor += paraLineH(3) // 표 사이 간격
   yCursor += paraLineH(1) // 5. 확인시험…
   yCursor += tableHeight(verificationRows)
-  yCursor += paraLineH(3) // 표 뒤 간격
   yCursor += paraLineH(0) // 작성일시
 
   // 서명 줄 Y (각 줄 시작 기준, 세로 가운데 근처 보정)
@@ -668,14 +690,11 @@ async function buildQualitySummaryHwpxBlob(
   )
   parts.push(buildTextParagraph('3. 기성 또는 정산량', 1, false, false))
   parts.push(buildTableParagraph(COLS_9, settlementRows, 1000000001, 1))
-  parts.push(buildTextParagraph('', 3, false, false)) // 간격
   parts.push(buildTextParagraph('4. 품질검사 종류 및 실적', 1, false, false))
   parts.push(buildTableParagraph(COLS_9, qualityRows, 1000000002, 2))
-  parts.push(buildTextParagraph('', 3, false, false))
   parts.push(buildTextParagraph('5. 확인시험 종류 및 실적', 1, false, false))
   // 서명 floats를 확인시험 표 앵커에 부착 (PAPER 절대좌표라 표 위치에 무관)
   parts.push(buildTableParagraph(COLS_9, verificationRows, 1000000003, 3, floats))
-  parts.push(buildTextParagraph('', 3, false, false))
   parts.push(
     buildTextParagraph(`작성일시 :        ${formatReportDate(report.report_date)}`, 0, true, false)
   )
