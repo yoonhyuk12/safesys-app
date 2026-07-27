@@ -202,7 +202,7 @@ const buildDataRow = (ws: ExcelJS.Worksheet, row: RiskAssessmentRow, topRow: num
   mergeSet(ws, `G${t}:G${b}`, row.frequency)
   mergeSet(ws, `H${t}:H${b}`, row.intensity)
   mergeSet(ws, `I${t}:I${b}`, formatRisk(score), { wrap: true })
-  mergeSet(ws, `J${t}:O${t}`, row.measures.join('\n'), { wrap: true, horizontal: 'left' })
+  mergeSet(ws, `J${t}:O${t}`, row.measures.map((measure) => `o ${measure}`).join('\n'), { wrap: true, horizontal: 'left' })
   mergeSet(ws, `P${t}:Q${t}`, formatRisk(row.improvedRisk), { wrap: true })
   setCell(ws, `R${t}`, row.managerSub, { wrap: true })
 

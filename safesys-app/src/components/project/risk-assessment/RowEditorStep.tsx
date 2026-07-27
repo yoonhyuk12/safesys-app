@@ -196,8 +196,11 @@ export default function RowEditorStep({ rows, detailWork, trigger, siteContext, 
                   </td>
                   <td className={CELL}>
                     <textarea
-                      value={row.measures.join('\n')}
-                      onChange={(event) => updateRow(index, { measures: event.target.value.split('\n') })}
+                      value={row.measures.map((measure) => `o ${measure}`).join('\n')}
+                      onChange={(event) => updateRow(index, {
+                        // 표시용 글머리표(o)는 저장 데이터에서 걷어낸다
+                        measures: event.target.value.split('\n').map((line) => line.replace(/^o\s?/, '')),
+                      })}
                       rows={Math.min(6, Math.max(2, row.measures.length))}
                       placeholder="한 줄에 대책 하나"
                       className={INPUT}
