@@ -32,9 +32,10 @@ import {
   escapeHtml,
   mapSection,
   personBlock,
-  renderWorkPlanPdf,
+  renderWorkPlanPdfPacked,
   riskControlTable,
   sectionTitle,
+  type WorkPlanPdfBlock,
 } from './work-plan-pdf-common'
 
 type ExcavationForm = NonNullable<WorkPlanRecord['form_data']['excavation']>
@@ -326,53 +327,49 @@ function riskPage(form: ExcavationForm): string {
   return riskControlTable('9. 중점 안전·보건 대책 — 위험요인 및 개선대책', '작업단계', rows)
 }
 
-// 체크리스트 15항목을 8+7로 나눠 축소·잘림을 방지한다.
-function checklistPages(): string[] {
-  const mid = 8
-  const first = EXCAVATION_CHECKLIST.slice(0, mid)
-  const second = EXCAVATION_CHECKLIST.slice(mid)
-  return [
-    checklistTable('9. 중점 안전·보건 대책 — 안전점검 체크리스트', first, []),
-    checklistTable('9. 중점 안전·보건 대책 — 안전점검 체크리스트(계속)', second, []),
-  ]
+// 체크리스트 15항목 — 한 페이지 예산 안에 들어가는 분량이라 한 블록으로 두고 패킹에 맡긴다.
+function checklistBlock(): string {
+  return checklistTable('9. 중점 안전·보건 대책 — 안전점검 체크리스트', EXCAVATION_CHECKLIST, [])
 }
 
 export async function downloadExcavationWorkPlanPdf(record: WorkPlanRecord): Promise<void> {
   const form = record.form_data.excavation
   if (!form) throw new Error('굴착 작업계획서 데이터가 없습니다.')
 
-  // 목차 순서에 맞춰 페이지를 배치한다. 과밀 구간은 분리한다.
-  const pages: string[] = [
-    coverPage(form, record),
-    overviewPage(form),
-    surveyPage(form),
-    equipmentAndManpowerPage(form),
-    // 4. 굴착공사 계획
-    procedurePage(EXCAVATION_STANDARD_PROCEDURES.slice(0, 2)),
-    procedurePage(EXCAVATION_STANDARD_PROCEDURES.slice(2), true, 2),
-    mapPage(record),
-    drainageAndTrafficPage(form),
-    stageSafetyPage(),
+  // 목차 순서를 유지한 블록 목록. 표지·작업계획도만 단독 페이지로 고정하고,
+  // 나머지는 실측 높이 기반 그리디 패킹으로 하단 빈 여백 없이 채운다.
+  const blocks: WorkPlanPdfBlock[] = [
+    { html: coverPage(form, record), standalone: true },
+    { html: overviewPage(form) },
+    { html: surveyPage(form) },
+    { html: equipmentAndManpowerPage(form) },
+    // 4. 표준 절차는 한 덩어리로 두면 페이지 예산을 넘겨 축소되므로 기존 2분할 단위를 유지한다.
+    { html: procedurePage(EXCAVATION_STANDARD_PROCEDURES.slice(0, 2)) },
+    { html: procedurePage(EXCAVATION_STANDARD_PROCEDURES.slice(2), true, 2) },
+    { html: mapPage(record), standalone: true },
+    { html: drainageAndTrafficPage(form) },
+    { html: stageSafetyPage() },
   ]
 
-  if (form.blasting.applied) pages.push(blastingPage(form))
+  if (form.blasting.applied) blocks.push({ html: blastingPage(form) })
 
   if (form.shoring.applied) {
-    pages.push(shoringPage(form, [0], true))
-    pages.push(shoringPage(form, [1, 2], false))
+    // 흙막이 안전대책도 분량이 커 기존 분할 단위(개요+1그룹 / 2·3그룹)를 유지한다.
+    blocks.push({ html: shoringPage(form, [0], true) })
+    blocks.push({ html: shoringPage(form, [1, 2], false) })
   }
 
-  if (form.instrumentation.applied) pages.push(instrumentationPage(form))
+  if (form.instrumentation.applied) blocks.push({ html: instrumentationPage(form) })
 
-  pages.push(
-    directorPage(form),
-    signalAndEmergencyPage(),
-    riskPage(form),
-    ...checklistPages(),
+  blocks.push(
+    { html: directorPage(form) },
+    { html: signalAndEmergencyPage() },
+    { html: riskPage(form) },
+    { html: checklistBlock() },
   )
 
-  await renderWorkPlanPdf(
-    pages,
+  await renderWorkPlanPdfPacked(
+    blocks,
     buildFileName('excavation', form.title, record.work_start_date),
   )
 }

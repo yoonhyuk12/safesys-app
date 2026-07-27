@@ -447,3 +447,91 @@ export async function renderWorkPlanPdf(pagesHtml: string[], fileName: string): 
     restoreTextFix()
   }
 }
+
+// ── 블록 패킹 렌더 (실측 높이 기반 그리디) ─────────────────
+// 섹션 단위 블록을 실제 렌더 조건에서 측정해 한 페이지 예산 안에 순서대로 눌러 담는다.
+// 섹션마다 페이지를 통째로 쓰던 방식에서 생기던 하단 대형 공백을 없앤다.
+
+export interface WorkPlanPdfBlock {
+  html: string
+  // true면 다른 블록과 합치지 않고 단독 페이지로 고정한다 (표지·지도 페이지용)
+  standalone?: boolean
+}
+
+// 같은 페이지에 놓인 블록 사이 시각 간격(mm)
+const PACK_BLOCK_GAP_MM = 5
+// 페이지 콘텐츠 예산(mm) — A4 297mm에서 상단 패딩 10mm와 하단 번호 영역 10mm를 뺀 값
+const PACK_CONTENT_MM = 277
+// 실측 반올림·렌더 오차 대비 안전 마진 — 예산의 97%만 사용한다
+const PACK_SAFETY_RATIO = 0.97
+
+// 표가 margin-top:-1px로 위 요소와 붙는 구조라, 병합 시 이전 블록과 이음새가 겹치지 않도록
+// 패딩 1px 래퍼로 감싼다 (-1px 마진이 래퍼 패딩에 흡수돼 위치 변화가 없다).
+function wrapPackedBlock(html: string, withGap: boolean): string {
+  const gap = withGap ? `margin-top:${PACK_BLOCK_GAP_MM}mm; ` : ''
+  return `<div style="${gap}padding-top:1px;">${html}</div>`
+}
+
+// 실제 렌더와 동일한 조건(폭 210mm·패딩 10mm·같은 폰트)의 오프스크린 컨테이너에 블록을 넣어
+// 높이(px)를 재고, 같은 문서에 렌더한 277mm 눈금 div의 실측 px를 페이지 예산으로 삼는다.
+async function packBlocksIntoPages(blocks: WorkPlanPdfBlock[]): Promise<string[]> {
+  const container = document.createElement('div')
+  container.style.cssText = `position:absolute; top:0; left:-9999px; width:210mm; padding:10mm; background-color:#ffffff; box-sizing:border-box; font-family:${FONT}; color:#000; font-size:12px;`
+  const ruler = document.createElement('div')
+  ruler.style.cssText = `height:${PACK_CONTENT_MM}mm;`
+  container.appendChild(ruler)
+  const wrappers = blocks.map((block) => {
+    const wrapper = document.createElement('div')
+    wrapper.style.cssText = 'padding-top:1px;'
+    wrapper.innerHTML = block.html
+    container.appendChild(wrapper)
+    return wrapper
+  })
+  document.body.appendChild(container)
+  try {
+    await waitForImages(container)
+    const budgetPx = Math.floor(ruler.offsetHeight * PACK_SAFETY_RATIO)
+    const gapPx = Math.ceil((ruler.offsetHeight * PACK_BLOCK_GAP_MM) / PACK_CONTENT_MM)
+
+    const pages: string[] = []
+    let current: string[] = []
+    let currentHeight = 0
+    const flush = () => {
+      if (current.length === 0) return
+      pages.push(current.map((html, index) => wrapPackedBlock(html, index > 0)).join(''))
+      current = []
+      currentHeight = 0
+    }
+    blocks.forEach((block, index) => {
+      if (block.standalone) {
+        // 단독 페이지 블록은 래퍼 없이 기존 페이지 렌더와 동일하게 배치한다
+        flush()
+        pages.push(block.html)
+        return
+      }
+      const height = wrappers[index].offsetHeight
+      const needed = current.length === 0 ? height : currentHeight + gapPx + height
+      if (current.length > 0 && needed > budgetPx) {
+        // 현재 페이지에 안 들어가면 새 페이지에서 시작한다. 혼자서도 예산을 넘는 블록은
+        // 단독 페이지에 두고 기존 렌더러의 비율 축소에 맡긴다.
+        flush()
+        current.push(block.html)
+        currentHeight = height
+      } else {
+        current.push(block.html)
+        currentHeight = needed
+      }
+    })
+    flush()
+    return pages
+  } finally {
+    document.body.removeChild(container)
+  }
+}
+
+// 블록 배열을 페이지로 패킹한 뒤 기존 페이지 렌더러로 PDF를 저장한다.
+// 페이지 번호(i/total)는 renderWorkPlanPdf가 패킹 후 최종 페이지 수 기준으로 표기한다.
+export async function renderWorkPlanPdfPacked(blocks: WorkPlanPdfBlock[], fileName: string): Promise<void> {
+  const pagesHtml = await packBlocksIntoPages(blocks)
+  await renderWorkPlanPdf(pagesHtml, fileName)
+}
