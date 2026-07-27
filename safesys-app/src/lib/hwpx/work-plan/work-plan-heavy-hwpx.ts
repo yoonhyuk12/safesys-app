@@ -1,5 +1,5 @@
-// 붙임2-1 차량계 하역운반기계 등 사용 작업계획서를 한글문서(hwpx)로 조립·다운로드 (PDF 페이지 구성과 동일 내용·순서)
-import { LOADING_CHECKLIST } from '@/lib/work-plan/constants'
+// 붙임2-4 중량물 취급 작업계획서를 한글문서(hwpx)로 조립·다운로드 (PDF 페이지 구성과 동일 내용·순서)
+import { HEAVY_CHECKLIST } from '@/lib/work-plan/constants'
 import type { WorkPlanRecord } from '@/lib/work-plan/types'
 import { buildFileName } from '@/lib/reports/work-plan/work-plan-pdf-common'
 import {
@@ -16,14 +16,14 @@ import {
     approvalSignatureFloats,
     assembleHwpxBlob,
     bannerRow,
-    buildTableParagraph,
     buildCoverParts,
+    buildTableParagraph,
     checklistRows,
     clampRowHeights,
     col12,
+    estRowH,
     liftingReviewRows,
     mapSectionRows,
-    MAP_ROW_H,
     paginateRows,
     resetHwpxSeqs,
     riggingReviewRows,
@@ -32,23 +32,23 @@ import {
     triggerDownload,
 } from './work-plan-hwpx-common'
 
-type LoadingForm = NonNullable<WorkPlanRecord['form_data']['loading']>
+type HeavyForm = NonNullable<WorkPlanRecord['form_data']['heavy']>
 
-const DOC_TITLE = '차량계 하역운반기계 등 사용 작업계획서'
+const DOC_TITLE = '중량물 취급 작업계획서'
 
-// ── 본표(결재란·기본정보·제원·인양/줄걸이 검토) ──
+// ── 본표(결재란·기본정보) + 운반경로(지도) ──
 
-function buildMainAndSpecParts(
-    form: LoadingForm,
+function buildMainParts(
+    form: HeavyForm,
     collector: ImageCollector,
     sigIds: Partial<Record<'approvalManager' | 'approvalApprover' | 'workDirector' | 'operator' | 'guide', string | null>>,
+    mapId: string | null,
     tblIdBase: number,
 ): string[] {
     const parts: string[] = []
     const floats: string[] = approvalSignatureFloats(collector, sigIds.approvalManager, sigIds.approvalApprover)
-    const approvalRows = approvalHeaderRows('차량계 하역운반기계 작업계획서', form.approvalNames)
+    const approvalRows = approvalHeaderRows('중량물 취급 작업계획서', form.approvalNames)
 
-    // ── 기본정보 표 ──
     const workers = (form.workerNames || []).join(', ')
     const period = [form.workStartDate, form.workEndDate].filter(Boolean).join(' ~ ')
     const BASE_H = 1700
@@ -60,15 +60,6 @@ function buildMainAndSpecParts(
                 { text: form.title, span: 4, align: 'center' },
                 { text: '작업기간', span: 2, header: true, cp: 4, align: 'center' },
                 { text: period, span: 4, align: 'center' },
-            ],
-        },
-        {
-            height: BASE_H,
-            cells: [
-                { text: '차량 번호', span: 2, header: true, cp: 4, align: 'center' },
-                { text: form.vehicleNumber, span: 4, align: 'center' },
-                { text: '작업시간', span: 2, header: true, cp: 4, align: 'center' },
-                { text: form.workTime, span: 4, align: 'center' },
             ],
         },
         {
@@ -109,12 +100,12 @@ function buildMainAndSpecParts(
     // 내용이 긴 셀이 행을 키우면 아래 행 y가 밀리므로 선언 높이를 추정 렌더 높이로 끌어올린다
     const mainRows = clampRowHeights(rawRows, COLS12)
 
-    // 성명 위 서명 겹침 — 성명 값 셀(4열 시작, 폭 4열)의 행 y를 누적 높이로 계산 (인물 행은 3번 행부터)
+    // 성명 위 서명 겹침 (인물 행은 2번 행부터)
     const mainTop = PAGE_CONTENT_TOP + APPROVAL_HEAD_H + APPROVAL_SIGN_H
     persons.forEach((p, i) => {
         const picId = sigIds[p.role]
         if (picId) {
-            const rowIndex = 3 + i
+            const rowIndex = 2 + i
             floats.push(signatureFloat(collector, {
                 picId,
                 cellX: PAGE_LEFT + col12(3),
@@ -127,20 +118,66 @@ function buildMainAndSpecParts(
         }
     })
 
-    // ── 장비 제원 표 ──
-    const e = form.equipment
+    parts.push(buildTableParagraph(COLS_APPROVAL, approvalRows, tblIdBase + 1, 1, { pageBreak: true, floats }))
+    parts.push(buildTableParagraph(COLS12, mainRows, tblIdBase + 2, 2))
+    parts.push(buildTableParagraph(COLS12, mapSectionRows('<운반경로 등>', collector, mapId), tblIdBase + 3, 3))
+    return parts
+}
+
+// ── 중량물/기계 제원 + 인양·줄걸이 검토 + 작업별 위험요인 ──
+
+function buildSpecParts(form: HeavyForm, tblIdBase: number): string[] {
+    const parts: string[] = []
+    const l = form.load
+    const m = form.machine
     const SPEC_H = 1500
-    const specPairs: Array<[string, string, string, string]> = [
-        ['장비명', e.equipmentName, '차량/장비번호', e.registrationNumber],
-        ['모델명/생산년도', e.modelAndYear, '보험기간', e.insurancePeriod],
-        ['소유회사명', e.ownerCompany, '검사유효기간', e.inspectionValidity],
-        ['차체 중량', e.bodyWeightTon ? `${e.bodyWeightTon} ton` : ' ton', '장비폭', e.widthM ? `${e.widthM} m` : ' m'],
-        ['최소선회반경', e.minimumTurningRadiusM ? `${e.minimumTurningRadiusM} m` : ' m', '최대인양높이', e.maximumLiftingHeightM ? `${e.maximumLiftingHeightM} m` : ' m'],
-        ['작업반경', e.workingRadiusM ? `${e.workingRadiusM} m` : ' m', '인양·운반하중', e.maxAndRatedLoadTon || '최대( )t / 정격( )t'],
+
+    const loadRows: Row[] = [
+        bannerRow('<중량물제원>'),
+        {
+            height: SPEC_H,
+            cells: [
+                { text: '품 명', span: 3, header: true, cp: 4, align: 'center' },
+                { text: l.itemName, span: 3, align: 'center' },
+                { text: '중량물 형상', span: 3, header: true, cp: 4, align: 'center' },
+                { text: l.shape, span: 3, align: 'center' },
+            ],
+        },
+        {
+            height: SPEC_H,
+            cells: [
+                { text: '중량물 규격', span: 3, header: true, cp: 4, align: 'center' },
+                { text: l.dimensions || '(너비)×(길이)×(높이)', span: 9 },
+            ],
+        },
+        {
+            height: SPEC_H,
+            cells: [
+                { text: '중량', span: 3, header: true, cp: 4, align: 'center' },
+                { text: l.weightKg ? `${l.weightKg} kg` : ' kg', span: 3, align: 'center' },
+                { text: '1회 운반중량', span: 3, header: true, cp: 4, align: 'center' },
+                { text: l.transportWeightKg ? `${l.transportWeightKg} kg` : ' kg', span: 3, align: 'center' },
+            ],
+        },
+        {
+            height: estRowH(SPEC_H, l.fixingMethod, col12(9)),
+            cells: [
+                { text: '고정방법', span: 3, header: true, cp: 4, align: 'center' },
+                { text: l.fixingMethod, span: 9 },
+            ],
+        },
     ]
-    const specRows: Row[] = [bannerRow('<차량계 하역운반기계 제원>')]
-    for (const [l1, v1, l2, v2] of specPairs) {
-        specRows.push({
+
+    const machinePairs: Array<[string, string, string, string]> = [
+        ['기계명(장비)', m.machineName, '형식번호', m.modelNumber],
+        ['거더형식', m.girderType, '기계규격', m.machineSpecification],
+        ['제조년월일', m.manufacturedDate, '보험가입여부', m.insured],
+        ['정격하중', m.ratedLoad, '조작방식', m.controlMethod],
+        ['검사여부', m.inspectionResult, '유효기간', m.validityPeriod],
+    ]
+    const machineRows: Row[] = [bannerRow('<기계제원(크레인 등)>')]
+    for (const [l1, v1, l2, v2] of machinePairs) {
+        machineRows.push({
             height: SPEC_H,
             cells: [
                 { text: l1, span: 3, header: true, cp: 4, align: 'center' },
@@ -151,44 +188,24 @@ function buildMainAndSpecParts(
         })
     }
 
-    // 떠 있는 서명은 이 쪽 첫 표(결재란) 문단에 앵커 — 쪽 기준 절대좌표라 표 어디에 있든 같은 쪽에 겹친다
-    parts.push(buildTableParagraph(COLS_APPROVAL, approvalRows, tblIdBase + 1, 1, { pageBreak: true, floats }))
-    parts.push(buildTableParagraph(COLS12, mainRows, tblIdBase + 2, 2))
-    parts.push(buildTableParagraph(COLS12, specRows, tblIdBase + 3, 3))
-    parts.push(buildTableParagraph(COLS12, liftingReviewRows(form.liftingReview), tblIdBase + 4, 4))
-    parts.push(buildTableParagraph(COLS12, riggingReviewRows(form.riggingReview), tblIdBase + 5, 5))
-    return parts
-}
+    parts.push(buildTableParagraph(COLS12, loadRows, tblIdBase + 1, 4, { pageBreak: true }))
+    parts.push(buildTableParagraph(COLS12, machineRows, tblIdBase + 2, 5))
+    parts.push(buildTableParagraph(COLS12, liftingReviewRows(form.liftingReview), tblIdBase + 3, 6))
+    parts.push(buildTableParagraph(COLS12, riggingReviewRows(form.riggingReview), tblIdBase + 4, 7))
 
-// ── 운반경로(지도) + 위험요인 ──
-
-function buildMapAndRiskParts(form: LoadingForm, collector: ImageCollector, mapId: string | null, tblIdBase: number): string[] {
-    const parts: string[] = []
-    parts.push(buildTableParagraph(COLS12, mapSectionRows('<운반경로 및 작업방법>', collector, mapId), tblIdBase + 1, 6, { pageBreak: true }))
-
-    const riskRows = riskControlRows('<위험요인 및 개선대책>', '작업순서', form.riskControls || [])
-    // 지도 아래 남은 예산을 넘으면 이어지는 표로 분할(내용 유실 방지)
-    const remaining = CONTENT_HEIGHT - 1300 - MAP_ROW_H
-    paginateRows(riskRows, remaining).forEach((rows, i) => {
-        parts.push(buildTableParagraph(COLS12, rows, tblIdBase + 2 + i, 7 + i, { pageBreak: i > 0 }))
+    // 위험표는 흐름에 이어 배치 — 한 쪽 예산을 넘는 표만 분할해 잘림을 막는다
+    const riskRows = riskControlRows('<작업별 위험요인 및 개선대책>', '작업', form.riskControls || [])
+    paginateRows(riskRows, CONTENT_HEIGHT).forEach((rows, i) => {
+        parts.push(buildTableParagraph(COLS12, rows, tblIdBase + 5 + i, 8 + i, { pageBreak: i > 0 }))
     })
     return parts
 }
 
-// ── 체크리스트 ──
-
-function buildChecklistParts(form: LoadingForm, tblIdBase: number): string[] {
-    const rows = checklistRows('<산업재해 예방을 위한 체크리스트>', LOADING_CHECKLIST, form.checklist || [])
-    return paginateRows(rows, CONTENT_HEIGHT).map((pageRows, i) =>
-        buildTableParagraph(COLS12, pageRows, tblIdBase + i, 20 + i, { pageBreak: true }),
-    )
-}
-
 // ── 다운로드 진입점 ──
 
-export async function downloadLoadingWorkPlanHwpx(record: WorkPlanRecord): Promise<void> {
-    const form = record.form_data.loading
-    if (!form) throw new Error('하역운반기계 작업계획서 데이터가 없습니다.')
+export async function downloadHeavyWorkPlanHwpx(record: WorkPlanRecord): Promise<void> {
+    const form = record.form_data.heavy
+    if (!form) throw new Error('중량물 취급 작업계획서 데이터가 없습니다.')
 
     resetHwpxSeqs()
     const collector = new ImageCollector()
@@ -203,14 +220,19 @@ export async function downloadLoadingWorkPlanHwpx(record: WorkPlanRecord): Promi
         guide: s?.guide ? await collector.collect(s.guide, true) : null,
     }
 
+    const checklistParts = paginateRows(
+        checklistRows('<산업재해 예방을 위한 체크리스트>', HEAVY_CHECKLIST, form.checklist || []),
+        CONTENT_HEIGHT,
+    ).map((rows, i) => buildTableParagraph(COLS12, rows, 1000000300 + i, 20 + i, { pageBreak: true }))
+
     const parts: string[] = [
-        ...buildCoverParts('loading', 1000000000),
-        ...buildMainAndSpecParts(form, collector, sigIds, 1000000100),
-        ...buildMapAndRiskParts(form, collector, mapId, 1000000200),
-        ...buildChecklistParts(form, 1000000300),
+        ...buildCoverParts('heavy', 1000000000),
+        ...buildMainParts(form, collector, sigIds, mapId, 1000000100),
+        ...buildSpecParts(form, 1000000200),
+        ...checklistParts,
     ]
 
     const blob = await assembleHwpxBlob(parts, collector, DOC_TITLE)
-    const fileName = buildFileName('loading', record.title, record.work_start_date).replace(/\.pdf$/, '.hwpx')
+    const fileName = buildFileName('heavy', record.title, record.work_start_date).replace(/\.pdf$/, '.hwpx')
     triggerDownload(blob, fileName)
 }

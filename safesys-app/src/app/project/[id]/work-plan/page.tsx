@@ -15,6 +15,9 @@ import { downloadElectricWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-e
 import { downloadExcavationWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-excavation-pdf'
 import { downloadHeavyWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-heavy-pdf'
 import { downloadLoadingWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-loading-hwpx'
+import { downloadConstructionWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-construction-hwpx'
+import { downloadElectricWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-electric-hwpx'
+import { downloadHeavyWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-heavy-hwpx'
 import { PLAN_TYPE_OPTIONS } from '@/lib/work-plan/constants'
 import type { PlanType, WorkPlanProject, WorkPlanRecord, WorkPlanWorker } from '@/lib/work-plan/types'
 
@@ -29,6 +32,9 @@ const workPlanPdfDownloaders: Record<PlanType, (record: WorkPlanRecord) => Promi
 // 종류별 HWPX(한글) 다운로드 — 구현된 종류만 담고, 맵에 있는 종류만 버튼을 노출한다
 const workPlanHwpxDownloaders: Partial<Record<PlanType, (record: WorkPlanRecord) => Promise<void>>> = {
   loading: downloadLoadingWorkPlanHwpx,
+  construction: downloadConstructionWorkPlanHwpx,
+  electric: downloadElectricWorkPlanHwpx,
+  heavy: downloadHeavyWorkPlanHwpx,
 }
 
 type WorkPlanDownloadFormat = 'pdf' | 'hwpx'

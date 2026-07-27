@@ -1,5 +1,27 @@
-// AI 작업계획서 5종 HWPX 공용 헬퍼 — OWPML 패키지 조립·표/문단 빌더·이미지 수집 (TBM 정본 모듈을 일반화)
+// AI 작업계획서 5종 HWPX 공용 헬퍼 — OWPML 패키지 조립·표/문단 빌더·이미지 수집·공용 섹션(표지·결재란·검토표 등)
 import JSZip from 'jszip'
+import {
+    WORK_PLAN_COVERS,
+    MAP_LEGEND,
+    MAP_FOCUS_ITEMS,
+    MAP_FOOTNOTE,
+    LIFTING_CAPACITY_NOTES,
+    LIFTING_CAPACITY_FORMULA,
+    RIGGING_CAPACITY_FORMULA,
+    RIGGING_SAFETY_RATIO_FORMULA,
+    CAPACITY_WARNING,
+    SAFETY_FACTORS,
+    TENSION_FACTORS,
+} from '@/lib/work-plan/constants'
+import type {
+    ChecklistAnswer,
+    ChecklistResult,
+    LiftingCapacityReview,
+    PlanType,
+    RiggingCapacityReview,
+    RiskControlRow,
+    WorkPlanApprovalNames,
+} from '@/lib/work-plan/types'
 
 // ── 기본 유틸 ──
 
@@ -394,15 +416,39 @@ export function buildTextParagraph(text: string, opts: TextParagraphOptions = {}
 
 // ── 쪽 예산 추정·표 분할 ──
 
-// 셀 폭 기준 표시 줄 수 추정(줄바꿈 + 자동 줄바꿈) — 10pt 한글 글자 폭 약 1000 HWPUNIT 가정
+// 셀 폭 기준 표시 줄 수 추정(줄바꿈 + 자동 줄바꿈) — 한글·기호 1000, ASCII 600 HWPUNIT 폭 가정.
+// 실제보다 작게 추정하면 행이 선언값보다 자라 서명 좌표가 밀리므로, 폭 가정은 넉넉하게 잡는다.
 export function estDisplayLines(text: string, cellW: number): number {
-    const charsPerLine = Math.max(8, Math.floor((cellW - CELL_PAD) / 1000))
-    return (text || '').split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / charsPerLine)), 0)
+    const innerW = Math.max(1000, cellW - CELL_PAD)
+    return (text || '').split('\n').reduce((n, line) => {
+        let w = 0
+        for (const ch of line) w += ch.charCodeAt(0) < 0x2000 ? 600 : 1000
+        return n + Math.max(1, Math.ceil(w / innerW))
+    }, 0)
 }
 
 // 내용이 자라는 행의 예상 렌더 높이 (선언 높이는 최소값)
 export function estRowH(nominal: number, text: string, cellW: number): number {
     return Math.max(nominal, estDisplayLines(text, cellW) * LINE_H + CELL_PAD)
+}
+
+// 행 배열의 선언 높이를 셀 내용 추정 높이 이상으로 끌어올린다.
+// 행이 선언값보다 자라면 아래 행들의 쪽 기준 y가 밀려 떠 있는 서명이 어긋나므로,
+// 서명 좌표 계산에 쓰는 표는 반드시 이걸 거친다. (bodyXml·그림·rowSpan 병합 셀은 추정에서 제외.
+// colAddr은 셀 span 누적으로 근사하므로 균등 그리드가 아니면 병합 이후 행의 폭 추정이 어긋날 수 있다.)
+export function clampRowHeights(rows: Row[], colWidths: number[]): Row[] {
+    return rows.map(row => {
+        let colAddr = 0
+        let height = row.height
+        for (const cell of row.cells) {
+            const span = cell.span ?? 1
+            const width = sumRange(colWidths, colAddr, span)
+            colAddr += span
+            if ((cell.rowSpan ?? 1) > 1 || cell.bodyXml || cell.picId || !cell.text) continue
+            height = Math.max(height, estDisplayLines(cell.text, width) * LINE_H + CELL_PAD)
+        }
+        return { ...row, height }
+    })
 }
 
 // 한글은 글자처럼 취급(treatAsChar)되는 표가 한 쪽을 넘으면 넘친 행을 이어 그리지 않고 잘라버린다.
@@ -458,4 +504,363 @@ export async function assembleHwpxBlob(parts: string[], collector: ImageCollecto
         compression: 'DEFLATE',
         compressionOptions: { level: 6 },
     })
+}
+
+// ── 작업계획서 공용 섹션 빌더 (5종 공용) ──
+
+// 12열 균등 그리드 (합 = 51024)
+export const COLS12 = Array.from({ length: 12 }, () => 4252)
+export const col12 = (span: number): number => sumRange(COLS12, 0, span)
+
+export function numOrBlank(n: number | null | undefined): string {
+    return n === null || n === undefined || Number.isNaN(n) ? '' : String(n)
+}
+
+export function checkbox(label: string, checked: boolean): string {
+    return `${checked ? '■' : '□'} ${label}`
+}
+
+// 회색 배너 행(섹션 제목) — 표 밖 문단 제목은 표만 다음 쪽으로 밀리는 함정이 있어 표의 첫 행으로 넣는다
+export function bannerRow(text: string): Row {
+    return { height: 1300, cells: [{ text, span: 12, header: true, cp: 5, align: 'center' }] }
+}
+
+// ── 표지 (원본 붙임 양식 1쪽 재현, 종별 고정 문구는 WORK_PLAN_COVERS) ──
+
+export function buildCoverParts(planType: PlanType, tblId: number): string[] {
+    const cover = WORK_PLAN_COVERS[planType]
+    const parts: string[] = []
+    const spacer = (n: number) => {
+        for (let i = 0; i < Math.max(0, n); i++) parts.push(buildTextParagraph(''))
+    }
+
+    // 상단 파란 개정 주석 — 문서 첫 문단이므로 구역 속성 포함
+    parts.push(buildTextParagraph(cover.headerNote, { cp: 11, secPr: true }))
+    spacer(8)
+
+    // 중앙 제목 상자 (두꺼운 테두리, 제목 줄 수에 맞춰 높이 조정)
+    const boxW = 30000
+    const boxH = cover.titleLines.length * 2600 + 3000
+    const titleBody = cover.titleLines.map(line => innerParagraph(line, 8, 'center', boxW - CELL_PAD)).join('')
+    parts.push(buildTableParagraph([boxW], [
+        { height: boxH, cells: [{ bodyXml: titleBody, bf: 4 }] },
+    ], tblId, 1, { center: true }))
+    spacer(6)
+
+    // 목록 섹션들 — 사용 높이를 추정해 하단 ※주석 위치를 계산한다
+    let used = LINE_H * (1 + 8 + 6) + boxH
+    cover.sections.forEach((section, index) => {
+        if (index > 0) {
+            spacer(2)
+            used += LINE_H * 2
+        }
+        parts.push(buildTextParagraph(section.heading, { cp: 6, center: true }))
+        parts.push(buildTextParagraph(''))
+        used += Math.round(1200 * 1.3) + LINE_H
+        for (const item of section.items) {
+            parts.push(buildTextParagraph(item, { cp: 10, center: true }))
+            used += estDisplayLines(item, CONTENT_WIDTH) * Math.round(1100 * 1.3)
+        }
+    })
+
+    // 하단 파란 ※주석 — 남은 높이를 여백으로 채워 하단에 배치 (안전 버퍼 2줄)
+    if (cover.footnote) {
+        spacer(Math.floor((CONTENT_HEIGHT - used - LINE_H) / LINE_H) - 2)
+        parts.push(buildTextParagraph(cover.footnote, { cp: 11 }))
+    }
+    return parts
+}
+
+// ── 결재란 (제목 + 결재/담당/승인, rowSpan 세로 병합) ──
+
+// PDF 열비(72% / 5% / 11.5% / 11.5%)를 본문 폭으로 환산
+export const COLS_APPROVAL = [36737, 2551, 5868, 5868]
+export const APPROVAL_HEAD_H = 1200
+export const APPROVAL_SIGN_H = 3600
+
+export function approvalHeaderRows(mainTitle: string, approvalNames?: WorkPlanApprovalNames): Row[] {
+    const titleBody = innerParagraph(mainTitle, 2, 'center', COLS_APPROVAL[0] - CELL_PAD)
+        + innerParagraph('(수급업체용)', 7, 'center', COLS_APPROVAL[0] - CELL_PAD)
+    return [
+        {
+            height: APPROVAL_HEAD_H,
+            cells: [
+                { bodyXml: titleBody, rowSpan: 2 },
+                { text: '결\n재', rowSpan: 2, header: true, cp: 1, align: 'center' },
+                { text: '담당', header: true, cp: 4, align: 'center' },
+                { text: '승인', header: true, cp: 4, align: 'center' },
+            ],
+        },
+        {
+            height: APPROVAL_SIGN_H,
+            cells: [
+                { text: approvalNames?.approvalManager || '', cp: 7, align: 'center' },
+                { text: approvalNames?.approvalApprover || '', cp: 7, align: 'center' },
+            ],
+        },
+    ]
+}
+
+export interface SignatureFloatSpec {
+    picId: string
+    cellX: number      // 서명이 놓일 셀의 시작 x (쪽 기준)
+    cellW: number
+    rowY: number       // 행 시작 y (쪽 기준)
+    rowH: number
+    maxW: number
+    maxH: number
+}
+
+// 성명·(인) 문구 위에 손글씨 서명을 겹친다 (쪽 기준 절대좌표, 셀 중앙)
+export function signatureFloat(collector: ImageCollector, spec: SignatureFloatSpec): string {
+    const size = fitImage(collector.find(spec.picId), spec.maxW, spec.maxH)
+    const x = spec.cellX + Math.round((spec.cellW - size.w) / 2)
+    const y = spec.rowY + Math.round((spec.rowH - size.h) / 2)
+    return buildFloatingPicXml(spec.picId, size.w, size.h, x, y)
+}
+
+// 결재란 담당·승인 칸 서명 — 결재란은 항상 쪽 최상단이므로 y가 고정된다
+export function approvalSignatureFloats(
+    collector: ImageCollector,
+    managerSigId: string | null | undefined,
+    approverSigId: string | null | undefined,
+): string[] {
+    const rowY = PAGE_CONTENT_TOP + APPROVAL_HEAD_H
+    const cells: Array<[string | null | undefined, number]> = [
+        [managerSigId, PAGE_LEFT + COLS_APPROVAL[0] + COLS_APPROVAL[1]],
+        [approverSigId, PAGE_LEFT + COLS_APPROVAL[0] + COLS_APPROVAL[1] + COLS_APPROVAL[2]],
+    ]
+    const floats: string[] = []
+    for (const [picId, cellX] of cells) {
+        if (picId) floats.push(signatureFloat(collector, { picId, cellX, cellW: 5868, rowY, rowH: APPROVAL_SIGN_H, maxW: 5000, maxH: 2800 }))
+    }
+    return floats
+}
+
+// ── 건설기계 인양능력 검토 (2-1·2-4 공용) ──
+
+export function liftingReviewRows(review: LiftingCapacityReview | undefined): Row[] {
+    const total = numOrBlank(review?.totalLoadTon)
+    const capacity = numOrBlank(review?.maxCapacityTon)
+    const pct = numOrBlank(review?.safetyRatioPercent)
+    const expr = LIFTING_CAPACITY_FORMULA.replace('안전율 = ', '')
+    const formulaText = `${expr} = ( ${pct} )% ※ ${CAPACITY_WARNING}`
+    return [
+        bannerRow('<건설기계 인양능력 검토>'),
+        {
+            height: 1500,
+            cells: [
+                { text: '중량물 총 하중', span: 3, header: true, cp: 4, align: 'center' },
+                { text: `${total} ton`, span: 3, align: 'right' },
+                { text: '최대 양중능력', span: 3, header: true, cp: 4, align: 'center' },
+                { text: `${capacity} ton`, span: 3, align: 'right' },
+            ],
+        },
+        ...LIFTING_CAPACITY_NOTES.map(note => ({
+            height: estRowH(1200, `※ ${note}`, CONTENT_WIDTH),
+            cells: [{ text: `※ ${note}`, span: 12, cp: 7 }],
+        })),
+        {
+            height: estRowH(1500, formulaText, col12(9)),
+            cells: [
+                { text: '안전율', span: 3, header: true, cp: 4, align: 'center' },
+                { text: formulaText, span: 9, cp: 7 },
+            ],
+        },
+    ]
+}
+
+// ── 줄걸이 인양능력 검토 (2-1·2-4 공용) ──
+
+export function riggingReviewRows(r: RiggingCapacityReview | undefined): Row[] {
+    const tools = r?.tools || []
+    const toolBox = `${checkbox('와이어로프', tools.includes('와이어로프'))} ${checkbox('섬유로프', tools.includes('섬유로프'))}\n${checkbox('체인블럭', tools.includes('체인블럭'))} ${checkbox('기타', tools.includes('기타'))}( ${r?.otherTool || ''} )`
+    const spec = `D : ( ${numOrBlank(r?.diameterMm)} )mm, L : ( ${numOrBlank(r?.lengthM)} )m, ( ${numOrBlank(r?.quantity)} )EA\n각 안전하중 : ( ${numOrBlank(r?.safeLoadPerToolTon)} )ton`
+    const methodBox = `${checkbox('1줄걸이', r?.slingMethod === '1줄걸이')} ${checkbox('2줄걸이', r?.slingMethod === '2줄걸이')}\n${checkbox('3줄걸이', r?.slingMethod === '3줄걸이')} ${checkbox('4줄걸이', r?.slingMethod === '4줄걸이')}`
+    const hookLabel = r?.hookTool || '훅/샤클/아이볼트'
+    const hookSpec = `${hookLabel} : D ( ${numOrBlank(r?.hookDiameterInch)} )in, ( ${numOrBlank(r?.hookQuantity)} )EA\n각 안전하중 : ( ${numOrBlank(r?.hookSafeLoadTon)} )ton`
+    const breaking = numOrBlank(r?.breakingLoadTon)
+    const safeLoad = numOrBlank(r?.safeLoadTon)
+    const slingCount = r?.slingMethod ? (r.slingMethod.match(/(\d)/)?.[1] ?? '') : ''
+    const formulaText = `※ ${RIGGING_CAPACITY_FORMULA} → 절단하중 ( ${breaking} ) × 줄걸이 수 ( ${slingCount} ) ÷ ( 안전계수 ( ${numOrBlank(r?.safetyFactor)} ) × 장력계수 ( ${numOrBlank(r?.tensionFactor)} ) ) = ( ${safeLoad} ) ton`
+    const ratioExpr = RIGGING_SAFETY_RATIO_FORMULA.replace('안전율 = ', '')
+    const ratioText = `${ratioExpr} = ( ${numOrBlank(r?.safetyRatioPercent)} )% ※ ${CAPACITY_WARNING}`
+    const sf = SAFETY_FACTORS
+    return [
+        bannerRow('<줄걸이 인양능력 검토>'),
+        {
+            height: 3000,
+            cells: [
+                { text: '줄걸이 용구', span: 2, header: true, cp: 4, align: 'center' },
+                { text: toolBox, span: 4, cp: 7 },
+                { text: '줄걸이 규격', span: 2, header: true, cp: 4, align: 'center' },
+                { text: spec, span: 4, cp: 7 },
+            ],
+        },
+        {
+            height: 3000,
+            cells: [
+                { text: '줄걸이 방법', span: 2, header: true, cp: 4, align: 'center' },
+                { text: methodBox, span: 4, cp: 7 },
+                { text: '고리걸이용구/규격', span: 2, header: true, cp: 4, align: 'center' },
+                { text: hookSpec, span: 4, cp: 7 },
+            ],
+        },
+        {
+            height: 1500,
+            cells: [
+                { text: '줄걸이 절단하중', span: 2, header: true, cp: 4, align: 'center' },
+                { text: `${breaking} ton`, span: 4, align: 'right' },
+                { text: '줄걸이 안전하중', span: 2, header: true, cp: 4, align: 'center' },
+                { text: `${safeLoad} ton`, span: 4, align: 'right' },
+            ],
+        },
+        {
+            height: 1200,
+            cells: [{ text: '※ 줄걸이 절단하중 : 줄걸이 제조사별 구조계산서 등 제원 확인 후 기재', span: 12, cp: 7 }],
+        },
+        {
+            height: estRowH(1200, formulaText, CONTENT_WIDTH),
+            cells: [{ text: formulaText, span: 12, cp: 7 }],
+        },
+        {
+            height: 1200,
+            cells: [
+                { text: '※ 안전계수', span: 6, cp: 4 },
+                { text: '※ 장력계수', span: 6, cp: 4 },
+            ],
+        },
+        {
+            height: estRowH(1400, sf.workerBoarding.label, col12(2)),
+            cells: [
+                { text: '작업구분', span: 2, header: true, cp: 4, align: 'center' },
+                { text: sf.workerBoarding.label, span: 2, header: true, cp: 7, align: 'center' },
+                { text: sf.rigging.label, span: 2, header: true, cp: 7, align: 'center' },
+                { text: '각도', span: 1, header: true, cp: 7, align: 'center' },
+                ...TENSION_FACTORS.map(t => ({ text: `${t.angleDegree}°`, span: 1, header: true, cp: 7, align: 'center' as const })),
+            ],
+        },
+        {
+            height: 1400,
+            cells: [
+                { text: '안전계수', span: 2, header: true, cp: 4, align: 'center' },
+                { text: String(sf.workerBoarding.value), span: 2, cp: 7, align: 'center' },
+                { text: `${sf.rigging.value}(섬유로프: ${sf.fiberRopeRigging.value})`, span: 2, cp: 7, align: 'center' },
+                { text: '장력계수', span: 1, header: true, cp: 7, align: 'center' },
+                ...TENSION_FACTORS.map(t => ({ text: String(t.value), span: 1, cp: 7, align: 'center' as const })),
+            ],
+        },
+        {
+            height: estRowH(1500, ratioText, col12(10)),
+            cells: [
+                { text: '안전율', span: 2, header: true, cp: 4, align: 'center' },
+                { text: ratioText, span: 10, cp: 7 },
+            ],
+        },
+    ]
+}
+
+// ── 작업계획도(지도) 섹션 — 좌측 지도 셀 fit + 우측 범례·중점관리사항 ──
+
+export const MAP_ROW_H = 34016 // 지도 영역 약 120mm
+
+export function mapSectionRows(bannerTitle: string, collector: ImageCollector, mapId: string | null): Row[] {
+    const mapCellW = col12(8)
+    const mapInnerW = mapCellW - CELL_PAD
+    let mapBody = ''
+    if (mapId) {
+        const size = fitImage(collector.find(mapId), mapInnerW, MAP_ROW_H - 2000)
+        mapBody += innerPicParagraph(mapId, size.w, size.h, mapInnerW)
+    } else {
+        mapBody += innerParagraph('', 0, 'center', mapInnerW)
+    }
+    mapBody += innerParagraph(MAP_FOOTNOTE, 9, 'center', mapInnerW)
+
+    const legendInnerW = col12(4) - CELL_PAD
+    let legendBody = innerParagraph('범  례', 1, 'center', legendInnerW)
+    for (const l of MAP_LEGEND) {
+        legendBody += innerParagraph(`${l.symbol} ${l.label}`, 7, 'left', legendInnerW)
+    }
+    legendBody += innerParagraph('', 7, 'left', legendInnerW)
+    legendBody += innerParagraph('ㅇ 중점관리사항', 4, 'left', legendInnerW)
+    MAP_FOCUS_ITEMS.forEach((item, i) => {
+        legendBody += innerParagraph(`${i + 1}. ${item}`, 7, 'left', legendInnerW)
+    })
+
+    return [
+        bannerRow(bannerTitle),
+        {
+            height: MAP_ROW_H,
+            cells: [
+                { bodyXml: mapBody, span: 8 },
+                { bodyXml: legendBody, span: 4, top: true },
+            ],
+        },
+    ]
+}
+
+// ── 위험요인 및 개선대책 표 ──
+
+export function riskControlRows(bannerTitle: string, firstColLabel: string, risks: RiskControlRow[]): Row[] {
+    const rows: RiskControlRow[] = risks.length > 0 ? risks : [{ workStep: '', riskFactor: '', improvementMeasure: '' }]
+    return [
+        bannerRow(bannerTitle),
+        {
+            height: 1400,
+            cells: [
+                { text: '연번', span: 1, header: true, cp: 4, align: 'center' },
+                { text: firstColLabel, span: 3, header: true, cp: 4, align: 'center' },
+                { text: '위험요인', span: 4, header: true, cp: 4, align: 'center' },
+                { text: '개선대책', span: 4, header: true, cp: 4, align: 'center' },
+            ],
+        },
+        ...rows.map((row, i) => ({
+            height: Math.max(
+                estRowH(1400, row.workStep, col12(3)),
+                estRowH(1400, row.riskFactor, col12(4)),
+                estRowH(1400, row.improvementMeasure, col12(4)),
+            ),
+            cells: [
+                { text: String(i + 1), span: 1, align: 'center' as const },
+                { text: row.workStep, span: 3, cp: 7 },
+                { text: row.riskFactor, span: 4, cp: 7 },
+                { text: row.improvementMeasure, span: 4, cp: 7 },
+            ],
+        })),
+    ]
+}
+
+// ── 체크리스트 표 (양호/미흡/해당없음 ■·□, 특이사항은 └ 줄) ──
+
+function checkMark(target: ChecklistResult, current: ChecklistResult | undefined): string {
+    return current === target ? '■' : '□'
+}
+
+export function checklistRows(bannerTitle: string, items: readonly string[], answers: ChecklistAnswer[]): Row[] {
+    const byIndex = new Map<number, ChecklistAnswer>(answers.map(a => [a.itemIndex, a]))
+    return [
+        bannerRow(bannerTitle),
+        {
+            height: 1400,
+            cells: [
+                { text: '점검사항', span: 9, header: true, cp: 4, align: 'center' },
+                { text: '양호', span: 1, header: true, cp: 4, align: 'center' },
+                { text: '미흡', span: 1, header: true, cp: 4, align: 'center' },
+                { text: '해당없음', span: 1, header: true, cp: 4, align: 'center' },
+            ],
+        },
+        ...items.map((q, i) => {
+            const a = byIndex.get(i)
+            const question = a?.note ? `${q}\n└ ${a.note}` : q
+            return {
+                height: estRowH(1600, question, col12(9)),
+                cells: [
+                    { text: question, span: 9, cp: 7 },
+                    { text: checkMark('양호', a?.result), span: 1, align: 'center' as const },
+                    { text: checkMark('미흡', a?.result), span: 1, align: 'center' as const },
+                    { text: checkMark('해당없음', a?.result), span: 1, align: 'center' as const },
+                ],
+            }
+        }),
+    ]
 }
