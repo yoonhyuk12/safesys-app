@@ -47,6 +47,7 @@ export function createRowFromHazard(
   return {
     hazardId: hazard.id,
     source: 'db',
+    sourceNo: hazard.excelNo ?? null,
     detailWork: detailWork || hazard.detailWork,
     workLocation: '',
     equipment: judgement?.equipment || '',

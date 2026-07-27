@@ -31,6 +31,8 @@ const INPUT = 'w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gr
 /** 행 출처 표기 — 웹 화면 전용이고 엑셀 출력에는 나가지 않는다. 판별 불가·수기 행은 표시하지 않는다. */
 function sourceLabel(row: RiskAssessmentRow): string {
   if (row.source === 'ai') return '출처: AI 전체 작성'
+  if (row.sourceNo != null) return `출처: DB No.${row.sourceNo}`
+  // 엑셀 No.가 없던 시기에 저장된 구 레코드 폴백 (id는 No.와 다르므로 No. 표기를 쓰지 않는다)
   if (row.hazardId != null) return `출처: DB ${row.hazardId}행`
   if (row.source === 'db') return '출처: DB'
   return ''

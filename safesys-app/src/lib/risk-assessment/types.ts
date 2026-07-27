@@ -3,6 +3,7 @@
 /** 유해·위험요인 DB의 위험요인 1건 (risk_hazards 테이블 행) */
 export interface RiskHazard {
   id: number
+  excelNo: number | null    // 원본 엑셀 No. 컬럼 값 — 중복·재시작이 있어 식별자는 아니고 출처 표기용
   businessType: string      // 사업별 (16종)
   construction: string      // 공사
   unitWork: string          // 단위작업
@@ -37,6 +38,7 @@ export interface RiskHazardsResponse {
 export interface RiskAssessmentRow {
   hazardId: number | null   // risk_hazards 참조 (null = AI 전체 작성 또는 수기 행)
   source?: 'db' | 'ai' | 'manual'  // 행 출처 — 웹 표시 전용(엑셀 출력 제외), 구 레코드엔 없을 수 있음
+  sourceNo?: number | null  // 원본 엑셀 No. — 출처 표기용(웹 전용), 구 레코드엔 없을 수 있음
   detailWork: string        // 세부작업(단위작업) — 상단 행 A열
   workLocation: string      // 작업위치 — 하단 행 A열
   equipment: string         // 사용장비/설비/인원

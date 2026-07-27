@@ -6,6 +6,7 @@ import type { RiskHazard, RiskHazardsResponse } from '@/lib/risk-assessment/type
 // 감소대책은 sort_order 순으로 이어 붙인다
 interface HazardRow {
   id: number
+  excel_no: number | null
   business_type: string
   construction: string
   unit_work: string
@@ -23,12 +24,13 @@ interface HazardRow {
 }
 
 const SELECT_COLUMNS =
-  'id, business_type, construction, unit_work, detail_work, hazard, disaster_type, related_law, work_permit, ' +
+  'id, excel_no, business_type, construction, unit_work, detail_work, hazard, disaster_type, related_law, work_permit, ' +
   'flag_serious, flag_accident_case, flag_near_miss, flag_sif, flag_profile, ' +
   'risk_hazard_measures(measure, sort_order)'
 
 const toHazard = (row: HazardRow): RiskHazard => ({
   id: row.id,
+  excelNo: row.excel_no,
   businessType: row.business_type,
   construction: row.construction,
   unitWork: row.unit_work,

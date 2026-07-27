@@ -73,6 +73,7 @@ function parseWorkbook() {
       // No.가 숫자면 새 위험요인
       current = {
         id: hazards.length + 1,
+        excel_no: Number(no),
         business_type: norm(row[COL.businessType]),
         construction: norm(row[COL.construction]),
         unit_work: norm(row[COL.unitWork]),
@@ -148,7 +149,8 @@ async function main() {
     delete row.measures
     return row
   })
-  console.log(`  위험요인 ${hazardRows.length}건, 감소대책 ${measureRows.length}건`)
+  const excelNoFilled = hazardRows.filter((row) => Number.isInteger(row.excel_no)).length
+  console.log(`  위험요인 ${hazardRows.length}건, 감소대책 ${measureRows.length}건, excel_no 채움 ${excelNoFilled}건`)
 
   // 재실행 안전 — 기존 행을 지우고 새로 적재한다 (감소대책은 CASCADE로 함께 삭제)
   console.log('기존 행 삭제 중...')
@@ -169,9 +171,16 @@ async function main() {
     .select('*', { count: 'exact', head: true })
   if (measureCountError) throw new Error(`감소대책 건수 확인 실패: ${measureCountError.message}`)
 
+  const { count: excelNoCount, error: excelNoCountError } = await supabase
+    .from('risk_hazards')
+    .select('*', { count: 'exact', head: true })
+    .not('excel_no', 'is', null)
+  if (excelNoCountError) throw new Error(`excel_no 채움 건수 확인 실패: ${excelNoCountError.message}`)
+
   console.log(`검증 — 위험요인 DB ${hazardCount} / 스크립트 ${hazardRows.length}`)
   console.log(`검증 — 감소대책 DB ${measureCount} / 스크립트 ${measureRows.length}`)
-  if (hazardCount !== hazardRows.length || measureCount !== measureRows.length) {
+  console.log(`검증 — excel_no 채움 DB ${excelNoCount} / 스크립트 ${excelNoFilled}`)
+  if (hazardCount !== hazardRows.length || measureCount !== measureRows.length || excelNoCount !== excelNoFilled) {
     throw new Error('DB 행 수가 스크립트 집계와 다릅니다')
   }
   console.log('완료')
