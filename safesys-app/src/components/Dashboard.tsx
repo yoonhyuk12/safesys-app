@@ -3178,7 +3178,7 @@ const Dashboard: React.FC = () => {
                         setSelectedProjectIdsForReport([])
                       }
                     }}
-                    onGenerateReport={async () => {
+                    onGenerateReport={async (format) => {
                       try {
                         setIsGeneratingReport(true)
                         // 첫 렌더링(스피너 표시)을 위해 페인트 프레임 양보
@@ -3191,23 +3191,29 @@ const Dashboard: React.FC = () => {
                           const fullRes = await getManagerInspectionsByUserBranch(userProfile, selectedQuarter, selectedHq, selectedBranch, { includeSignature: true })
                           if (fullRes.success && fullRes.inspections) reportInspections = fullRes.inspections
                         }
+                        const reportOptions = {
+                          signal: abortController.signal,
+                          onProgress: (current: number, total: number) => {
+                            setReportProgress({ current, total })
+                          }
+                        }
                         if (selectedSafetyBranch) {
-                          const { downloadBranchManagerReports } = await import('@/lib/reports/manager-inspection-branch')
-                          await downloadBranchManagerReports({
+                          const branchParams = {
                             projects,
                             inspections: reportInspections,
                             selectedProjectIds: selectedProjectIdsForReport,
                             selectedQuarter,
                             selectedHq,
                             selectedSafetyBranch: selectedSafetyBranch as string,
-                          }, {
-                            signal: abortController.signal,
-                            onProgress: (current, total) => {
-                              setReportProgress({ current, total })
-                            }
-                          })
+                          }
+                          if (format === 'hwpx') {
+                            const { downloadBranchManagerReportsHwpx } = await import('@/lib/hwpx/manager-inspection-hwpx-export')
+                            await downloadBranchManagerReportsHwpx(branchParams, reportOptions)
+                          } else {
+                            const { downloadBranchManagerReports } = await import('@/lib/reports/manager-inspection-branch')
+                            await downloadBranchManagerReports(branchParams, reportOptions)
+                          }
                         } else {
-                          const { generateManagerInspectionBulkReport } = await import('@/lib/reports/manager-inspection-report')
                           const filteredProjects = projects.filter((p: any) => {
                             if (selectedHq && p.managing_hq !== selectedHq) return false
                             if (selectedBranch && p.managing_branch !== selectedBranch) return false
@@ -3220,15 +3226,14 @@ const Dashboard: React.FC = () => {
                             if (ins.length > 0) projectInspections.push({ project: p, inspections: ins })
                           })
                           if (projectInspections.length === 0) { alert('선택한 조건에 해당하는 점검 결과가 없습니다.'); return }
-                          await generateManagerInspectionBulkReport({
-                            projectInspections,
-                            summary: { quarter: selectedQuarter }
-                          }, {
-                            signal: abortController.signal,
-                            onProgress: (current, total) => {
-                              setReportProgress({ current, total })
-                            }
-                          })
+                          const bulkParams = { projectInspections, summary: { quarter: selectedQuarter } }
+                          if (format === 'hwpx') {
+                            const { downloadManagerInspectionBulkHwpx } = await import('@/lib/hwpx/manager-inspection-hwpx-export')
+                            await downloadManagerInspectionBulkHwpx(bulkParams, reportOptions)
+                          } else {
+                            const { generateManagerInspectionBulkReport } = await import('@/lib/reports/manager-inspection-report')
+                            await generateManagerInspectionBulkReport(bulkParams, reportOptions)
+                          }
                         }
                         setIsHqDownloadMode(false)
                       } catch (e: any) {

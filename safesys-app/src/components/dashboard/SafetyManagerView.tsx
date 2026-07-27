@@ -46,7 +46,7 @@ interface SafetyManagerViewProps {
   onBackToAllBranches: () => void
   onQuarterChange: (q: string) => void
   onToggleDownloadMode: (on: boolean) => void
-  onGenerateReport: () => Promise<void>
+  onGenerateReport: (format?: 'pdf' | 'hwpx') => Promise<void>
   onCancelReport: () => void
   onProjectToggleForReport: (projectId: string) => void
   onBranchToggleForReport: (branch: string) => void
@@ -232,12 +232,12 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                 <>
                   <button
                     type="button"
-                    onClick={onGenerateReport}
+                    onClick={() => onGenerateReport()}
                     className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 inline-flex items-center gap-2"
                     disabled={isGeneratingReport}
                     aria-busy={isGeneratingReport}
                     aria-label="보고서 생성"
-                    title="보고서 생성"
+                    title="보고서 생성 (PDF)"
                   >
                     {isGeneratingReport ? (
                       <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -247,6 +247,17 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                     ) : (
                       <span>프린터</span>
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onGenerateReport('hwpx')}
+                    className="px-3 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 inline-flex items-center gap-2"
+                    disabled={isGeneratingReport}
+                    aria-busy={isGeneratingReport}
+                    aria-label="HWPX 보고서 생성"
+                    title="보고서 생성 (HWPX)"
+                  >
+                    <span>HWPX</span>
                   </button>
                   <button
                     type="button"
@@ -795,7 +806,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                 </button>
               ) : (
                 <>
-                  <button type="button" onClick={onGenerateReport} className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 inline-flex items-center gap-2" disabled={isGeneratingReport} aria-busy={isGeneratingReport} aria-label="보고서 생성" title="보고서 생성">
+                  <button type="button" onClick={() => onGenerateReport()} className="px-3 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 inline-flex items-center gap-2" disabled={isGeneratingReport} aria-busy={isGeneratingReport} aria-label="보고서 생성" title="보고서 생성 (PDF)">
                     {isGeneratingReport ? (
                       <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -804,6 +815,9 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
                     ) : (
                       <span>프린터</span>
                     )}
+                  </button>
+                  <button type="button" onClick={() => onGenerateReport('hwpx')} className="px-3 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 inline-flex items-center gap-2" disabled={isGeneratingReport} aria-busy={isGeneratingReport} aria-label="HWPX 보고서 생성" title="보고서 생성 (HWPX)">
+                    <span>HWPX</span>
                   </button>
                   <button type="button" onClick={onCancelReport} className="px-3 py-2 bg-gray-500 text-white text-sm font-medium rounded-lg hover:bg-gray-600 transition-colors">
                     취소

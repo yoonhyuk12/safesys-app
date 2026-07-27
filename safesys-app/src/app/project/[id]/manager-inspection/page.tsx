@@ -910,6 +910,36 @@ export default function ManagerInspectionPage() {
     }
   }
 
+  // HWPX(한글문서) 생성 함수
+  const generateHwpx = async () => {
+    if (selectedRecords.size === 0) {
+      alert('다운로드할 점검 항목을 선택해주세요.')
+      return
+    }
+
+    if (!project) {
+      alert('프로젝트 정보를 불러올 수 없습니다.')
+      return
+    }
+
+    setIsPdfGenerating(true)
+    try {
+      const { downloadManagerInspectionHwpx } = await import('@/lib/hwpx/manager-inspection-hwpx-export')
+
+      await downloadManagerInspectionHwpx({
+        project,
+        inspections: inspectionRecords,
+        selectedRecords: Array.from(selectedRecords)
+      })
+
+    } catch (error) {
+      console.error('HWPX 생성 오류:', error)
+      alert('HWPX 생성 중 오류가 발생했습니다.')
+    } finally {
+      setIsPdfGenerating(false)
+    }
+  }
+
   // 삭제 기능
   const handleDeleteRecords = async () => {
     if (selectedDeleteRecords.size === 0) {
@@ -1937,29 +1967,43 @@ export default function ManagerInspectionPage() {
                           선택된 항목: {selectedRecords.size}개
                         </span>
                         {selectedRecords.size > 0 && (
-                          <button
-                            onClick={generatePDF}
-                            disabled={isPdfGenerating}
-                            className={`px-3 py-1 text-white text-sm rounded transition-colors flex items-center gap-2 ${
-                              isPdfGenerating 
-                                ? 'bg-gray-400 cursor-not-allowed' 
-                                : 'bg-blue-600 hover:bg-blue-700'
-                            }`}
-                          >
-                            {isPdfGenerating ? (
-                              <>
-                                <div className="animate-spin h-4 w-4">
-                                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                </div>
-                                PDF 생성 중...
-                              </>
-                            ) : (
-                              `선택 항목 다운로드 (${selectedRecords.size}건)`
-                            )}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={generatePDF}
+                              disabled={isPdfGenerating}
+                              className={`px-3 py-1 text-white text-sm rounded transition-colors flex items-center gap-2 ${
+                                isPdfGenerating
+                                  ? 'bg-gray-400 cursor-not-allowed'
+                                  : 'bg-blue-600 hover:bg-blue-700'
+                              }`}
+                            >
+                              {isPdfGenerating ? (
+                                <>
+                                  <div className="animate-spin h-4 w-4">
+                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                  </div>
+                                  생성 중...
+                                </>
+                              ) : (
+                                `선택 항목 다운로드 (${selectedRecords.size}건)`
+                              )}
+                            </button>
+                            <button
+                              onClick={generateHwpx}
+                              disabled={isPdfGenerating}
+                              className={`px-3 py-1 text-white text-sm rounded transition-colors ${
+                                isPdfGenerating
+                                  ? 'bg-gray-400 cursor-not-allowed'
+                                  : 'bg-emerald-600 hover:bg-emerald-700'
+                              }`}
+                              title="한글문서(HWPX)로 다운로드"
+                            >
+                              HWPX
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
