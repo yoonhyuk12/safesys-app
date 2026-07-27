@@ -24,6 +24,10 @@ const TITLE_ROW_HEIGHT = 32.1
 const DATA_ROW_HEIGHT = 75.2
 
 const FIRST_DATA_ROW = 10
+/** 1페이지 마지막 시트 행 (헤더 1~9행 + 데이터 3조) */
+const FIRST_PAGE_LAST_ROW = 15
+/** 2페이지부터 페이지당 시트 행 수 (데이터 4조) */
+const ROWS_PER_PAGE = 8
 
 const thin: ExcelJS.Border = { style: 'thin', color: { argb: 'FF000000' } }
 const ALL_BORDERS: Partial<ExcelJS.Borders> = { top: thin, left: thin, bottom: thin, right: thin }
@@ -91,6 +95,13 @@ const mergeSet = (
   if (style.border !== false) borderRange(ws, range)
 }
 
+/** 결재 일자 표기 — "2026.07.28" → "26.07.28" (형식이 어긋나면 양식 기본값 "/") */
+const toShortDate = (writtenDate: string): string => {
+  const m = writtenDate?.match(/^\d{2}(\d{2})\.(\d{1,2})\.(\d{1,2})$/)
+  if (!m) return '/'
+  return `${m[1]}.${m[2].padStart(2, '0')}.${m[3].padStart(2, '0')}`
+}
+
 /** 1~6행 — 현장 정보 + 결재란(공사/안전/현장소장) + 점검란(공사감독) */
 const buildHeader = (ws: ExcelJS.Worksheet, data: RiskAssessmentExportData) => {
   HEADER_ROW_HEIGHTS.forEach((h, i) => {
@@ -117,23 +128,29 @@ const buildHeader = (ws: ExcelJS.Worksheet, data: RiskAssessmentExportData) => {
 
   mergeSet(ws, 'D1:K6', '수시 위험성평가서', { size: 20 })
 
-  // 결재란
+  // 결재란 — 성명은 텍스트로 쓰고 서명 이미지를 그 위에 겹친다
+  const sig = data.signatures
+  const approvalDate = toShortDate(data.writtenDate)
   mergeSet(ws, 'L1:L6', '결\n\n재', { wrap: true })
   setCell(ws, 'M1', '공 사')
   setCell(ws, 'N1', '안 전')
   mergeSet(ws, 'O1:P1', '현장소장')
-  mergeSet(ws, 'M2:M4', '(위험성\n평가서\n작성자)', { bold: true, color: GUIDE_COLOR, wrap: true })
-  mergeSet(ws, 'N2:N4', null)
-  mergeSet(ws, 'O2:P4', null)
-  mergeSet(ws, 'M5:M6', '/')
-  mergeSet(ws, 'N5:N6', '/')
-  mergeSet(ws, 'O5:P6', '/')
+  if (sig?.constructionName) {
+    mergeSet(ws, 'M2:M4', sig.constructionName, { wrap: true })
+  } else {
+    mergeSet(ws, 'M2:M4', '(위험성\n평가서\n작성자)', { bold: true, color: GUIDE_COLOR, wrap: true })
+  }
+  mergeSet(ws, 'N2:N4', sig?.safetyName ?? null, { wrap: true })
+  mergeSet(ws, 'O2:P4', sig?.siteManagerName ?? null, { wrap: true })
+  mergeSet(ws, 'M5:M6', approvalDate)
+  mergeSet(ws, 'N5:N6', approvalDate)
+  mergeSet(ws, 'O5:P6', approvalDate)
 
   // 점검란
   mergeSet(ws, 'Q1:Q6', '점\n\n검', { wrap: true })
   setCell(ws, 'R1', '공사감독')
-  mergeSet(ws, 'R2:R4', null)
-  mergeSet(ws, 'R5:R6', '/')
+  mergeSet(ws, 'R2:R4', sig?.supervisorName ?? null, { wrap: true })
+  mergeSet(ws, 'R5:R6', approvalDate)
 
   // 7행은 표와의 간격(테두리 없음)
   for (let c = 1; c <= COLUMN_WIDTHS.length; c++) {
@@ -287,6 +304,19 @@ const addSignatures = async (
   }
 }
 
+/**
+ * 수동 행 나눔 — 1페이지는 시트 15행까지(헤더 1~9행 + 데이터 3조),
+ * 2페이지부터는 8행씩(데이터 4조). 마지막 데이터 행을 넘어서는 나눔은 넣지 않는다.
+ */
+const addPageBreaks = (ws: ExcelJS.Worksheet, rowCount: number) => {
+  const lastRow = FIRST_DATA_ROW - 1 + rowCount * 2
+  for (let brk = FIRST_PAGE_LAST_ROW; brk < lastRow; brk += ROWS_PER_PAGE) {
+    // 인자 없이 부르면 exceljs가 max를 16838(열 인덱스 상한 16383 초과)로 넣으므로
+    // 마지막 열까지 명시해 brk max=16383으로 나오게 한다
+    ws.getRow(brk).addPageBreak(1, 16384)
+  }
+}
+
 /** 파일명에 못 쓰는 문자를 걷어낸다 */
 const sanitize = (name: string): string => name.replace(/[\\/:*?"<>|]/g, '_').trim()
 
@@ -298,10 +328,12 @@ export async function buildRiskAssessmentWorkbook(
   const ws = workbook.addWorksheet('수시 위험성평가서', {
     properties: { defaultRowHeight: 16.5 },
     pageSetup: {
-      paperSize: 8 as ExcelJS.PaperSize, // A3 — exceljs 타입 enum에 A3가 빠져 있어 캐스팅
+      paperSize: 9, // A4
       orientation: 'landscape',
-      fitToPage: false,
-      scale: 66,
+      // 가로세로 맞춤 — 세로(fitToHeight)는 0이어야 Excel이 수동 행 나눔을 무시하지 않는다
+      fitToPage: true,
+      fitToWidth: 1,
+      fitToHeight: 0,
       horizontalCentered: true,
       showGridLines: false,
       printTitlesRow: '8:9', // 인쇄 시 매 페이지에 표 제목 2줄 반복 (사용자 명시 요구)
@@ -322,6 +354,7 @@ export async function buildRiskAssessmentWorkbook(
   buildHeader(ws, data)
   buildTableTitle(ws)
   data.rows.forEach((row, i) => buildDataRow(ws, row, FIRST_DATA_ROW + i * 2))
+  addPageBreaks(ws, data.rows.length)
 
   if (data.signatures) await addSignatures(workbook, ws, data.signatures)
 

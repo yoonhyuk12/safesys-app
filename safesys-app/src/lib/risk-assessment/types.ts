@@ -121,13 +121,20 @@ export interface RiskAssessment {
   updatedAt: string
 }
 
-/** 결재란 서명 (dataURL, 미서명은 null) — 공사/안전/현장소장 + 점검(공사감독) */
+/** 결재란 서명·명단 (jsonb 저장) — 공사/안전/현장소장 + 점검(공사감독). *Name은 결재란에 표기할 성명 */
 export interface RiskAssessmentSignatures {
-  construction?: string | null  // 공사 (작성자)
-  safety?: string | null        // 안전
-  siteManager?: string | null   // 현장소장
-  supervisor?: string | null    // 공사감독 (점검)
+  construction?: string | null  // 공사 (작성자) 서명 dataURL
+  safety?: string | null        // 안전 서명 dataURL
+  siteManager?: string | null   // 현장소장 서명 dataURL
+  supervisor?: string | null    // 공사감독 (점검) 서명 dataURL
+  constructionName?: string     // 공사 칸 성명 (작성자 = 접속자)
+  safetyName?: string           // 안전 칸 성명 (안전담당)
+  siteManagerName?: string      // 현장소장 칸 성명 (프로젝트 소유자)
+  supervisorName?: string       // 공사감독 칸 성명 (프로젝트 감독명)
 }
+
+/** 위험성평가 AI가 쓰는 Gemini 모델 목록 — 라우트와 UI 표기가 이 상수를 공유한다 (앞이 기본, 뒤는 폴백) */
+export const RISK_AI_MODELS = ['gemini-3.1-flash-lite']
 
 /** 엑셀 출력 입력 — src/lib/excel/risk-assessment-export.ts 의 exportRiskAssessmentExcel() 인자 */
 export interface RiskAssessmentExportData {
