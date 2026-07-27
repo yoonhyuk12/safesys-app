@@ -1,6 +1,6 @@
 'use client'
 
-// 수시 위험성평가 작성 마법사 — 사업별 확인부터 저장까지 4단계 흐름과 단계별 상태를 관리한다
+// 수시 위험성평가 작성·수정 마법사 — 신규는 4단계, 수정은 행 편집·저장 2단계 흐름과 단계별 상태를 관리한다
 
 import { useMemo, useState } from 'react'
 import { ArrowLeft, ArrowRight, Loader2, Save, X } from 'lucide-react'
@@ -21,11 +21,26 @@ interface RiskAssessmentWizardProps {
   savedBusinessType: string | null
   defaultAuthorName: string
   userId: string
+  /** 주면 수정 모드 — 저장된 값을 채운 채 행 편집 단계부터 시작한다 */
+  initialRecord?: RiskAssessmentRecord | null
   onSaved: (record: RiskAssessmentRecord) => void
   onClose: () => void
 }
 
-const STEPS = ['사업별 확인', '작업 정보·AI 분류', '행 편집', '저장']
+type StepKey = 'business' | 'work' | 'rows' | 'save'
+
+const CREATE_STEPS: Array<{ key: StepKey; label: string }> = [
+  { key: 'business', label: '사업별 확인' },
+  { key: 'work', label: '작업 정보·AI 분류' },
+  { key: 'rows', label: '행 편집' },
+  { key: 'save', label: '저장' },
+]
+
+// 수정 모드는 재분류 없이 내용만 손보므로 앞 두 단계를 건너뛴다.
+const EDIT_STEPS: Array<{ key: StepKey; label: string }> = [
+  { key: 'rows', label: '행 편집' },
+  { key: 'save', label: '저장' },
+]
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -59,23 +74,31 @@ export default function RiskAssessmentWizard({
   savedBusinessType,
   defaultAuthorName,
   userId,
+  initialRecord,
   onSaved,
   onClose,
 }: RiskAssessmentWizardProps) {
   const inferred = useMemo(() => inferBusinessType(projectName), [projectName])
+  const isEdit = Boolean(initialRecord)
+  const steps = isEdit ? EDIT_STEPS : CREATE_STEPS
 
   const [step, setStep] = useState(0)
-  const [businessType, setBusinessType] = useState(savedBusinessType || inferred || BUSINESS_TYPE_ALL)
-  const [workDescription, setWorkDescription] = useState('')
+  // 저장된 사업별이 null이면 전체 모드로 만든 평가서다
+  const [businessType, setBusinessType] = useState(initialRecord
+    ? initialRecord.business_type || BUSINESS_TYPE_ALL
+    : savedBusinessType || inferred || BUSINESS_TYPE_ALL)
+  const [workDescription, setWorkDescription] = useState(initialRecord?.trigger || '')
   const [personnel, setPersonnel] = useState('')
   const [equipment, setEquipment] = useState('')
-  const [rows, setRows] = useState<RiskAssessmentRow[]>([])
-  const [title, setTitle] = useState('')
-  const [authorName, setAuthorName] = useState(defaultAuthorName)
-  const [managePeriodStart, setManagePeriodStart] = useState(today())
-  const [managePeriodEnd, setManagePeriodEnd] = useState(addDays(6))
+  const [rows, setRows] = useState<RiskAssessmentRow[]>(initialRecord?.rows || [])
+  const [title, setTitle] = useState(initialRecord?.title || '')
+  const [authorName, setAuthorName] = useState(initialRecord?.author_name || defaultAuthorName)
+  const [managePeriodStart, setManagePeriodStart] = useState(initialRecord?.manage_period_start || today())
+  const [managePeriodEnd, setManagePeriodEnd] = useState(initialRecord?.manage_period_end || addDays(6))
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+
+  const currentKey = steps[step].key
 
   const businessTypeLabel = businessType === BUSINESS_TYPE_ALL ? '사업 무관(전체)' : businessType
   // 행마다 세부단위작업이 달라질 수 있어 요약에는 고유값을 모아 보여준다
@@ -90,24 +113,24 @@ export default function RiskAssessmentWizard({
   }
 
   const canProceed = () => {
-    if (step === 1 || step === 2) return rows.length > 0
+    if (currentKey === 'work' || currentKey === 'rows') return rows.length > 0
     return true
   }
 
   const goNext = async () => {
     if (!canProceed()) return
-    if (step === 0) await persistBusinessType()
-    if (step === 2 && !title.trim()) {
+    if (currentKey === 'business') await persistBusinessType()
+    if (currentKey === 'rows' && !title.trim()) {
       setTitle(`${detailWorks[0] || projectName} 수시 위험성평가 (${today()})`)
     }
-    setStep((current) => Math.min(STEPS.length - 1, current + 1))
+    setStep((current) => Math.min(steps.length - 1, current + 1))
   }
 
   const goPrev = () => setStep((current) => Math.max(0, current - 1))
 
   const handleRowsReady = (nextRows: RiskAssessmentRow[]) => {
     setRows(nextRows)
-    setStep(2)
+    setStep(steps.findIndex((item) => item.key === 'rows'))
   }
 
   const handleSave = async () => {
@@ -118,23 +141,35 @@ export default function RiskAssessmentWizard({
     setSaving(true)
     setSaveError('')
     try {
-      const { data, error } = await supabase
-        .from('risk_assessments')
-        .insert({
-          project_id: projectId,
-          assessment_type: '수시',
-          title: title.trim(),
-          business_type: businessType === BUSINESS_TYPE_ALL ? null : businessType,
-          trigger: workDescription.trim(),
-          author_name: authorName.trim(),
-          manage_period_start: managePeriodStart || null,
-          manage_period_end: managePeriodEnd || null,
-          rows: normalizeRows(rows),
-          signatures: {},
-          created_by: userId,
-        })
-        .select('*')
-        .single()
+      // 두 흐름이 공유하는 본문. updated_at은 DB 트리거가 갱신한다.
+      const payload = {
+        title: title.trim(),
+        business_type: businessType === BUSINESS_TYPE_ALL ? null : businessType,
+        trigger: workDescription.trim(),
+        author_name: authorName.trim(),
+        manage_period_start: managePeriodStart || null,
+        manage_period_end: managePeriodEnd || null,
+        rows: normalizeRows(rows),
+      }
+
+      const { data, error } = initialRecord
+        ? await supabase
+            .from('risk_assessments')
+            .update(payload)
+            .eq('id', initialRecord.id)
+            .select('*')
+            .single()
+        : await supabase
+            .from('risk_assessments')
+            .insert({
+              ...payload,
+              project_id: projectId,
+              assessment_type: '수시',
+              signatures: {},
+              created_by: userId,
+            })
+            .select('*')
+            .single()
 
       if (error) throw new Error(error.message)
       onSaved(data as RiskAssessmentRecord)
@@ -143,7 +178,7 @@ export default function RiskAssessmentWizard({
       const message = error instanceof Error ? error.message : '알 수 없는 오류'
       setSaveError(message.includes('risk_assessments')
         ? '위험성평가 테이블이 준비되지 않았습니다. 데이터베이스 마이그레이션을 먼저 실행해주세요.'
-        : `저장에 실패했습니다. ${message}`)
+        : `${isEdit ? '수정 저장' : '저장'}에 실패했습니다. ${message}`)
     } finally {
       setSaving(false)
     }
@@ -152,14 +187,14 @@ export default function RiskAssessmentWizard({
   return (
     <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
       <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
-        <h2 className="font-bold text-gray-900">새 수시 위험성평가</h2>
-        <button type="button" onClick={onClose} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600" aria-label="작성 취소">
+        <h2 className="font-bold text-gray-900">{isEdit ? '수시 위험성평가 수정' : '새 수시 위험성평가'}</h2>
+        <button type="button" onClick={onClose} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600" aria-label={isEdit ? '수정 취소' : '작성 취소'}>
           <X className="h-5 w-5" />
         </button>
       </div>
 
       <ol className="flex flex-wrap gap-1.5 border-b border-gray-200 px-4 py-3">
-        {STEPS.map((label, index) => (
+        {steps.map(({ label }, index) => (
           <li key={label}>
             <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${
               index === step
@@ -175,7 +210,7 @@ export default function RiskAssessmentWizard({
       </ol>
 
       <div className="px-4 py-4">
-        {step === 0 && (
+        {currentKey === 'business' && (
           <BusinessTypeStep
             projectName={projectName}
             inferred={inferred}
@@ -183,7 +218,7 @@ export default function RiskAssessmentWizard({
             onChange={setBusinessType}
           />
         )}
-        {step === 1 && (
+        {currentKey === 'work' && (
           <WorkInputStep
             projectId={projectId}
             projectName={projectName}
@@ -199,10 +234,10 @@ export default function RiskAssessmentWizard({
             onRowsReady={handleRowsReady}
           />
         )}
-        {step === 2 && (
+        {currentKey === 'rows' && (
           <RowEditorStep rows={rows} detailWork={detailWorks[0] || ''} onChange={setRows} />
         )}
-        {step === 3 && (
+        {currentKey === 'save' && (
           <SaveStep
             title={title}
             authorName={authorName}
@@ -234,7 +269,7 @@ export default function RiskAssessmentWizard({
           <ArrowLeft className="h-4 w-4" />이전
         </button>
 
-        {step < STEPS.length - 1 ? (
+        {step < steps.length - 1 ? (
           <button
             type="button"
             onClick={goNext}
@@ -251,7 +286,7 @@ export default function RiskAssessmentWizard({
             className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? '저장 중' : '저장'}
+            {saving ? '저장 중' : isEdit ? '수정 저장' : '저장'}
           </button>
         )}
       </div>

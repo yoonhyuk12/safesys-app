@@ -40,6 +40,7 @@ export default function RiskAssessmentPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showWizard, setShowWizard] = useState(false)
+  const [editingRecord, setEditingRecord] = useState<RiskAssessmentRecord | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -105,8 +106,25 @@ export default function RiskAssessmentPage() {
     router.push(`/project/${projectId}`)
   }
 
+  const openNewWizard = () => {
+    setEditingRecord(null)
+    setShowWizard(true)
+  }
+
+  const openEditWizard = (record: RiskAssessmentRecord) => {
+    setEditingRecord(record)
+    setShowWizard(true)
+  }
+
+  const closeWizard = () => {
+    setEditingRecord(null)
+    setShowWizard(false)
+  }
+
   const handleSaved = (record: RiskAssessmentRecord) => {
-    setRecords((current) => [record, ...current])
+    setRecords((current) => current.some((item) => item.id === record.id)
+      ? current.map((item) => item.id === record.id ? record : item)
+      : [record, ...current])
     if (project) setProject({ ...project, risk_business_type: record.business_type })
   }
 
@@ -168,7 +186,7 @@ export default function RiskAssessmentPage() {
             </div>
             {!showWizard && project && (
               <button
-                onClick={() => setShowWizard(true)}
+                onClick={openNewWizard}
                 className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-700 sm:px-4"
               >
                 <Plus className="h-4 w-4" />
@@ -204,8 +222,9 @@ export default function RiskAssessmentPage() {
             savedBusinessType={project.risk_business_type}
             defaultAuthorName={authorName}
             userId={user.id}
+            initialRecord={editingRecord}
             onSaved={handleSaved}
-            onClose={() => setShowWizard(false)}
+            onClose={closeWizard}
           />
         ) : (
           <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -223,7 +242,7 @@ export default function RiskAssessmentPage() {
                 <p className="mt-1 text-sm text-gray-500">유해·위험요인 DB와 AI 판정으로 수시평가표를 빠르게 작성할 수 있습니다.</p>
                 {project && (
                   <button
-                    onClick={() => setShowWizard(true)}
+                    onClick={openNewWizard}
                     className="mt-5 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
                   >
                     <Plus className="h-4 w-4" />첫 평가서 작성
@@ -235,17 +254,22 @@ export default function RiskAssessmentPage() {
                 <table className="w-full min-w-[860px] text-sm">
                   <thead className="bg-gray-50 text-xs text-gray-600">
                     <tr>
-                      <th className="px-4 py-3 text-left font-semibold sm:px-6">제목</th>
-                      <th className="px-4 py-3 text-left font-semibold">수시평가 사유</th>
-                      <th className="px-4 py-3 text-left font-semibold">관리기간</th>
-                      <th className="px-4 py-3 text-left font-semibold">작성일</th>
+                      <th className="px-4 py-3 text-center font-semibold sm:px-6">제목</th>
+                      <th className="px-4 py-3 text-center font-semibold">수시평가 사유</th>
+                      <th className="px-4 py-3 text-center font-semibold">관리기간</th>
+                      <th className="px-4 py-3 text-center font-semibold">작성일</th>
                       <th className="px-4 py-3 text-center font-semibold">엑셀</th>
                       <th className="px-4 py-3 text-center font-semibold">관리</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {records.map((record) => (
-                      <tr key={record.id} className="hover:bg-blue-50/50">
+                      <tr
+                        key={record.id}
+                        onClick={() => openEditWizard(record)}
+                        title="클릭하면 수정 모드로 들어갑니다"
+                        className="cursor-pointer hover:bg-blue-50/50"
+                      >
                         <td className="max-w-xs px-4 py-3 font-medium text-gray-900 sm:px-6">
                           <span className="line-clamp-2">{record.title}</span>
                           <span className="mt-1 flex flex-wrap gap-1">
@@ -264,7 +288,7 @@ export default function RiskAssessmentPage() {
                           <button
                             type="button"
                             disabled={downloadingId !== null}
-                            onClick={() => handleDownload(record)}
+                            onClick={(event) => { event.stopPropagation(); handleDownload(record) }}
                             className="inline-flex items-center gap-1 rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                             aria-label={`${record.title} 엑셀 다운로드`}
                           >
@@ -276,7 +300,7 @@ export default function RiskAssessmentPage() {
                           <button
                             type="button"
                             disabled={deletingId === record.id}
-                            onClick={() => handleDelete(record)}
+                            onClick={(event) => { event.stopPropagation(); handleDelete(record) }}
                             className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-40"
                             aria-label={`${record.title} 삭제`}
                           >
