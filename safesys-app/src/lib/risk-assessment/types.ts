@@ -103,6 +103,48 @@ export interface RiskAiResponse {
   error?: string
 }
 
+/** POST /api/ai/risk-row 요청 — 작업 상황에 맞는 새 행 1건을 AI가 직접 작성 (DB 원문에 없는 위험요인 보충용) */
+export interface RiskAiRowRequest {
+  trigger: string              // 수시평가 사유·작업내용
+  siteContext?: string         // 인원·장비 등 부가 정보
+  detailWork: string           // 새 행의 세부작업 표기
+  existingHazards: string[]    // 이미 표에 있는 위험요인 문구 (중복 방지용)
+}
+
+/** AI가 작성한 새 행 초안 — hazardId 없이 추가되므로 행 편집에서 사용자가 검토·수정한다 */
+export interface RiskAiRowDraft {
+  hazard: string
+  disasterType: string         // 재해유형 (떨어짐·끼임 등 표준 표기 권장)
+  frequency: number            // 1~3
+  intensity: number            // 1~3
+  equipment: string
+  measures: string[]           // 감소대책 1~4개
+}
+
+export interface RiskAiRowResponse {
+  success: boolean
+  data?: RiskAiRowDraft
+  error?: string
+}
+
+/** POST /api/ai/tbm-risk-link 요청 — 수시위험성평가 행들과 금일 작업내용을 비교해 TBM 잠재위험요인을 골라 채운다 */
+export interface TbmRiskLinkRequest {
+  todayWork: string            // TBM 금일 작업내용
+  rows: Array<Pick<RiskAssessmentRow, 'hazard' | 'disasterType' | 'measures' | 'frequency' | 'intensity'>>
+}
+
+/** TBM 잠재위험요인 1건 — risk는 평가서 위험요인 원문 기반, solution은 감소대책 요약 */
+export interface TbmRiskLinkItem {
+  risk: string
+  solution: string
+}
+
+export interface TbmRiskLinkResponse {
+  success: boolean
+  data?: TbmRiskLinkItem[]     // 관련도 순 최대 3건
+  error?: string
+}
+
 /** risk_assessments 테이블에 저장되는 평가서 1건 */
 export interface RiskAssessment {
   id: string

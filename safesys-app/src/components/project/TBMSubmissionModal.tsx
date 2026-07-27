@@ -6,7 +6,9 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import SignaturePad from '@/components/ui/SignaturePad'
 import VworldMapAddressModal from '@/components/ui/VworldMapAddressModal'
+import TbmRiskLinkButton from '@/components/project/risk-assessment/TbmRiskLinkButton'
 import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
+import type { TbmRiskLinkItem } from '@/lib/risk-assessment/types'
 
 interface TBMSubmissionModalProps {
   isOpen: boolean
@@ -306,6 +308,21 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       personnelTotalCount: personnelTotalManual
         ? prev.personnelTotalCount
         : (parsePersonnelCount(value) ? String(parsePersonnelCount(value)) : '')
+    }))
+  }
+
+  // 수시위험성평가 연계 결과로 잠재위험요인·해결방안을 채운다 (중점위험요인은 첫 항목으로 맞춘다)
+  const handleRiskLinkApply = (items: TbmRiskLinkItem[]) => {
+    setFormData(prev => ({
+      ...prev,
+      potentialRisk1: items[0]?.risk || '',
+      solution1: items[0]?.solution || '',
+      potentialRisk2: items[1]?.risk || '',
+      solution2: items[1]?.solution || '',
+      potentialRisk3: items[2]?.risk || '',
+      solution3: items[2]?.solution || '',
+      mainRiskSelection: items[0]?.risk || '',
+      mainRiskSolution: items[0]?.solution || ''
     }))
   }
 
@@ -1651,7 +1668,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                   <h3 className="text-sm font-semibold text-gray-700">AI 위험요인 분석</h3>
                   <div className="text-xs text-gray-500">powered by GPT-5.4 nano</div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={handleAIWrite}
@@ -1667,6 +1684,14 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                       'AI 작성하기'
                     )}
                   </button>
+                  <div className="flex-1 md:flex-1">
+                    <TbmRiskLinkButton
+                      projectId={projectId}
+                      todayWork={formData.todayWork}
+                      disabled={aiLoading}
+                      onApply={handleRiskLinkApply}
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={handleClearAI}
