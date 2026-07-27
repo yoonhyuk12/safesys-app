@@ -135,11 +135,8 @@ const buildHeader = (ws: ExcelJS.Worksheet, data: RiskAssessmentExportData) => {
   setCell(ws, 'M1', '공 사')
   setCell(ws, 'N1', '안 전')
   mergeSet(ws, 'O1:P1', '현장소장')
-  if (sig?.constructionName) {
-    mergeSet(ws, 'M2:M4', sig.constructionName, { wrap: true })
-  } else {
-    mergeSet(ws, 'M2:M4', '(위험성\n평가서\n작성자)', { bold: true, color: GUIDE_COLOR, wrap: true })
-  }
+  // 결재란은 서명만 겹치므로 안내 문구 없이 빈 칸으로 둔다 (성명은 구 레코드 저장분만 표기)
+  mergeSet(ws, 'M2:M4', sig?.constructionName ?? null, { wrap: true })
   mergeSet(ws, 'N2:N4', sig?.safetyName ?? null, { wrap: true })
   mergeSet(ws, 'O2:P4', sig?.siteManagerName ?? null, { wrap: true })
   mergeSet(ws, 'M5:M6', approvalDate)
