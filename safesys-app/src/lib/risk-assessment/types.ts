@@ -134,7 +134,7 @@ export interface RiskAssessmentSignatures {
 }
 
 /** 위험성평가 AI가 쓰는 Gemini 모델 목록 — 라우트와 UI 표기가 이 상수를 공유한다 (앞이 기본, 뒤는 폴백) */
-export const RISK_AI_MODELS = ['gemini-3.1-flash-lite']
+export const RISK_AI_MODELS = ['gemini-flash-lite-latest', 'gemini-3.1-flash-lite']
 
 /** 엑셀 출력 입력 — src/lib/excel/risk-assessment-export.ts 의 exportRiskAssessmentExcel() 인자 */
 export interface RiskAssessmentExportData {
