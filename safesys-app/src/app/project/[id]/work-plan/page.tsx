@@ -2,7 +2,7 @@
 
 // 프로젝트별 AI 작업계획서 목록 조회·수정·삭제와 작성 마법사 진입을 제공하는 페이지
 
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { ArrowLeft, Download, FileText, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -14,6 +14,7 @@ import { downloadConstructionWorkPlanPdf } from '@/lib/reports/work-plan/work-pl
 import { downloadElectricWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-electric-pdf'
 import { downloadExcavationWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-excavation-pdf'
 import { downloadHeavyWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-heavy-pdf'
+import { downloadLoadingWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-loading-hwpx'
 import { PLAN_TYPE_OPTIONS } from '@/lib/work-plan/constants'
 import type { PlanType, WorkPlanProject, WorkPlanRecord, WorkPlanWorker } from '@/lib/work-plan/types'
 
@@ -24,6 +25,13 @@ const workPlanPdfDownloaders: Record<PlanType, (record: WorkPlanRecord) => Promi
   heavy: downloadHeavyWorkPlanPdf,
   excavation: downloadExcavationWorkPlanPdf,
 }
+
+// 종류별 HWPX(한글) 다운로드 — 구현된 종류만 담고, 맵에 있는 종류만 버튼을 노출한다
+const workPlanHwpxDownloaders: Partial<Record<PlanType, (record: WorkPlanRecord) => Promise<void>>> = {
+  loading: downloadLoadingWorkPlanHwpx,
+}
+
+type WorkPlanDownloadFormat = 'pdf' | 'hwpx'
 
 const planTypeName = (type: PlanType) =>
   PLAN_TYPE_OPTIONS.find((option) => option.value === type)?.shortTitle || type
@@ -207,18 +215,22 @@ export default function WorkPlanPage() {
       : [savedRecord, ...current])
   }
 
-  const handleDownload = async (record: WorkPlanRecord, type: PlanType) => {
+  const handleDownload = async (record: WorkPlanRecord, type: PlanType, format: WorkPlanDownloadFormat = 'pdf') => {
     if (downloadingKey) return
 
-    const downloadKey = `${record.id}:${type}`
+    const downloader = format === 'hwpx' ? workPlanHwpxDownloaders[type] : workPlanPdfDownloaders[type]
+    if (!downloader) return
+
+    const formatLabel = format === 'hwpx' ? 'HWPX' : 'PDF'
+    const downloadKey = `${record.id}:${type}:${format}`
     setDownloadingKey(downloadKey)
     setDownloadError('')
     try {
-      await workPlanPdfDownloaders[type](record)
+      await downloader(record)
     } catch (downloadFailure: unknown) {
-      console.error('작업계획서 PDF 다운로드 실패.', { recordId: record.id, type, downloadFailure })
-      const message = downloadFailure instanceof Error ? downloadFailure.message : 'PDF 파일을 만들지 못했습니다.'
-      setDownloadError(`${planTypeName(type)} PDF 다운로드에 실패했습니다. ${message}`)
+      console.error(`작업계획서 ${formatLabel} 다운로드 실패.`, { recordId: record.id, type, downloadFailure })
+      const message = downloadFailure instanceof Error ? downloadFailure.message : `${formatLabel} 파일을 만들지 못했습니다.`
+      setDownloadError(`${planTypeName(type)} ${formatLabel} 다운로드에 실패했습니다. ${message}`)
     } finally {
       setDownloadingKey(null)
     }
@@ -336,20 +348,35 @@ export default function WorkPlanPage() {
                         <td className="px-4 py-3 text-center">
                           <div className="inline-flex flex-wrap justify-center gap-1">
                             {record.plan_types.map((type) => {
-                              const downloadKey = `${record.id}:${type}`
-                              const isDownloading = downloadingKey === downloadKey
+                              const pdfKey = `${record.id}:${type}:pdf`
+                              const isDownloading = downloadingKey === pdfKey
+                              const hwpxKey = `${record.id}:${type}:hwpx`
+                              const isHwpxDownloading = downloadingKey === hwpxKey
                               return (
-                                <button
-                                  key={type}
-                                  type="button"
-                                  disabled={downloadingKey !== null}
-                                  onClick={() => handleDownload(record, type)}
-                                  className="inline-flex items-center gap-1 rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-                                  aria-label={`${record.title} ${planTypeName(type)} PDF 다운로드`}
-                                >
-                                  {isDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                                  {isDownloading ? '생성 중' : planTypeName(type)}
-                                </button>
+                                <Fragment key={type}>
+                                  <button
+                                    type="button"
+                                    disabled={downloadingKey !== null}
+                                    onClick={() => handleDownload(record, type)}
+                                    className="inline-flex items-center gap-1 rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    aria-label={`${record.title} ${planTypeName(type)} PDF 다운로드`}
+                                  >
+                                    {isDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                                    {isDownloading ? '생성 중' : planTypeName(type)}
+                                  </button>
+                                  {workPlanHwpxDownloaders[type] && (
+                                    <button
+                                      type="button"
+                                      disabled={downloadingKey !== null}
+                                      onClick={() => handleDownload(record, type, 'hwpx')}
+                                      className="inline-flex items-center gap-1 rounded border border-emerald-200 bg-white px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                      aria-label={`${record.title} ${planTypeName(type)} HWPX 다운로드`}
+                                    >
+                                      {isHwpxDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                                      {isHwpxDownloading ? '생성 중' : `${planTypeName(type)} 한글`}
+                                    </button>
+                                  )}
+                                </Fragment>
                               )
                             })}
                           </div>
