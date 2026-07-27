@@ -17,6 +17,7 @@ import { downloadHeavyWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-heav
 import { downloadLoadingWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-loading-hwpx'
 import { downloadConstructionWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-construction-hwpx'
 import { downloadElectricWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-electric-hwpx'
+import { downloadExcavationWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-excavation-hwpx'
 import { downloadHeavyWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-heavy-hwpx'
 import { PLAN_TYPE_OPTIONS } from '@/lib/work-plan/constants'
 import type { PlanType, WorkPlanProject, WorkPlanRecord, WorkPlanWorker } from '@/lib/work-plan/types'
@@ -35,6 +36,7 @@ const workPlanHwpxDownloaders: Partial<Record<PlanType, (record: WorkPlanRecord)
   construction: downloadConstructionWorkPlanHwpx,
   electric: downloadElectricWorkPlanHwpx,
   heavy: downloadHeavyWorkPlanHwpx,
+  excavation: downloadExcavationWorkPlanHwpx,
 }
 
 type WorkPlanDownloadFormat = 'pdf' | 'hwpx'

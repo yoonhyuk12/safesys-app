@@ -398,6 +398,7 @@ export function buildTableParagraph(colWidths: number[], rows: Row[], tblId: num
 export interface TextParagraphOptions {
     cp?: number
     center?: boolean
+    right?: boolean
     pageBreak?: boolean
     secPr?: boolean        // 구역 속성 포함(문서 첫 문단에만)
 }
@@ -405,7 +406,7 @@ export interface TextParagraphOptions {
 // 표 밖 단독 문단(제목·주석·여백 채움 등)
 export function buildTextParagraph(text: string, opts: TextParagraphOptions = {}): string {
     const cp = opts.cp ?? 0
-    const pp = opts.center ? 1 : 0
+    const pp = opts.center ? 1 : opts.right ? 2 : 0
     const h = CP_HEIGHT[cp] ?? 1000
     const secPr = opts.secPr ? `${SECPR}<hp:ctrl><hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/></hp:ctrl>` : ''
     const runs = opts.secPr
