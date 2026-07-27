@@ -9,7 +9,7 @@ import { inferBusinessType } from '@/lib/risk-assessment/business-type-infer'
 import type { RiskAssessmentRow } from '@/lib/risk-assessment/types'
 import BusinessTypeStep from './BusinessTypeStep'
 import RowEditorStep from './RowEditorStep'
-import SaveStep, { type SignatureNameKey, type SignatureNames } from './SaveStep'
+import SaveStep, { type SignatureDataKey, type SignatureDataUrls } from './SaveStep'
 import WorkInputStep from './WorkInputStep'
 import { BUSINESS_TYPE_ALL, buildSiteContext, type RiskAssessmentRecord } from './record'
 
@@ -20,10 +20,6 @@ interface RiskAssessmentWizardProps {
   managingBranch: string | null
   savedBusinessType: string | null
   defaultAuthorName: string
-  /** 프로젝트 소유자 이름 — 결재란 현장소장 기본값 */
-  ownerName: string
-  /** projects.supervisor_name — 결재란 공사감독 기본값 */
-  supervisorName: string
   userId: string
   /** 주면 수정 모드 — 저장된 값을 채운 채 행 편집 단계부터 시작한다 */
   initialRecord?: RiskAssessmentRecord | null
@@ -84,8 +80,6 @@ export default function RiskAssessmentWizard({
   managingBranch,
   savedBusinessType,
   defaultAuthorName,
-  ownerName,
-  supervisorName,
   userId,
   initialRecord,
   onSaved,
@@ -109,20 +103,20 @@ export default function RiskAssessmentWizard({
   const [authorName, setAuthorName] = useState(initialRecord?.author_name || defaultAuthorName)
   const [managePeriodStart, setManagePeriodStart] = useState(initialRecord?.manage_period_start || today())
   const [managePeriodEnd, setManagePeriodEnd] = useState(initialRecord?.manage_period_end || addDays(DEFAULT_PERIOD_DAYS - 1))
-  // 저장된 명단이 있으면 그대로, 없으면 접속자·프로젝트 정보로 채운다 (안전 담당은 수기 입력)
-  const [signatureNames, setSignatureNames] = useState<SignatureNames>({
-    constructionName: initialRecord?.signatures?.constructionName ?? defaultAuthorName,
-    safetyName: initialRecord?.signatures?.safetyName ?? '',
-    siteManagerName: initialRecord?.signatures?.siteManagerName ?? ownerName,
-    supervisorName: initialRecord?.signatures?.supervisorName ?? supervisorName,
+  // 수정 모드는 저장된 서명 이미지를 미리보기로 복원한다
+  const [signatureDataUrls, setSignatureDataUrls] = useState<SignatureDataUrls>({
+    construction: initialRecord?.signatures?.construction ?? null,
+    safety: initialRecord?.signatures?.safety ?? null,
+    siteManager: initialRecord?.signatures?.siteManager ?? null,
+    supervisor: initialRecord?.signatures?.supervisor ?? null,
   })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
 
   const currentKey = steps[step].key
 
-  const updateSignatureName = (key: SignatureNameKey, value: string) => {
-    setSignatureNames((current) => ({ ...current, [key]: value }))
+  const updateSignatureData = (key: SignatureDataKey, dataUrl: string | null) => {
+    setSignatureDataUrls((current) => ({ ...current, [key]: dataUrl }))
   }
 
   const businessTypeLabel = businessType === BUSINESS_TYPE_ALL ? '사업 무관(전체)' : businessType
@@ -175,13 +169,13 @@ export default function RiskAssessmentWizard({
         manage_period_start: managePeriodStart || null,
         manage_period_end: managePeriodEnd || null,
         rows: normalizeRows(rows),
-        // 이미 받아 둔 서명 이미지는 남기고 명단만 덮어쓴다
+        // 저장된 값을 바탕으로 서명 이미지만 덮어쓴다 (기존 레코드의 성명은 스프레드로 보존)
         signatures: {
           ...(initialRecord?.signatures ?? {}),
-          constructionName: signatureNames.constructionName.trim(),
-          safetyName: signatureNames.safetyName.trim(),
-          siteManagerName: signatureNames.siteManagerName.trim(),
-          supervisorName: signatureNames.supervisorName.trim(),
+          construction: signatureDataUrls.construction,
+          safety: signatureDataUrls.safety,
+          siteManager: signatureDataUrls.siteManager,
+          supervisor: signatureDataUrls.supervisor,
         },
       }
 
@@ -287,12 +281,12 @@ export default function RiskAssessmentWizard({
             detailWorkLabel={detailWorks.join(', ')}
             trigger={workDescription}
             rowCount={rows.length}
-            signatureNames={signatureNames}
+            signatureDataUrls={signatureDataUrls}
             onTitleChange={setTitle}
             onAuthorNameChange={setAuthorName}
             onManagePeriodStartChange={setManagePeriodStart}
             onManagePeriodEndChange={setManagePeriodEnd}
-            onSignatureNameChange={updateSignatureName}
+            onSignatureDataChange={updateSignatureData}
           />
         )}
       </div>

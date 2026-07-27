@@ -17,8 +17,6 @@ interface RiskAssessmentProject {
   project_name: string
   managing_hq: string | null
   managing_branch: string | null
-  supervisor_name: string | null
-  created_by: string | null
   risk_business_type: string | null
 }
 
@@ -38,7 +36,6 @@ export default function RiskAssessmentPage() {
 
   const [project, setProject] = useState<RiskAssessmentProject | null>(null)
   const [authorName, setAuthorName] = useState('')
-  const [ownerName, setOwnerName] = useState('')
   const [records, setRecords] = useState<RiskAssessmentRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -58,7 +55,7 @@ export default function RiskAssessmentPage() {
       const [projectResult, recordResult, profileResult] = await Promise.all([
         supabase
           .from('projects')
-          .select('id, project_name, managing_hq, managing_branch, supervisor_name, created_by, risk_business_type')
+          .select('id, project_name, managing_hq, managing_branch, risk_business_type')
           .eq('id', projectId)
           .single(),
         supabase
@@ -77,25 +74,9 @@ export default function RiskAssessmentPage() {
       if (recordResult.error) throw new Error(recordResult.error.message)
       if (profileResult.error) console.error('작성자 기본값 조회 실패:', profileResult.error)
 
-      const projectData = projectResult.data as RiskAssessmentProject
-      setProject(projectData)
+      setProject(projectResult.data as RiskAssessmentProject)
       setRecords((recordResult.data || []) as RiskAssessmentRecord[])
       setAuthorName(profileResult.data?.full_name || '')
-
-      // 결재란 현장소장 기본값 = 프로젝트 소유자 이름
-      if (projectData.created_by && projectData.created_by === userId) {
-        setOwnerName(profileResult.data?.full_name || '')
-      } else if (projectData.created_by) {
-        const { data: ownerProfile, error: ownerError } = await supabase
-          .from('user_profiles')
-          .select('full_name')
-          .eq('id', projectData.created_by)
-          .maybeSingle()
-        if (ownerError) console.error('프로젝트 소유자 조회 실패:', ownerError)
-        setOwnerName(ownerProfile?.full_name || '')
-      } else {
-        setOwnerName('')
-      }
     } catch (loadError: unknown) {
       console.error('수시 위험성평가 데이터 조회 실패:', loadError)
       const message = loadError instanceof Error ? loadError.message : '데이터를 불러오지 못했습니다.'
@@ -240,8 +221,6 @@ export default function RiskAssessmentPage() {
             managingBranch={project.managing_branch}
             savedBusinessType={project.risk_business_type}
             defaultAuthorName={authorName}
-            ownerName={ownerName}
-            supervisorName={project.supervisor_name || ''}
             userId={user.id}
             initialRecord={editingRecord}
             onSaved={handleSaved}

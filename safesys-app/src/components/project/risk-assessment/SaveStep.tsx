@@ -1,17 +1,21 @@
 'use client'
 
-// 수시 위험성평가 저장 단계 — 제목·작성자·관리기간·결재란 명단을 입력하고 저장 내용을 요약해 보여준다
+// 수시 위험성평가 저장 단계 — 제목·작성자·관리기간·결재란 서명을 입력하고 저장 내용을 요약해 보여준다
 
+import { useState } from 'react'
+import { Eraser, PenLine } from 'lucide-react'
+import SignaturePad from '@/components/ui/SignaturePad'
 import { formatManagePeriod } from './record'
 
-export type SignatureNameKey = 'constructionName' | 'safetyName' | 'siteManagerName' | 'supervisorName'
-export type SignatureNames = Record<SignatureNameKey, string>
+/** 서명 이미지(dataURL) 키 — RiskAssessmentSignatures의 서명 필드와 같은 이름이다 */
+export type SignatureDataKey = 'construction' | 'safety' | 'siteManager' | 'supervisor'
+export type SignatureDataUrls = Record<SignatureDataKey, string | null>
 
-const SIGNATURE_FIELDS: Array<{ key: SignatureNameKey; label: string; hint: string }> = [
-  { key: 'constructionName', label: '공사(작성자)', hint: '접속자' },
-  { key: 'safetyName', label: '안전', hint: '직접 입력' },
-  { key: 'siteManagerName', label: '현장소장', hint: '프로젝트 소유자' },
-  { key: 'supervisorName', label: '공사감독(점검)', hint: '프로젝트 감독' },
+const SIGNATURE_FIELDS: Array<{ signKey: SignatureDataKey; label: string }> = [
+  { signKey: 'construction', label: '공사' },
+  { signKey: 'safety', label: '안전' },
+  { signKey: 'siteManager', label: '현장소장' },
+  { signKey: 'supervisor', label: '공사감독(점검)' },
 ]
 
 const PERIOD_PRESETS = [7, 15, 30, 60]
@@ -43,12 +47,12 @@ interface SaveStepProps {
   detailWorkLabel: string
   trigger: string
   rowCount: number
-  signatureNames: SignatureNames
+  signatureDataUrls: SignatureDataUrls
   onTitleChange: (value: string) => void
   onAuthorNameChange: (value: string) => void
   onManagePeriodStartChange: (value: string) => void
   onManagePeriodEndChange: (value: string) => void
-  onSignatureNameChange: (key: SignatureNameKey, value: string) => void
+  onSignatureDataChange: (key: SignatureDataKey, dataUrl: string | null) => void
 }
 
 export default function SaveStep({
@@ -60,13 +64,14 @@ export default function SaveStep({
   detailWorkLabel,
   trigger,
   rowCount,
-  signatureNames,
+  signatureDataUrls,
   onTitleChange,
   onAuthorNameChange,
   onManagePeriodStartChange,
   onManagePeriodEndChange,
-  onSignatureNameChange,
+  onSignatureDataChange,
 }: SaveStepProps) {
+  const [activeSign, setActiveSign] = useState<{ signKey: SignatureDataKey; label: string } | null>(null)
   const currentDays = periodDays(managePeriodStart, managePeriodEnd)
 
   // 프리셋은 시작일을 기준으로 종료일만 옮긴다 (N일간 = 시작일 포함).
@@ -133,21 +138,55 @@ export default function SaveStep({
       </div>
 
       <fieldset className="rounded-lg border border-gray-200 p-3">
-        <legend className="px-1 text-sm font-semibold text-gray-800">결재란 명단</legend>
+        <legend className="px-1 text-sm font-semibold text-gray-800">결재란 서명</legend>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          {SIGNATURE_FIELDS.map((field) => (
-            <label key={field.key} className="block">
-              <span className="text-xs font-semibold text-gray-700">{field.label}</span>
-              <input
-                value={signatureNames[field.key]}
-                onChange={(event) => onSignatureNameChange(field.key, event.target.value)}
-                placeholder={field.hint}
-                className="mt-1 w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm text-gray-900"
-              />
-            </label>
-          ))}
+          {SIGNATURE_FIELDS.map((field) => {
+            const signature = signatureDataUrls[field.signKey]
+            return (
+              <div key={field.signKey} className="rounded-lg border border-gray-200 bg-white p-2">
+                <span className="block text-xs font-semibold text-gray-700">{field.label}</span>
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  {signature && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={signature} alt={`${field.label} 서명`} className="h-9 w-16 shrink-0 rounded border border-gray-200 bg-white object-contain" />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setActiveSign({ signKey: field.signKey, label: field.label })}
+                    className={`flex items-center gap-1 rounded-lg border px-2 py-1 text-xs font-semibold ${
+                      signature ? 'border-gray-300 text-gray-600 hover:bg-gray-50' : 'border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                    }`}
+                  >
+                    <PenLine className="h-3.5 w-3.5" />
+                    {signature ? '다시 서명' : '서명하기'}
+                  </button>
+                  {signature && (
+                    <button
+                      type="button"
+                      onClick={() => onSignatureDataChange(field.signKey, null)}
+                      className="flex items-center rounded-lg border border-red-200 px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                      aria-label={`${field.label} 서명 지우기`}
+                    >
+                      <Eraser className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       </fieldset>
+
+      {activeSign && (
+        <SignaturePad
+          title={`${activeSign.label} 서명`}
+          onSave={(dataUrl) => {
+            onSignatureDataChange(activeSign.signKey, dataUrl)
+            setActiveSign(null)
+          }}
+          onCancel={() => setActiveSign(null)}
+        />
+      )}
 
       <dl className="grid gap-2 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm sm:grid-cols-2">
         <div className="flex gap-2">
@@ -172,7 +211,7 @@ export default function SaveStep({
         </div>
       </dl>
 
-      <p className="text-xs text-gray-500">결재란에는 위 명단이 인쇄됩니다. 서명 이미지는 저장 후 별도 단계에서 수집합니다.</p>
+      <p className="text-xs text-gray-500">결재란에는 위 서명이 그대로 인쇄됩니다. 성명 없이 서명만 받으면 됩니다.</p>
     </div>
   )
 }
