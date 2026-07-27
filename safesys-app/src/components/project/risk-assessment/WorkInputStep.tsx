@@ -2,12 +2,13 @@
 
 // 수시 위험성평가 2단계 — 작업내용·인원·장비를 쓰면 AI가 분류 매칭→위험요인 로드→판정까지 한 번에 실행한다
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Loader2, Plus, Sparkles, X } from 'lucide-react'
 import { RISK_AI_MODELS } from '@/lib/risk-assessment/types'
-import type { RiskAssessmentRow, RiskClassifyMatch, RiskHazard } from '@/lib/risk-assessment/types'
+import type { RiskAiJudgement, RiskAssessmentRow, RiskClassifyMatch, RiskHazard } from '@/lib/risk-assessment/types'
 import { classifyWork, fetchHazards, MAX_JUDGE_HAZARDS, requestAiJudgement } from './api'
 import { BUSINESS_TYPE_ALL, buildSiteContext, createRowFromHazard } from './record'
+import RowCountConfirmPanel, { type RowCountGroup } from './RowCountConfirmPanel'
 import TaxonomyStep, { type TaxonomySelection } from './TaxonomyStep'
 import TbmImportPanel, { type TbmImportValues } from './TbmImportPanel'
 
@@ -42,7 +43,57 @@ const PHASE_STEPS: Array<{ phase: Exclude<Phase, 'idle'>; label: string }> = [
 interface HazardPick {
   hazard: RiskHazard
   detailWork: string
+  /** 어느 매칭 조합에서 왔는지 (같은 세부단위작업이 공사만 달라도 구분한다) */
+  matchIndex: number
 }
+
+/** 확인 단계에 넘길 조합별 후보 — picks는 선별 우선·위험성 내림차순으로 정렬해 둔다 */
+interface PendingGroup extends RowCountGroup {
+  picks: HazardPick[]
+}
+
+interface PendingPlan {
+  groups: PendingGroup[]
+  judgements: Map<number, RiskAiJudgement>
+}
+
+const COUNTDOWN_SECONDS = 15
+
+/** 판정값이 없으면 기본 2·2로 본다. */
+const pickScore = (pick: HazardPick, judgements: Map<number, RiskAiJudgement>) => {
+  const judgement = judgements.get(pick.hazard.id)
+  return (judgement?.frequency ?? 2) * (judgement?.intensity ?? 2)
+}
+
+/** 조합별로 (a) AI 선별 우선 (b) 위험성 점수 내림차순으로 정렬한다. */
+function buildPendingGroups(
+  targets: RiskClassifyMatch[],
+  picks: HazardPick[],
+  judgements: Map<number, RiskAiJudgement>
+): PendingGroup[] {
+  return targets
+    .map((match, index) => {
+      const groupPicks = picks
+        .filter((pick) => pick.matchIndex === index)
+        .sort((a, b) => {
+          const aSelected = judgements.get(a.hazard.id)?.selected ? 1 : 0
+          const bSelected = judgements.get(b.hazard.id)?.selected ? 1 : 0
+          if (aSelected !== bSelected) return bSelected - aSelected
+          return pickScore(b, judgements) - pickScore(a, judgements)
+        })
+      return {
+        key: matchKey(match),
+        label: `${match.construction} > ${match.unitWork} > ${match.detailWork}`,
+        total: groupPicks.length,
+        selectedCount: groupPicks.filter((pick) => judgements.get(pick.hazard.id)?.selected).length,
+        picks: groupPicks,
+      }
+    })
+    .filter((group) => group.picks.length > 0)
+}
+
+const defaultCounts = (groups: PendingGroup[]): Record<string, number> =>
+  Object.fromEntries(groups.map((group) => [group.key, group.selectedCount]))
 
 export default function WorkInputStep({
   projectId,
@@ -67,6 +118,11 @@ export default function WorkInputStep({
   const [notice, setNotice] = useState('')
   const [manualOpen, setManualOpen] = useState(false)
   const [selection, setSelection] = useState<TaxonomySelection>({ construction: '', unitWork: '', detailWork: '' })
+  const [pending, setPending] = useState<PendingPlan | null>(null)
+  const [counts, setCounts] = useState<Record<string, number>>({})
+  const [adjusting, setAdjusting] = useState(false)
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS)
+  const autoConfirmRef = useRef<() => void>(() => {})
 
   const filterBusinessType = businessType === BUSINESS_TYPE_ALL ? undefined : businessType
   const activeMatches = matches.filter((match) => !excludedKeys.includes(matchKey(match)))
@@ -117,7 +173,7 @@ export default function WorkInputStep({
         if (seenIds.has(hazard.id) || seenTexts.has(textKey)) continue
         seenIds.add(hazard.id)
         seenTexts.add(textKey)
-        picks.push({ hazard, detailWork })
+        picks.push({ hazard, detailWork, matchIndex: index })
       }
     })
     return picks
@@ -139,6 +195,9 @@ export default function WorkInputStep({
 
     setError('')
     setNotice('')
+    // 재판정이면 앞선 확인 단계와 카운트다운을 먼저 걷어낸다
+    setPending(null)
+    setAdjusting(false)
     setPhase('loading')
     try {
       let picks = await collectHazards(targets)
@@ -165,23 +224,70 @@ export default function WorkInputStep({
         siteContext: siteContext || undefined,
       })
       const byHazardId = new Map(judgements.map((judgement) => [judgement.hazardId, judgement]))
-      const rows = picks
-        .filter((pick) => byHazardId.get(pick.hazard.id)?.selected)
-        .map((pick) => withInputDefaults(
-          createRowFromHazard(pick.hazard, byHazardId.get(pick.hazard.id), pick.detailWork)
-        ))
+      const groups = buildPendingGroups(targets, picks, byHazardId)
 
-      if (rows.length === 0) {
+      if (groups.every((group) => group.selectedCount === 0)) {
         setError('AI가 이번 작업과 관련된 위험요인을 고르지 못했습니다. 작업내용을 더 구체적으로 쓰거나 아래 전체 담기를 눌러주세요.')
         return
       }
-      onRowsReady(rows)
+
+      // 바로 행을 만들지 않고 공종별 행수 확인 단계로 넘긴다
+      setPending({ groups, judgements: byHazardId })
+      setCounts(defaultCounts(groups))
+      setAdjusting(false)
+      setCountdown(COUNTDOWN_SECONDS)
     } catch (pipelineError: unknown) {
       setError(pipelineError instanceof Error ? pipelineError.message : '위험요인을 불러오지 못했습니다.')
     } finally {
       setPhase('idle')
     }
   }
+
+  /** 조합별 행수만큼 앞에서 잘라 행을 만든다 (정렬은 buildPendingGroups에서 끝나 있다). */
+  const generateRows = (plan: PendingPlan, countMap: Record<string, number>) => {
+    const rows = plan.groups.flatMap((group) => group.picks
+      .slice(0, Math.min(Math.max(0, countMap[group.key] ?? 0), group.picks.length))
+      .map((pick) => withInputDefaults(
+        createRowFromHazard(pick.hazard, plan.judgements.get(pick.hazard.id), pick.detailWork)
+      )))
+
+    if (rows.length === 0) {
+      setError('행수를 1 이상으로 조정해주세요.')
+      return
+    }
+    setError('')
+    setPending(null)
+    setAdjusting(false)
+    onRowsReady(rows)
+  }
+
+  // 기본 행수(AI 선별 결과)로 즉시 생성 — 카운트다운 만료 시에도 같은 경로를 탄다
+  const handleImmediate = () => {
+    if (pending) generateRows(pending, defaultCounts(pending.groups))
+  }
+
+  const handleCountChange = (key: string, value: number) => {
+    const group = pending?.groups.find((item) => item.key === key)
+    if (!group) return
+    setCounts((current) => ({ ...current, [key]: Math.min(Math.max(0, value), group.total) }))
+  }
+
+  // 최신 handleImmediate를 참조해 타이머 콜백이 오래된 상태를 잡지 않게 한다
+  useEffect(() => {
+    autoConfirmRef.current = handleImmediate
+  })
+
+  // 확인 단계에서만 1초씩 감소하고, 행수조정에 들어가거나 언마운트되면 정리한다
+  useEffect(() => {
+    if (!pending || adjusting) return
+    const timer = setInterval(() => setCountdown((current) => Math.max(0, current - 1)), 1000)
+    return () => clearInterval(timer)
+  }, [pending, adjusting])
+
+  useEffect(() => {
+    if (!pending || adjusting || countdown > 0) return
+    autoConfirmRef.current()
+  }, [pending, adjusting, countdown])
 
   const runAuto = async () => {
     if (!workDescription.trim()) {
@@ -190,6 +296,8 @@ export default function WorkInputStep({
     }
     setError('')
     setNotice('')
+    setPending(null)
+    setAdjusting(false)
     setPhase('classifying')
     let classified: RiskClassifyMatch[] = []
     try {
@@ -284,6 +392,19 @@ export default function WorkInputStep({
             </li>
           ))}
         </ol>
+      )}
+
+      {pending && (
+        <RowCountConfirmPanel
+          groups={pending.groups}
+          counts={counts}
+          adjusting={adjusting}
+          countdown={countdown}
+          onAdjust={() => setAdjusting(true)}
+          onCountChange={handleCountChange}
+          onImmediate={handleImmediate}
+          onGenerate={() => generateRows(pending, counts)}
+        />
       )}
 
       {matches.length > 0 && (
