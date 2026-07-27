@@ -28,9 +28,15 @@ const GRADE_STYLE: Record<'상' | '중' | '하', string> = {
 const CELL = 'border border-gray-200 px-1.5 py-1 align-top'
 const INPUT = 'w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-900 focus:border-blue-400 focus:outline-none'
 
+/** 행 출처 표기 — 웹 화면 전용이고 엑셀 출력에는 나가지 않는다. 판별 불가·수기 행은 표시하지 않는다. */
+function sourceLabel(row: RiskAssessmentRow): string {
+  if (row.source === 'ai') return '출처: AI 전체 작성'
+  if (row.hazardId != null) return `출처: DB ${row.hazardId}행`
+  if (row.source === 'db') return '출처: DB'
+  return ''
+}
+
 export default function RowEditorStep({ rows, detailWork, trigger, siteContext, onChange }: RowEditorStepProps) {
-  // AI가 쓴 행 표식 — RiskAssessmentRow에 플래그 칸이 없어 위험요인 문구로 기억한다
-  const [aiHazards, setAiHazards] = useState<string[]>([])
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
 
@@ -63,7 +69,6 @@ export default function RowEditorStep({ rows, detailWork, trigger, siteContext, 
         existingHazards: rows.map((row) => row.hazard).filter(Boolean),
       })
       onChange([...rows, createRowFromDraft(draft, nextDetailWork, nextWorkLocation)])
-      setAiHazards((current) => [...current, draft.hazard])
     } catch (error: unknown) {
       setAiError(error instanceof Error ? error.message : 'AI 행 작성에 실패했습니다.')
     } finally {
@@ -128,7 +133,7 @@ export default function RowEditorStep({ rows, detailWork, trigger, siteContext, 
 
           {rows.map((row, index) => {
             const { score, grade } = riskGrade(row.frequency, row.intensity)
-            const isAiRow = Boolean(row.hazard) && aiHazards.includes(row.hazard)
+            const source = sourceLabel(row)
             return (
               <tbody key={`${row.hazardId ?? 'manual'}-${index}`} className="border-t-2 border-gray-300">
                 <tr>
@@ -150,11 +155,6 @@ export default function RowEditorStep({ rows, detailWork, trigger, siteContext, 
                     />
                   </td>
                   <td className={CELL}>
-                    {isAiRow && (
-                      <span className="mb-1 inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">
-                        <Sparkles className="h-3 w-3" />AI 작성 · 검토 필요
-                      </span>
-                    )}
                     <textarea
                       value={row.hazard}
                       onChange={(event) => updateRow(index, { hazard: event.target.value })}
@@ -162,6 +162,7 @@ export default function RowEditorStep({ rows, detailWork, trigger, siteContext, 
                       className={INPUT}
                       aria-label={`${index + 1}행 위험요인`}
                     />
+                    {source && <span className="mt-0.5 block text-right text-[10px] text-gray-400">{source}</span>}
                   </td>
                   <td className={CELL}>
                     <input

@@ -35,7 +35,8 @@ export interface RiskHazardsResponse {
 
 /** 평가서 표의 1개 행 (양식 2행 1조 = 이 객체 1개) */
 export interface RiskAssessmentRow {
-  hazardId: number | null   // risk_hazards 참조 (null = 수기 입력 행)
+  hazardId: number | null   // risk_hazards 참조 (null = AI 전체 작성 또는 수기 행)
+  source?: 'db' | 'ai' | 'manual'  // 행 출처 — 웹 표시 전용(엑셀 출력 제외), 구 레코드엔 없을 수 있음
   detailWork: string        // 세부작업(단위작업) — 상단 행 A열
   workLocation: string      // 작업위치 — 하단 행 A열
   equipment: string         // 사용장비/설비/인원

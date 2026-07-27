@@ -46,6 +46,7 @@ export function createRowFromHazard(
   const intensity = judgement?.intensity ?? 2
   return {
     hazardId: hazard.id,
+    source: 'db',
     detailWork: detailWork || hazard.detailWork,
     workLocation: '',
     equipment: judgement?.equipment || '',
@@ -70,6 +71,7 @@ export function createRowFromDraft(
 ): RiskAssessmentRow {
   return {
     hazardId: null,
+    source: 'ai',
     detailWork,
     workLocation,
     equipment: draft.equipment,
@@ -98,6 +100,7 @@ export function buildSiteContext(personnel: string, equipment: string): string {
 export function createEmptyRow(detailWork: string): RiskAssessmentRow {
   return {
     hazardId: null,
+    source: 'manual',
     detailWork,
     workLocation: '',
     equipment: '',
