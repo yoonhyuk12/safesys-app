@@ -37,14 +37,16 @@ export default function RowCountConfirmPanel({
   const totalRows = groups.reduce((sum, group) => sum + (counts[group.key] ?? 0), 0)
 
   return (
-    <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-3">
+    // 화면 중앙 모달 — 카운트다운이 자동 진행되므로 배경 클릭으로 닫지 않고 버튼으로만 진행한다
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-lg rounded-xl border border-blue-200 bg-white p-4 shadow-xl">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="flex items-center gap-1.5 text-sm font-semibold text-blue-900">
           <ListChecks className="h-4 w-4" />
           AI 판정 완료 — 공종별 행수 확인
         </p>
         {!adjusting && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-blue-700">
+          <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
             <Timer className="h-3.5 w-3.5" />{countdown}초 후 자동 생성
           </span>
         )}
@@ -54,7 +56,7 @@ export default function RowCountConfirmPanel({
         {groups.map((group) => {
           const count = counts[group.key] ?? 0
           return (
-            <li key={group.key} className="flex items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-1.5 text-sm">
+            <li key={group.key} className="flex items-center justify-between gap-2 rounded-lg bg-gray-50 px-2.5 py-1.5 text-sm">
               <span className="min-w-0 flex-1 truncate text-gray-800">{group.label}</span>
               {adjusting ? (
                 <span className="flex shrink-0 items-center gap-1">
@@ -123,6 +125,7 @@ export default function RowCountConfirmPanel({
             </button>
           </>
         )}
+      </div>
       </div>
     </div>
   )
