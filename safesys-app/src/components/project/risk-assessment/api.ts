@@ -5,6 +5,9 @@ import type {
   RiskAiJudgement,
   RiskAiRequest,
   RiskAiResponse,
+  RiskAiRowDraft,
+  RiskAiRowRequest,
+  RiskAiRowResponse,
   RiskClassifyMatch,
   RiskClassifyRequest,
   RiskClassifyResponse,
@@ -76,6 +79,20 @@ export async function classifyWork(payload: RiskClassifyRequest): Promise<RiskCl
     throw new Error(result.error || '작업 분류에 실패했습니다.')
   }
   return result.data || []
+}
+
+/** 표에 없는 위험요인 1건을 AI가 직접 작성해 온다. */
+export async function requestAiRow(payload: RiskAiRowRequest): Promise<RiskAiRowDraft> {
+  const response = await fetch('/api/ai/risk-row', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(payload),
+  })
+  const result = (await response.json()) as RiskAiRowResponse
+  if (!response.ok || !result.success || !result.data) {
+    throw new Error(result.error || 'AI 행 작성에 실패했습니다.')
+  }
+  return result.data
 }
 
 /** Gemini 판정 요청 — 선별·빈도·강도·장비만 받아온다. */

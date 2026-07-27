@@ -11,7 +11,7 @@ import BusinessTypeStep from './BusinessTypeStep'
 import RowEditorStep from './RowEditorStep'
 import SaveStep, { type SignatureNameKey, type SignatureNames } from './SaveStep'
 import WorkInputStep from './WorkInputStep'
-import { BUSINESS_TYPE_ALL, type RiskAssessmentRecord } from './record'
+import { BUSINESS_TYPE_ALL, buildSiteContext, type RiskAssessmentRecord } from './record'
 
 interface RiskAssessmentWizardProps {
   projectId: string
@@ -269,7 +269,13 @@ export default function RiskAssessmentWizard({
           />
         )}
         {currentKey === 'rows' && (
-          <RowEditorStep rows={rows} detailWork={detailWorks[0] || ''} onChange={setRows} />
+          <RowEditorStep
+            rows={rows}
+            detailWork={detailWorks[0] || ''}
+            trigger={workDescription}
+            siteContext={buildSiteContext(personnel, equipment)}
+            onChange={setRows}
+          />
         )}
         {currentKey === 'save' && (
           <SaveStep

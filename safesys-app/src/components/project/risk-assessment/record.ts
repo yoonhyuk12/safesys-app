@@ -2,6 +2,7 @@
 
 import type {
   RiskAiJudgement,
+  RiskAiRowDraft,
   RiskAssessmentExportData,
   RiskAssessmentRow,
   RiskAssessmentSignatures,
@@ -59,6 +60,38 @@ export function createRowFromHazard(
     managerSub: '',
     managerMain: '',
   }
+}
+
+/** AI가 작성한 행 초안을 표 행으로 바꾼다. hazardId는 null이라 DB 원문 행과 구분된다. */
+export function createRowFromDraft(
+  draft: RiskAiRowDraft,
+  detailWork: string,
+  workLocation: string
+): RiskAssessmentRow {
+  return {
+    hazardId: null,
+    detailWork,
+    workLocation,
+    equipment: draft.equipment,
+    hazard: draft.hazard,
+    disasterType: draft.disasterType,
+    frequency: draft.frequency,
+    intensity: draft.intensity,
+    measures: [...draft.measures],
+    reviewNote: '',
+    improvedRisk: defaultImprovedRisk(draft.frequency, draft.intensity),
+    improveDate: '',
+    managerSub: '',
+    managerMain: '',
+  }
+}
+
+/** 인원·장비 입력을 AI에 넘길 현장 부가 정보 한 줄로 합친다. */
+export function buildSiteContext(personnel: string, equipment: string): string {
+  return [
+    personnel.trim() ? `인원: ${personnel.trim()}` : '',
+    equipment.trim() ? `장비: ${equipment.trim()}` : '',
+  ].filter(Boolean).join(' / ')
 }
 
 /** 사용자가 직접 추가하는 빈 행 */

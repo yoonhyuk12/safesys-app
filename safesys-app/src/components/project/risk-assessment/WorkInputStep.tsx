@@ -7,7 +7,7 @@ import { AlertTriangle, Check, ChevronDown, ChevronRight, Loader2, Plus, Sparkle
 import { RISK_AI_MODELS } from '@/lib/risk-assessment/types'
 import type { RiskAssessmentRow, RiskClassifyMatch, RiskHazard } from '@/lib/risk-assessment/types'
 import { classifyWork, fetchHazards, MAX_JUDGE_HAZARDS, requestAiJudgement } from './api'
-import { BUSINESS_TYPE_ALL, createRowFromHazard } from './record'
+import { BUSINESS_TYPE_ALL, buildSiteContext, createRowFromHazard } from './record'
 import TaxonomyStep, { type TaxonomySelection } from './TaxonomyStep'
 import TbmImportPanel, { type TbmImportValues } from './TbmImportPanel'
 
@@ -72,10 +72,7 @@ export default function WorkInputStep({
   const activeMatches = matches.filter((match) => !excludedKeys.includes(matchKey(match)))
   const running = phase !== 'idle'
 
-  const siteContext = [
-    personnel.trim() ? `인원: ${personnel.trim()}` : '',
-    equipment.trim() ? `장비: ${equipment.trim()}` : '',
-  ].filter(Boolean).join(' / ')
+  const siteContext = buildSiteContext(personnel, equipment)
 
   const toggleExclude = (match: RiskClassifyMatch) => {
     const key = matchKey(match)

@@ -2,14 +2,18 @@
 
 // 수시 위험성평가 4단계 — 양식 2행 1조 구조 그대로 표 행을 편집하고 위험성 점수·등급을 실시간 표시한다
 
-import { Plus, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { AlertTriangle, Loader2, Plus, Sparkles, Trash2 } from 'lucide-react'
 import type { RiskAssessmentRow } from '@/lib/risk-assessment/types'
 import { riskGrade } from '@/lib/risk-assessment/types'
-import { createEmptyRow } from './record'
+import { requestAiRow } from './api'
+import { createEmptyRow, createRowFromDraft } from './record'
 
 interface RowEditorStepProps {
   rows: RiskAssessmentRow[]
   detailWork: string
+  trigger: string
+  siteContext: string
   onChange: (rows: RiskAssessmentRow[]) => void
 }
 
@@ -24,7 +28,12 @@ const GRADE_STYLE: Record<'상' | '중' | '하', string> = {
 const CELL = 'border border-gray-200 px-1.5 py-1 align-top'
 const INPUT = 'w-full rounded border border-gray-200 px-1.5 py-1 text-xs text-gray-900 focus:border-blue-400 focus:outline-none'
 
-export default function RowEditorStep({ rows, detailWork, onChange }: RowEditorStepProps) {
+export default function RowEditorStep({ rows, detailWork, trigger, siteContext, onChange }: RowEditorStepProps) {
+  // AI가 쓴 행 표식 — RiskAssessmentRow에 플래그 칸이 없어 위험요인 문구로 기억한다
+  const [aiHazards, setAiHazards] = useState<string[]>([])
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+
   const updateRow = (index: number, patch: Partial<RiskAssessmentRow>) => {
     onChange(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)))
   }
@@ -33,8 +42,33 @@ export default function RowEditorStep({ rows, detailWork, onChange }: RowEditorS
     onChange(rows.filter((_, rowIndex) => rowIndex !== index))
   }
 
+  // 새 행의 세부작업·작업위치는 마지막 행의 값을 따른다
+  const lastRow = rows[rows.length - 1]
+  const nextDetailWork = lastRow?.detailWork || detailWork
+  const nextWorkLocation = lastRow?.workLocation || ''
+
   const addRow = () => {
-    onChange([...rows, createEmptyRow(detailWork)])
+    onChange([...rows, createEmptyRow(nextDetailWork)])
+  }
+
+  const addAiRow = async () => {
+    if (aiLoading) return
+    setAiLoading(true)
+    setAiError('')
+    try {
+      const draft = await requestAiRow({
+        trigger,
+        siteContext: siteContext || undefined,
+        detailWork: nextDetailWork,
+        existingHazards: rows.map((row) => row.hazard).filter(Boolean),
+      })
+      onChange([...rows, createRowFromDraft(draft, nextDetailWork, nextWorkLocation)])
+      setAiHazards((current) => [...current, draft.hazard])
+    } catch (error: unknown) {
+      setAiError(error instanceof Error ? error.message : 'AI 행 작성에 실패했습니다.')
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   const highRiskCount = rows.filter((row) => riskGrade(row.frequency, row.intensity).grade === '상').length
@@ -47,14 +81,32 @@ export default function RowEditorStep({ rows, detailWork, onChange }: RowEditorS
           {highRiskCount > 0 && <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">위험등급 상 {highRiskCount}건</span>}
           <span className="ml-2 text-xs text-gray-500">위험성 = 빈도 × 강도, 개선 후 3 이하로 관리합니다.</span>
         </p>
-        <button
-          type="button"
-          onClick={addRow}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-50"
-        >
-          <Plus className="h-4 w-4" />행 추가
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={addAiRow}
+            disabled={aiLoading}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {aiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {aiLoading ? '작성 중' : 'AI 행 추가'}
+          </button>
+          <button
+            type="button"
+            onClick={addRow}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-sm font-semibold text-blue-700 hover:bg-blue-50"
+          >
+            <Plus className="h-4 w-4" />빈 행 추가
+          </button>
+        </div>
       </div>
+
+      {aiError && (
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>{aiError}</p>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-gray-200">
         <table className="w-full min-w-[1400px] border-collapse text-xs">
@@ -76,6 +128,7 @@ export default function RowEditorStep({ rows, detailWork, onChange }: RowEditorS
 
           {rows.map((row, index) => {
             const { score, grade } = riskGrade(row.frequency, row.intensity)
+            const isAiRow = Boolean(row.hazard) && aiHazards.includes(row.hazard)
             return (
               <tbody key={`${row.hazardId ?? 'manual'}-${index}`} className="border-t-2 border-gray-300">
                 <tr>
@@ -97,6 +150,11 @@ export default function RowEditorStep({ rows, detailWork, onChange }: RowEditorS
                     />
                   </td>
                   <td className={CELL}>
+                    {isAiRow && (
+                      <span className="mb-1 inline-flex items-center gap-1 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-700">
+                        <Sparkles className="h-3 w-3" />AI 작성 · 검토 필요
+                      </span>
+                    )}
                     <textarea
                       value={row.hazard}
                       onChange={(event) => updateRow(index, { hazard: event.target.value })}
