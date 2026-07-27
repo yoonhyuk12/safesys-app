@@ -1486,7 +1486,6 @@ export default function ProjectDetailPage() {
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
-                  isPending={true}
                   onClick={() => router.push(`/project/${projectId}/risk-assessment`)}
                   pdcaCategory="P"
                 />
