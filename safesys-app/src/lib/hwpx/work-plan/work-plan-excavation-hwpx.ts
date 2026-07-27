@@ -21,6 +21,7 @@ import type { PersonContact, RiskControlRow, WorkPlanRecord } from '@/lib/work-p
 import { buildFileName } from '@/lib/reports/work-plan/work-plan-pdf-common'
 import {
     CONTENT_HEIGHT,
+    LINE_H,
     PAGE_CONTENT_TOP,
     PAGE_LEFT,
     COLS12,
@@ -44,6 +45,9 @@ type ExcavationForm = NonNullable<WorkPlanRecord['form_data']['excavation']>
 const DOC_TITLE = '지반 굴착 작업계획서'
 // 쪽 예산 — 배너(11pt) 등 큰 글씨 행의 추정 오차를 흡수할 안전 마진을 둔다
 const PAGE_BUDGET = CONTENT_HEIGHT - 2000
+// 섹션 표 사이 빈 문단 한 줄(시각적 분리)과 표 문단 자체의 여유 높이
+const SECTION_GAP_H = LINE_H
+const TABLE_OVERHEAD = 300
 // 표지 그리드 — PDF 결재표 열비(21% / 49% / 30%)
 const COLS_COVER = [10715, 25002, 15307]
 
@@ -159,24 +163,33 @@ function buildCoverParts(
         }
     })
 
-    // 첫 문단(구역 속성 포함)은 파란 주석 텍스트, 표지 표는 별도 문단 — 검증된 TBM·타 4종 패턴
+    // 첫 문단(구역 속성 포함)은 파란 주석 텍스트, 표지 표는 별도 문단 — 검증된 TBM·타 4종 패턴.
+    // 두 문단 모두 이어진 문단 테두리(boxed)로 묶어 PDF의 전체 사각 테두리를 재현한다.
     return [
-        buildTextParagraph('지반 굴착 작업계획서_고용노동부 표준 양식(2021)', { cp: 11, right: true, secPr: true }),
-        buildTableParagraph(COLS_COVER, rows, tblId, 1, { floats }),
+        buildTextParagraph('지반 굴착 작업계획서_고용노동부 표준 양식(2021)', { cp: 11, right: true, secPr: true, boxed: true }),
+        buildTableParagraph(COLS_COVER, rows, tblId, 1, { floats, boxed: true }),
     ]
 }
 
-// ── 본문 행 스트림 (블록 순서 = PDF 블록 순서) ──
+// ── 본문 섹션 (블록 순서 = PDF 블록 순서) ──
+// 섹션마다 독립된 표로 내보내 서로 붙어 보이지 않게 한다.
 
-interface BodyStream {
+interface BodySection {
     rows: Row[]
     // 이 인덱스 행 "앞"에서는 쪽을 나누지 않는다 (rowSpan 그룹 내부·배너-지도 결합)
     forbidden: Set<number>
 }
 
-function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: string | null): BodyStream {
-    const rows: Row[] = []
-    const forbidden = new Set<number>()
+function buildBodySections(form: ExcavationForm, collector: ImageCollector, mapId: string | null): BodySection[] {
+    const sections: BodySection[] = []
+    let rows: Row[] = []
+    let forbidden = new Set<number>()
+    // 앞 섹션을 닫고 새 섹션을 연다 — 배너(섹션 제목) 직전마다 호출한다
+    const flush = () => {
+        if (rows.length > 0) sections.push({ rows, forbidden })
+        rows = []
+        forbidden = new Set<number>()
+    }
     const overview = form.overview
 
     // 1. 작업개요
@@ -217,6 +230,7 @@ function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: s
     }
 
     // 2. 사전조사
+    flush()
     rows.push(banner('2. 사전조사'))
     rows.push(subtitleRow('지하매설물 조사'))
     rows.push({ height: 1400, cells: [labelCell('지중매설물', 3), labelCell('확인결과(위치)', 3), labelCell('조치여부', 3), labelCell('담당기관(연락처)', 3)] })
@@ -241,6 +255,7 @@ function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: s
     }
 
     // 3. 필요 인원 및 장비 사용계획 — 구분 열은 rowSpan 세로 병합(그룹 중간에서 쪽을 나누지 않는다)
+    flush()
     rows.push(banner('3. 필요 인원 및 장비 사용계획'))
     rows.push({
         height: 1400,
@@ -278,6 +293,7 @@ function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: s
     })
 
     // 4. 표준 절차 (흐름도 + 절차 그룹)
+    flush()
     rows.push(banner('4. 굴착공사 계획 — 표준 절차'))
     rows.push(subtitleRow('굴착 작업 흐름'))
     rows.push({ height: 3200, cells: [{ text: EXCAVATION_STANDARD_FLOW.join(' → '), span: 12, cp: 1, align: 'center' }] })
@@ -287,12 +303,14 @@ function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: s
     })
 
     // 4. 작업계획도 — 배너와 지도 행은 같은 쪽에 붙인다
+    flush()
     const mapRows = mapSectionRows('4. 굴착공사 계획 — 굴착 작업계획도', collector, mapId)
     rows.push(mapRows[0])
     forbidden.add(rows.length)
     rows.push(mapRows[1])
 
     // 4. 배수·차량 운행
+    flush()
     rows.push(banner('4. 굴착공사 계획 — 배수·차량 운행'))
     rows.push(subtitleRow('배수·양수 계획'))
     rows.push({ height: 1500, cells: [labelCell('배수방법', 3), { text: form.drainagePlan, span: 9 }] })
@@ -314,6 +332,7 @@ function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: s
     }
 
     // 4. 단계별 안전대책
+    flush()
     rows.push(banner('4. 굴착공사 계획 — 단계별 안전대책'))
     rows.push(subtitleRow('굴착 단계별 안전대책'))
     pushStageRows(EXCAVATION_STAGE_SAFETY)
@@ -321,6 +340,7 @@ function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: s
     // 발파작업 (조건부)
     if (form.blasting.applied) {
         const b = form.blasting
+        flush()
         rows.push(banner('4. 굴착공사 계획 — 발파작업'))
         rows.push({ height: 1500, cells: [labelCell('발파공법', 3), { text: b.method, span: 3 }, labelCell('발파구역', 3), { text: b.area, span: 3 }] })
         rows.push({ height: 1500, cells: [labelCell('발파량', 3), { text: b.amount, span: 3 }, labelCell('화약관리자', 3), { text: b.managerName, span: 3 }] })
@@ -332,6 +352,7 @@ function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: s
     // 흙막이 및 지보공 (조건부, PDF의 2블록 구성 유지)
     if (form.shoring.applied) {
         const s = form.shoring
+        flush()
         rows.push(banner('5. 흙막이 및 지보공 설치계획'))
         rows.push({ height: 1500, cells: [labelCell('흙막이공법', 3), { text: s.wallMethod, span: 3 }, labelCell('수량', 3), { text: s.wallQuantity, span: 3 }] })
         rows.push({ height: 1500, cells: [labelCell('지보공법', 3), { text: s.supportMethod, span: 3 }, labelCell('수량', 3), { text: s.supportQuantity, span: 3 }] })
@@ -355,6 +376,7 @@ function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: s
             pushStageRows(group.stages)
         }
         pushShoringGroup(0)
+        flush()
         rows.push(banner('5. 흙막이 및 지보공 안전대책(계속)'))
         pushShoringGroup(1)
         pushShoringGroup(2)
@@ -362,6 +384,7 @@ function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: s
 
     // 6. 지반 계측계획 (조건부)
     if (form.instrumentation.applied) {
+        flush()
         rows.push(banner('6. 지반 계측계획'))
         rows.push({
             height: 1400,
@@ -385,6 +408,7 @@ function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: s
     }
 
     // 7. 작업지휘자 배치계획
+    flush()
     rows.push(banner('7. 작업지휘자 배치계획'))
     rows.push(subtitleRow('작업지휘자 배치기준'))
     rows.push(listRow(EXCAVATION_DIRECTOR_RULES))
@@ -399,6 +423,7 @@ function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: s
     }
 
     // 8. 연락·신호
+    flush()
     rows.push(banner('8. 사업장 내 연락방법 및 신호방법'))
     rows.push(subtitleRow('비상경보 발령조건'))
     rows.push(listRow(EXCAVATION_ALARM_CONDITIONS))
@@ -422,37 +447,68 @@ function buildBodyRows(form: ExcavationForm, collector: ImageCollector, mapId: s
     const risks: RiskControlRow[] = form.riskControls.length > 0
         ? form.riskControls
         : Array.from({ length: BLANK_RISK_ROWS }, () => ({ workStep: '', riskFactor: '', improvementMeasure: '' }))
+    flush()
     rows.push(...riskControlRows('9. 중점 안전·보건 대책 — 위험요인 및 개선대책', '작업단계', risks))
 
     // 9. 체크리스트 15항목 — PDF와 동일하게 빈 체크 상태로 출력
+    flush()
     rows.push(...checklistRows('9. 중점 안전·보건 대책 — 안전점검 체크리스트', EXCAVATION_CHECKLIST, []))
 
-    return { rows, forbidden }
+    flush()
+    return sections
 }
 
-// 쪽 예산 단위로 스트림을 나눈다. forbidden 인덱스 앞에서는 자르지 않고 허용 지점까지 후퇴한다.
-function paginateRowsSafe(rows: Row[], capacity: number, forbidden: Set<number>): Row[][] {
-    const pages: Row[][] = []
-    let start = 0
-    while (start < rows.length) {
-        let used = 0
-        let end = rows.length
-        for (let i = start; i < rows.length; i++) {
-            if (i > start && used + rows[i].height > capacity) {
-                end = i
-                break
-            }
-            used += rows[i].height
+// ── 섹션 배치 (표 단위 쪽 분할) ──
+
+interface Emission {
+    rows: Row[]
+    pageBreak: boolean   // 이 표부터 새 쪽 시작
+    gapBefore: boolean   // 같은 쪽 앞 표와의 사이에 빈 문단을 넣는다
+}
+
+// start부터 capacity 안에 들어가는 행 끝(제외)을 구한다. forbidden 인덱스 앞에서는 자르지 않고 후퇴한다.
+function fitEnd(rows: Row[], start: number, capacity: number, forbidden: Set<number>): number {
+    let used = 0
+    let end = rows.length
+    for (let i = start; i < rows.length; i++) {
+        if (used + rows[i].height > capacity) {
+            end = i
+            break
         }
-        if (end < rows.length) {
-            let cut = end
-            while (cut > start + 1 && forbidden.has(cut)) cut--
-            if (cut > start) end = cut
-        }
-        pages.push(rows.slice(start, end))
-        start = end
+        used += rows[i].height
     }
-    return pages
+    while (end > start && end < rows.length && forbidden.has(end)) end--
+    return end
+}
+
+// 섹션을 쪽 예산에 맞춰 표로 나눈다. 남은 예산에 못 들어가는 섹션은 새 쪽에서 시작한다.
+// treatAsChar 표가 쪽을 넘으면 넘친 행이 통째로 잘리므로 예산 초과 섹션은 표 단위로 이어 붙인다.
+function layoutSections(sections: BodySection[], capacity: number): Emission[] {
+    const emissions: Emission[] = []
+    let used = capacity   // 첫 섹션은 표지 다음 새 쪽에서 시작
+    sections.forEach((section, si) => {
+        const rows = clampRowHeights(section.rows, COLS12)
+        let start = 0
+        let gap = si === 0 ? 0 : SECTION_GAP_H
+        let pageBreak = false
+        while (start < rows.length) {
+            let end = fitEnd(rows, start, capacity - used - gap, section.forbidden)
+            if (end <= start) {
+                used = 0
+                gap = 0
+                pageBreak = true
+                end = fitEnd(rows, start, capacity, section.forbidden)
+                if (end <= start) end = start + 1   // 한 행이 한 쪽보다 큰 경우 강제 진행
+            }
+            const chunk = rows.slice(start, end)
+            emissions.push({ rows: chunk, pageBreak, gapBefore: gap > 0 })
+            used += gap + TABLE_OVERHEAD + chunk.reduce((a, r) => a + r.height, 0)
+            start = end
+            gap = 0
+            pageBreak = false
+        }
+    })
+    return emissions
 }
 
 // ── 다운로드 진입점 ──
@@ -475,11 +531,11 @@ export async function downloadExcavationWorkPlanHwpx(record: WorkPlanRecord): Pr
 
     const parts: string[] = buildCoverParts(form, record, collector, sigIds, 1000000000)
 
-    // 본문은 단일 12열 행 스트림으로 만들어 쪽 단위 표로 나눈다 (행 잘림 방지)
-    const stream = buildBodyRows(form, collector, mapId)
-    const clamped = clampRowHeights(stream.rows, COLS12)
-    paginateRowsSafe(clamped, PAGE_BUDGET, stream.forbidden).forEach((pageRows, i) => {
-        parts.push(buildTableParagraph(COLS12, pageRows, 1000000100 + i, 2 + i, { pageBreak: true }))
+    // 본문은 섹션마다 별도 표로 내보내고, 같은 쪽에 이어지는 표 사이에는 빈 문단을 넣어 분리한다
+    const sections = buildBodySections(form, collector, mapId)
+    layoutSections(sections, PAGE_BUDGET).forEach((em, i) => {
+        if (em.gapBefore) parts.push(buildTextParagraph(''))
+        parts.push(buildTableParagraph(COLS12, em.rows, 1000000100 + i, 2 + i, { pageBreak: em.pageBreak }))
     })
 
     const blob = await assembleHwpxBlob(parts, collector, DOC_TITLE)

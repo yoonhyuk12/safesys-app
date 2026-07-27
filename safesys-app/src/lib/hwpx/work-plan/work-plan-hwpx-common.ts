@@ -243,14 +243,23 @@ function buildCharProperties(): string {
     return `<hh:charProperties itemCnt="12">${items}</hh:charProperties>`
 }
 
-function buildParaPr(id: number, align: string): string {
+function buildParaPr(id: number, align: string, borderFill = 1, connect = 0): string {
     const margin = `<hh:margin><hc:intent value="0" unit="HWPUNIT"/><hc:left value="0" unit="HWPUNIT"/><hc:right value="0" unit="HWPUNIT"/><hc:prev value="0" unit="HWPUNIT"/><hc:next value="0" unit="HWPUNIT"/></hh:margin>`
     const sw = `<hp:switch><hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">${margin}<hh:lineSpacing type="PERCENT" value="130" unit="HWPUNIT"/></hp:case><hp:default>${margin}<hh:lineSpacing type="PERCENT" value="130" unit="HWPUNIT"/></hp:default></hp:switch>`
-    return `<hh:paraPr id="${id}" tabPrIDRef="0" condense="0" fontLineHeight="0" snapToGrid="1" suppressLineNumbers="0" checked="0"><hh:align horizontal="${align}" vertical="BASELINE"/><hh:heading type="NONE" idRef="0" level="0"/><hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="KEEP_WORD" widowOrphan="0" keepWithNext="0" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/><hh:autoSpacing eAsianEng="0" eAsianNum="0"/>${sw}<hh:border borderFillIDRef="1" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/></hh:paraPr>`
+    // 테두리를 쓰는 문단만 상하 1mm 여백을 둬 글자와 선이 붙지 않게 한다
+    const off = borderFill === 1 ? 0 : 283
+    return `<hh:paraPr id="${id}" tabPrIDRef="0" condense="0" fontLineHeight="0" snapToGrid="1" suppressLineNumbers="0" checked="0"><hh:align horizontal="${align}" vertical="BASELINE"/><hh:heading type="NONE" idRef="0" level="0"/><hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="KEEP_WORD" widowOrphan="0" keepWithNext="0" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/><hh:autoSpacing eAsianEng="0" eAsianNum="0"/>${sw}<hh:border borderFillIDRef="${borderFill}" offsetLeft="0" offsetRight="0" offsetTop="${off}" offsetBottom="${off}" connect="${connect}" ignoreMargin="0"/></hh:paraPr>`
 }
 
+// paraPr 0~2 = 테두리 없음(왼쪽·가운데·오른쪽), 3~5 = 같은 정렬에 표지 사각 테두리(이어진 문단 연결)
+const BOXED_PP_OFFSET = 3
+
 function buildParaProperties(): string {
-    return `<hh:paraProperties itemCnt="3">${buildParaPr(0, 'LEFT')}${buildParaPr(1, 'CENTER')}${buildParaPr(2, 'RIGHT')}</hh:paraProperties>`
+    const items = [
+        buildParaPr(0, 'LEFT'), buildParaPr(1, 'CENTER'), buildParaPr(2, 'RIGHT'),
+        buildParaPr(3, 'LEFT', 4, 1), buildParaPr(4, 'CENTER', 4, 1), buildParaPr(5, 'RIGHT', 4, 1),
+    ].join('')
+    return `<hh:paraProperties itemCnt="6">${items}</hh:paraProperties>`
 }
 
 function buildNumberings(): string {
@@ -361,6 +370,7 @@ export interface TableParagraphOptions {
     secPr?: boolean        // 구역 속성 포함(문서 첫 문단에만)
     center?: boolean       // 표를 가로 가운데 배치(표 폭 < 본문 폭일 때)
     borderFill?: number    // 표 바깥 테두리 borderFill (기본 2)
+    boxed?: boolean        // 표지 사각 테두리(이어진 문단 테두리)에 포함
 }
 
 // 표를 감싼 문단 XML 반환. rowSpan은 그리드 점유 추적으로 처리(병합에 덮이는 후속 셀은 생략, colAddr은 그리드 유지).
@@ -389,7 +399,7 @@ export function buildTableParagraph(colWidths: number[], rows: Row[], tblId: num
     }).join('')
     const totalW = colWidths.reduce((a, b) => a + b, 0)
     const tbl = `<hp:tbl id="${tblId}" zOrder="${zOrder}" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${rows.length}" colCnt="${colCnt}" cellSpacing="0" borderFillIDRef="${opts.borderFill ?? 2}" noAdjust="0"><hp:sz width="${totalW}" widthRelTo="ABSOLUTE" height="0" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/>${trs}</hp:tbl>`
-    const pp = opts.center ? 1 : 0
+    const pp = (opts.center ? 1 : 0) + (opts.boxed ? BOXED_PP_OFFSET : 0)
     const secPr = opts.secPr ? SECPR : ''
     const floats = opts.floats ?? []
     return `<hp:p id="${nextId()}" paraPrIDRef="${pp}" styleIDRef="0" pageBreak="${opts.pageBreak ? 1 : 0}" columnBreak="0" merged="0"><hp:run charPrIDRef="0">${secPr}${floats.join('')}${tbl}<hp:t/></hp:run>${lineseg(CONTENT_WIDTH, 1000)}</hp:p>`
@@ -401,12 +411,13 @@ export interface TextParagraphOptions {
     right?: boolean
     pageBreak?: boolean
     secPr?: boolean        // 구역 속성 포함(문서 첫 문단에만)
+    boxed?: boolean        // 표지 사각 테두리(이어진 문단 테두리)에 포함
 }
 
 // 표 밖 단독 문단(제목·주석·여백 채움 등)
 export function buildTextParagraph(text: string, opts: TextParagraphOptions = {}): string {
     const cp = opts.cp ?? 0
-    const pp = opts.center ? 1 : opts.right ? 2 : 0
+    const pp = (opts.center ? 1 : opts.right ? 2 : 0) + (opts.boxed ? BOXED_PP_OFFSET : 0)
     const h = CP_HEIGHT[cp] ?? 1000
     const secPr = opts.secPr ? `${SECPR}<hp:ctrl><hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/></hp:ctrl>` : ''
     const runs = opts.secPr
@@ -531,12 +542,13 @@ export function bannerRow(text: string): Row {
 export function buildCoverParts(planType: PlanType, tblId: number): string[] {
     const cover = WORK_PLAN_COVERS[planType]
     const parts: string[] = []
+    // 표지 문단은 모두 이어진 문단 테두리(boxed)로 묶어 PDF의 전체 사각 테두리를 재현한다
     const spacer = (n: number) => {
-        for (let i = 0; i < Math.max(0, n); i++) parts.push(buildTextParagraph(''))
+        for (let i = 0; i < Math.max(0, n); i++) parts.push(buildTextParagraph('', { boxed: true }))
     }
 
     // 상단 파란 개정 주석 — 문서 첫 문단이므로 구역 속성 포함
-    parts.push(buildTextParagraph(cover.headerNote, { cp: 11, secPr: true }))
+    parts.push(buildTextParagraph(cover.headerNote, { cp: 11, secPr: true, boxed: true }))
     spacer(8)
 
     // 중앙 제목 상자 (두꺼운 테두리, 제목 줄 수에 맞춰 높이 조정)
@@ -545,7 +557,7 @@ export function buildCoverParts(planType: PlanType, tblId: number): string[] {
     const titleBody = cover.titleLines.map(line => innerParagraph(line, 8, 'center', boxW - CELL_PAD)).join('')
     parts.push(buildTableParagraph([boxW], [
         { height: boxH, cells: [{ bodyXml: titleBody, bf: 4 }] },
-    ], tblId, 1, { center: true }))
+    ], tblId, 1, { center: true, boxed: true }))
     spacer(6)
 
     // 목록 섹션들 — 사용 높이를 추정해 하단 ※주석 위치를 계산한다
@@ -555,20 +567,19 @@ export function buildCoverParts(planType: PlanType, tblId: number): string[] {
             spacer(2)
             used += LINE_H * 2
         }
-        parts.push(buildTextParagraph(section.heading, { cp: 6, center: true }))
-        parts.push(buildTextParagraph(''))
+        parts.push(buildTextParagraph(section.heading, { cp: 6, center: true, boxed: true }))
+        parts.push(buildTextParagraph('', { boxed: true }))
         used += Math.round(1200 * 1.3) + LINE_H
         for (const item of section.items) {
-            parts.push(buildTextParagraph(item, { cp: 10, center: true }))
+            parts.push(buildTextParagraph(item, { cp: 10, center: true, boxed: true }))
             used += estDisplayLines(item, CONTENT_WIDTH) * Math.round(1100 * 1.3)
         }
     })
 
-    // 하단 파란 ※주석 — 남은 높이를 여백으로 채워 하단에 배치 (안전 버퍼 2줄)
-    if (cover.footnote) {
-        spacer(Math.floor((CONTENT_HEIGHT - used - LINE_H) / LINE_H) - 2)
-        parts.push(buildTextParagraph(cover.footnote, { cp: 11 }))
-    }
+    // 남은 높이를 여백 문단으로 채운다 — ※주석을 쪽 하단에 붙이고, 주석이 없는 종별도 테두리가 쪽 전체를 감싸게 한다 (안전 버퍼 2줄)
+    const footnoteH = cover.footnote ? LINE_H : 0
+    spacer(Math.floor((CONTENT_HEIGHT - used - footnoteH) / LINE_H) - 2)
+    if (cover.footnote) parts.push(buildTextParagraph(cover.footnote, { cp: 11, boxed: true }))
     return parts
 }
 
