@@ -14,12 +14,15 @@ interface TbmSubmissionRow {
   personnel_count: string | null
   personnel_total_count: number | null
   equipment_input: string | null
+  address: string | null
+  detail_address: string | null
 }
 
 export interface TbmImportValues {
   workDescription: string
   personnel: string
   equipment: string
+  workLocation: string
 }
 
 interface TbmImportPanelProps {
@@ -31,7 +34,7 @@ interface TbmImportPanelProps {
   onImport: (values: TbmImportValues) => void
 }
 
-const TBM_SELECT = 'id, meeting_date, education_date, today_work, personnel_count, personnel_total_count, equipment_input'
+const TBM_SELECT = 'id, meeting_date, education_date, today_work, personnel_count, personnel_total_count, equipment_input, address, detail_address'
 const LIMIT = 10
 
 /** 줄 앞 목록 기호를 떼고 한 줄로 잇는다. TBM 입력은 여러 줄로 적힌 경우가 많다. */
@@ -48,6 +51,11 @@ function buildPersonnelText(personnelCount: string | null, totalCount: number | 
   const breakdown = joinLines(personnelCount)
   if (totalCount && totalCount > 0) return breakdown ? `총 ${totalCount}명(${breakdown})` : `총 ${totalCount}명`
   return breakdown
+}
+
+/** 작업위치 — 주소와 상세주소를 한 줄로 잇는다. */
+function buildWorkLocationText(address: string | null, detailAddress: string | null): string {
+  return [address, detailAddress].map((part) => (part || '').trim()).filter(Boolean).join(' ')
 }
 
 /** 장비 입력에 "0"만 적힌 행이 있어 의미 없는 값은 비운다. */
@@ -128,6 +136,7 @@ export default function TbmImportPanel({
       workDescription: (row.today_work || '').trim(),
       personnel: buildPersonnelText(row.personnel_count, row.personnel_total_count),
       equipment: buildEquipmentText(row.equipment_input),
+      workLocation: buildWorkLocationText(row.address, row.detail_address),
     })
     setOpen(false)
   }

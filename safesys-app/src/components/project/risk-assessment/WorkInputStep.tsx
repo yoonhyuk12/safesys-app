@@ -4,6 +4,7 @@
 
 import { useState } from 'react'
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Loader2, Plus, Sparkles, X } from 'lucide-react'
+import { RISK_AI_MODELS } from '@/lib/risk-assessment/types'
 import type { RiskAssessmentRow, RiskClassifyMatch, RiskHazard } from '@/lib/risk-assessment/types'
 import { classifyWork, fetchHazards, MAX_JUDGE_HAZARDS, requestAiJudgement } from './api'
 import { BUSINESS_TYPE_ALL, createRowFromHazard } from './record'
@@ -19,9 +20,11 @@ interface WorkInputStepProps {
   workDescription: string
   personnel: string
   equipment: string
+  workLocation: string
   onWorkDescriptionChange: (value: string) => void
   onPersonnelChange: (value: string) => void
   onEquipmentChange: (value: string) => void
+  onWorkLocationChange: (value: string) => void
   onRowsReady: (rows: RiskAssessmentRow[]) => void
 }
 
@@ -50,9 +53,11 @@ export default function WorkInputStep({
   workDescription,
   personnel,
   equipment,
+  workLocation,
   onWorkDescriptionChange,
   onPersonnelChange,
   onEquipmentChange,
+  onWorkLocationChange,
   onRowsReady,
 }: WorkInputStepProps) {
   const [matches, setMatches] = useState<RiskClassifyMatch[]>([])
@@ -82,6 +87,7 @@ export default function WorkInputStep({
     onWorkDescriptionChange(values.workDescription)
     onPersonnelChange(values.personnel)
     onEquipmentChange(values.equipment)
+    onWorkLocationChange(values.workLocation)
     setError('')
   }
 
@@ -120,9 +126,12 @@ export default function WorkInputStep({
     return picks
   }
 
-  /** 장비 제안이 비면 사용자가 적은 장비 텍스트로 채운다. */
-  const withEquipmentFallback = (row: RiskAssessmentRow): RiskAssessmentRow =>
-    row.equipment ? row : { ...row, equipment: equipment.trim() }
+  /** 행 기본값 — 장비 제안이 비면 사용자가 적은 장비를, 작업위치는 입력한 주소를 채운다. */
+  const withInputDefaults = (row: RiskAssessmentRow): RiskAssessmentRow => ({
+    ...row,
+    equipment: row.equipment || equipment.trim(),
+    workLocation: row.workLocation || workLocation.trim(),
+  })
 
   const runPipeline = async (targets: RiskClassifyMatch[], options: { skipAi: boolean }) => {
     if (targets.length === 0) {
@@ -147,7 +156,7 @@ export default function WorkInputStep({
       }
 
       if (options.skipAi) {
-        onRowsReady(picks.map((pick) => withEquipmentFallback(createRowFromHazard(pick.hazard, undefined, pick.detailWork))))
+        onRowsReady(picks.map((pick) => withInputDefaults(createRowFromHazard(pick.hazard, undefined, pick.detailWork))))
         return
       }
 
@@ -161,7 +170,7 @@ export default function WorkInputStep({
       const byHazardId = new Map(judgements.map((judgement) => [judgement.hazardId, judgement]))
       const rows = picks
         .filter((pick) => byHazardId.get(pick.hazard.id)?.selected)
-        .map((pick) => withEquipmentFallback(
+        .map((pick) => withInputDefaults(
           createRowFromHazard(pick.hazard, byHazardId.get(pick.hazard.id), pick.detailWork)
         ))
 
@@ -252,6 +261,16 @@ export default function WorkInputStep({
           />
           <span className="mt-1 block text-xs text-gray-500">AI가 장비를 제안하지 못한 행에 이 값을 채웁니다.</span>
         </label>
+        <label className="block sm:col-span-2">
+          <span className="text-sm font-semibold text-gray-800">작업위치</span>
+          <input
+            value={workLocation}
+            onChange={(event) => onWorkLocationChange(event.target.value)}
+            placeholder="예) 전남 나주시 금천면 원곡리 123-4 저수지 제방 상단"
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
+          />
+          <span className="mt-1 block text-xs text-gray-500">생성되는 모든 행의 작업위치 기본값입니다. 행별로 따로 고칠 수 있습니다.</span>
+        </label>
       </div>
 
       {running && (
@@ -324,6 +343,7 @@ export default function WorkInputStep({
           {phase === 'classifying' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           AI 자동 분류·판정
         </button>
+        <span className="text-xs lowercase text-gray-400">{RISK_AI_MODELS[0]}</span>
         {matches.length > 0 && (
           <>
             <button

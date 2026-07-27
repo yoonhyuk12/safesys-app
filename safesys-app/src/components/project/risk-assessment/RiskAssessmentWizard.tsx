@@ -9,7 +9,7 @@ import { inferBusinessType } from '@/lib/risk-assessment/business-type-infer'
 import type { RiskAssessmentRow } from '@/lib/risk-assessment/types'
 import BusinessTypeStep from './BusinessTypeStep'
 import RowEditorStep from './RowEditorStep'
-import SaveStep from './SaveStep'
+import SaveStep, { type SignatureNameKey, type SignatureNames } from './SaveStep'
 import WorkInputStep from './WorkInputStep'
 import { BUSINESS_TYPE_ALL, type RiskAssessmentRecord } from './record'
 
@@ -20,6 +20,10 @@ interface RiskAssessmentWizardProps {
   managingBranch: string | null
   savedBusinessType: string | null
   defaultAuthorName: string
+  /** 프로젝트 소유자 이름 — 결재란 현장소장 기본값 */
+  ownerName: string
+  /** projects.supervisor_name — 결재란 공사감독 기본값 */
+  supervisorName: string
   userId: string
   /** 주면 수정 모드 — 저장된 값을 채운 채 행 편집 단계부터 시작한다 */
   initialRecord?: RiskAssessmentRecord | null
@@ -42,13 +46,20 @@ const EDIT_STEPS: Array<{ key: StepKey; label: string }> = [
   { key: 'save', label: '저장' },
 ]
 
-const today = () => new Date().toISOString().slice(0, 10)
+/** 로컬 날짜 문자열 — toISOString은 UTC 기준이라 이른 새벽에 하루 밀린다. */
+const formatLocalDate = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+
+const today = () => formatLocalDate(new Date())
 
 const addDays = (days: number) => {
   const date = new Date()
   date.setDate(date.getDate() + days)
-  return date.toISOString().slice(0, 10)
+  return formatLocalDate(date)
 }
+
+// 신규 작성 관리기간 기본값 (시작일 포함 30일간)
+const DEFAULT_PERIOD_DAYS = 30
 
 /** 저장 전 정리 — 빈 대책 줄을 걷어내고 담당자 등 공백을 다듬는다. */
 function normalizeRows(rows: RiskAssessmentRow[]): RiskAssessmentRow[] {
@@ -73,6 +84,8 @@ export default function RiskAssessmentWizard({
   managingBranch,
   savedBusinessType,
   defaultAuthorName,
+  ownerName,
+  supervisorName,
   userId,
   initialRecord,
   onSaved,
@@ -90,15 +103,27 @@ export default function RiskAssessmentWizard({
   const [workDescription, setWorkDescription] = useState(initialRecord?.trigger || '')
   const [personnel, setPersonnel] = useState('')
   const [equipment, setEquipment] = useState('')
+  const [workLocation, setWorkLocation] = useState('')
   const [rows, setRows] = useState<RiskAssessmentRow[]>(initialRecord?.rows || [])
   const [title, setTitle] = useState(initialRecord?.title || '')
   const [authorName, setAuthorName] = useState(initialRecord?.author_name || defaultAuthorName)
   const [managePeriodStart, setManagePeriodStart] = useState(initialRecord?.manage_period_start || today())
-  const [managePeriodEnd, setManagePeriodEnd] = useState(initialRecord?.manage_period_end || addDays(6))
+  const [managePeriodEnd, setManagePeriodEnd] = useState(initialRecord?.manage_period_end || addDays(DEFAULT_PERIOD_DAYS - 1))
+  // 저장된 명단이 있으면 그대로, 없으면 접속자·프로젝트 정보로 채운다 (안전 담당은 수기 입력)
+  const [signatureNames, setSignatureNames] = useState<SignatureNames>({
+    constructionName: initialRecord?.signatures?.constructionName ?? defaultAuthorName,
+    safetyName: initialRecord?.signatures?.safetyName ?? '',
+    siteManagerName: initialRecord?.signatures?.siteManagerName ?? ownerName,
+    supervisorName: initialRecord?.signatures?.supervisorName ?? supervisorName,
+  })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
 
   const currentKey = steps[step].key
+
+  const updateSignatureName = (key: SignatureNameKey, value: string) => {
+    setSignatureNames((current) => ({ ...current, [key]: value }))
+  }
 
   const businessTypeLabel = businessType === BUSINESS_TYPE_ALL ? '사업 무관(전체)' : businessType
   // 행마다 세부단위작업이 달라질 수 있어 요약에는 고유값을 모아 보여준다
@@ -150,6 +175,14 @@ export default function RiskAssessmentWizard({
         manage_period_start: managePeriodStart || null,
         manage_period_end: managePeriodEnd || null,
         rows: normalizeRows(rows),
+        // 이미 받아 둔 서명 이미지는 남기고 명단만 덮어쓴다
+        signatures: {
+          ...(initialRecord?.signatures ?? {}),
+          constructionName: signatureNames.constructionName.trim(),
+          safetyName: signatureNames.safetyName.trim(),
+          siteManagerName: signatureNames.siteManagerName.trim(),
+          supervisorName: signatureNames.supervisorName.trim(),
+        },
       }
 
       const { data, error } = initialRecord
@@ -165,7 +198,6 @@ export default function RiskAssessmentWizard({
               ...payload,
               project_id: projectId,
               assessment_type: '수시',
-              signatures: {},
               created_by: userId,
             })
             .select('*')
@@ -228,9 +260,11 @@ export default function RiskAssessmentWizard({
             workDescription={workDescription}
             personnel={personnel}
             equipment={equipment}
+            workLocation={workLocation}
             onWorkDescriptionChange={setWorkDescription}
             onPersonnelChange={setPersonnel}
             onEquipmentChange={setEquipment}
+            onWorkLocationChange={setWorkLocation}
             onRowsReady={handleRowsReady}
           />
         )}
@@ -247,10 +281,12 @@ export default function RiskAssessmentWizard({
             detailWorkLabel={detailWorks.join(', ')}
             trigger={workDescription}
             rowCount={rows.length}
+            signatureNames={signatureNames}
             onTitleChange={setTitle}
             onAuthorNameChange={setAuthorName}
             onManagePeriodStartChange={setManagePeriodStart}
             onManagePeriodEndChange={setManagePeriodEnd}
+            onSignatureNameChange={updateSignatureName}
           />
         )}
       </div>
