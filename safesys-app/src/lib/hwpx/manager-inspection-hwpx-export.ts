@@ -560,6 +560,10 @@ const RISK_ROW_H = 1500
 const COLS_SIGN = [30024, 13000, 8000]
 const SIGN_DATE_H = 1600
 const SIGN_NAME_H = 2400
+// 서명 그림 크기 상한. 폭은 "( 서명 )" 칸 폭을 넘기지 않는다 — 넘기면 왼쪽 성명 텍스트를 덮거나 표 밖으로 튀어나온다.
+// 높이는 서명 행보다 크지만 떠 있는 그림이라 표를 밀지 않고, 원본(800×400)은 위아래 여백이 넉넉해 실제 획은 행 안에 머문다.
+const SIG_MAX_W = COLS_SIGN[2]
+const SIG_MAX_H = 4000
 
 interface MainPageData {
     sequenceNumber: number
@@ -918,9 +922,10 @@ async function buildInspectionParts(
     const tableH = mainPages[mainPages.length - 1].reduce((a, r) => a + r.height, 0)
     const floats: string[] = []
     if (sigId) {
-        const sig = fitImage(collector.find(sigId), 6600, 2000)
-        // 쪽 기준 절대 좌표. x·y 보정값은 한글 2020 렌더 실측치.
-        const sigX = PAGE_LEFT + COLS_SIGN[0] + COLS_SIGN[1] + Math.round((COLS_SIGN[2] - sig.w) / 2) + 600
+        const sig = fitImage(collector.find(sigId), SIG_MAX_W, SIG_MAX_H)
+        // 쪽 기준 절대 좌표. y 보정값은 한글 2020 렌더 실측치(글자 기준선이 행 중앙보다 아래).
+        // x는 보정하지 않는다 — 그림 폭이 "( 서명 )" 칸 폭까지 커져서 보정을 주면 표 오른쪽 테두리를 넘어간다.
+        const sigX = PAGE_LEFT + COLS_SIGN[0] + COLS_SIGN[1] + Math.round((COLS_SIGN[2] - sig.w) / 2)
         // y = 본문 시작 + 표 높이(제목 포함) + 날짜 행 + 서명 행 내 수직 중앙
         const sigY = PAGE_CONTENT_TOP + tableH + SIGN_DATE_H + Math.round((SIGN_NAME_H - sig.h) / 2) + 500
         floats.push(buildFloatingPicXml(sigId, sig.w, sig.h, sigX, sigY))
