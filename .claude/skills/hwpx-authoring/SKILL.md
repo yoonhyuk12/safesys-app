@@ -43,6 +43,7 @@ BinData/imageN.jpg|png    ← 이미지 바이트. 섹션의 binaryItemIDRef="im
 | 3 | 떠 있는 그림을 셀/문단(PARA) 앵커로 배치 | 좌표가 예측 불가(표 밖·엉뚱한 줄로 이동) | `vertRelTo/horzRelTo="PAPER"` 절대좌표 + 표 래퍼 문단 run에 앵커. 좌표 = 여백 + 열폭/줄높이 합산, 최종은 실측 보정 |
 | 4 | 셀 명시 폭이 열 그리드(colAddr/colSpan)와 불일치 | 한글이 행을 재배치해 행 전체가 깨짐 | 셀 폭은 반드시 그리드 열폭 합산으로 도출. 그리드를 바꾸려면 정답 hwpx에서 colAddr/colSpan/width를 추출해 일관 그리드를 풀어라 |
 | 5 | mimetype을 압축하거나 뒤에 배치 | 파일 인식 실패 | JSZip에서 첫 번째로 `{ compression: 'STORE' }` 지정 |
+| 6 | `treatAsChar` 표가 한 쪽 예산을 넘음 | 넘친 행이 다음 쪽으로 이어지지 않고 **통째로 잘려 내용 유실** (관리자점검 장문 10행 표본으로 확인) | 코드가 직접 쪽 단위로 표를 분할해 이어지는 표로 내보낸다(`manager-inspection-hwpx-export.ts`의 `paginateRows`). 표 밖 제목 문단과 조합하면 표만 다음 쪽으로 밀려 빈 제목 쪽이 생기고 `keepWithNext`도 무시되므로, 제목은 표의 무테 첫 행으로 넣는다 |
 
 ## 좌표·치수 (HWPUNIT)
 
