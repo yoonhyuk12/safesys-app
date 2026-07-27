@@ -311,7 +311,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
     }))
   }
 
-  // 수시위험성평가 연계 결과로 잠재위험요인·해결방안을 채운다 (중점위험요인은 첫 항목으로 맞춘다)
+  // 수시위험성평가 연계 결과로 잠재위험요인·해결방안·잠재위험요소를 채운다 (중점위험요인은 첫 항목으로 맞춘다)
   const handleRiskLinkApply = (items: TbmRiskLinkItem[]) => {
     setFormData(prev => ({
       ...prev,
@@ -322,7 +322,10 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       potentialRisk3: items[2]?.risk || '',
       solution3: items[2]?.solution || '',
       mainRiskSelection: items[0]?.risk || '',
-      mainRiskSolution: items[0]?.solution || ''
+      mainRiskSolution: items[0]?.solution || '',
+      riskFactor1: items[0]?.factor || '',
+      riskFactor2: items[1]?.factor || '',
+      riskFactor3: items[2]?.factor || ''
     }))
   }
 

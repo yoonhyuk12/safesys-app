@@ -133,10 +133,11 @@ export interface TbmRiskLinkRequest {
   rows: Array<Pick<RiskAssessmentRow, 'hazard' | 'disasterType' | 'measures' | 'frequency' | 'intensity'>>
 }
 
-/** TBM 잠재위험요인 1건 — risk는 평가서 위험요인 원문 기반, solution은 감소대책 요약 */
+/** TBM 잠재위험요인 1건 — risk는 평가서 위험요인 원문 기반, solution은 감소대책 요약, factor는 위험을 유발하는 상태·대상(잠재위험요소) */
 export interface TbmRiskLinkItem {
   risk: string
   solution: string
+  factor: string
 }
 
 export interface TbmRiskLinkResponse {

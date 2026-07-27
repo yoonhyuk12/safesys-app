@@ -81,7 +81,8 @@ ${rows.map(describeRow).join('\n')}
 - 목록에 있는 번호만 쓴다. 목록에 없는 번호나 새 위험요인을 지어내지 않는다.
 - risk: 고른 행의 위험요인 원문을 근거로, 근로자가 TBM에서 바로 알아듣도록 한 문장으로 다듬는다. 없는 내용을 보태지 않는다.
 - solution: 그 행의 감소대책을 현장에서 바로 실행할 수 있게 1~2문장으로 요약한다.
-- 반드시 다음 JSON 형식으로만 응답한다: {"items":[{"index":0,"risk":"","solution":""}]}`
+- factor: 그 위험요인과 연관된 "단순 위험 요소"(위험을 유발하는 상태·대상 자체)를 30자 이내로 쓴다. 제거/설치/착용 같은 대책·조치 표현은 절대 쓰지 않는다. (예: 위험요인이 "작업자 미끄러짐"이면 factor는 "바닥 물기". "바닥 물기 제거"처럼 조치로 쓰면 안 됨)
+- 반드시 다음 JSON 형식으로만 응답한다: {"items":[{"index":0,"risk":"","solution":"","factor":""}]}`
 
     let lastError = ''
     for (const model of RISK_AI_MODELS) {
@@ -139,7 +140,8 @@ ${rows.map(describeRow).join('\n')}
           const source = rows[index]
           const risk = String(item.risk || '').trim() || source.hazard
           const solution = String(item.solution || '').trim() || (source.measures || []).join(' / ')
-          data.push({ risk, solution })
+          const factor = String(item.factor || '').trim()
+          data.push({ risk, solution, factor })
           if (data.length >= MAX_ITEMS) break
         }
 
