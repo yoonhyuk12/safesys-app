@@ -8,9 +8,13 @@ import type { RiskAssessmentRow, RiskClassifyMatch, RiskHazard } from '@/lib/ris
 import { classifyWork, fetchHazards, MAX_JUDGE_HAZARDS, requestAiJudgement } from './api'
 import { BUSINESS_TYPE_ALL, createRowFromHazard } from './record'
 import TaxonomyStep, { type TaxonomySelection } from './TaxonomyStep'
+import TbmImportPanel, { type TbmImportValues } from './TbmImportPanel'
 
 interface WorkInputStepProps {
   projectId: string
+  projectName: string
+  managingHq: string | null
+  managingBranch: string | null
   businessType: string
   workDescription: string
   personnel: string
@@ -39,6 +43,9 @@ interface HazardPick {
 
 export default function WorkInputStep({
   projectId,
+  projectName,
+  managingHq,
+  managingBranch,
   businessType,
   workDescription,
   personnel,
@@ -68,6 +75,14 @@ export default function WorkInputStep({
   const toggleExclude = (match: RiskClassifyMatch) => {
     const key = matchKey(match)
     setExcludedKeys((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key])
+  }
+
+  /** TBM 일지 값으로 세 필드를 덮어쓴다. 분류 매칭은 사용자가 버튼을 눌러 실행한다. */
+  const handleTbmImport = (values: TbmImportValues) => {
+    onWorkDescriptionChange(values.workDescription)
+    onPersonnelChange(values.personnel)
+    onEquipmentChange(values.equipment)
+    setError('')
   }
 
   const addManualMatch = () => {
@@ -192,9 +207,22 @@ export default function WorkInputStep({
 
   return (
     <div className="space-y-4">
-      <label className="block">
-        <span className="text-sm font-semibold text-gray-800">작업내용<span className="ml-1 text-red-500">*</span></span>
+      <div>
+        <div className="flex items-start justify-between gap-2">
+          <label htmlFor="risk-work-description" className="text-sm font-semibold text-gray-800">
+            작업내용<span className="ml-1 text-red-500">*</span>
+          </label>
+          <TbmImportPanel
+            projectId={projectId}
+            projectName={projectName}
+            managingHq={managingHq}
+            managingBranch={managingBranch}
+            disabled={running}
+            onImport={handleTbmImport}
+          />
+        </div>
         <textarea
+          id="risk-work-description"
           value={workDescription}
           onChange={(event) => onWorkDescriptionChange(event.target.value)}
           rows={4}
@@ -202,7 +230,7 @@ export default function WorkInputStep({
           className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900"
         />
         <span className="mt-1 block text-xs text-gray-500">이 내용이 평가서의 수시평가 사유로 저장되고, AI 분류·판정의 근거가 됩니다.</span>
-      </label>
+      </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">

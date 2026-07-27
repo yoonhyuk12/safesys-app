@@ -15,6 +15,8 @@ import { supabase } from '@/lib/supabase'
 interface RiskAssessmentProject {
   id: string
   project_name: string
+  managing_hq: string | null
+  managing_branch: string | null
   risk_business_type: string | null
 }
 
@@ -52,7 +54,7 @@ export default function RiskAssessmentPage() {
       const [projectResult, recordResult, profileResult] = await Promise.all([
         supabase
           .from('projects')
-          .select('id, project_name, risk_business_type')
+          .select('id, project_name, managing_hq, managing_branch, risk_business_type')
           .eq('id', projectId)
           .single(),
         supabase
@@ -197,6 +199,8 @@ export default function RiskAssessmentPage() {
           <RiskAssessmentWizard
             projectId={project.id}
             projectName={project.project_name}
+            managingHq={project.managing_hq}
+            managingBranch={project.managing_branch}
             savedBusinessType={project.risk_business_type}
             defaultAuthorName={authorName}
             userId={user.id}

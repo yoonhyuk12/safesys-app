@@ -16,6 +16,8 @@ import { BUSINESS_TYPE_ALL, type RiskAssessmentRecord } from './record'
 interface RiskAssessmentWizardProps {
   projectId: string
   projectName: string
+  managingHq: string | null
+  managingBranch: string | null
   savedBusinessType: string | null
   defaultAuthorName: string
   userId: string
@@ -52,6 +54,8 @@ function normalizeRows(rows: RiskAssessmentRow[]): RiskAssessmentRow[] {
 export default function RiskAssessmentWizard({
   projectId,
   projectName,
+  managingHq,
+  managingBranch,
   savedBusinessType,
   defaultAuthorName,
   userId,
@@ -182,6 +186,9 @@ export default function RiskAssessmentWizard({
         {step === 1 && (
           <WorkInputStep
             projectId={projectId}
+            projectName={projectName}
+            managingHq={managingHq}
+            managingBranch={managingBranch}
             businessType={businessType}
             workDescription={workDescription}
             personnel={personnel}
