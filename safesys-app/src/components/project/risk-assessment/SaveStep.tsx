@@ -10,7 +10,7 @@ interface SaveStepProps {
   managePeriodStart: string
   managePeriodEnd: string
   businessTypeLabel: string
-  detailWork: string
+  detailWorkLabel: string
   trigger: string
   rowCount: number
   onTitleChange: (value: string) => void
@@ -25,7 +25,7 @@ export default function SaveStep({
   managePeriodStart,
   managePeriodEnd,
   businessTypeLabel,
-  detailWork,
+  detailWorkLabel,
   trigger,
   rowCount,
   onTitleChange,
@@ -81,7 +81,7 @@ export default function SaveStep({
         </div>
         <div className="flex gap-2">
           <dt className="shrink-0 font-semibold text-gray-600">세부단위작업</dt>
-          <dd className="min-w-0 text-gray-900">{detailWork || '-'}</dd>
+          <dd className="min-w-0 text-gray-900">{detailWorkLabel || '-'}</dd>
         </div>
         <div className="flex gap-2">
           <dt className="shrink-0 font-semibold text-gray-600">관리기간</dt>

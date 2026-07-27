@@ -1,6 +1,6 @@
 'use client'
 
-// 수시 위험성평가 작성 마법사 — 사업별 확인부터 저장까지 5단계 흐름과 단계별 상태를 관리한다
+// 수시 위험성평가 작성 마법사 — 사업별 확인부터 저장까지 4단계 흐름과 단계별 상태를 관리한다
 
 import { useMemo, useState } from 'react'
 import { ArrowLeft, ArrowRight, Loader2, Save, X } from 'lucide-react'
@@ -10,8 +10,7 @@ import type { RiskAssessmentRow } from '@/lib/risk-assessment/types'
 import BusinessTypeStep from './BusinessTypeStep'
 import RowEditorStep from './RowEditorStep'
 import SaveStep from './SaveStep'
-import TaxonomyStep, { type TaxonomySelection } from './TaxonomyStep'
-import TriggerStep from './TriggerStep'
+import WorkInputStep from './WorkInputStep'
 import { BUSINESS_TYPE_ALL, type RiskAssessmentRecord } from './record'
 
 interface RiskAssessmentWizardProps {
@@ -24,7 +23,7 @@ interface RiskAssessmentWizardProps {
   onClose: () => void
 }
 
-const STEPS = ['사업별 확인', '작업 선택', '사유·AI 판정', '행 편집', '저장']
+const STEPS = ['사업별 확인', '작업 정보·AI 분류', '행 편집', '저장']
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -63,9 +62,9 @@ export default function RiskAssessmentWizard({
 
   const [step, setStep] = useState(0)
   const [businessType, setBusinessType] = useState(savedBusinessType || inferred || BUSINESS_TYPE_ALL)
-  const [selection, setSelection] = useState<TaxonomySelection>({ construction: '', unitWork: '', detailWork: '' })
-  const [trigger, setTrigger] = useState('')
-  const [siteContext, setSiteContext] = useState('')
+  const [workDescription, setWorkDescription] = useState('')
+  const [personnel, setPersonnel] = useState('')
+  const [equipment, setEquipment] = useState('')
   const [rows, setRows] = useState<RiskAssessmentRow[]>([])
   const [title, setTitle] = useState('')
   const [authorName, setAuthorName] = useState(defaultAuthorName)
@@ -75,6 +74,8 @@ export default function RiskAssessmentWizard({
   const [saveError, setSaveError] = useState('')
 
   const businessTypeLabel = businessType === BUSINESS_TYPE_ALL ? '사업 무관(전체)' : businessType
+  // 행마다 세부단위작업이 달라질 수 있어 요약에는 고유값을 모아 보여준다
+  const detailWorks = [...new Set(rows.map((row) => row.detailWork).filter(Boolean))]
 
   // 확정한 사업별을 프로젝트에 기억시킨다. 편의 기능이라 실패해도 작성 흐름은 막지 않는다.
   const persistBusinessType = async () => {
@@ -85,16 +86,15 @@ export default function RiskAssessmentWizard({
   }
 
   const canProceed = () => {
-    if (step === 1) return Boolean(selection.detailWork)
-    if (step === 2 || step === 3) return rows.length > 0
+    if (step === 1 || step === 2) return rows.length > 0
     return true
   }
 
   const goNext = async () => {
     if (!canProceed()) return
     if (step === 0) await persistBusinessType()
-    if (step === 3 && !title.trim()) {
-      setTitle(`${selection.detailWork || projectName} 수시 위험성평가 (${today()})`)
+    if (step === 2 && !title.trim()) {
+      setTitle(`${detailWorks[0] || projectName} 수시 위험성평가 (${today()})`)
     }
     setStep((current) => Math.min(STEPS.length - 1, current + 1))
   }
@@ -103,7 +103,7 @@ export default function RiskAssessmentWizard({
 
   const handleRowsReady = (nextRows: RiskAssessmentRow[]) => {
     setRows(nextRows)
-    setStep(3)
+    setStep(2)
   }
 
   const handleSave = async () => {
@@ -121,7 +121,7 @@ export default function RiskAssessmentWizard({
           assessment_type: '수시',
           title: title.trim(),
           business_type: businessType === BUSINESS_TYPE_ALL ? null : businessType,
-          trigger: trigger.trim(),
+          trigger: workDescription.trim(),
           author_name: authorName.trim(),
           manage_period_start: managePeriodStart || null,
           manage_period_end: managePeriodEnd || null,
@@ -180,32 +180,30 @@ export default function RiskAssessmentWizard({
           />
         )}
         {step === 1 && (
-          <TaxonomyStep businessType={businessType} selection={selection} onChange={setSelection} />
-        )}
-        {step === 2 && (
-          <TriggerStep
+          <WorkInputStep
             projectId={projectId}
             businessType={businessType}
-            selection={selection}
-            trigger={trigger}
-            siteContext={siteContext}
-            onTriggerChange={setTrigger}
-            onSiteContextChange={setSiteContext}
+            workDescription={workDescription}
+            personnel={personnel}
+            equipment={equipment}
+            onWorkDescriptionChange={setWorkDescription}
+            onPersonnelChange={setPersonnel}
+            onEquipmentChange={setEquipment}
             onRowsReady={handleRowsReady}
           />
         )}
-        {step === 3 && (
-          <RowEditorStep rows={rows} detailWork={selection.detailWork} onChange={setRows} />
+        {step === 2 && (
+          <RowEditorStep rows={rows} detailWork={detailWorks[0] || ''} onChange={setRows} />
         )}
-        {step === 4 && (
+        {step === 3 && (
           <SaveStep
             title={title}
             authorName={authorName}
             managePeriodStart={managePeriodStart}
             managePeriodEnd={managePeriodEnd}
             businessTypeLabel={businessTypeLabel}
-            detailWork={selection.detailWork}
-            trigger={trigger}
+            detailWorkLabel={detailWorks.join(', ')}
+            trigger={workDescription}
             rowCount={rows.length}
             onTitleChange={setTitle}
             onAuthorNameChange={setAuthorName}

@@ -5,10 +5,16 @@ import type {
   RiskAiJudgement,
   RiskAiRequest,
   RiskAiResponse,
+  RiskClassifyMatch,
+  RiskClassifyRequest,
+  RiskClassifyResponse,
   RiskHazard,
   RiskHazardsResponse,
   RiskTaxonomyResponse,
 } from '@/lib/risk-assessment/types'
+
+/** 판정 API가 한 번에 받는 위험요인 상한 — /api/ai/risk-assessment의 MAX_HAZARDS와 같은 값 */
+export const MAX_JUDGE_HAZARDS = 60
 
 // 인덱스 시그니처가 필요한 toQuery에 그대로 넘기려고 인터페이스 대신 타입 별칭으로 둔다.
 export type TaxonomyFilter = {
@@ -26,8 +32,8 @@ function toQuery(filter: Record<string, string | undefined>): string {
   return query ? `?${query}` : ''
 }
 
-/** 위험요인 DB 조회 API는 Bearer 세션 토큰 인증을 요구한다. */
-async function authHeaders(): Promise<HeadersInit> {
+/** 위험요인 DB 조회·분류 API는 Bearer 세션 토큰 인증을 요구한다. */
+async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('로그인이 만료되었습니다. 다시 로그인해주세요.')
   return { Authorization: `Bearer ${session.access_token}` }
@@ -54,6 +60,20 @@ export async function fetchHazards(filter: {
   const result = (await response.json()) as RiskHazardsResponse
   if (!response.ok || !result.success) {
     throw new Error(result.error || '위험요인을 불러오지 못했습니다.')
+  }
+  return result.data || []
+}
+
+/** 작업내용 자유 텍스트를 분류 조합으로 매칭한다 — 관련도 순 최대 3건. */
+export async function classifyWork(payload: RiskClassifyRequest): Promise<RiskClassifyMatch[]> {
+  const response = await fetch('/api/ai/risk-classify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify(payload),
+  })
+  const result = (await response.json()) as RiskClassifyResponse
+  if (!response.ok || !result.success) {
+    throw new Error(result.error || '작업 분류에 실패했습니다.')
   }
   return result.data || []
 }

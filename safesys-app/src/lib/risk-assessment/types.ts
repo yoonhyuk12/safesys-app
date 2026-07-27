@@ -57,6 +57,28 @@ export function riskGrade(frequency: number, intensity: number): { score: number
   return { score, grade: score >= 7 ? '상' : score >= 4 ? '중' : '하' }
 }
 
+/** POST /api/ai/risk-classify 요청 — 작업내용 자유 텍스트에서 분류(공사>단위작업>세부단위작업)를 자동 매칭 */
+export interface RiskClassifyRequest {
+  businessType?: string | null  // 확정 사업별 (전체 모드면 생략)
+  workDescription: string       // 작업내용 자유 텍스트 (수시평가 사유 겸용)
+  personnel?: string            // 투입 인원
+  equipment?: string            // 사용 장비
+}
+
+/** AI가 매칭한 분류 조합 1건 — 반드시 risk_hazard_taxonomy의 실존 조합이어야 한다 */
+export interface RiskClassifyMatch {
+  construction: string
+  unitWork: string
+  detailWork: string
+  reason: string                // 매칭 근거 한 줄
+}
+
+export interface RiskClassifyResponse {
+  success: boolean
+  data?: RiskClassifyMatch[]    // 관련도 순 최대 3건
+  error?: string
+}
+
 /** POST /api/ai/risk-assessment 요청 — Gemini에 선별·판정 위임 */
 export interface RiskAiRequest {
   projectId: string
