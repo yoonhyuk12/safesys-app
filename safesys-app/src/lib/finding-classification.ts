@@ -1,5 +1,6 @@
 // 정기·본부불시점검 개별 지적 텍스트를 데이터 근거의 고정 코드로 분류하는 순수 모듈
 // 규칙 출처: database/20260718-1120_add_inspection_finding_category_codes.sql 의 classify_inspection_finding
+//           + database/20260727-1430_refine_finding_classification_plan_signal.sql (작업계획서·신호수 override)
 // 우선순위: 제외 → exact data override → F01→F18→F20 → F19_OTHER (SQL과 동일)
 
 export type FindingCode =
@@ -236,6 +237,10 @@ export const FINDING_CODE_DEFINITIONS: readonly FindingCodeDefinition[] = FINDIN
   ({ code, name }) => ({ code, name }),
 )
 
+/** F01 보호구 키워드. 신호수 override가 보호구 결함을 가로채지 않도록 예외 판정에 쓴다. */
+const PPE_PATTERNS: readonly RegExp[] =
+  FINDING_CODE_RULES.find((rule) => rule.code === 'F01_PPE')?.patterns ?? []
+
 const FINDING_CODE_NAME = new Map<FindingCode, string>(FINDING_CODE_RULES.map((rule) => [rule.code, rule.name]))
 const FINDING_CODE_ORDER = new Map<FindingCode, number>(FINDING_CODE_RULES.map((rule, index) => [rule.code, index]))
 const FINDING_CODE_SET = new Set<string>(FINDING_CODE_RULES.map((rule) => rule.code))
@@ -366,6 +371,13 @@ export const classifyFinding = (text: string): FindingCode | null => {
   if (/구름\s*방지/.test(normalized)) return 'F06_LIFTING'
   // 레미콘 박스 → F11 (레미콘 시간 F18보다 먼저 — 박스는 자재 취급)
   if (/레미콘\s*박스/.test(normalized)) return 'F11_MATERIAL'
+  // 작업계획서 → F16 (건설기계·차량계 F05보다 먼저 — 결함의 본질이 서류 미비)
+  if (/작업계획서/.test(normalized)) return 'F16_DOC'
+  // 신호수·유도원·작업지휘 → F07 (장비 F05보다 먼저).
+  // 단 보호구 결함이 함께 있으면 F01을 유지한다(신호수 안전모 미착용 등).
+  if (/신호수|유도원|작업지휘/.test(normalized) && !PPE_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return 'F07_SIGNAL'
+  }
 
   for (const rule of FINDING_CODE_RULES) {
     if (rule.code === 'F19_OTHER') continue
