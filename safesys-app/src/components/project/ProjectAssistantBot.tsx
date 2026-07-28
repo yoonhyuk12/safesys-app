@@ -3,7 +3,7 @@
 // 프로젝트 현장 AI 비서 챗봇 — 오늘 TBM 브리핑·감독 미서명 안내(플로팅)
 
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { MessageCircle, X, Send, Bot, User, Loader2, Minimize2, Maximize2, RotateCcw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PROJECT_ROUTE_SEGMENTS } from '@/lib/project-assistant/route-map'
@@ -29,6 +29,10 @@ export default function ProjectAssistantBot({ projectId, projectName }: ProjectA
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const hasBriefedRef = useRef(false)
+
+  // 안전서류 점검 화면은 우하단에 "진행상황" 플로팅 버튼이 있어 겹친다 — 그 위로 올려 띄운다
+  const pathname = usePathname()
+  const isSafeDocuments = (pathname || '').endsWith('/safe-documents')
 
   // 메시지 스크롤
   useEffect(() => {
@@ -217,7 +221,7 @@ export default function ProjectAssistantBot({ projectId, projectName }: ProjectA
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-full shadow-lg hover:from-emerald-700 hover:to-emerald-800 transition-all duration-300 flex items-center justify-center group hover:scale-110"
+          className={`fixed ${isSafeDocuments ? 'bottom-20 sm:bottom-24' : 'bottom-4 sm:bottom-6'} right-4 sm:right-6 z-50 w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-full shadow-lg hover:from-emerald-700 hover:to-emerald-800 transition-all duration-300 flex items-center justify-center group hover:scale-110`}
           title="현장 AI 비서"
         >
           <MessageCircle className="h-6 w-6 sm:h-7 sm:w-7 group-hover:scale-110 transition-transform" />
