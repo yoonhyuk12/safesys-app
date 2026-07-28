@@ -2,7 +2,7 @@
 
 // AI 작업계획서의 7단계 작성·수정 흐름과 단계별 입력·저장 상태를 관리하는 마법사
 
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, Download, Loader2, Map, PenLine, RotateCcw, Save, Sparkles, X } from 'lucide-react'
 import AiReviewStep from './AiReviewStep'
 import DeferredInfoStep from './DeferredInfoStep'
@@ -15,6 +15,11 @@ import { downloadElectricWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-e
 import { downloadExcavationWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-excavation-pdf'
 import { downloadHeavyWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-heavy-pdf'
 import { downloadLoadingWorkPlanPdf } from '@/lib/reports/work-plan/work-plan-loading-pdf'
+import { downloadConstructionWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-construction-hwpx'
+import { downloadElectricWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-electric-hwpx'
+import { downloadExcavationWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-excavation-hwpx'
+import { downloadHeavyWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-heavy-hwpx'
+import { downloadLoadingWorkPlanHwpx } from '@/lib/hwpx/work-plan/work-plan-loading-hwpx'
 import { supabase } from '@/lib/supabase'
 import { PLAN_TYPE_OPTIONS } from '@/lib/work-plan/constants'
 import {
@@ -60,6 +65,17 @@ const WORK_PLAN_DOWNLOADERS: Record<PlanType, (record: WorkPlanRecord) => Promis
   heavy: downloadHeavyWorkPlanPdf,
   excavation: downloadExcavationWorkPlanPdf,
 }
+
+// 종류별 HWPX(한글) 다운로드 — 목록 페이지와 같은 규칙으로 맵에 있는 종류만 버튼을 노출한다
+const WORK_PLAN_HWPX_DOWNLOADERS: Partial<Record<PlanType, (record: WorkPlanRecord) => Promise<void>>> = {
+  loading: downloadLoadingWorkPlanHwpx,
+  construction: downloadConstructionWorkPlanHwpx,
+  electric: downloadElectricWorkPlanHwpx,
+  heavy: downloadHeavyWorkPlanHwpx,
+  excavation: downloadExcavationWorkPlanHwpx,
+}
+
+type WorkPlanDownloadFormat = 'pdf' | 'hwpx'
 
 function getPlanTypeLabel(type: PlanType): string {
   return PLAN_TYPE_OPTIONS.find((option) => option.value === type)?.shortTitle || type
@@ -341,7 +357,8 @@ export default function WorkPlanWizard({
   const [isSaving, setIsSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [saveSucceeded, setSaveSucceeded] = useState(false)
-  const [downloadingType, setDownloadingType] = useState<PlanType | null>(null)
+  // 다운로드 진행 표시 키 — 종류와 형식(pdf·hwpx)이 함께 있어야 같은 종류의 두 버튼을 구분한다
+  const [downloadingKey, setDownloadingKey] = useState<string | null>(null)
   const [downloadError, setDownloadError] = useState('')
 
   const scheduleCandidates = useMemo(() => {
@@ -393,20 +410,24 @@ export default function WorkPlanWizard({
     setFormData(next)
   }
 
-  const handleDownload = async (type: PlanType) => {
-    if (!saveSucceeded || !persistedRecord || downloadingType) return
+  const handleDownload = async (type: PlanType, format: WorkPlanDownloadFormat = 'pdf') => {
+    if (!saveSucceeded || !persistedRecord || downloadingKey) return
 
+    const downloader = format === 'hwpx' ? WORK_PLAN_HWPX_DOWNLOADERS[type] : WORK_PLAN_DOWNLOADERS[type]
+    if (!downloader) return
+
+    const formatLabel = format === 'hwpx' ? 'HWPX' : 'PDF'
     setDownloadError('')
-    setDownloadingType(type)
+    setDownloadingKey(`${type}:${format}`)
     try {
-      await WORK_PLAN_DOWNLOADERS[type](persistedRecord)
+      await downloader(persistedRecord)
     } catch (error: unknown) {
-      console.error(`${getPlanTypeLabel(type)} 작업계획서 PDF 생성 실패:`, error)
+      console.error(`${getPlanTypeLabel(type)} 작업계획서 ${formatLabel} 생성 실패:`, error)
       setDownloadError(
-        error instanceof Error ? error.message : 'PDF를 생성하지 못했습니다. 잠시 후 다시 시도해주세요.',
+        error instanceof Error ? error.message : `${formatLabel} 파일을 생성하지 못했습니다. 잠시 후 다시 시도해주세요.`,
       )
     } finally {
-      setDownloadingType(null)
+      setDownloadingKey(null)
     }
   }
 
@@ -691,24 +712,37 @@ export default function WorkPlanWizard({
             )}
             <div className="mt-5 flex flex-wrap justify-center gap-2">
               {(saveSucceeded && persistedRecord ? persistedRecord.plan_types : selectedTypes).map((type) => {
-                const isDownloading = downloadingType === type
-                const disabled = !saveSucceeded || !persistedRecord || downloadingType !== null
+                const isDownloading = downloadingKey === `${type}:pdf`
+                const isHwpxDownloading = downloadingKey === `${type}:hwpx`
+                const disabled = !saveSucceeded || !persistedRecord || downloadingKey !== null
                 return (
-                  <button
-                    key={type}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => handleDownload(type)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
-                  >
-                    {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                    {isDownloading ? 'PDF 생성 중...' : `${getPlanTypeLabel(type)} PDF 다운로드`}
-                  </button>
+                  <Fragment key={type}>
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => handleDownload(type)}
+                      className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
+                    >
+                      {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                      {isDownloading ? 'PDF 생성 중...' : `${getPlanTypeLabel(type)} PDF 다운로드`}
+                    </button>
+                    {WORK_PLAN_HWPX_DOWNLOADERS[type] && (
+                      <button
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => handleDownload(type, 'hwpx')}
+                        className="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-white px-4 py-2 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400"
+                      >
+                        {isHwpxDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                        {isHwpxDownloading ? '한글 생성 중...' : `${getPlanTypeLabel(type)} 한글 다운로드`}
+                      </button>
+                    )}
+                  </Fragment>
                 )
               })}
             </div>
             {!saveSucceeded && (
-              <p className="mt-3 text-xs text-gray-500">저장을 완료하면 PDF를 다운로드할 수 있습니다.</p>
+              <p className="mt-3 text-xs text-gray-500">저장을 완료하면 PDF·한글 파일을 다운로드할 수 있습니다.</p>
             )}
           </div>
         )}
@@ -727,7 +761,7 @@ export default function WorkPlanWizard({
         )}
         {step === 7 && (
           saveSucceeded ? (
-            <button type="button" disabled={downloadingType !== null} onClick={onClose} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" disabled={downloadingKey !== null} onClick={onClose} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
               <Check className="h-4 w-4" />
               목록으로
             </button>
