@@ -604,16 +604,19 @@ export default function ContractStatusPage() {
     loadProject()
   }, [user, projectId])
 
-  const loadRecords = useCallback(async () => {
-    if (!projectId) return
+  // 갱신 직후 대표계약 기간을 계산해야 하는 호출부가 있어 조회한 행을 그대로 반환한다(setRecords 반영은 비동기)
+  const loadRecords = useCallback(async (): Promise<ContractRecord[] | null> => {
+    if (!projectId) return null
     setLoading(true)
     const { data, error } = await (supabase as any)
       .from('project_contracts')
       .select('*')
       .eq('project_id', projectId)
       .order('created_at', { ascending: false })
-    if (!error && data) setRecords(data as ContractRecord[])
+    const rows = !error && data ? (data as ContractRecord[]) : null
+    if (rows) setRecords(rows)
     setLoading(false)
+    return rows
   }, [projectId])
 
   useEffect(() => { if (user && projectId) loadRecords() }, [user, projectId, loadRecords])
@@ -1646,9 +1649,45 @@ export default function ContractStatusPage() {
         }
       }
 
-      await loadRecords()
+      const freshRecords = await loadRecords()
+
+      // ③ 대표계약 기간 반영 — 변경계약(기간 연장)이나 신규 연차 추가로 대표 계약 그룹의
+      // 착수~준공일이 바뀌면 프로젝트 착공·준공일도 함께 최신화한다.
+      // 갱신 규칙은 대표계약 지정 시 동기화(handleToggleRepresentative)와 같다 — 그룹 멤버 최초 착수일~최종 준공일.
+      let periodMsg = ''
+      const repRow = representativeId && freshRecords ? freshRecords.find((r) => r.id === representativeId) : null
+      if (project && repRow && freshRecords) {
+        const groupKeyOf = (r: ContractRecord) =>
+          nameGroupKey(r.contract_type, r.cntrct_nm, isThtmPartial(r.tot_cntrct_amt, r.thtm_cntrct_amt))
+        const repKey = groupKeyOf(repRow)
+        const members = freshRecords.filter((r) => groupKeyOf(r) === repKey)
+        const starts = members.map((m) => m.start_date).filter((d): d is string => !!d)
+        const ends = members.map((m) => m.end_date).filter((d): d is string => !!d)
+        const startDate = starts.length ? starts.reduce((a, b) => (a < b ? a : b)) : null
+        const endDate = ends.length ? ends.reduce((a, b) => (a > b ? a : b)) : null
+        const patch: Record<string, string> = {}
+        const changes: string[] = []
+        if (startDate && startDate !== project.construction_start_date) {
+          patch.construction_start_date = startDate
+          changes.push(`착공 ${project.construction_start_date || '미설정'} → ${startDate}`)
+        }
+        if (endDate && endDate !== project.construction_end_date) {
+          patch.construction_end_date = endDate
+          changes.push(`준공 ${project.construction_end_date || '미설정'} → ${endDate}`)
+        }
+        if (changes.length > 0) {
+          const { error } = await (supabase as any).from('projects').update(patch).eq('id', projectId)
+          if (error) failures.push(`프로젝트 착공·준공일 반영 (${error.message})`)
+          else {
+            setProject((p) => (p ? { ...p, ...patch } : p))
+            periodMsg = `\n- 대표계약 기간 변경 반영: ${changes.join(' · ')}`
+          }
+        }
+      }
+
       alert(
         `업데이트 완료\n- 기존 계약 정보 갱신: ${updated}건\n- 미등록 연차(차수) 계약 추가: ${inserted}건` +
+        periodMsg +
         (failures.length
           ? `\n\n일부 갱신 실패/건너뜀 ${failures.length}건:\n- ${failures.slice(0, 5).join('\n- ')}${failures.length > 5 ? '\n…' : ''}`
           : '')
