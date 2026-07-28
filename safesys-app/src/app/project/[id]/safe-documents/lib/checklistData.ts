@@ -269,6 +269,16 @@ export interface ChecklistItem {
 export const isDependsOnObject = (value: DependsOnType): value is DependsOnObject =>
   typeof value === 'object' && value !== null && 'type' in value && value.type === 'hasSpecialConstruction2';
 
+// 설명글의 구글 드라이브 공유 링크(/file/d/{id}/view)를 바로 내려받기 주소로 바꾼다.
+// 공유 링크는 미리보기 페이지를 거쳐 다운로드 버튼을 한 번 더 눌러야 해서, uc?export=download로
+// 넘기면 Content-Disposition: attachment 응답이 와 클릭 한 번에 원본 파일명 그대로 받아진다.
+// 렌더 시점에 바꾸므로 데이터에 새 공유 링크를 붙여도 자동 적용된다.
+export const toDirectDriveDownloadLinks = (html: string): string =>
+  html.replace(
+    /https:\/\/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)\/view[^"']*/g,
+    'https://drive.google.com/uc?export=download&id=$1'
+  );
+
 // Checklist Items with Strict Typing
 export const CHECKLIST_ITEMS: Readonly<Record<string, ChecklistItem>> = {
   '공사안전보건대장': {

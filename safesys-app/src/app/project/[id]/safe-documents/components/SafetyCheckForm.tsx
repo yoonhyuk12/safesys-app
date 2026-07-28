@@ -13,6 +13,7 @@ import {
   CHECKLIST_ITEMS,
   CHECK_OPTIONS,
   isDependsOnObject,
+  toDirectDriveDownloadLinks,
   type Headquarters,
   type Branch,
   type ConstructionStatus,
@@ -1024,7 +1025,7 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
                             <div className="relative">
                               <p
                                 className={`text-sm text-gray-600 whitespace-pre-wrap ${!expandedDescriptions[key] ? 'line-clamp-4' : ''}`}
-                                dangerouslySetInnerHTML={{ __html: item.description.replace(/\n/g, '<br>') || '' }}
+                                dangerouslySetInnerHTML={{ __html: toDirectDriveDownloadLinks(item.description.replace(/\n/g, '<br>')) || '' }}
                               />
                               {!expandedDescriptions[key] && calculateLines(item.description) > 4 && (
                                 <div
