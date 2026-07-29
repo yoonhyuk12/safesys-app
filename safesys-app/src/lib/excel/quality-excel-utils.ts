@@ -71,7 +71,9 @@ export const mergeSet = (
   if (opts.border !== false) borderRange(ws, range)
 }
 
-// 서명 이미지 삽입 ((인) 표기 위치에 겹쳐서 배치) — col은 0-based, 소수부로 미세 조정
+// 서명 이미지 삽입 ((인) 표기 위치에 겹쳐서 배치) — col은 0-based, 소수부로 미세 조정.
+// offsetXPx/offsetYPx를 주면 소수 앵커 대신 네이티브 EMU 오프셋으로 셀 안에서 정밀 이동한다
+// (소수 앵커는 ExcelJS가 열 폭을 width×10000 EMU로 잘못 근사해 오프셋이 크게 축소된다 — 아래 addPhotoImageInArea 주석 참조).
 export const addSignatureImage = (
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
@@ -79,11 +81,26 @@ export const addSignatureImage = (
   col: number,
   rowNum: number,
   width = 80,
-  height = 28
+  height = 28,
+  offsetXPx = 0,
+  offsetYPx = 0
 ) => {
   if (!signature || !signature.startsWith('data:image')) return
   try {
     const imageId = wb.addImage({ base64: signature.split(',')[1], extension: 'png' })
+    if (offsetXPx || offsetYPx) {
+      const EMU_PER_PX = 9525
+      ws.addImage(imageId, {
+        tl: {
+          nativeCol: col,
+          nativeColOff: Math.round(offsetXPx * EMU_PER_PX),
+          nativeRow: rowNum - 1,
+          nativeRowOff: Math.round(offsetYPx * EMU_PER_PX),
+        },
+        ext: { width, height },
+      } as unknown as ExcelJS.ImagePosition)
+      return
+    }
     ws.addImage(imageId, { tl: { col, row: rowNum - 1 }, ext: { width, height } })
   } catch {
     // 이미지 삽입 실패 시 무시

@@ -243,9 +243,24 @@ export async function downloadQualitySummaryExcel(
     r++
   })
 
-  // I열((인) 칸, 폭 10 ≈ 75px) 안에 서명을 얹는다 — 소수 앵커는 ExcelJS가 오프셋을 잘못 근사하므로 정수 열 사용
+  // I열((인) 칸)에 서명을 겹쳐 얹는다. Excel 실측 기준 이 칸은 80×32px이므로
+  // 70×26px 서명을 좌우 5px·상하 3px 여백으로 정중앙에 배치한다.
+  const SIGN_W = 70
+  const SIGN_H = 26
+  const INKAN_CELL_W = 80
+  const INKAN_CELL_H = 32
   signatureCells.forEach((item) => {
-    addSignatureImage(workbook, ws, item.signature, 8, item.row, 70, 26)
+    addSignatureImage(
+      workbook,
+      ws,
+      item.signature,
+      8,
+      item.row,
+      SIGN_W,
+      SIGN_H,
+      (INKAN_CELL_W - SIGN_W) / 2,
+      (INKAN_CELL_H - SIGN_H) / 2
+    )
   })
 
   const dateStr = report.report_date || new Date().toISOString().split('T')[0]
