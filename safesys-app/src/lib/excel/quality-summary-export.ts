@@ -204,20 +204,26 @@ export async function downloadQualitySummaryExcel(
       border: false,
       align: singleLineAlign,
     })
-    mergeSet(ws, `B${r}:D${r}`, `소속 : ${signer.affiliation || ''}`, {
+    mergeSet(ws, `B${r}:C${r}`, `소속 : ${signer.affiliation || ''}`, {
       size: 10,
       border: false,
       align: singleLineAlign,
     })
-    mergeSet(ws, `E${r}:G${r}`, `직위 : ${signer.position || ''}`, {
+    mergeSet(ws, `D${r}:F${r}`, `직위 : ${signer.position || ''}`, {
       size: 10,
       border: false,
       align: singleLineAlign,
     })
-    mergeSet(ws, `H${r}:I${r}`, `성명 : ${signer.name || ''}      (인)`, {
+    mergeSet(ws, `G${r}:H${r}`, `성명 : ${signer.name || ''}`, {
       size: 10,
       border: false,
       align: singleLineAlign,
+    })
+    // (인)은 별도 셀로 분리 — 서명 이미지를 이 칸 안에 겹쳐 배치한다
+    setCell(ws, `I${r}`, '(인)', {
+      size: 10,
+      border: false,
+      align: { horizontal: 'center', wrapText: false },
     })
     if (signer.signature) signatureCells.push({ signature: signer.signature, row: r })
     ws.getRow(r).height = 24
@@ -237,8 +243,9 @@ export async function downloadQualitySummaryExcel(
     r++
   })
 
+  // I열((인) 칸, 폭 10 ≈ 75px) 안에 서명을 얹는다 — 소수 앵커는 ExcelJS가 오프셋을 잘못 근사하므로 정수 열 사용
   signatureCells.forEach((item) => {
-    addSignatureImage(workbook, ws, item.signature, 7.6, item.row, 70, 26)
+    addSignatureImage(workbook, ws, item.signature, 8, item.row, 70, 26)
   })
 
   const dateStr = report.report_date || new Date().toISOString().split('T')[0]
