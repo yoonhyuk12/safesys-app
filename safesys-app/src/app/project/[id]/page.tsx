@@ -886,6 +886,10 @@ export default function ProjectDetailPage() {
     project.supervisor_name || project.actual_work_address || project.construction_law_safety_plan ||
     project.industrial_law_safety_ledger || (project as any).disaster_prevention_target || project.business_card_pdf_url)
 
+  // 캐비넷 안내 문구 — sm 이상은 캐비넷 아래 절대 배치, 모바일은 행 아래에 모아 표시하므로 두 곳에서 쓴다
+  const cabinetProgressNote = '* 공정률 조정은 "작업일보", "공정표"에서 가능합니다.'
+  const cabinetOwnerNote = '* 위 발주청 캐비넷은 발주청 사용자만 보입니다.'
+
   // 사업 정보 복사 버튼 (아이콘만) — 각 블록의 마지막 줄 맨 우측 끝에 배치
   const renderInfoCopyButton = (copied: boolean, onClick: () => void) => (
     <button
@@ -1222,7 +1226,7 @@ export default function ProjectDetailPage() {
           </div>
 
           {/* 서류 캐비넷 — 좁은 화면에서는 줄 나눔 */}
-          <div className="mb-10 flex justify-center">
+          <div className="mb-10 flex flex-col items-center">
             <div className="flex flex-wrap items-end justify-center gap-x-4 sm:gap-x-6 lg:gap-x-8 gap-y-10">
               {/* 시공사 일괄서명 만년필 펜통 — 캐비넷 좌측 (감독용은 발주청 캐비넷 안) */}
               <div className="transition-all duration-300" style={openCabinet ? recededStyle : undefined}>
@@ -1267,8 +1271,8 @@ export default function ProjectDetailPage() {
                   return (
                     <div key={name} className="relative">
                       {cabinet}
-                      <p className="absolute left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap text-xs text-blue-100/70">
-                        {'* 공정률 조정은 "작업일보", "공정표"에서 가능합니다.'}
+                      <p className="hidden sm:block absolute left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap text-xs text-blue-100/70">
+                        {cabinetProgressNote}
                       </p>
                     </div>
                   )
@@ -1278,8 +1282,8 @@ export default function ProjectDetailPage() {
                   return (
                     <div key={name} className="relative">
                       {cabinet}
-                      <p className="absolute left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap text-xs text-blue-100/70">
-                        * 위 발주청 캐비넷은 발주청 사용자만 보입니다.
+                      <p className="hidden sm:block absolute left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap text-xs text-blue-100/70">
+                        {cabinetOwnerNote}
                       </p>
                     </div>
                   )
@@ -1287,6 +1291,14 @@ export default function ProjectDetailPage() {
                 return cabinet
               })}
             </div>
+            {/* 모바일 안내 문구 — 캐비넷에 붙인 절대 배치는 화면 밖으로 나가므로(캐비넷 폭보다 문구가 길고
+                줄바꿈 위치에 따라 좌우 어느 쪽으로든 넘친다) 행 아래에 폭 전체로 모아 표시한다 */}
+            {(constructionProgress !== null || userProfile?.role === '발주청') && (
+              <div className="sm:hidden w-full mt-3 space-y-1 text-center text-xs text-blue-100/70">
+                {constructionProgress !== null && <p>{cabinetProgressNote}</p>}
+                {userProfile?.role === '발주청' && <p>{cabinetOwnerNote}</p>}
+              </div>
+            )}
           </div>
 
           {/* 문서철 그리드 - 시공 캐비넷 */}
