@@ -964,7 +964,8 @@ export default function ProjectDetailPage() {
           {/* 프로젝트 정보 */}
           <div className="mb-8 bg-white rounded-lg shadow-sm border border-gray-200 p-6 relative">
             {/* 점점점 메뉴 버튼 */}
-            <div className="absolute top-4 right-4 flex items-center gap-1" ref={menuRef}>
+            {/* z-10 필수 — 아래 내용 블록(relative)이 DOM상 뒤라서 z-index 없이는 버튼 위를 덮어 클릭을 가로챈다 */}
+            <div className="absolute top-4 right-4 z-10 flex items-center gap-1" ref={menuRef}>
               {/* 나라장터 계약기간 갱신 (연계 번호가 있을 때만) */}
               {(project.g2b_cntrct_no || project.g2b_ntce_no) && (
                 <button
