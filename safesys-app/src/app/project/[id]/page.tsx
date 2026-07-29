@@ -1015,12 +1015,13 @@ export default function ProjectDetailPage() {
             </div>
 
             {/* 모바일에서는 위 2줄만 보이고 나머지는 두루마기처럼 접힘 (sm 이상은 항상 전체 표시) */}
-            <div className={`relative ${(project.g2b_cntrct_no || project.g2b_ntce_no) ? 'pr-16' : 'pr-8'}`}>
+            <div className="relative">
             <div className={`space-y-2 overflow-hidden transition-[max-height] duration-300 sm:max-h-none sm:overflow-visible ${infoExpanded ? 'max-h-[1000px]' : 'max-h-10'}`}>
               {/* 구분선 위 블록 (기본 정보·공사기간·계약 정보) — 상단 복사 버튼 대상 */}
               <div ref={upperInfoRef} className="space-y-2">
-              {/* 기본 정보 */}
-              <div className="text-sm text-gray-600">
+              {/* 기본 정보 — 우측 여백은 이 줄에만 준다. 우상단 새로고침·점점점 버튼과 세로로 겹치는 줄이
+                  첫 줄뿐이라, 래퍼에 주면 아래 줄의 복사 버튼까지 밀려 ⋮ 열과 어긋난다 */}
+              <div className={`text-sm text-gray-600 ${(project.g2b_cntrct_no || project.g2b_ntce_no) ? 'pr-16' : 'pr-8'}`}>
                 {project.project_name} / {project.managing_hq} / {project.managing_branch} /
                 <button
                   onClick={(e) => {
