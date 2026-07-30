@@ -65,6 +65,26 @@ export interface WeatherWarningLocationResponse {
   approximate: boolean
 }
 
+/** 여러 현장을 한 번에 조회할 때 보내는 위치 항목. */
+export interface WeatherWarningBulkLocation {
+  id: string
+  address?: string | null
+  lat?: number | null
+  lng?: number | null
+}
+
+export interface WeatherWarningBulkResult {
+  id: string
+  regionNames: string[]
+  warnings: WeatherWarningWithStyle[]
+  approximate: boolean
+}
+
+export interface WeatherWarningBulkResponse {
+  results: WeatherWarningBulkResult[]
+  updatedAt: string
+}
+
 export interface ParsedWeatherWarningRegion {
   regionId: string
   regionName: string
@@ -208,6 +228,11 @@ export function getWeatherWarningLabel(regionName: string, warnings: WeatherWarn
   const shortName = normalizeWeatherRegionName(regionName) || regionName
   const types = Array.from(new Set(sortWarnings(warnings).map((warning) => warning.type)))
   return `${shortName} ${types.join('·')}`.trim()
+}
+
+/** 좁은 표 셀용 2글자 축약 (폭염 주의보 → 폭주, 호우 경보 → 호경). */
+export function formatWeatherWarningShortLabel(warning: WeatherWarning): string {
+  return `${warning.type.charAt(0)}${warning.level.charAt(0)}`
 }
 
 export function formatWeatherWarningTime(value: string | null): string {

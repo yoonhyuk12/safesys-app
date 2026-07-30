@@ -16,6 +16,8 @@ import { generateSupervisorDiaryExcel } from '@/lib/excel/supervisor-diary-expor
 import { downloadTBMStatusExcel } from '@/lib/excel/tbm-status-export'
 import { isOrganizationInUserScope } from '@/lib/organization-scope'
 import TBMTelegramBroadcastModal from '@/components/project/TBMTelegramBroadcastModal'
+import WeatherWarningBadges from '@/components/project/WeatherWarningBadges'
+import useWeatherWarningsByLocation from '@/components/project/useWeatherWarningsByLocation'
 
 // TBMRecord와 TBMStats는 lib/tbm.ts에서 import하므로 제거
 
@@ -217,6 +219,17 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
     console.log('지도용 프로젝트 데이터:', mapped)
     return mapped
   }, [tbmRecords, pathname])
+
+  // 위험공종 칸 아래에 표시할 현장 주소 기준 기상특보
+  const weatherWarningLocations = React.useMemo(() => (
+    tbmRecords.map(record => ({
+      id: record.id,
+      address: record.location,
+      latitude: record.latitude,
+      longitude: record.longitude
+    }))
+  ), [tbmRecords])
+  const weatherWarningsByRecord = useWeatherWarningsByLocation(weatherWarningLocations)
 
   // 본부별 통계 계산 - useMemo로 최적화  
   const hqStats = React.useMemo(() => {
@@ -2240,6 +2253,10 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                               <span className="text-gray-500">-</span>
                             )}
                           </div>
+                          <WeatherWarningBadges
+                            regionNames={weatherWarningsByRecord.get(record.id)?.regionNames ?? []}
+                            warnings={weatherWarningsByRecord.get(record.id)?.warnings ?? []}
+                          />
                         </td>
                         <td className="px-1 py-2 text-sm text-gray-900">
                           <div

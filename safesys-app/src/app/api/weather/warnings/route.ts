@@ -8,12 +8,18 @@ import {
   parseKmaWarningRows,
   removeWeatherSubdivision,
   type ParsedWeatherWarningRegion,
+  type WeatherWarningBulkLocation,
+  type WeatherWarningBulkResponse,
   type WeatherWarningGeometry,
   type WeatherWarningLocationResponse,
   type WeatherWarningRegion,
 } from '@/lib/weather-warnings'
 
 export const runtime = 'nodejs'
+
+/** 일괄 조회 1회에 허용하는 현장 수와 좌표 경계 조회 동시 실행 수. */
+const BULK_LOCATION_LIMIT = 300
+const BULK_BOUNDARY_CONCURRENCY = 8
 
 const KMA_WARNING_URL = 'https://apihub.kma.go.kr/api/typ01/url/wrn_now_data_new.php'
 const ARCGIS_LAYERS = {
@@ -473,9 +479,9 @@ async function fetchKmaWarnings(): Promise<ReturnType<typeof parseKmaWarningRows
   return parsed
 }
 
-function locationCoordinate(searchParams: URLSearchParams, name: 'lat' | 'lng'): number | null {
-  const value = searchParams.get(name)
-  if (!value?.trim()) return null
+function normalizeCoordinate(value: unknown, name: 'lat' | 'lng'): number | null {
+  if (typeof value !== 'number' && typeof value !== 'string') return null
+  if (typeof value === 'string' && !value.trim()) return null
   const parsed = Number(value)
   if (!Number.isFinite(parsed)) return null
   if (name === 'lat' && (parsed < 32 || parsed > 40)) return null
@@ -483,8 +489,12 @@ function locationCoordinate(searchParams: URLSearchParams, name: 'lat' | 'lng'):
   return parsed
 }
 
+function locationCoordinate(searchParams: URLSearchParams, name: 'lat' | 'lng'): number | null {
+  return normalizeCoordinate(searchParams.get(name), name)
+}
+
 async function buildLocationResponse(
-  parsed: ReturnType<typeof parseKmaWarningRows>,
+  groups: BoundaryWarningGroup[],
   sggBoundaries: BoundaryFeature[],
   sidoBoundaries: BoundaryFeature[],
   address: string,
@@ -496,8 +506,7 @@ async function buildLocationResponse(
     return { regionNames: [], warnings: [], updatedAt: new Date().toISOString(), approximate: true }
   }
 
-  const matched = groupMatches(parsed.regions, sggBoundaries, sidoBoundaries)
-  const locationGroups = matched.groups.filter((group) => {
+  const locationGroups = groups.filter((group) => {
     const target = group.layer === 'sgg' ? location.sgg : location.sido
     return target !== null && group.boundaries.some((boundary) => boundary.objectId === target.objectId)
   })
@@ -530,7 +539,8 @@ export async function GET(request: NextRequest) {
       fetchBoundaryAttributes('sido'),
     ])
     if (locationScope) {
-      const response = await buildLocationResponse(parsed, sggBoundaries, sidoBoundaries, address, latitude, longitude)
+      const { groups } = groupMatches(parsed.regions, sggBoundaries, sidoBoundaries)
+      const response = await buildLocationResponse(groups, sggBoundaries, sidoBoundaries, address, latitude, longitude)
       return NextResponse.json(response, {
         headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=300' },
       })
@@ -585,6 +595,125 @@ export async function GET(request: NextRequest) {
     })
   } catch (error) {
     console.error('기상특보 지도 API 조회 실패:', error instanceof Error ? error.message : '알 수 없는 오류')
+    return NextResponse.json(
+      { error: '기상특보 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' },
+      { status: 502, headers: { 'Cache-Control': 'no-store' } },
+    )
+  }
+}
+
+interface NormalizedBulkLocation {
+  id: string
+  address: string
+  latitude: number | null
+  longitude: number | null
+}
+
+/** 일괄 조회 요청 본문을 검증하고 주소·좌표를 정규화한다. 형식이 어긋나면 null. */
+function parseBulkLocations(body: unknown): NormalizedBulkLocation[] | null {
+  if (!body || typeof body !== 'object') return null
+  const locations = (body as { locations?: unknown }).locations
+  if (!Array.isArray(locations)) return null
+  if (locations.length > BULK_LOCATION_LIMIT) return null
+
+  const normalized: NormalizedBulkLocation[] = []
+  for (const item of locations) {
+    if (!item || typeof item !== 'object') return null
+    const location = item as WeatherWarningBulkLocation
+    if (typeof location.id !== 'string' || !location.id) return null
+    const address = typeof location.address === 'string' ? location.address.trim().slice(0, 250) : ''
+    const latitude = normalizeCoordinate(location.lat, 'lat')
+    const longitude = normalizeCoordinate(location.lng, 'lng')
+    if (!address && (latitude === null || longitude === null)) continue
+    normalized.push({ id: location.id, address, latitude, longitude })
+  }
+  return normalized
+}
+
+/** 같은 위치가 반복돼도 경계 조회를 한 번만 하도록 묶는 키. */
+function bulkLocationKey(location: NormalizedBulkLocation): string {
+  return `${location.address}|${location.latitude ?? ''}|${location.longitude ?? ''}`
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  limit: number,
+  task: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor
+      cursor += 1
+      results[index] = await task(items[index])
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
+/** 현장 목록의 주소·좌표별 발효 중 특보를 한 번의 요청으로 반환한다. */
+export async function POST(request: NextRequest) {
+  let locations: NormalizedBulkLocation[] | null = null
+  try {
+    locations = parseBulkLocations(await request.json())
+  } catch {
+    locations = null
+  }
+  if (!locations) {
+    return NextResponse.json(
+      { error: `현장 목록 형식이 올바르지 않습니다. (최대 ${BULK_LOCATION_LIMIT}건)` },
+      { status: 400, headers: { 'Cache-Control': 'no-store' } },
+    )
+  }
+  if (locations.length === 0) {
+    const empty: WeatherWarningBulkResponse = { results: [], updatedAt: new Date().toISOString() }
+    return NextResponse.json(empty, { headers: { 'Cache-Control': 'no-store' } })
+  }
+
+  try {
+    const [parsed, sggBoundaries, sidoBoundaries] = await Promise.all([
+      fetchKmaWarnings(),
+      fetchBoundaryAttributes('sgg'),
+      fetchBoundaryAttributes('sido'),
+    ])
+    const { groups } = groupMatches(parsed.regions, sggBoundaries, sidoBoundaries)
+
+    const uniqueLocations = new Map<string, NormalizedBulkLocation>()
+    for (const location of locations) {
+      const key = bulkLocationKey(location)
+      if (!uniqueLocations.has(key)) uniqueLocations.set(key, location)
+    }
+    const keys = Array.from(uniqueLocations.keys())
+    const resolved = await mapWithConcurrency(keys, BULK_BOUNDARY_CONCURRENCY, async (key) => {
+      const location = uniqueLocations.get(key)!
+      return buildLocationResponse(
+        groups,
+        sggBoundaries,
+        sidoBoundaries,
+        location.address,
+        location.latitude,
+        location.longitude,
+      )
+    })
+    const byKey = new Map(keys.map((key, index) => [key, resolved[index]]))
+
+    const response: WeatherWarningBulkResponse = {
+      results: locations.map((location) => {
+        const value = byKey.get(bulkLocationKey(location))
+        return {
+          id: location.id,
+          regionNames: value?.regionNames ?? [],
+          warnings: value?.warnings ?? [],
+          approximate: value?.approximate ?? true,
+        }
+      }),
+      updatedAt: new Date().toISOString(),
+    }
+    return NextResponse.json(response, { headers: { 'Cache-Control': 'no-store' } })
+  } catch (error) {
+    console.error('기상특보 일괄 조회 실패:', error instanceof Error ? error.message : '알 수 없는 오류')
     return NextResponse.json(
       { error: '기상특보 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.' },
       { status: 502, headers: { 'Cache-Control': 'no-store' } },
