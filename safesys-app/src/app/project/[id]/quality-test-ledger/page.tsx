@@ -206,6 +206,12 @@ export default function QualityTestLedgerPage() {
     userProfile?.role === '발주청' || project?.created_by === user.id
   // 성과총괄표 삭제 — 소유자·발주청에 더해 공유자도 허용
   const canDeleteQualitySummary = canDeleteQualityRecords || isSharedWithMe
+  // 발주청 본부 소속 여부 — 성과총괄표 검토자 서명 권한 판정 (대시보드 전사 보기와 동일 기준)
+  const isClientHeadquarters =
+    userProfile?.role === '발주청' &&
+    (userProfile.hq_division == null ||
+      (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') ||
+      !!userProfile.branch_division?.endsWith('본부'))
 
   return (
     <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
@@ -394,6 +400,7 @@ export default function QualityTestLedgerPage() {
             projectId={projectId}
             userId={user.id}
             currentUserRole={userProfile?.role}
+            isClientHeadquarters={isClientHeadquarters}
             canDeleteReports={canDeleteQualitySummary}
             projectName={project?.project_name || ''}
             constructionPeriod={constructionPeriod}

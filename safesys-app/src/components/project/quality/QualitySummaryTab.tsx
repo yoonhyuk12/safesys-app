@@ -28,6 +28,7 @@ interface QualitySummaryTabProps {
   projectId: string
   userId: string
   currentUserRole?: '발주청' | '감리단' | '시공사'
+  isClientHeadquarters?: boolean // 발주청 본부 소속 여부 — 검토자 서명 권한 판정
   canDeleteReports?: boolean // 작성자 외 삭제 허용(소유자·공유자·발주청) — RLS 삭제 정책 확장과 짝
   projectName: string
   constructionPeriod: string // "YYYY-MM-DD ~ YYYY-MM-DD" (없으면 '')
@@ -82,6 +83,15 @@ const getSignerTextDefaults = (
   }
 }
 
+// 서명란별 허용 소속 — 지정 소속이 아니면 서명 버튼을 비활성화한다
+type SignAllowedBy = '시공사' | '발주청' | '발주청본부'
+
+const SIGN_ALLOWED_LABEL: Record<SignAllowedBy, string> = {
+  시공사: '시공사 소속',
+  발주청: '발주청 소속',
+  발주청본부: '발주청 본부 소속',
+}
+
 // 작성자·검토자·확인자 입력 필드 매핑 (별지 2호 기입요령 ③④⑤)
 interface SignerField {
   label: string
@@ -90,6 +100,7 @@ interface SignerField {
   pos: 'writer_position' | 'reviewer_position' | 'confirmer_position'
   name: 'writer_name' | 'reviewer_name' | 'confirmer_name'
   sig: SignKey
+  signAllowedBy: SignAllowedBy
 }
 
 const getErrorMessage = (error: unknown): string => {
@@ -102,15 +113,16 @@ const getErrorMessage = (error: unknown): string => {
 }
 
 const SIGNERS: SignerField[] = [
-  { label: '작성자', roleHint: '건설업자', aff: 'writer_affiliation', pos: 'writer_position', name: 'writer_name', sig: 'writer_signature' },
-  { label: '검토자', roleHint: '품질시험업무담당자', aff: 'reviewer_affiliation', pos: 'reviewer_position', name: 'reviewer_name', sig: 'reviewer_signature' },
-  { label: '확인자', roleHint: '감독소장', aff: 'confirmer_affiliation', pos: 'confirmer_position', name: 'confirmer_name', sig: 'confirmer_signature' },
+  { label: '작성자', roleHint: '건설업자', aff: 'writer_affiliation', pos: 'writer_position', name: 'writer_name', sig: 'writer_signature', signAllowedBy: '시공사' },
+  { label: '검토자', roleHint: '품질시험업무담당자', aff: 'reviewer_affiliation', pos: 'reviewer_position', name: 'reviewer_name', sig: 'reviewer_signature', signAllowedBy: '발주청본부' },
+  { label: '확인자', roleHint: '감독소장', aff: 'confirmer_affiliation', pos: 'confirmer_position', name: 'confirmer_name', sig: 'confirmer_signature', signAllowedBy: '발주청' },
 ]
 
 export default function QualitySummaryTab({
   projectId,
   userId,
   currentUserRole,
+  isClientHeadquarters = false,
   canDeleteReports = false,
   projectName,
   constructionPeriod,
@@ -139,6 +151,13 @@ export default function QualitySummaryTab({
     ? reports.find((report) => report.id === editingReportId)
     : undefined
   const canReject = currentUserRole === '발주청'
+
+  // 서명란은 지정된 소속만 누를 수 있다 (작성자=시공사, 검토자=발주청 본부, 확인자=발주청)
+  const canSignBy = (allowed: SignAllowedBy): boolean => {
+    if (allowed === '시공사') return currentUserRole === '시공사'
+    if (allowed === '발주청') return currentUserRole === '발주청'
+    return currentUserRole === '발주청' && isClientHeadquarters
+  }
 
   const loadReports = useCallback(async () => {
     setLoading(true)
@@ -890,6 +909,10 @@ export default function QualitySummaryTab({
                   const affKey = signer.aff
                   const posKey = signer.pos
                   const nameKey = signer.name
+                  const canSign = canSignBy(signer.signAllowedBy)
+                  const signDeniedHint = canSign
+                    ? undefined
+                    : `${signer.label} 서명은 ${SIGN_ALLOWED_LABEL[signer.signAllowedBy]}만 할 수 있습니다.`
                   return (
                     <div key={signer.sig} className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end">
                       <div className="text-xs font-medium text-gray-600 pb-2">
@@ -919,19 +942,27 @@ export default function QualitySummaryTab({
                       />
                       <div className="flex flex-wrap items-center gap-2">
                         {formData[signer.sig] ? (
-                          <button type="button" onClick={() => setActiveSignKey(signer.sig)} title="다시 서명">
+                          <button
+                            type="button"
+                            onClick={() => setActiveSignKey(signer.sig)}
+                            disabled={!canSign}
+                            title={signDeniedHint ?? '다시 서명'}
+                            className="disabled:cursor-not-allowed disabled:opacity-50"
+                          >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={formData[signer.sig]}
                               alt={`${signer.label} 서명`}
-                              className="h-9 border rounded cursor-pointer hover:opacity-80"
+                              className={`h-9 border rounded ${canSign ? 'cursor-pointer hover:opacity-80' : ''}`}
                             />
                           </button>
                         ) : (
                           <button
                             type="button"
                             onClick={() => setActiveSignKey(signer.sig)}
-                            className="px-3 py-1.5 text-sm rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                            disabled={!canSign}
+                            title={signDeniedHint}
+                            className="px-3 py-1.5 text-sm rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
                           >
                             서명
                           </button>
