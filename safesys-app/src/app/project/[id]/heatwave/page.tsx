@@ -1917,7 +1917,7 @@ export default function HeatWaveCheckPage() {
               </div>
               
               {/* 하단/우측 - 점검표 */}
-              <div ref={formPanelRef} className="lg:flex-1 p-2 lg:p-8 lg:pr-16 relative">
+              <div ref={formPanelRef} className="lg:flex-1 p-2 lg:p-8 lg:pr-6 relative">
                 {/* 모바일용 가로 구분선 - 점검양식 상단 */}
                 <div className="absolute top-0 left-0 right-0 h-px bg-yellow-400 lg:hidden"></div>
                 <div className="h-full flex flex-col">
@@ -1927,12 +1927,12 @@ export default function HeatWaveCheckPage() {
                   </div>
                   
                   {/* 점검양식 */}
-                  <div className="bg-gray-50 rounded-lg p-2 lg:p-6 flex-1 overflow-auto">
+                  <div className="bg-gray-50 rounded-lg p-2 lg:p-4 flex-1 overflow-auto">
                     {/* 날짜 선택 시 해당 날짜 점검 기록, 아니면 오늘 점검양식 */}
                     {selectedDate && selectedDateChecks.length > 0 ? (
                       <div ref={reportRef}>
                         {/* 점검 기록 헤더 - PDF에 포함될 제목 */}
-                        <div className="p-4 border-b">
+                        <div className="py-4 border-b">
                           {/* 버튼행 - 제목행과 줄 나눔 (PDF 저장용에는 숨김) */}
                           <div className="flex justify-end space-x-2 mb-3 print:hidden">
                             <button
@@ -1992,7 +1992,7 @@ export default function HeatWaveCheckPage() {
                         </div>
 
                         {/* 점검 기록 내용 */}
-                        <div className="p-4">
+                        <div className="py-4">
                     
                     <div className="overflow-x-auto">
                       <table className={`w-full border-collapse border-2 border-gray-800 ${isPdfGenerating ? 'text-sm' : 'text-xs'}`}>
