@@ -1715,16 +1715,25 @@ const Dashboard: React.FC = () => {
       setLoading(true)
       console.log('폭염점검 데이터 조회 시작:', selectedDate, '본부:', selectedHq, '지사:', selectedBranch)
 
-      const result = await getHeatWaveChecksByUserBranch(userProfile, selectedDate, selectedHq, selectedBranch)
+      const [result, tbmResult] = await Promise.all([
+        getHeatWaveChecksByUserBranch(userProfile, selectedDate, selectedHq, selectedBranch),
+        getTBMSafetyInspectionsByUserBranch(userProfile, selectedHq, selectedBranch)
+      ])
       if (result.success && result.checks) {
         console.log(`조회된 폭염점검 수: ${result.checks.length}`)
         setHeatWaveChecks(result.checks)
       } else {
         setError(result.error || '폭염점검 데이터를 불러오는데 실패했습니다.')
       }
+      if (tbmResult.success && tbmResult.inspections) {
+        setTbmSafetyInspections(tbmResult.inspections)
+      } else {
+        setTbmSafetyInspections([])
+      }
     } catch (err: any) {
       console.error('폭염점검 데이터 로드 실패:', err)
       setError(err.message || '폭염점검 데이터를 불러오는데 실패했습니다.')
+      setTbmSafetyInspections([])
     } finally {
       heatWaveLoading.current = false
       setLoading(false)
@@ -3125,6 +3134,7 @@ const Dashboard: React.FC = () => {
                     selectedSafetyHq={selectedSafetyHq}
                     selectedSafetyBranch={selectedSafetyBranch}
                     heatWaveChecks={heatWaveChecks}
+                    tbmInspections={tbmSafetyInspections || []}
                     onBack={() => {
                       setSelectedSafetyCard(null)
                       resetQuarterToToday() // 분기 초기화

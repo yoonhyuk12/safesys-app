@@ -3,7 +3,7 @@
 import React from 'react'
 import { Thermometer, ChevronLeft, Calendar, ArrowLeft } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
-import type { HeatWaveCheck, Project } from '@/lib/projects'
+import type { HeatWaveCheck, Project, TBMSafetyInspection } from '@/lib/projects'
 import { BRANCH_OPTIONS, HEADQUARTERS_OPTIONS } from '@/lib/constants'
 
 const HEAT_WAVE_ITEM_KEYS = [
@@ -47,11 +47,12 @@ const isCompleted = (project: Project): boolean => {
 interface HeatWaveAggregate {
   name: string
   targetProjectCount: number
-  checkedProjectCount: number
   checkCount: number
+  latestCheckTime: string | null
   maxFeelsLikeTemp: number | null
   completedItemCount: number
   totalItemCount: number
+  tbmCount: number
 }
 
 interface HeatWaveProjectRow {
@@ -61,15 +62,22 @@ interface HeatWaveProjectRow {
 
 const summarizeHeatWaveData = (
   projects: Project[],
-  checks: HeatWaveCheck[]
+  checks: HeatWaveCheck[],
+  tbmInspections: TBMSafetyInspection[]
 ): Omit<HeatWaveAggregate, 'name'> => {
   const projectIds = new Set(projects.map(project => project.id))
   const projectChecks = checks.filter(check => projectIds.has(check.project_id))
+  const latestCheckTime = projectChecks.reduce<string | null>((latest, check) => {
+    if (!latest || new Date(check.check_time).getTime() > new Date(latest).getTime()) {
+      return check.check_time
+    }
+    return latest
+  }, null)
 
   return {
     targetProjectCount: projectIds.size,
-    checkedProjectCount: new Set(projectChecks.map(check => check.project_id)).size,
     checkCount: projectChecks.length,
+    latestCheckTime,
     maxFeelsLikeTemp: projectChecks.length > 0
       ? Math.max(...projectChecks.map(check => check.feels_like_temp))
       : null,
@@ -77,13 +85,15 @@ const summarizeHeatWaveData = (
       (total, check) => total + HEAT_WAVE_ITEM_KEYS.filter(key => check[key]).length,
       0
     ),
-    totalItemCount: projectChecks.length * HEAT_WAVE_ITEM_KEYS.length
+    totalItemCount: projectChecks.length * HEAT_WAVE_ITEM_KEYS.length,
+    tbmCount: tbmInspections.filter(inspection => projectIds.has(inspection.project_id)).length
   }
 }
 
 const groupHeatWaveData = (
   projects: Project[],
   checks: HeatWaveCheck[],
+  tbmInspections: TBMSafetyInspection[],
   groupBy: 'managing_hq' | 'managing_branch'
 ): HeatWaveAggregate[] => {
   const groups = new Map<string, Project[]>()
@@ -96,7 +106,7 @@ const groupHeatWaveData = (
 
   return Array.from(groups.entries()).map(([name, groupProjects]) => ({
     name,
-    ...summarizeHeatWaveData(groupProjects, checks)
+    ...summarizeHeatWaveData(groupProjects, checks, tbmInspections)
   }))
 }
 
@@ -107,22 +117,32 @@ const summarizeHeatWaveAggregates = (
 
   return stats.reduce<Omit<HeatWaveAggregate, 'name'>>((summary, stat) => ({
     targetProjectCount: summary.targetProjectCount + stat.targetProjectCount,
-    checkedProjectCount: summary.checkedProjectCount + stat.checkedProjectCount,
     checkCount: summary.checkCount + stat.checkCount,
+    latestCheckTime: stat.latestCheckTime === null
+      ? summary.latestCheckTime
+      : !summary.latestCheckTime || new Date(stat.latestCheckTime).getTime() > new Date(summary.latestCheckTime).getTime()
+        ? stat.latestCheckTime
+        : summary.latestCheckTime,
     maxFeelsLikeTemp: stat.maxFeelsLikeTemp === null
       ? summary.maxFeelsLikeTemp
       : Math.max(summary.maxFeelsLikeTemp ?? stat.maxFeelsLikeTemp, stat.maxFeelsLikeTemp),
     completedItemCount: summary.completedItemCount + stat.completedItemCount,
-    totalItemCount: summary.totalItemCount + stat.totalItemCount
+    totalItemCount: summary.totalItemCount + stat.totalItemCount,
+    tbmCount: summary.tbmCount + stat.tbmCount
   }), {
     targetProjectCount: 0,
-    checkedProjectCount: 0,
     checkCount: 0,
+    latestCheckTime: null,
     maxFeelsLikeTemp: null,
     completedItemCount: 0,
-    totalItemCount: 0
+    totalItemCount: 0,
+    tbmCount: 0
   })
 }
+
+const formatCheckTime = (checkTime: string): string => (
+  new Date(checkTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hour12: false })
+)
 
 interface HeatWaveAggregateTableProps {
   groupLabel: '본부' | '지사'
@@ -138,23 +158,24 @@ const HeatWaveAggregateTable: React.FC<HeatWaveAggregateTableProps> = ({
   onSelect
 }) => (
   <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-    <table className="w-full divide-y divide-gray-200" style={{ minWidth: '720px' }}>
+    <table className="w-full divide-y divide-gray-200" style={{ minWidth: '880px' }}>
       <thead className="bg-gray-50">
         <tr>
-          <th className="sticky left-0 z-20 bg-gray-50 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 lg:w-[16%]">
+          <th className="sticky left-0 z-20 bg-gray-50 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 lg:w-[12%]">
             {groupLabel}
           </th>
-          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider lg:w-[17%]">대상 프로젝트 수</th>
-          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider lg:w-[17%]">점검 프로젝트 수</th>
-          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider lg:w-[16%]">점검 건수</th>
-          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider lg:w-[17%]">최고 체감온도</th>
-          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider lg:w-[17%]">항목 이행 현황</th>
+          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider lg:w-[13%]">대상 프로젝트 수</th>
+          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider lg:w-[13%]">금일 TBM</th>
+          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider lg:w-[12%]">점검 건수</th>
+          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider lg:w-[15%]">최근 점검시간</th>
+          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider lg:w-[15%]">최고 체감온도</th>
+          <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider lg:w-[16%]">항목 이행 현황</th>
         </tr>
       </thead>
       <tbody className="bg-white divide-y divide-gray-200">
         {stats.length === 0 ? (
           <tr>
-            <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+            <td colSpan={7} className="px-4 py-8 text-center text-gray-500">
               데이터가 없습니다.
             </td>
           </tr>
@@ -162,19 +183,22 @@ const HeatWaveAggregateTable: React.FC<HeatWaveAggregateTableProps> = ({
           <>
             {summary && (
               <tr className="bg-blue-50 font-semibold border-b-2 border-blue-200">
-                <td className="sticky left-0 z-10 bg-blue-50 px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 border-r border-blue-200 lg:w-[16%]">
+                <td className="sticky left-0 z-10 bg-blue-50 px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 border-r border-blue-200 lg:w-[12%]">
                   소계({stats.length}{groupLabel})
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[17%]">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[13%]">
                   {summary.targetProjectCount}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[17%]">
-                  {summary.checkedProjectCount === 0 ? '-' : summary.checkedProjectCount}
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[13%]">
+                  {summary.tbmCount === 0 ? '-' : summary.tbmCount}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[16%]">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[12%]">
                   {summary.checkCount === 0 ? '-' : summary.checkCount}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[17%]">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[15%]">
+                  {summary.latestCheckTime === null ? '-' : formatCheckTime(summary.latestCheckTime)}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[15%]">
                   {summary.maxFeelsLikeTemp === null ? '-' : (
                     <>
                       {summary.maxFeelsLikeTemp}℃
@@ -182,7 +206,7 @@ const HeatWaveAggregateTable: React.FC<HeatWaveAggregateTableProps> = ({
                     </>
                   )}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[17%]">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[16%]">
                   {summary.totalItemCount === 0 ? '-' : `${summary.completedItemCount} / ${summary.totalItemCount}`}
                 </td>
               </tr>
@@ -193,19 +217,22 @@ const HeatWaveAggregateTable: React.FC<HeatWaveAggregateTableProps> = ({
                 onClick={() => onSelect(stat.name)}
                 className="group hover:bg-gray-50 cursor-pointer"
               >
-                <td className="sticky left-0 z-10 bg-white group-hover:bg-gray-50 px-4 py-3 whitespace-nowrap text-sm text-center font-medium text-gray-900 border-r border-gray-200 lg:w-[16%]">
+                <td className="sticky left-0 z-10 bg-white group-hover:bg-gray-50 px-4 py-3 whitespace-nowrap text-sm text-center font-medium text-gray-900 border-r border-gray-200 lg:w-[12%]">
                   {stat.name}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[17%]">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[13%]">
                   {stat.targetProjectCount}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[17%]">
-                  {stat.checkedProjectCount === 0 ? '-' : stat.checkedProjectCount}
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[13%]">
+                  {stat.tbmCount === 0 ? '-' : stat.tbmCount}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[16%]">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[12%]">
                   {stat.checkCount === 0 ? '-' : stat.checkCount}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[17%]">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[15%]">
+                  {stat.latestCheckTime === null ? '-' : formatCheckTime(stat.latestCheckTime)}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[15%]">
                   {stat.maxFeelsLikeTemp === null ? '-' : (
                     <>
                       {stat.maxFeelsLikeTemp}℃
@@ -213,7 +240,7 @@ const HeatWaveAggregateTable: React.FC<HeatWaveAggregateTableProps> = ({
                     </>
                   )}
                 </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[17%]">
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[16%]">
                   {stat.totalItemCount === 0 ? '-' : `${stat.completedItemCount} / ${stat.totalItemCount}`}
                 </td>
               </tr>
@@ -234,6 +261,7 @@ interface SafetyHeatwaveViewProps {
   selectedSafetyHq: string | null
   selectedSafetyBranch: string | null
   heatWaveChecks: HeatWaveCheck[]
+  tbmInspections: TBMSafetyInspection[]
   onBack: () => void
   onBackToHqLevel: () => void
   onBackToAllBranches: () => void
@@ -253,6 +281,7 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
   selectedSafetyHq,
   selectedSafetyBranch,
   heatWaveChecks,
+  tbmInspections,
   onBack,
   onBackToHqLevel,
   onBackToAllBranches,
@@ -269,6 +298,15 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
     [projects]
   )
 
+  const filteredTbmInspections = React.useMemo(() => {
+    if (!selectedDate) return tbmInspections
+    return tbmInspections.filter((inspection: TBMSafetyInspection) => {
+      if (!inspection.tbm_date) return false
+      const inspectionDate = new Date(inspection.tbm_date).toISOString().split('T')[0]
+      return inspectionDate === selectedDate
+    })
+  }, [tbmInspections, selectedDate])
+
   const hqLevelProjects = React.useMemo(
     () => activeProjects.filter(project => {
       if (selectedSafetyHq && project.managing_hq !== selectedSafetyHq) return false
@@ -280,7 +318,7 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
   )
 
   const branchStats = React.useMemo(() => {
-    const stats = groupHeatWaveData(hqLevelProjects, heatWaveChecks, 'managing_branch')
+    const stats = groupHeatWaveData(hqLevelProjects, heatWaveChecks, filteredTbmInspections, 'managing_branch')
 
     if (targetHq && BRANCH_OPTIONS[targetHq]) {
       const branchOrder = BRANCH_OPTIONS[targetHq]
@@ -295,7 +333,7 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
     }
 
     return stats
-  }, [hqLevelProjects, heatWaveChecks, targetHq])
+  }, [hqLevelProjects, heatWaveChecks, filteredTbmInspections, targetHq])
 
   const hqSummary = React.useMemo(
     () => summarizeHeatWaveAggregates(branchStats),
@@ -312,7 +350,7 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
   )
 
   const hqStats = React.useMemo(() => {
-    const stats = groupHeatWaveData(allHqProjects, heatWaveChecks, 'managing_hq')
+    const stats = groupHeatWaveData(allHqProjects, heatWaveChecks, filteredTbmInspections, 'managing_hq')
     stats.sort((a, b) => {
       const aIndex = HEADQUARTERS_OPTIONS.indexOf(a.name as (typeof HEADQUARTERS_OPTIONS)[number])
       const bIndex = HEADQUARTERS_OPTIONS.indexOf(b.name as (typeof HEADQUARTERS_OPTIONS)[number])
@@ -322,7 +360,7 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
       return aIndex - bIndex
     })
     return stats
-  }, [allHqProjects, heatWaveChecks])
+  }, [allHqProjects, heatWaveChecks, filteredTbmInspections])
 
   const allHqSummary = React.useMemo(
     () => summarizeHeatWaveAggregates(hqStats),
@@ -514,5 +552,4 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
 }
 
 export default SafetyHeatwaveView
-
 
