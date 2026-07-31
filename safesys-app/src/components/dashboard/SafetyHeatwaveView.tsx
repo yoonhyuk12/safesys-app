@@ -15,6 +15,35 @@ const HEAT_WAVE_ITEM_KEYS = [
   'work_time_adjustment'
 ] as const
 
+// 폭염 특보 단계 판정 — 체감온도 기준 주의보 33℃·경보 35℃·중대경보 38℃, 축약은 weather-warnings의 2글자 규칙(폭주·폭경·폭중)을 따름
+const getHeatWaveAlert = (feelsLikeTemp: number): { label: string; className: string } | null => {
+  if (feelsLikeTemp >= 38) return { label: '폭중', className: 'bg-red-100 text-red-800' }
+  if (feelsLikeTemp >= 35) return { label: '폭경', className: 'bg-orange-100 text-orange-800' }
+  if (feelsLikeTemp >= 33) return { label: '폭주', className: 'bg-yellow-100 text-yellow-800' }
+  return null
+}
+
+const HeatWaveAlertBadge: React.FC<{ feelsLikeTemp: number }> = ({ feelsLikeTemp }) => {
+  const alert = getHeatWaveAlert(feelsLikeTemp)
+  if (!alert) return null
+  return (
+    <span className={`ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold ${alert.className}`}>
+      {alert.label}
+    </span>
+  )
+}
+
+// 준공 프로젝트 판별 — is_active가 과거 boolean 또는 JSONB({completed}) 두 형태를 모두 지원 (다른 대시보드 뷰와 동일 패턴)
+const isCompleted = (project: Project): boolean => {
+  const isActive = project.is_active as unknown
+  if (isActive === undefined || isActive === null) return false
+  if (typeof isActive === 'boolean') return !isActive
+  if (typeof isActive === 'object') {
+    return (isActive as { completed?: boolean }).completed === true
+  }
+  return false
+}
+
 interface HeatWaveAggregate {
   name: string
   targetProjectCount: number
@@ -131,6 +160,33 @@ const HeatWaveAggregateTable: React.FC<HeatWaveAggregateTableProps> = ({
           </tr>
         ) : (
           <>
+            {summary && (
+              <tr className="bg-blue-50 font-semibold border-b-2 border-blue-200">
+                <td className="sticky left-0 z-10 bg-blue-50 px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 border-r border-blue-200 lg:w-[16%]">
+                  소계({stats.length}{groupLabel})
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[17%]">
+                  {summary.targetProjectCount}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[17%]">
+                  {summary.checkedProjectCount === 0 ? '-' : summary.checkedProjectCount}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[16%]">
+                  {summary.checkCount === 0 ? '-' : summary.checkCount}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[17%]">
+                  {summary.maxFeelsLikeTemp === null ? '-' : (
+                    <>
+                      {summary.maxFeelsLikeTemp}℃
+                      <HeatWaveAlertBadge feelsLikeTemp={summary.maxFeelsLikeTemp} />
+                    </>
+                  )}
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[17%]">
+                  {summary.totalItemCount === 0 ? '-' : `${summary.completedItemCount} / ${summary.totalItemCount}`}
+                </td>
+              </tr>
+            )}
             {stats.map(stat => (
               <tr
                 key={stat.name}
@@ -144,41 +200,24 @@ const HeatWaveAggregateTable: React.FC<HeatWaveAggregateTableProps> = ({
                   {stat.targetProjectCount}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[17%]">
-                  {stat.checkedProjectCount}
+                  {stat.checkedProjectCount === 0 ? '-' : stat.checkedProjectCount}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[16%]">
-                  {stat.checkCount}
+                  {stat.checkCount === 0 ? '-' : stat.checkCount}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[17%]">
-                  {stat.maxFeelsLikeTemp === null ? '-' : `${stat.maxFeelsLikeTemp}℃`}
+                  {stat.maxFeelsLikeTemp === null ? '-' : (
+                    <>
+                      {stat.maxFeelsLikeTemp}℃
+                      <HeatWaveAlertBadge feelsLikeTemp={stat.maxFeelsLikeTemp} />
+                    </>
+                  )}
                 </td>
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-900 lg:w-[17%]">
                   {stat.totalItemCount === 0 ? '-' : `${stat.completedItemCount} / ${stat.totalItemCount}`}
                 </td>
               </tr>
             ))}
-            {summary && (
-              <tr className="bg-blue-50 font-semibold border-t-2 border-blue-200">
-                <td className="sticky left-0 z-10 bg-blue-50 px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 border-r border-blue-200 lg:w-[16%]">
-                  소계({stats.length}{groupLabel})
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[17%]">
-                  {summary.targetProjectCount}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[17%]">
-                  {summary.checkedProjectCount}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[16%]">
-                  {summary.checkCount}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[17%]">
-                  {summary.maxFeelsLikeTemp === null ? '-' : `${summary.maxFeelsLikeTemp}℃`}
-                </td>
-                <td className="px-4 py-3 whitespace-nowrap text-sm text-center font-bold text-blue-900 lg:w-[17%]">
-                  {summary.totalItemCount === 0 ? '-' : `${summary.completedItemCount} / ${summary.totalItemCount}`}
-                </td>
-              </tr>
-            )}
           </>
         )}
       </tbody>
@@ -225,14 +264,19 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
 }) => {
   const targetHq = selectedSafetyHq || selectedHq
 
+  const activeProjects = React.useMemo(
+    () => projects.filter(project => !isCompleted(project)),
+    [projects]
+  )
+
   const hqLevelProjects = React.useMemo(
-    () => projects.filter(project => {
+    () => activeProjects.filter(project => {
       if (selectedSafetyHq && project.managing_hq !== selectedSafetyHq) return false
       if (selectedHq && project.managing_hq !== selectedHq) return false
       if (selectedBranch && project.managing_branch !== selectedBranch) return false
       return true
     }),
-    [projects, selectedSafetyHq, selectedHq, selectedBranch]
+    [activeProjects, selectedSafetyHq, selectedHq, selectedBranch]
   )
 
   const branchStats = React.useMemo(() => {
@@ -259,12 +303,12 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
   )
 
   const allHqProjects = React.useMemo(
-    () => projects.filter(project => {
+    () => activeProjects.filter(project => {
       if (selectedHq && project.managing_hq !== selectedHq) return false
       if (selectedBranch && project.managing_branch !== selectedBranch) return false
       return true
     }),
-    [projects, selectedHq, selectedBranch]
+    [activeProjects, selectedHq, selectedBranch]
   )
 
   const hqStats = React.useMemo(() => {
@@ -288,7 +332,7 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
   const selectedBranchProjects = React.useMemo(() => {
     if (!selectedSafetyBranch) return []
 
-    return projects
+    return activeProjects
       .filter(project => {
         if (selectedSafetyHq && project.managing_hq !== selectedSafetyHq) return false
         return project.managing_branch === selectedSafetyBranch
@@ -299,7 +343,7 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
         if (aOrder !== bOrder) return aOrder - bOrder
         return (a.project_name || '').localeCompare(b.project_name || '', 'ko-KR')
       })
-  }, [projects, selectedSafetyBranch, selectedSafetyHq])
+  }, [activeProjects, selectedSafetyBranch, selectedSafetyHq])
 
   const projectHeatWaveRows = React.useMemo(
     () => selectedBranchProjects.flatMap<HeatWaveProjectRow>(project => {
@@ -409,12 +453,15 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
                         </td>
                         <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-900">
                           {check ? (
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              check.feels_like_temp >= 35 ? 'bg-red-100 text-red-800' :
-                              check.feels_like_temp >= 30 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
-                            }`}>
-                              {check.feels_like_temp}℃
-                            </span>
+                            <>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                check.feels_like_temp >= 35 ? 'bg-red-100 text-red-800' :
+                                check.feels_like_temp >= 30 ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                              }`}>
+                                {check.feels_like_temp}℃
+                              </span>
+                              <HeatWaveAlertBadge feelsLikeTemp={check.feels_like_temp} />
+                            </>
                           ) : '-'}
                         </td>
                         {HEAT_WAVE_ITEM_KEYS.map(key => (
