@@ -3120,7 +3120,7 @@ const Dashboard: React.FC = () => {
                     loading={loading}
                     selectedDate={selectedDate}
                     selectedHq={selectedHq}
-                    selectedBranch={selectedBranch}
+                    selectedSafetyHq={selectedSafetyHq}
                     selectedSafetyBranch={selectedSafetyBranch}
                     heatWaveChecks={heatWaveChecks}
                     onBack={() => {
@@ -3132,7 +3132,27 @@ const Dashboard: React.FC = () => {
                         router.push('/safe')
                       }
                     }}
+                    onBackToHqLevel={() => {
+                      setSelectedSafetyBranch(null)
+                      setSelectedSafetyHq(null)
+                      if (pathname.startsWith('/safe/branch/')) {
+                        router.replace('/safe/heatwave')
+                      }
+                    }}
+                    onBackToAllBranches={() => {
+                      const isHeadOffice = userProfile?.hq_division == null || userProfile?.hq_division === '본사'
+                      setSelectedSafetyHq(isHeadOffice ? null : (userProfile?.hq_division || null))
+                      setSelectedSafetyBranch(null)
+                      router.push('/safe/heatwave')
+                    }}
                     onDateChange={(val) => setSelectedDate(val)}
+                    onSelectSafetyHq={(hq) => {
+                      setSelectedSafetyHq(hq)
+                    }}
+                    onSelectSafetyBranch={(branch) => {
+                      setSelectedSafetyBranch(branch)
+                      router.push(`/safe/branch/${encodeURIComponent(branch)}/heatwave`)
+                    }}
                     onRowClick={handleHeatWaveCheckClick}
                   />
                 )}
