@@ -37,6 +37,7 @@ interface HeatWaveCheckRow {
   emergency_care: boolean
   work_time_adjustment: boolean
   inspector_name: string | null
+  photos?: string[] | null
 }
 
 // 'YYYY-MM-DD' → 'YYYY년 M월 D일 (요일)' 표기
@@ -1401,7 +1402,8 @@ export default function HeatWaveCheckPage() {
       cooling: (editingCheck.cooling_equipment ? 'O' : 'X') as 'O' | 'X',
       emergency: (editingCheck.emergency_care ? 'O' : 'X') as 'O' | 'X',
       workTime: (editingCheck.work_time_adjustment ? 'O' : 'X') as 'O' | 'X',
-      inspectorName: editingCheck.inspector_name || ''
+      inspectorName: editingCheck.inspector_name || '',
+      photoUrl: editingCheck.photos?.[0] || undefined
     }
   }, [editingCheck])
 

@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { X, Thermometer, Camera, Upload, Loader2, Calendar, User, CloudSun } from 'lucide-react'
+import { X, Thermometer, Camera, Upload, Loader2, Calendar, User, CloudSun, Crop } from 'lucide-react'
 import Image from 'next/image'
 import SignatureModal from './SignatureModal'
+import ImageEditor from '@/components/ui/ImageEditor'
 
 interface HeatWaveInspectionModalProps {
   isOpen: boolean
@@ -22,6 +23,8 @@ interface HeatWaveInspectionModalProps {
     emergency: 'O' | 'X'
     workTime: 'O' | 'X'
     inspectorName: string
+    // 기존에 저장된 점검 사진 URL (미리보기·회전/크롭 대상)
+    photoUrl?: string
   }
 }
 
@@ -60,7 +63,11 @@ export default function HeatWaveInspectionModal({
   const [weatherLoading, setWeatherLoading] = useState(false)
   // 기상청에서 가져온 체감온도의 출처(주소·기준 시각) 안내 문구
   const [weatherInfo, setWeatherInfo] = useState<string>('')
-  
+  // 회전/크롭 편집기에 넘길 이미지 data URL (null이면 편집기 닫힘)
+  const [editingPhotoUrl, setEditingPhotoUrl] = useState<string | null>(null)
+  // 수정 모드에서 이미 저장돼 있는 점검 사진 URL (새 사진을 고르기 전까지 미리보기로 표시)
+  const [existingPhotoUrl, setExistingPhotoUrl] = useState<string | null>(null)
+
   const [formData, setFormData] = useState<HeatWaveInspectionData>({
     measureDateTime: '',
     temperature: '',
@@ -153,6 +160,83 @@ export default function HeatWaveInspectionModal({
         console.warn('리사이즈 준비 중 오류, 원본 사용:', error)
         resolve(file)
       }
+    })
+  }
+
+  // 레터박스로 덧붙은 흰 여백을 잘라낸다 — 회전할 때마다 여백이 겹겹이 쌓이는 것을 막는다
+  const trimWhiteMargin = (dataUrl: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new (window as any).Image()
+      img.onload = () => {
+        try {
+          const width: number = img.width
+          const height: number = img.height
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            resolve(dataUrl)
+            return
+          }
+          ctx.drawImage(img, 0, 0)
+          const { data } = ctx.getImageData(0, 0, width, height)
+
+          // 모든 채널이 250 이상인 픽셀만 여백으로 본다 (JPEG 잡음 감안)
+          const isMarginPixel = (x: number, y: number) => {
+            const i = (y * width + x) * 4
+            return data[i] >= 250 && data[i + 1] >= 250 && data[i + 2] >= 250
+          }
+          const isMarginRow = (y: number) => {
+            for (let x = 0; x < width; x++) {
+              if (!isMarginPixel(x, y)) return false
+            }
+            return true
+          }
+          const isMarginCol = (x: number) => {
+            for (let y = 0; y < height; y++) {
+              if (!isMarginPixel(x, y)) return false
+            }
+            return true
+          }
+
+          let top = 0
+          let bottom = height - 1
+          let left = 0
+          let right = width - 1
+          while (top < bottom && isMarginRow(top)) top++
+          while (bottom > top && isMarginRow(bottom)) bottom--
+          while (left < right && isMarginCol(left)) left++
+          while (right > left && isMarginCol(right)) right--
+
+          const trimmedWidth = right - left + 1
+          const trimmedHeight = bottom - top + 1
+          // 잘라낼 여백이 없거나, 사진 자체가 대부분 흰색이라 과도하게 잘리면 원본을 쓴다
+          if (
+            (trimmedWidth === width && trimmedHeight === height) ||
+            trimmedWidth * trimmedHeight < width * height * 0.1
+          ) {
+            resolve(dataUrl)
+            return
+          }
+
+          const trimmed = document.createElement('canvas')
+          trimmed.width = trimmedWidth
+          trimmed.height = trimmedHeight
+          const trimmedCtx = trimmed.getContext('2d')
+          if (!trimmedCtx) {
+            resolve(dataUrl)
+            return
+          }
+          trimmedCtx.drawImage(img, left, top, trimmedWidth, trimmedHeight, 0, 0, trimmedWidth, trimmedHeight)
+          resolve(trimmed.toDataURL('image/jpeg', 0.95))
+        } catch (error: unknown) {
+          console.warn('흰 여백 제거 실패, 원본 사용:', error)
+          resolve(dataUrl)
+        }
+      }
+      img.onerror = () => resolve(dataUrl)
+      img.src = dataUrl
     })
   }
 
@@ -292,10 +376,13 @@ export default function HeatWaveInspectionModal({
     if (isOpen) {
       // 이전 조회의 출처 안내 문구 초기화
       setWeatherInfo('')
+      setExistingPhotoUrl(null)
 
       if (editData) {
         // 수정 모드: 기존 점검값으로 폼을 채움 (신규 등록 임시저장 데이터는 사용하지 않음)
-        setFormData({ ...editData, inspectionPhotos: [] })
+        const { photoUrl, ...editValues } = editData
+        setFormData({ ...editValues, inspectionPhotos: [] })
+        setExistingPhotoUrl(photoUrl || null)
 
         if (projectAddress || projectCoords) {
           fetchWeatherDetailUrl()
@@ -453,6 +540,62 @@ export default function HeatWaveInspectionModal({
       ...prev,
       inspectionPhotos: prev.inspectionPhotos.filter((_, i) => i !== index)
     }))
+  }
+
+  // 회전/크롭 편집기 열기 — object URL은 렌더마다 바뀌므로 data URL로 넘긴다
+  const openPhotoEditor = async () => {
+    const photo = formData.inspectionPhotos[0]
+    if (!photo) return
+    try {
+      setEditingPhotoUrl(await trimWhiteMargin(await fileToBase64(photo)))
+    } catch (error: unknown) {
+      console.error('사진 편집기 열기 오류:', error)
+      alert('사진을 불러오지 못했습니다.')
+    }
+  }
+
+  // 기존 저장 사진 편집기 열기 — 원격 URL을 data URL로 바꿔 편집기에 넘긴다
+  const openExistingPhotoEditor = async () => {
+    if (!existingPhotoUrl) return
+    try {
+      const response = await fetch(existingPhotoUrl)
+      if (!response.ok) {
+        throw new Error(`사진 로드 실패 (${response.status})`)
+      }
+      const blob = await response.blob()
+      const file = new File([blob], 'heatwave_photo.jpg', { type: blob.type || 'image/jpeg' })
+      setEditingPhotoUrl(await trimWhiteMargin(await fileToBase64(file)))
+    } catch (error: unknown) {
+      console.error('기존 사진 편집기 열기 오류:', error)
+      alert('기존 사진을 불러오지 못했습니다.')
+    }
+  }
+
+  // 편집 결과 저장 — 업로드 경로와 동일하게 960x720 JPEG로 다시 맞춘다
+  const handleEditedPhotoSave = async (blob: Blob) => {
+    const original = formData.inspectionPhotos[0]
+    try {
+      // 반복 편집 시 resizeImageToJpeg가 붙이는 _resized 접미사가 누적되지 않도록 제거한다
+      // 기존 저장 사진을 편집한 경우 원본 File이 없으므로 기본 이름을 쓴다
+      const baseName = original
+        ? original.name.replace(/\.[^.]+$/, '').replace(/(_resized)+$/, '')
+        : 'heatwave_photo'
+      const editedFile = new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' })
+      const resized = await resizeImageToJpeg(editedFile, 960, 720, 0.85)
+      const newData = {
+        ...formData,
+        inspectionPhotos: [resized]
+      }
+      setFormData(newData)
+      // 수정 모드는 신규 등록 임시저장을 오염시키지 않도록 제외
+      if (!editData) {
+        await saveToStorage(newData)
+      }
+      setEditingPhotoUrl(null)
+    } catch (error: unknown) {
+      console.error('사진 편집 저장 오류:', error)
+      alert('사진 편집 저장에 실패했습니다.')
+    }
   }
 
   // 서명 처리 함수
@@ -727,7 +870,7 @@ export default function HeatWaveInspectionModal({
             </div>
 
             {/* 업로드된 사진 */}
-            {formData.inspectionPhotos.length > 0 && (
+            {formData.inspectionPhotos.length > 0 ? (
               <div className="flex justify-center">
                 <div className="relative">
                   <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden max-w-md">
@@ -742,6 +885,14 @@ export default function HeatWaveInspectionModal({
                   </div>
                   <button
                     type="button"
+                    onClick={openPhotoEditor}
+                    className="absolute -top-2 right-5 bg-white text-gray-700 border border-gray-300 rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-gray-100"
+                    title="회전/크롭"
+                  >
+                    <Crop className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => removePhoto(0)}
                     className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
                   >
@@ -752,7 +903,32 @@ export default function HeatWaveInspectionModal({
                   </p>
                 </div>
               </div>
-            )}
+            ) : existingPhotoUrl ? (
+              /* 수정 모드에서 기존에 저장된 사진 (회전/크롭하면 새 사진으로 교체됨) */
+              <div className="flex justify-center">
+                <div className="relative">
+                  <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden max-w-md">
+                    <Image
+                      src={existingPhotoUrl}
+                      alt="기존 점검 사진"
+                      width={400}
+                      height={300}
+                      className="w-full h-full object-cover"
+                      unoptimized
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={openExistingPhotoEditor}
+                    className="absolute -top-2 -right-2 bg-white text-gray-700 border border-gray-300 rounded-full w-6 h-6 flex items-center justify-center shadow hover:bg-gray-100"
+                    title="회전/크롭"
+                  >
+                    <Crop className="h-3 w-3" />
+                  </button>
+                  <p className="text-xs text-gray-500 mt-2 text-center">기존 등록 사진</p>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           {/* 점검자 이름 */}
@@ -801,6 +977,15 @@ export default function HeatWaveInspectionModal({
             <p className="text-gray-700 font-medium">제출 중입니다...</p>
           </div>
         </div>
+      )}
+
+      {/* 사진 편집 모달 (회전/크롭) */}
+      {editingPhotoUrl !== null && (
+        <ImageEditor
+          imageUrl={editingPhotoUrl}
+          onSave={handleEditedPhotoSave}
+          onClose={() => setEditingPhotoUrl(null)}
+        />
       )}
 
       {/* 서명 모달 */}
