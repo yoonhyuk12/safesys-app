@@ -3,7 +3,8 @@
 import React from 'react'
 import { Thermometer, ChevronLeft, Calendar, ArrowLeft } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
-import type { HeatWaveCheck, Project, TBMSafetyInspection } from '@/lib/projects'
+import type { HeatWaveCheck, Project } from '@/lib/projects'
+import type { TBMRecord } from '@/lib/tbm'
 import { BRANCH_OPTIONS, HEADQUARTERS_OPTIONS } from '@/lib/constants'
 
 const HEAT_WAVE_ITEM_KEYS = [
@@ -63,7 +64,7 @@ interface HeatWaveProjectRow {
 const summarizeHeatWaveData = (
   projects: Project[],
   checks: HeatWaveCheck[],
-  tbmInspections: TBMSafetyInspection[]
+  tbmCount: number
 ): Omit<HeatWaveAggregate, 'name'> => {
   const projectIds = new Set(projects.map(project => project.id))
   const projectChecks = checks.filter(check => projectIds.has(check.project_id))
@@ -86,14 +87,14 @@ const summarizeHeatWaveData = (
       0
     ),
     totalItemCount: projectChecks.length * HEAT_WAVE_ITEM_KEYS.length,
-    tbmCount: tbmInspections.filter(inspection => projectIds.has(inspection.project_id)).length
+    tbmCount
   }
 }
 
 const groupHeatWaveData = (
   projects: Project[],
   checks: HeatWaveCheck[],
-  tbmInspections: TBMSafetyInspection[],
+  tbmRecords: TBMRecord[],
   groupBy: 'managing_hq' | 'managing_branch'
 ): HeatWaveAggregate[] => {
   const groups = new Map<string, Project[]>()
@@ -104,9 +105,14 @@ const groupHeatWaveData = (
     groups.set(name, [...(groups.get(name) || []), project])
   })
 
+  // 금일 TBM은 TBM 현황표(/tbm)와 동일하게 제출 기록의 소속(managing_hq/branch) 이름으로 집계 (레거시 project_id NULL 기록 포함)
   return Array.from(groups.entries()).map(([name, groupProjects]) => ({
     name,
-    ...summarizeHeatWaveData(groupProjects, checks, tbmInspections)
+    ...summarizeHeatWaveData(
+      groupProjects,
+      checks,
+      tbmRecords.filter(record => record[groupBy] === name).length
+    )
   }))
 }
 
@@ -261,7 +267,7 @@ interface SafetyHeatwaveViewProps {
   selectedSafetyHq: string | null
   selectedSafetyBranch: string | null
   heatWaveChecks: HeatWaveCheck[]
-  tbmInspections: TBMSafetyInspection[]
+  tbmRecords: TBMRecord[]
   onBack: () => void
   onBackToHqLevel: () => void
   onBackToAllBranches: () => void
@@ -281,7 +287,7 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
   selectedSafetyHq,
   selectedSafetyBranch,
   heatWaveChecks,
-  tbmInspections,
+  tbmRecords,
   onBack,
   onBackToHqLevel,
   onBackToAllBranches,
@@ -298,14 +304,19 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
     [projects]
   )
 
-  const filteredTbmInspections = React.useMemo(() => {
-    if (!selectedDate) return tbmInspections
-    return tbmInspections.filter((inspection: TBMSafetyInspection) => {
-      if (!inspection.tbm_date) return false
-      const inspectionDate = new Date(inspection.tbm_date).toISOString().split('T')[0]
-      return inspectionDate === selectedDate
-    })
-  }, [tbmInspections, selectedDate])
+  const scopedTbmRecords = React.useMemo(
+    () => tbmRecords.filter(record => {
+      if (selectedHq && record.managing_hq !== selectedHq) return false
+      if (selectedBranch && record.managing_branch !== selectedBranch) return false
+      return true
+    }),
+    [tbmRecords, selectedHq, selectedBranch]
+  )
+
+  const branchTbmRecords = React.useMemo(
+    () => scopedTbmRecords.filter(record => !targetHq || record.managing_hq === targetHq),
+    [scopedTbmRecords, targetHq]
+  )
 
   const hqLevelProjects = React.useMemo(
     () => activeProjects.filter(project => {
@@ -318,7 +329,7 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
   )
 
   const branchStats = React.useMemo(() => {
-    const stats = groupHeatWaveData(hqLevelProjects, heatWaveChecks, filteredTbmInspections, 'managing_branch')
+    const stats = groupHeatWaveData(hqLevelProjects, heatWaveChecks, branchTbmRecords, 'managing_branch')
 
     if (targetHq && BRANCH_OPTIONS[targetHq]) {
       const branchOrder = BRANCH_OPTIONS[targetHq]
@@ -333,7 +344,7 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
     }
 
     return stats
-  }, [hqLevelProjects, heatWaveChecks, filteredTbmInspections, targetHq])
+  }, [hqLevelProjects, heatWaveChecks, branchTbmRecords, targetHq])
 
   const hqSummary = React.useMemo(
     () => summarizeHeatWaveAggregates(branchStats),
@@ -350,7 +361,7 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
   )
 
   const hqStats = React.useMemo(() => {
-    const stats = groupHeatWaveData(allHqProjects, heatWaveChecks, filteredTbmInspections, 'managing_hq')
+    const stats = groupHeatWaveData(allHqProjects, heatWaveChecks, scopedTbmRecords, 'managing_hq')
     stats.sort((a, b) => {
       const aIndex = HEADQUARTERS_OPTIONS.indexOf(a.name as (typeof HEADQUARTERS_OPTIONS)[number])
       const bIndex = HEADQUARTERS_OPTIONS.indexOf(b.name as (typeof HEADQUARTERS_OPTIONS)[number])
@@ -360,7 +371,7 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
       return aIndex - bIndex
     })
     return stats
-  }, [allHqProjects, heatWaveChecks, filteredTbmInspections])
+  }, [allHqProjects, heatWaveChecks, scopedTbmRecords])
 
   const allHqSummary = React.useMemo(
     () => summarizeHeatWaveAggregates(hqStats),

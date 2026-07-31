@@ -284,6 +284,7 @@ const Dashboard: React.FC = () => {
   const [managerInspections, setManagerInspections] = useState<ManagerInspection[]>([])
   const [headquartersInspections, setHeadquartersInspections] = useState<HeadquartersInspection[]>([])
   const [tbmSafetyInspections, setTbmSafetyInspections] = useState<TBMSafetyInspection[]>([])
+  const [heatwaveTbmRecords, setHeatwaveTbmRecords] = useState<TBMRecord[]>([])
   const [safeDocumentInspections, setSafeDocumentInspections] = useState<SafeDocumentInspection[]>([])
   const [ptwPermits, setPtwPermits] = useState<PtwPermitSummary[]>([])
   const [ptwYear, setPtwYear] = useState<number>(new Date().getFullYear())
@@ -1717,7 +1718,7 @@ const Dashboard: React.FC = () => {
 
       const [result, tbmResult] = await Promise.all([
         getHeatWaveChecksByUserBranch(userProfile, selectedDate, selectedHq, selectedBranch),
-        getTBMSafetyInspectionsByUserBranch(userProfile, selectedHq, selectedBranch)
+        getTBMRecords(selectedDate)
       ])
       if (result.success && result.checks) {
         console.log(`조회된 폭염점검 수: ${result.checks.length}`)
@@ -1725,15 +1726,15 @@ const Dashboard: React.FC = () => {
       } else {
         setError(result.error || '폭염점검 데이터를 불러오는데 실패했습니다.')
       }
-      if (tbmResult.success && tbmResult.inspections) {
-        setTbmSafetyInspections(tbmResult.inspections)
+      if (tbmResult.success && tbmResult.records) {
+        setHeatwaveTbmRecords(tbmResult.records)
       } else {
-        setTbmSafetyInspections([])
+        setHeatwaveTbmRecords([])
       }
     } catch (err: any) {
       console.error('폭염점검 데이터 로드 실패:', err)
       setError(err.message || '폭염점검 데이터를 불러오는데 실패했습니다.')
-      setTbmSafetyInspections([])
+      setHeatwaveTbmRecords([])
     } finally {
       heatWaveLoading.current = false
       setLoading(false)
@@ -3134,7 +3135,7 @@ const Dashboard: React.FC = () => {
                     selectedSafetyHq={selectedSafetyHq}
                     selectedSafetyBranch={selectedSafetyBranch}
                     heatWaveChecks={heatWaveChecks}
-                    tbmInspections={tbmSafetyInspections || []}
+                    tbmRecords={heatwaveTbmRecords}
                     onBack={() => {
                       setSelectedSafetyCard(null)
                       resetQuarterToToday() // 분기 초기화
