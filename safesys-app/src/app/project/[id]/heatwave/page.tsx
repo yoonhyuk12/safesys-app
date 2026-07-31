@@ -1405,6 +1405,13 @@ export default function HeatWaveCheckPage() {
     }
   }, [editingCheck])
 
+  // 오늘 등록된 점검 기록 - 없으면 우측 패널에 대장양식 대신 + 버튼만 표시
+  const hasTodayChecks = useMemo(() => {
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    return heatwaveChecks.some(check => check.check_time.split('T')[0] === today)
+  }, [heatwaveChecks])
+
   // PDF 보고서(hiddenReportRef) 공통 셀 스타일
   const pdfLabelCell: React.CSSProperties = {
     border: '0.5px solid rgb(17, 24, 39)',
@@ -1979,7 +1986,7 @@ export default function HeatWaveCheckPage() {
                   
                   {/* 점검양식 */}
                   <div className="bg-gray-50 rounded-lg p-2 lg:p-4 flex-1 overflow-auto">
-                    {/* 날짜 선택 시 해당 날짜 점검 기록, 아니면 오늘 점검양식 */}
+                    {/* 날짜 선택 시 해당 날짜 점검 기록, 아니면 오늘 점검양식 (오늘 기록이 없으면 + 버튼만) */}
                     {selectedDate && selectedDateChecks.length > 0 ? (
                       <div ref={reportRef}>
                         {/* 점검 기록 헤더 - PDF에 포함될 제목 */}
@@ -2178,7 +2185,7 @@ export default function HeatWaveCheckPage() {
                         
                         </div>
                       </div>
-                    ) : (
+                    ) : hasTodayChecks ? (
                       <>
                     {/* 점검양식 헤더 */}
                     <div className="text-center mb-6">
@@ -2338,7 +2345,7 @@ export default function HeatWaveCheckPage() {
                       </div>
                     </div>
                       </>
-                    )}
+                    ) : null}
                   </div>
                   
                   {/* 우측 영역 가운데 + 버튼 (발주청 포함 전 역할 등록 가능)
