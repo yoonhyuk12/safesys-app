@@ -153,6 +153,7 @@ export default function HeatWaveCheckPage() {
   const [bulkRegisterProgress, setBulkRegisterProgress] = useState('')
   const reportRef = useRef<HTMLDivElement>(null)
   const hiddenReportRef = useRef<HTMLDivElement>(null)
+  const formPanelRef = useRef<HTMLDivElement>(null) // 모바일에서 날짜 선택 시 점검양식으로 스크롤
 
   // Kakao Maps API 로드 (일단 주석 처리 - V-world API 우선 테스트)
   /*
@@ -1805,13 +1806,17 @@ export default function HeatWaveCheckPage() {
                                     setSelectedDates(newSelectedDates)
                                   }
                                 } else {
-                                  // 일반 모드: 기존 동작 (모달 열기)
+                                  // 일반 모드: 우측 점검양식 영역에 해당 날짜 기록 표시
                                   if (hasChecks) {
                                     setSelectedDate(dateStr)
-                                    const dayChecks = heatwaveChecks.filter(check => 
+                                    const dayChecks = heatwaveChecks.filter(check =>
                                       check.check_time.split('T')[0] === dateStr
                                     ).sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime()) // 오름차순 정렬
                                     setSelectedDateChecks(dayChecks)
+                                    // 모바일에서는 점검양식이 캘린더 아래에 있어 화면 밖이므로 이동
+                                    if (window.innerWidth < 1024) {
+                                      formPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                                    }
                                   }
                                 }
                               }}
@@ -1907,252 +1912,12 @@ export default function HeatWaveCheckPage() {
                       </div>
                     </div>
 
-                    {/* 선택된 날짜의 점검 기록 - 캘린더 위 모달 */}
-                    {selectedDate && selectedDateChecks.length > 0 && (
-                      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-                          {/* PDF용 전체 컨테이너 */}
-                          <div ref={reportRef}>
-                            {/* 모달 헤더 - PDF에 포함될 제목 */}
-                            <div className="relative p-4 border-b">
-                              <h4 className={`${isPdfGenerating ? 'text-3xl' : 'text-lg'} font-bold text-black text-center ${isPdfGenerating ? 'mb-8' : 'mb-4'}`}>
-                                폭염대비 주요활동 및 관리 대장({selectedDate.replace(/-/g, '.')})
-                              </h4>
-                              {/* 공사명 표기 */}
-                              <div className="text-left">
-                                <div className={`${isPdfGenerating ? 'text-lg' : 'text-sm'} font-medium text-gray-800`}>
-                                  □ 공사명 : {project?.project_name || ''}
-                                </div>
-                              </div>
-                              {/* PDF 저장용에는 버튼 숨김 */}
-                              <div className="absolute top-4 right-4 flex space-x-2 print:hidden">
-                                <button
-                                  onClick={handleSavePDF}
-                                  disabled={isPdfGenerating}
-                                  className={`transition-colors ${
-                                    isPdfGenerating 
-                                      ? 'text-gray-400 cursor-not-allowed' 
-                                      : 'text-blue-600 hover:text-blue-800'
-                                  }`}
-                                  title={isPdfGenerating ? 'PDF 생성 중...' : 'PDF로 저장'}
-                                >
-                                  {isPdfGenerating ? (
-                                    <div className="animate-spin h-6 w-6">
-                                      <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                      </svg>
-                                    </div>
-                                  ) : (
-                                    <Download className="h-6 w-6" />
-                                  )}
-                                </button>
-                                <button
-                                  onClick={() => setIsDeleteMode(!isDeleteMode)}
-                                  className={`transition-colors ${
-                                    isDeleteMode 
-                                      ? 'text-red-600 hover:text-red-800' 
-                                      : 'text-gray-600 hover:text-red-600'
-                                  }`}
-                                  title="삭제 모드"
-                                >
-                                  <Trash2 className="h-6 w-6" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setSelectedDate(null)
-                                    setSelectedDateChecks([])
-                                    setIsDeleteMode(false)
-                                    setSelectedCheckIds(new Set())
-                                  }}
-                                  className="text-gray-400 hover:text-gray-600 transition-colors"
-                                  title="닫기"
-                                >
-                                  <X className="h-6 w-6" />
-                                </button>
-                              </div>
-                            </div>
-                            
-                            {/* 모달 내용 */}
-                            <div className="p-4">
-                        
-                        <div className="overflow-x-auto">
-                          <table className={`w-full border-collapse border-2 border-gray-800 ${isPdfGenerating ? 'text-sm' : 'text-xs'}`}>
-                            <thead>
-                              <tr className="bg-gray-200">
-                                <th rowSpan={2} className={`border border-gray-800 w-20 ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                  측정<br/>시간<br/>(2시간<br/>간격)
-                                </th>
-                                <th rowSpan={2} className={`border border-gray-800 w-16 ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                  체감<br/>온도
-                                </th>
-                                <th colSpan={5} className={`border border-gray-800 ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                  5대 기본수칙(점검표)
-                                </th>
-                                <th rowSpan={2} className={`border border-gray-800 w-20 ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                  작업시간<br/>조정<br/>(여부)
-                                </th>
-                                <th rowSpan={2} className={`border border-gray-800 w-16 ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                  비고
-                                </th>
-                              </tr>
-                              <tr className="bg-gray-200">
-                                <th className={`border border-gray-800 w-12 ${isPdfGenerating ? 'p-2' : 'p-1'}`}>물</th>
-                                <th className={`border border-gray-800 w-16 ${isPdfGenerating ? 'p-2' : 'p-1'}`}>바람,<br/>그늘</th>
-                                <th className={`border border-gray-800 w-12 ${isPdfGenerating ? 'p-2' : 'p-1'}`}>휴식</th>
-                                <th className={`border border-gray-800 w-16 ${isPdfGenerating ? 'p-2' : 'p-1'}`}>보냉<br/>장구</th>
-                                <th className={`border border-gray-800 w-16 ${isPdfGenerating ? 'p-2' : 'p-1'}`}>응급<br/>조치</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {selectedDateChecks.map((check, index) => (
-                                <tr
-                                  key={index}
-                                  onClick={() => {
-                                    // 삭제 모드·PDF 생성 중에는 행 클릭 수정 비활성화
-                                    if (isDeleteMode || isPdfGenerating) return
-                                    setEditingCheck(check)
-                                    setIsInspectionModalOpen(true)
-                                  }}
-                                  className={!isDeleteMode && !isPdfGenerating ? 'cursor-pointer hover:bg-blue-50' : ''}
-                                  title={!isDeleteMode && !isPdfGenerating ? '클릭하여 점검 기록 수정' : undefined}
-                                >
-                                  <td className={`border border-gray-800 text-center text-blue-600 font-medium ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                    {new Date(check.check_time).toLocaleTimeString('ko-KR', {
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                      hour12: false
-                                    })}
-                                  </td>
-                                  <td className={`border border-gray-800 text-center font-medium ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                    {check.feels_like_temp}℃
-                                  </td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                    <span className={`font-bold ${check.water_supply ? 'text-green-600' : 'text-red-600'}`}>
-                                      {check.water_supply ? 'O' : 'X'}
-                                    </span>
-                                  </td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                    <span className={`font-bold ${check.ventilation ? 'text-green-600' : 'text-red-600'}`}>
-                                      {check.ventilation ? 'O' : 'X'}
-                                    </span>
-                                  </td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                    <span className={`font-bold ${check.rest_time ? 'text-green-600' : 'text-red-600'}`}>
-                                      {check.rest_time ? 'O' : 'X'}
-                                    </span>
-                                  </td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                    <span className={`font-bold ${check.cooling_equipment ? 'text-green-600' : 'text-red-600'}`}>
-                                      {check.cooling_equipment ? 'O' : 'X'}
-                                    </span>
-                                  </td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                    <span className={`font-bold ${check.emergency_care ? 'text-green-600' : 'text-red-600'}`}>
-                                      {check.emergency_care ? 'O' : 'X'}
-                                    </span>
-                                  </td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                    <span className={`font-bold ${check.work_time_adjustment ? 'text-green-600' : 'text-red-600'}`}>
-                                      {check.work_time_adjustment ? 'O' : 'X'}
-                                    </span>
-                                  </td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
-                                    {isDeleteMode && !isPdfGenerating && (
-                                      <input
-                                        type="checkbox"
-                                        checked={selectedCheckIds.has(check.id)}
-                                        onChange={(e) => {
-                                          const newSelected = new Set(selectedCheckIds)
-                                          if (e.target.checked) {
-                                            newSelected.add(check.id)
-                                          } else {
-                                            newSelected.delete(check.id)
-                                          }
-                                          setSelectedCheckIds(newSelected)
-                                        }}
-                                        className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500"
-                                      />
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                              {/* 빈 행들 (최소 7개 행 보장) */}
-                              {Array.from({ length: Math.max(0, 7 - selectedDateChecks.length) }, (_, i) => (
-                                <tr key={`empty-${i}`}>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3 h-12' : 'p-2 h-8'}`}></td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
-                                  <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                        
-                            {/* 점검자 정보 배지 제거 (테이블에 이미 표시됨) */}
-                            
-                            {/* 확인자 서명란 */}
-                            <div className="mt-8 flex justify-end">
-                              <div className={`${isPdfGenerating ? 'text-base' : 'text-sm'} text-gray-800 flex items-center gap-3`}>
-                                <span>확인자 :</span>
-                                <span>{(() => {
-                                  // 선택된 날짜의 마지막 점검자 이름 찾기
-                                  const sortedChecks = [...selectedDateChecks].sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime())
-                                  const lastInspector = sortedChecks.reverse().find(check => check.inspector_name)?.inspector_name
-                                  return lastInspector || (project as any)?.user_profiles?.full_name || userProfile?.full_name || ''
-                                })()}</span>
-                                {(() => {
-                                  // 선택된 날짜의 마지막 서명 찾기 (시간순으로 정렬 후 마지막 서명)
-                                  const sortedChecks = [...selectedDateChecks].sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime())
-                                  const lastSignature = sortedChecks.reverse().find(check => check.signature)?.signature
-                                  
-                                  if (lastSignature) {
-                                    return (
-                                      <img 
-                                        src={lastSignature} 
-                                        alt="서명" 
-                                        className={isPdfGenerating ? "h-16" : "h-8"}
-                                        style={{ width: 'auto', maxWidth: isPdfGenerating ? '240px' : '120px' }}
-                                      />
-                                    )
-                                  } else {
-                                    return <span>(서명)</span>
-                                  }
-                                })()}
-                              </div>
-                            </div>
-                            
-                            {/* 삭제 모드일 때 삭제 버튼 */}
-                            {isDeleteMode && selectedCheckIds.size > 0 && !isPdfGenerating && (
-                              <div className="mt-6 flex justify-center">
-                                <button
-                                  onClick={handleDeleteSelected}
-                                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  선택한 {selectedCheckIds.size}개 항목 삭제
-                                </button>
-                              </div>
-                            )}
-                            
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    
                   </div>
                 </div>
               </div>
               
               {/* 하단/우측 - 점검표 */}
-              <div className="lg:flex-1 p-2 lg:p-8 lg:pr-16 relative">
+              <div ref={formPanelRef} className="lg:flex-1 p-2 lg:p-8 lg:pr-16 relative">
                 {/* 모바일용 가로 구분선 - 점검양식 상단 */}
                 <div className="absolute top-0 left-0 right-0 h-px bg-yellow-400 lg:hidden"></div>
                 <div className="h-full flex flex-col">
@@ -2163,6 +1928,241 @@ export default function HeatWaveCheckPage() {
                   
                   {/* 점검양식 */}
                   <div className="bg-gray-50 rounded-lg p-2 lg:p-6 flex-1 overflow-auto">
+                    {/* 날짜 선택 시 해당 날짜 점검 기록, 아니면 오늘 점검양식 */}
+                    {selectedDate && selectedDateChecks.length > 0 ? (
+                      <div ref={reportRef}>
+                        {/* 점검 기록 헤더 - PDF에 포함될 제목 */}
+                        <div className="p-4 border-b">
+                          {/* 버튼행 - 제목행과 줄 나눔 (PDF 저장용에는 숨김) */}
+                          <div className="flex justify-end space-x-2 mb-3 print:hidden">
+                            <button
+                              onClick={handleSavePDF}
+                              disabled={isPdfGenerating}
+                              className={`transition-colors ${
+                                isPdfGenerating 
+                                  ? 'text-gray-400 cursor-not-allowed' 
+                                  : 'text-blue-600 hover:text-blue-800'
+                              }`}
+                              title={isPdfGenerating ? 'PDF 생성 중...' : 'PDF로 저장'}
+                            >
+                              {isPdfGenerating ? (
+                                <div className="animate-spin h-6 w-6">
+                                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                </div>
+                              ) : (
+                                <Download className="h-6 w-6" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => setIsDeleteMode(!isDeleteMode)}
+                              className={`transition-colors ${
+                                isDeleteMode 
+                                  ? 'text-red-600 hover:text-red-800' 
+                                  : 'text-gray-600 hover:text-red-600'
+                              }`}
+                              title="삭제 모드"
+                            >
+                              <Trash2 className="h-6 w-6" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedDate(null)
+                                setSelectedDateChecks([])
+                                setIsDeleteMode(false)
+                                setSelectedCheckIds(new Set())
+                              }}
+                              className="text-gray-400 hover:text-gray-600 transition-colors"
+                              title="닫기"
+                            >
+                              <X className="h-6 w-6" />
+                            </button>
+                          </div>
+                          <h4 className={`${isPdfGenerating ? 'text-3xl' : 'text-lg'} font-bold text-black text-center ${isPdfGenerating ? 'mb-8' : 'mb-4'}`}>
+                            폭염대비 주요활동 및 관리 대장({selectedDate.replace(/-/g, '.')})
+                          </h4>
+                          {/* 공사명 표기 */}
+                          <div className="text-left">
+                            <div className={`${isPdfGenerating ? 'text-lg' : 'text-sm'} font-medium text-gray-800`}>
+                              □ 공사명 : {project?.project_name || ''}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 점검 기록 내용 */}
+                        <div className="p-4">
+                    
+                    <div className="overflow-x-auto">
+                      <table className={`w-full border-collapse border-2 border-gray-800 ${isPdfGenerating ? 'text-sm' : 'text-xs'}`}>
+                        <thead>
+                          <tr className="bg-gray-200">
+                            <th rowSpan={2} className={`border border-gray-800 w-20 ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                              측정<br/>시간<br/>(2시간<br/>간격)
+                            </th>
+                            <th rowSpan={2} className={`border border-gray-800 w-16 ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                              체감<br/>온도
+                            </th>
+                            <th colSpan={5} className={`border border-gray-800 ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                              5대 기본수칙(점검표)
+                            </th>
+                            <th rowSpan={2} className={`border border-gray-800 w-20 ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                              작업시간<br/>조정<br/>(여부)
+                            </th>
+                            <th rowSpan={2} className={`border border-gray-800 w-16 ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                              비고
+                            </th>
+                          </tr>
+                          <tr className="bg-gray-200">
+                            <th className={`border border-gray-800 w-12 ${isPdfGenerating ? 'p-2' : 'p-1'}`}>물</th>
+                            <th className={`border border-gray-800 w-16 ${isPdfGenerating ? 'p-2' : 'p-1'}`}>바람,<br/>그늘</th>
+                            <th className={`border border-gray-800 w-12 ${isPdfGenerating ? 'p-2' : 'p-1'}`}>휴식</th>
+                            <th className={`border border-gray-800 w-16 ${isPdfGenerating ? 'p-2' : 'p-1'}`}>보냉<br/>장구</th>
+                            <th className={`border border-gray-800 w-16 ${isPdfGenerating ? 'p-2' : 'p-1'}`}>응급<br/>조치</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedDateChecks.map((check, index) => (
+                            <tr
+                              key={index}
+                              onClick={() => {
+                                // 삭제 모드·PDF 생성 중에는 행 클릭 수정 비활성화
+                                if (isDeleteMode || isPdfGenerating) return
+                                setEditingCheck(check)
+                                setIsInspectionModalOpen(true)
+                              }}
+                              className={!isDeleteMode && !isPdfGenerating ? 'cursor-pointer hover:bg-blue-50' : ''}
+                              title={!isDeleteMode && !isPdfGenerating ? '클릭하여 점검 기록 수정' : undefined}
+                            >
+                              <td className={`border border-gray-800 text-center text-blue-600 font-medium ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                                {new Date(check.check_time).toLocaleTimeString('ko-KR', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: false
+                                })}
+                              </td>
+                              <td className={`border border-gray-800 text-center font-medium ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                                {check.feels_like_temp}℃
+                              </td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                                <span className={`font-bold ${check.water_supply ? 'text-green-600' : 'text-red-600'}`}>
+                                  {check.water_supply ? 'O' : 'X'}
+                                </span>
+                              </td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                                <span className={`font-bold ${check.ventilation ? 'text-green-600' : 'text-red-600'}`}>
+                                  {check.ventilation ? 'O' : 'X'}
+                                </span>
+                              </td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                                <span className={`font-bold ${check.rest_time ? 'text-green-600' : 'text-red-600'}`}>
+                                  {check.rest_time ? 'O' : 'X'}
+                                </span>
+                              </td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                                <span className={`font-bold ${check.cooling_equipment ? 'text-green-600' : 'text-red-600'}`}>
+                                  {check.cooling_equipment ? 'O' : 'X'}
+                                </span>
+                              </td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                                <span className={`font-bold ${check.emergency_care ? 'text-green-600' : 'text-red-600'}`}>
+                                  {check.emergency_care ? 'O' : 'X'}
+                                </span>
+                              </td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                                <span className={`font-bold ${check.work_time_adjustment ? 'text-green-600' : 'text-red-600'}`}>
+                                  {check.work_time_adjustment ? 'O' : 'X'}
+                                </span>
+                              </td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}>
+                                {isDeleteMode && !isPdfGenerating && (
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedCheckIds.has(check.id)}
+                                    onChange={(e) => {
+                                      const newSelected = new Set(selectedCheckIds)
+                                      if (e.target.checked) {
+                                        newSelected.add(check.id)
+                                      } else {
+                                        newSelected.delete(check.id)
+                                      }
+                                      setSelectedCheckIds(newSelected)
+                                    }}
+                                    className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500"
+                                  />
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                          {/* 빈 행들 (최소 7개 행 보장) */}
+                          {Array.from({ length: Math.max(0, 7 - selectedDateChecks.length) }, (_, i) => (
+                            <tr key={`empty-${i}`}>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3 h-12' : 'p-2 h-8'}`}></td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
+                              <td className={`border border-gray-800 text-center ${isPdfGenerating ? 'p-3' : 'p-2'}`}></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    
+                        {/* 점검자 정보 배지 제거 (테이블에 이미 표시됨) */}
+                        
+                        {/* 확인자 서명란 */}
+                        <div className="mt-8 flex justify-end">
+                          <div className={`${isPdfGenerating ? 'text-base' : 'text-sm'} text-gray-800 flex items-center gap-3`}>
+                            <span>확인자 :</span>
+                            <span>{(() => {
+                              // 선택된 날짜의 마지막 점검자 이름 찾기
+                              const sortedChecks = [...selectedDateChecks].sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime())
+                              const lastInspector = sortedChecks.reverse().find(check => check.inspector_name)?.inspector_name
+                              return lastInspector || (project as any)?.user_profiles?.full_name || userProfile?.full_name || ''
+                            })()}</span>
+                            {(() => {
+                              // 선택된 날짜의 마지막 서명 찾기 (시간순으로 정렬 후 마지막 서명)
+                              const sortedChecks = [...selectedDateChecks].sort((a, b) => new Date(a.check_time).getTime() - new Date(b.check_time).getTime())
+                              const lastSignature = sortedChecks.reverse().find(check => check.signature)?.signature
+                              
+                              if (lastSignature) {
+                                return (
+                                  <img 
+                                    src={lastSignature} 
+                                    alt="서명" 
+                                    className={isPdfGenerating ? "h-16" : "h-8"}
+                                    style={{ width: 'auto', maxWidth: isPdfGenerating ? '240px' : '120px' }}
+                                  />
+                                )
+                              } else {
+                                return <span>(서명)</span>
+                              }
+                            })()}
+                          </div>
+                        </div>
+                        
+                        {/* 삭제 모드일 때 삭제 버튼 */}
+                        {isDeleteMode && selectedCheckIds.size > 0 && !isPdfGenerating && (
+                          <div className="mt-6 flex justify-center">
+                            <button
+                              onClick={handleDeleteSelected}
+                              className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              선택한 {selectedCheckIds.size}개 항목 삭제
+                            </button>
+                          </div>
+                        )}
+                        
+                        </div>
+                      </div>
+                    ) : (
+                      <>
                     {/* 점검양식 헤더 */}
                     <div className="text-center mb-6">
                       <h4 className="text-lg font-bold text-red-600 mb-4">
@@ -2320,9 +2320,13 @@ export default function HeatWaveCheckPage() {
                         })()}
                       </div>
                     </div>
+                      </>
+                    )}
                   </div>
                   
-                  {/* 우측 영역 가운데 + 버튼 (발주청 포함 전 역할 등록 가능) */}
+                  {/* 우측 영역 가운데 + 버튼 (발주청 포함 전 역할 등록 가능)
+                      - 점검 기록 표시 중에는 행 클릭(수정)을 가리므로 숨김 */}
+                  {!(selectedDate && selectedDateChecks.length > 0) && (
                   <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
                     <button
                       onClick={handleNewCheck}
@@ -2331,6 +2335,7 @@ export default function HeatWaveCheckPage() {
                       <Plus className="h-8 w-8" />
                     </button>
                   </div>
+                  )}
                 </div>
               </div>
             </div>
