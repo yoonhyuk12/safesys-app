@@ -2351,13 +2351,17 @@ export default function HeatWaveCheckPage() {
                   {/* 우측 영역 가운데 + 버튼 (발주청 포함 전 역할 등록 가능)
                       - 점검 기록 표시 중에는 행 클릭(수정)을 가리므로 숨김 */}
                   {!(selectedDate && selectedDateChecks.length > 0) && (
-                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+                  <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center gap-3">
                     <button
                       onClick={handleNewCheck}
                       className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-4 shadow-lg hover:shadow-xl transition-all duration-200"
                     >
                       <Plus className="h-8 w-8" />
                     </button>
+                    {/* 대장양식이 비어 있을 때만 안내 문구 (양식 위에 겹쳐 쓰지 않음) */}
+                    {!hasTodayChecks && (
+                      <span className="text-sm font-medium text-gray-600">점검 결과 입력하기</span>
+                    )}
                   </div>
                   )}
                 </div>
