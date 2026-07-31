@@ -1921,9 +1921,60 @@ export default function HeatWaveCheckPage() {
                 {/* 모바일용 가로 구분선 - 점검양식 상단 */}
                 <div className="absolute top-0 left-0 right-0 h-px bg-yellow-400 lg:hidden"></div>
                 <div className="h-full flex flex-col">
-                  <div className="flex items-center mb-6">
-                    <FileText className="h-6 w-6 text-green-600 mr-3" />
-                    <h2 className="text-xl font-semibold text-gray-900">점검양식</h2>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center">
+                      <FileText className="h-6 w-6 text-green-600 mr-3" />
+                      <h2 className="text-xl font-semibold text-gray-900">점검양식</h2>
+                    </div>
+                    {/* 점검 기록 표시 중에만 노출되는 버튼행 (PDF 저장용에는 숨김) */}
+                    {selectedDate && selectedDateChecks.length > 0 && (
+                      <div className="flex items-center space-x-2 print:hidden">
+                        <button
+                          onClick={handleSavePDF}
+                          disabled={isPdfGenerating}
+                          className={`transition-colors ${
+                            isPdfGenerating
+                              ? 'text-gray-400 cursor-not-allowed'
+                              : 'text-blue-600 hover:text-blue-800'
+                          }`}
+                          title={isPdfGenerating ? 'PDF 생성 중...' : 'PDF로 저장'}
+                        >
+                          {isPdfGenerating ? (
+                            <div className="animate-spin h-6 w-6">
+                              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                            </div>
+                          ) : (
+                            <Download className="h-6 w-6" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => setIsDeleteMode(!isDeleteMode)}
+                          className={`transition-colors ${
+                            isDeleteMode
+                              ? 'text-red-600 hover:text-red-800'
+                              : 'text-gray-600 hover:text-red-600'
+                          }`}
+                          title="삭제 모드"
+                        >
+                          <Trash2 className="h-6 w-6" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedDate(null)
+                            setSelectedDateChecks([])
+                            setIsDeleteMode(false)
+                            setSelectedCheckIds(new Set())
+                          }}
+                          className="text-gray-400 hover:text-gray-600 transition-colors"
+                          title="닫기"
+                        >
+                          <X className="h-6 w-6" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                   
                   {/* 점검양식 */}
@@ -1933,53 +1984,6 @@ export default function HeatWaveCheckPage() {
                       <div ref={reportRef}>
                         {/* 점검 기록 헤더 - PDF에 포함될 제목 */}
                         <div className="py-4 border-b">
-                          {/* 버튼행 - 제목행과 줄 나눔 (PDF 저장용에는 숨김) */}
-                          <div className="flex justify-end space-x-2 mb-3 print:hidden">
-                            <button
-                              onClick={handleSavePDF}
-                              disabled={isPdfGenerating}
-                              className={`transition-colors ${
-                                isPdfGenerating 
-                                  ? 'text-gray-400 cursor-not-allowed' 
-                                  : 'text-blue-600 hover:text-blue-800'
-                              }`}
-                              title={isPdfGenerating ? 'PDF 생성 중...' : 'PDF로 저장'}
-                            >
-                              {isPdfGenerating ? (
-                                <div className="animate-spin h-6 w-6">
-                                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                </div>
-                              ) : (
-                                <Download className="h-6 w-6" />
-                              )}
-                            </button>
-                            <button
-                              onClick={() => setIsDeleteMode(!isDeleteMode)}
-                              className={`transition-colors ${
-                                isDeleteMode 
-                                  ? 'text-red-600 hover:text-red-800' 
-                                  : 'text-gray-600 hover:text-red-600'
-                              }`}
-                              title="삭제 모드"
-                            >
-                              <Trash2 className="h-6 w-6" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setSelectedDate(null)
-                                setSelectedDateChecks([])
-                                setIsDeleteMode(false)
-                                setSelectedCheckIds(new Set())
-                              }}
-                              className="text-gray-400 hover:text-gray-600 transition-colors"
-                              title="닫기"
-                            >
-                              <X className="h-6 w-6" />
-                            </button>
-                          </div>
                           <h4 className={`${isPdfGenerating ? 'text-3xl' : 'text-lg'} font-bold text-black text-center ${isPdfGenerating ? 'mb-8' : 'mb-4'}`}>
                             폭염대비 주요활동 및 관리 대장({selectedDate.replace(/-/g, '.')})
                           </h4>
