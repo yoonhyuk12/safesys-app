@@ -3118,8 +3118,10 @@ const Dashboard: React.FC = () => {
                 {selectedSafetyCard === 'heatwave' && (
                   <SafetyHeatwaveView
                     loading={loading}
+                    projects={projects}
                     selectedDate={selectedDate}
                     selectedHq={selectedHq}
+                    selectedBranch={selectedBranch}
                     selectedSafetyHq={selectedSafetyHq}
                     selectedSafetyBranch={selectedSafetyBranch}
                     heatWaveChecks={heatWaveChecks}
@@ -3154,6 +3156,7 @@ const Dashboard: React.FC = () => {
                       router.push(`/safe/branch/${encodeURIComponent(branch)}/heatwave`)
                     }}
                     onRowClick={handleHeatWaveCheckClick}
+                    onRowClickProject={(projectId) => router.push(`/project/${projectId}/heatwave`)}
                   />
                 )}
 
