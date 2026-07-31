@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Calendar, FileText, ChevronLeft, ChevronRight, X, Download, Trash2, FolderDown, CalendarPlus } from 'lucide-react'
+import { ArrowLeft, Plus, Calendar, FileText, ChevronLeft, ChevronRight, X, Download, Trash2, FolderDown, CalendarPlus, Pencil } from 'lucide-react'
 import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -2095,6 +2095,19 @@ export default function HeatWaveCheckPage() {
                                     }}
                                     className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500"
                                   />
+                                )}
+                                {!isDeleteMode && !isPdfGenerating && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setEditingCheck(check)
+                                      setIsInspectionModalOpen(true)
+                                    }}
+                                    className="text-gray-400 hover:text-blue-600 transition-colors"
+                                    title="점검 기록 수정"
+                                  >
+                                    <Pencil className="h-4 w-4 mx-auto" />
+                                  </button>
                                 )}
                               </td>
                             </tr>
