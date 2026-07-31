@@ -488,11 +488,9 @@ const SafetyHeatwaveView: React.FC<SafetyHeatwaveViewProps> = ({
                             <span className="font-medium">
                               {(project.project_name || '').length > 4 ? `${(project.project_name || '').substring(0, 4)}...` : (project.project_name || '미지정')}
                             </span>
-                            <span className="text-xs text-gray-500">({project.managing_branch})</span>
                           </div>
                           <div className="hidden sm:flex flex-col">
                             <span className="font-medium break-words">{project.project_name || '미지정'}</span>
-                            <span className="text-xs text-gray-500">({project.managing_branch})</span>
                           </div>
                         </td>
                         <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-sm text-gray-500">
