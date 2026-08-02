@@ -17,7 +17,7 @@
 **Worker(Opus 서브에이전트)에게 위임하는 일.**
 
 - 코드 작성과 수정, 테스트 작성 등 구현 작업 전부
-- Agent 도구로 위임하고 model은 "opus"를 지정한다
+- Agent 도구로 위임하되 subagent_type은 `worker-opus`(정의 파일 `.claude/agents/worker-opus.md`, model: opus)를 사용한다. general-purpose로 위임하지 않는다 — 진행 표시에 역할이 드러나게 하기 위함이다
 - 서로 독립적인 작업은 병렬로 위임한다
 
 **브리프 기준.**
