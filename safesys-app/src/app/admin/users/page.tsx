@@ -3,17 +3,18 @@
 // 관리자 가입자 목록과 인증·수정·삭제 작업을 제공하는 클라이언트 화면
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  Pencil,
-  RefreshCw,
-  Search,
-  Trash2,
-  UserCheck,
-  X,
+  CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, HardHat, Landmark,
+  Pencil, RefreshCw, Search, Trash2, UserCheck, UsersRound, X, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { nextSortState, sortRows, type SortState } from '@/lib/admin-sort'
+import {
+  ADMIN_USER_SORT_OPTIONS,
+  getAdminUserSortValue,
+  type AdminUserSortKey,
+} from '@/lib/admin-list-sort'
+import { AdminMobileDisclosure } from '@/components/admin/AdminMobileDisclosure'
+import { MobileSortControls, SortableHeader } from '@/components/admin/AdminSortControls'
 
 const PAGE_SIZE = 50
 const ROLES = ['발주청', '감리단', '시공사'] as const
@@ -57,6 +58,13 @@ interface ProfileDraft {
 }
 
 type ProfilePatch = Omit<ProfileDraft, 'role'> & { role: Role }
+
+interface UserActions {
+  pendingAction: string | null
+  onConfirm: (user: AdminUser) => void
+  onEdit: (user: AdminUser) => void
+  onDelete: (user: AdminUser) => void
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -102,7 +110,7 @@ function roleBadgeClass(role: Role | null): string {
   if (role === '발주청') return 'bg-blue-50 text-blue-700 ring-blue-200'
   if (role === '감리단') return 'bg-amber-50 text-amber-700 ring-amber-200'
   if (role === '시공사') return 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-  return 'bg-gray-50 text-gray-500 ring-gray-200'
+  return 'bg-slate-50 text-slate-500 ring-slate-200'
 }
 
 function toProfileDraft(user: AdminUser): ProfileDraft {
@@ -117,59 +125,383 @@ function toProfileDraft(user: AdminUser): ProfileDraft {
   }
 }
 
-function SummaryCards({ users }: { users: AdminUser[] }) {
-  const summaries = [
-    { label: '전체', value: users.length },
+const SUMMARY_TONES = {
+  blue: 'bg-blue-50 text-blue-700',
+  mint: 'bg-emerald-50 text-emerald-700',
+  amber: 'bg-amber-50 text-amber-700',
+} as const
+
+type SummaryTone = keyof typeof SUMMARY_TONES
+
+interface SummaryItem {
+  label: string
+  value: number
+  hint: string
+  icon: LucideIcon
+  tone: SummaryTone
+  highlight?: boolean
+}
+
+const ROLE_SUMMARY_META: Record<Role, { icon: LucideIcon; tone: SummaryTone }> = {
+  발주청: { icon: Landmark, tone: 'blue' },
+  감리단: { icon: ClipboardCheck, tone: 'amber' },
+  시공사: { icon: HardHat, tone: 'mint' },
+}
+
+function buildUserSummaries(users: AdminUser[]): SummaryItem[] {
+  return [
+    { label: '전체', value: users.length, hint: '등록 계정', icon: UsersRound, tone: 'blue' },
     ...ROLES.map((role) => ({
       label: role,
       value: users.filter((user) => user.role === role).length,
+      hint: '역할 배정',
+      ...ROLE_SUMMARY_META[role],
     })),
     {
       label: '미인증',
       value: users.filter((user) => !user.email_confirmed_at).length,
+      hint: '이메일 확인 대기',
+      icon: Clock3,
+      tone: 'amber',
+      highlight: true,
     },
   ]
+}
+
+function SummaryCards({ users }: { users: AdminUser[] }) {
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:gap-3 md:overflow-visible md:pb-0">
+      {buildUserSummaries(users).map((summary) => {
+        const Icon = summary.icon
+        return (
+          <div
+            key={summary.label}
+            className={`min-w-[132px] shrink-0 rounded-2xl border p-3 shadow-sm md:min-w-0 md:shrink md:p-4 ${
+              summary.highlight ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-white'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${SUMMARY_TONES[summary.tone]}`}>
+                <Icon className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <p className="truncate text-xs font-semibold text-slate-500">{summary.label}</p>
+            </div>
+            <p className="mt-2 text-xl font-bold tabular-nums text-slate-950">
+              {summary.value.toLocaleString()}
+              <span className="ml-0.5 text-sm font-semibold text-slate-500">명</span>
+            </p>
+            <p className="mt-0.5 truncate text-[11px] text-slate-400">{summary.hint}</p>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function UsersFilterPanel({
+  search, roleFilter, unconfirmedOnly, onSearchChange, onRoleChange, onUnconfirmedChange,
+}: {
+  search: string
+  roleFilter: Role | 'all'
+  unconfirmedOnly: boolean
+  onSearchChange: (value: string) => void
+  onRoleChange: (value: Role | 'all') => void
+  onUnconfirmedChange: (value: boolean) => void
+}) {
+  return (
+    <div className="grid gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:grid-cols-[minmax(0,1fr)_180px_auto] md:items-center md:gap-3 md:p-4">
+      <label className="relative block">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <input
+          value={search} onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="이름, 이메일, 회사 검색" aria-label="가입자 검색"
+          className="h-11 w-full rounded-xl border border-slate-200 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+        />
+      </label>
+      <select
+        value={roleFilter} onChange={(event) => onRoleChange(event.target.value as Role | 'all')} aria-label="역할 필터"
+        className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+      >
+        <option value="all">전체 역할</option>
+        {ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
+      </select>
+      <label className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-700 md:whitespace-nowrap">
+        <input
+          type="checkbox" checked={unconfirmedOnly} onChange={(event) => onUnconfirmedChange(event.target.checked)}
+          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-200"
+        />
+        미인증만
+      </label>
+    </div>
+  )
+}
+
+function ConfirmedBadge({ confirmed }: { confirmed: boolean }) {
+  if (confirmed) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">
+        <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> 인증
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 font-semibold text-amber-700">
+      <Clock3 className="h-3.5 w-3.5" aria-hidden="true" /> 미인증
+    </span>
+  )
+}
+
+function UserRowActions({ user, actions }: { user: AdminUser; actions: UserActions }) {
+  const busy = Boolean(actions.pendingAction)
+  return (
+    <div className="flex justify-end gap-1">
+      {!user.email_confirmed_at && (
+        <button
+          type="button" onClick={() => actions.onConfirm(user)} disabled={busy}
+          className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 px-2 py-1 font-semibold text-emerald-700 outline-none transition hover:bg-emerald-50 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+        >
+          <UserCheck className="h-3.5 w-3.5" aria-hidden="true" />
+          {actions.pendingAction === `confirm-${user.id}` ? '처리 중' : '인증 처리'}
+        </button>
+      )}
+      <button
+        type="button" onClick={() => actions.onEdit(user)} disabled={busy}
+        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 font-semibold text-slate-700 outline-none transition hover:border-slate-300 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+      >
+        <Pencil className="h-3.5 w-3.5" aria-hidden="true" /> 수정
+      </button>
+      <button
+        type="button" onClick={() => actions.onDelete(user)} disabled={busy}
+        className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2 py-1 font-semibold text-red-700 outline-none transition hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+      >
+        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+        {actions.pendingAction === `delete-${user.id}` ? '삭제 중' : '삭제'}
+      </button>
+    </div>
+  )
+}
+
+function UserTableRow({ user, actions }: { user: AdminUser; actions: UserActions }) {
+  return (
+    <tr className="transition hover:bg-slate-50">
+      <td className="max-w-36 px-3 py-3">
+        <p className="truncate font-semibold text-slate-950">{user.full_name ?? '이름 없음'}</p>
+        {!user.has_profile && <p className="mt-0.5 text-[11px] font-medium text-amber-700">프로필 없음</p>}
+      </td>
+      <td className="max-w-52 truncate px-3 py-3" title={user.email ?? undefined}>{user.email ?? '-'}</td>
+      <td className="px-3 py-3">
+        <span className={`inline-flex rounded-full px-2 py-0.5 font-semibold ring-1 ring-inset ${roleBadgeClass(user.role)}`}>
+          {user.role ?? '-'}
+        </span>
+      </td>
+      <td className="max-w-40 px-3 py-3">
+        <p className="truncate">{user.hq_division ?? '-'}</p>
+        {user.branch_division && <p className="truncate text-slate-500">{user.branch_division}</p>}
+      </td>
+      <td className="max-w-40 truncate px-3 py-3" title={user.company_name ?? undefined}>{user.company_name ?? '-'}</td>
+      <td className="max-w-28 truncate px-3 py-3">{user.position ?? '-'}</td>
+      <td className="whitespace-nowrap px-3 py-3 tabular-nums">{formatDate(user.created_at)}</td>
+      <td className="whitespace-nowrap px-3 py-3 tabular-nums">{formatDate(user.last_sign_in_at, true)}</td>
+      <td className="px-3 py-3"><ConfirmedBadge confirmed={Boolean(user.email_confirmed_at)} /></td>
+      <td className="px-3 py-3"><UserRowActions user={user} actions={actions} /></td>
+    </tr>
+  )
+}
+
+function UsersTable({ users, sortState, onSort, actions }: {
+  users: AdminUser[]
+  sortState: SortState<AdminUserSortKey>
+  onSort: (key: AdminUserSortKey) => void
+  actions: UserActions
+}) {
+  return (
+    <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[1180px] border-collapse text-left text-xs">
+          <thead className="border-b border-slate-200 bg-slate-50">
+            <tr>
+              <SortableHeader label="이름" sortKey="name" sortState={sortState} onSort={onSort} />
+              <SortableHeader label="이메일" sortKey="email" sortState={sortState} onSort={onSort} />
+              <SortableHeader label="역할" sortKey="role" sortState={sortState} onSort={onSort} />
+              <SortableHeader label="본부·지사" sortKey="organization" sortState={sortState} onSort={onSort} />
+              <SortableHeader label="회사" sortKey="company" sortState={sortState} onSort={onSort} />
+              <SortableHeader label="직책" sortKey="position" sortState={sortState} onSort={onSort} />
+              <SortableHeader label="가입일" sortKey="createdAt" sortState={sortState} onSort={onSort} />
+              <SortableHeader label="최근 로그인" sortKey="lastSignInAt" sortState={sortState} onSort={onSort} />
+              <SortableHeader label="인증 상태" sortKey="confirmed" sortState={sortState} onSort={onSort} />
+              <th scope="col" className="px-3 py-2 text-right font-semibold text-slate-600">작업</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 text-slate-700">
+            {users.map((user) => <UserTableRow key={user.id} user={user} actions={actions} />)}
+            {users.length === 0 && (
+              <tr>
+                <td colSpan={10} className="px-3 py-16 text-center text-sm text-slate-500">
+                  조건에 맞는 가입자가 없습니다. 검색어나 필터를 해제하면 더 많은 가입자를 볼 수 있습니다.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function UserMobileSummary({ user }: { user: AdminUser }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-50 font-bold text-blue-700">
+        {(user.full_name ?? user.email ?? '?').slice(0, 1)}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-semibold text-slate-950">
+          {user.full_name ?? '이름 없음'} · {user.role ?? '역할 없음'}
+        </span>
+        <span className="mt-0.5 block truncate text-xs text-slate-500">{user.email ?? '이메일 없음'}</span>
+      </span>
+      <span
+        className={user.email_confirmed_at
+          ? 'shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700'
+          : 'shrink-0 rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700'}
+      >
+        {user.email_confirmed_at ? '인증' : '대기'}
+      </span>
+    </div>
+  )
+}
+
+function DetailItem({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <div className={wide ? 'col-span-2' : ''}>
+      <dt className="text-xs text-slate-400">{label}</dt>
+      <dd className="mt-1 truncate font-medium tabular-nums text-slate-700">{value}</dd>
+    </div>
+  )
+}
+
+function UserMobileDetails({ user }: { user: AdminUser }) {
+  return (
+    <>
+      {!user.has_profile && (
+        <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+          이 계정에는 프로필 행이 없습니다.
+        </p>
+      )}
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+        <DetailItem label="소속" value={[user.hq_division, user.branch_division].filter(Boolean).join(' · ') || '-'} />
+        <DetailItem label="회사" value={user.company_name ?? '-'} />
+        <DetailItem label="직책" value={user.position ?? '-'} />
+        <DetailItem label="가입일" value={formatDate(user.created_at)} />
+        <DetailItem label="최근 로그인" value={formatDate(user.last_sign_in_at, true)} wide />
+      </dl>
+    </>
+  )
+}
+
+function UserMobileActions({ user, actions }: { user: AdminUser; actions: UserActions }) {
+  const busy = Boolean(actions.pendingAction)
+  return (
+    <div className="mt-4 grid grid-cols-2 gap-2">
+      {!user.email_confirmed_at && (
+        <button
+          type="button" onClick={() => actions.onConfirm(user)} disabled={busy}
+          className="col-span-2 min-h-11 rounded-xl bg-emerald-600 px-3 text-sm font-semibold text-white outline-none transition hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+        >
+          {actions.pendingAction === `confirm-${user.id}` ? '처리 중' : '인증 처리'}
+        </button>
+      )}
+      <button
+        type="button" onClick={() => actions.onEdit(user)} disabled={busy}
+        className="min-h-11 rounded-xl bg-[#15396f] px-3 text-sm font-semibold text-white outline-none transition hover:bg-[#1c4886] focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+      >
+        정보 수정
+      </button>
+      <button
+        type="button" onClick={() => actions.onDelete(user)} disabled={busy}
+        className="min-h-11 rounded-xl border border-red-200 bg-red-50 px-3 text-sm font-semibold text-red-700 outline-none transition hover:bg-red-100 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+      >
+        {actions.pendingAction === `delete-${user.id}` ? '삭제 중' : '계정 삭제'}
+      </button>
+    </div>
+  )
+}
+
+function UsersMobileList({ users, expandedUserId, onToggle, actions }: {
+  users: AdminUser[]
+  expandedUserId: string | null
+  onToggle: (id: string) => void
+  actions: UserActions
+}) {
+  if (users.length === 0) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-12 text-center text-sm text-slate-500 shadow-sm md:hidden">
+        조건에 맞는 가입자가 없습니다.
+        <span className="mt-1 block text-xs text-slate-400">검색어나 필터를 해제하면 더 많은 가입자를 볼 수 있습니다.</span>
+      </div>
+    )
+  }
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-      {summaries.map((summary) => (
-        <div key={summary.label} className="rounded border border-gray-200 bg-white px-3 py-2">
-          <p className="text-xs text-gray-500">{summary.label}</p>
-          <p className="mt-0.5 text-lg font-semibold text-gray-900">
-            {summary.value.toLocaleString()}명
-          </p>
-        </div>
+    <div className="grid gap-2 md:hidden">
+      {users.map((user) => (
+        <AdminMobileDisclosure
+          key={user.id}
+          id={user.id}
+          expanded={expandedUserId === user.id}
+          onToggle={() => onToggle(user.id)}
+          summary={<UserMobileSummary user={user} />}
+        >
+          <UserMobileDetails user={user} />
+          <UserMobileActions user={user} actions={actions} />
+        </AdminMobileDisclosure>
       ))}
     </div>
   )
 }
 
-function ProfileField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
+function PaginationBar({ total, currentPage, totalPages, onPrev, onNext }: {
+  total: number
+  currentPage: number
+  totalPages: number
+  onPrev: () => void
+  onNext: () => void
+}) {
+  const stepClass = 'grid h-11 w-11 place-items-center rounded-xl border border-slate-200 text-slate-600 outline-none transition hover:border-slate-300 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-40'
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-600 shadow-sm md:px-4">
+      <span className="tabular-nums">
+        검색 결과 {total.toLocaleString()}명 · 페이지당 {PAGE_SIZE}명
+      </span>
+      <div className="flex items-center gap-2">
+        <button type="button" onClick={onPrev} disabled={currentPage === 1} aria-label="이전 페이지" className={stepClass}>
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+        </button>
+        <span className="w-16 text-center font-semibold tabular-nums text-slate-700">
+          {currentPage.toLocaleString()} / {totalPages.toLocaleString()}
+        </span>
+        <button type="button" onClick={onNext} disabled={currentPage === totalPages} aria-label="다음 페이지" className={stepClass}>
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+const FIELD_CLASS = 'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100'
+
+function ProfileField({ label, value, onChange }: {
+  label: string; value: string; onChange: (value: string) => void
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-gray-700">{label}</span>
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded border border-gray-300 px-2.5 py-2 text-sm text-gray-900 outline-none focus:border-gray-600"
-      />
+      <span className="mb-1 block text-xs font-semibold text-slate-600">{label}</span>
+      <input value={value} onChange={(event) => onChange(event.target.value)} className={FIELD_CLASS} />
     </label>
   )
 }
 
-function EditUserModal({
-  user,
-  onClose,
-  onSave,
-}: {
+function EditUserModal({ user, onClose, onSave }: {
   user: AdminUser
   onClose: () => void
   onSave: (id: string, profile: ProfilePatch) => Promise<void>
@@ -202,101 +534,67 @@ function EditUserModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
       <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="edit-user-title"
-        className="w-full max-w-2xl rounded-lg bg-white shadow-xl"
+        role="dialog" aria-modal="true" aria-labelledby="edit-user-title"
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl shadow-slate-950/20"
       >
-        <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
+        <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
           <div>
-            <h2 id="edit-user-title" className="text-base font-semibold text-gray-900">
-              가입자 정보 수정
-            </h2>
-            <p className="mt-0.5 text-xs text-gray-500">{user.email ?? '이메일 없음'}</p>
+            <h2 id="edit-user-title" className="text-base font-bold text-slate-950">가입자 정보 수정</h2>
+            <p className="mt-0.5 text-xs text-slate-500">{user.email ?? '이메일 없음'}</p>
           </div>
           <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            aria-label="수정 창 닫기"
-            className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
+            type="button" onClick={onClose} disabled={saving} aria-label="수정 창 닫기"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-slate-400 outline-none transition hover:bg-slate-100 hover:text-slate-700 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit}>
           <div className="grid gap-3 px-5 py-4 sm:grid-cols-2">
             {!user.has_profile && (
-              <p className="sm:col-span-2 rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <p className="sm:col-span-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
                 이 계정에는 프로필 행이 없어 저장 시 수정할 수 없다는 안내가 표시됩니다.
               </p>
             )}
-            <ProfileField
-              label="이름"
-              value={draft.full_name}
-              onChange={(value) => changeField('full_name', value)}
-            />
-            <ProfileField
-              label="연락처"
-              value={draft.phone_number}
-              onChange={(value) => changeField('phone_number', value)}
-            />
+            <ProfileField label="이름" value={draft.full_name} onChange={(value) => changeField('full_name', value)} />
+            <ProfileField label="연락처" value={draft.phone_number} onChange={(value) => changeField('phone_number', value)} />
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-gray-700">역할</span>
+              <span className="mb-1 block text-xs font-semibold text-slate-600">역할</span>
               <select
                 value={draft.role}
                 onChange={(event) => changeField('role', event.target.value as Role | '')}
-                className="w-full rounded border border-gray-300 bg-white px-2.5 py-2 text-sm text-gray-900 outline-none focus:border-gray-600"
+                className={FIELD_CLASS}
               >
                 <option value="">역할 선택</option>
                 {ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
               </select>
             </label>
-            <ProfileField
-              label="직책"
-              value={draft.position}
-              onChange={(value) => changeField('position', value)}
-            />
-            <ProfileField
-              label="본부"
-              value={draft.hq_division}
-              onChange={(value) => changeField('hq_division', value)}
-            />
-            <ProfileField
-              label="지사"
-              value={draft.branch_division}
-              onChange={(value) => changeField('branch_division', value)}
-            />
+            <ProfileField label="직책" value={draft.position} onChange={(value) => changeField('position', value)} />
+            <ProfileField label="본부" value={draft.hq_division} onChange={(value) => changeField('hq_division', value)} />
+            <ProfileField label="지사" value={draft.branch_division} onChange={(value) => changeField('branch_division', value)} />
             <div className="sm:col-span-2">
-              <ProfileField
-                label="회사"
-                value={draft.company_name}
-                onChange={(value) => changeField('company_name', value)}
-              />
+              <ProfileField label="회사" value={draft.company_name} onChange={(value) => changeField('company_name', value)} />
             </div>
             {error && (
-              <p className="sm:col-span-2 rounded bg-red-50 px-3 py-2 text-xs text-red-700">
+              <p role="alert" className="sm:col-span-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
                 {error}
               </p>
             )}
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-gray-200 px-5 py-3">
+          <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3">
             <button
-              type="button"
-              onClick={onClose}
-              disabled={saving}
-              className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              type="button" onClick={onClose} disabled={saving}
+              className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 outline-none transition hover:border-slate-300 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
             >
               취소
             </button>
             <button
-              type="submit"
-              disabled={saving}
-              className="rounded bg-gray-900 px-3 py-1.5 text-sm text-white hover:bg-gray-700 disabled:opacity-50"
+              type="submit" disabled={saving}
+              className="min-h-11 rounded-xl bg-blue-600 px-4 text-sm font-semibold text-white outline-none transition hover:bg-blue-700 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
             >
               {saving ? '저장 중...' : '저장'}
             </button>
@@ -317,6 +615,8 @@ export default function AdminUsersPage() {
   const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all')
   const [unconfirmedOnly, setUnconfirmedOnly] = useState(false)
   const [page, setPage] = useState(1)
+  const [sortState, setSortState] = useState<SortState<AdminUserSortKey>>({ key: null, direction: null })
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null)
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null)
   const [pendingAction, setPendingAction] = useState<string | null>(null)
 
@@ -334,6 +634,7 @@ export default function AdminUsersPage() {
     } finally {
       setLoading(false)
       setRefreshing(false)
+      setExpandedUserId(null)
     }
   }, [])
 
@@ -354,14 +655,33 @@ export default function AdminUsersPage() {
     })
   }, [roleFilter, search, unconfirmedOnly, users])
 
-  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE))
-  const currentPage = Math.min(page, totalPages)
-  const visibleUsers = filteredUsers.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE
+  const sortedUsers = useMemo(
+    () => sortRows(filteredUsers, sortState, getAdminUserSortValue),
+    [filteredUsers, sortState]
   )
+  const totalPages = Math.max(1, Math.ceil(sortedUsers.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages)
+  const visibleUsers = sortedUsers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
-  const resetPage = () => setPage(1)
+  const resetListPosition = () => {
+    setPage(1)
+    setExpandedUserId(null)
+  }
+
+  const goToPage = (nextPage: number) => {
+    setPage(nextPage)
+    setExpandedUserId(null)
+  }
+
+  const handleSort = (key: AdminUserSortKey) => {
+    setSortState((current) => nextSortState(current, key))
+    resetListPosition()
+  }
+
+  const handleMobileSortChange = (state: SortState<AdminUserSortKey>) => {
+    setSortState(state)
+    resetListPosition()
+  }
 
   const handleConfirm = async (user: AdminUser) => {
     setPendingAction(`confirm-${user.id}`)
@@ -417,197 +737,90 @@ export default function AdminUsersPage() {
     }
   }
 
+  const actions: UserActions = {
+    pendingAction,
+    onConfirm: (user) => void handleConfirm(user),
+    onEdit: (user) => setEditingUser(user),
+    onDelete: (user) => void handleDelete(user),
+  }
+
   return (
     <section className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">가입자 관리</h2>
-          <p className="mt-1 text-sm text-gray-500">가입자 정보와 이메일 인증 상태를 관리합니다.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[11px] font-bold tracking-[0.18em] text-blue-600">MEMBER DIRECTORY</p>
+          <h2 className="mt-1 text-xl font-bold text-slate-950 md:text-2xl">가입자 관리</h2>
+          <p className="mt-1 text-sm text-slate-500">가입자 정보와 이메일 인증 상태를 관리합니다.</p>
         </div>
         <button
-          type="button"
-          onClick={() => void loadUsers()}
-          disabled={refreshing || loading}
-          className="inline-flex items-center gap-1.5 rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          type="button" onClick={() => void loadUsers()} disabled={refreshing || loading}
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition hover:border-slate-300 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
         >
-          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
           새로고침
         </button>
       </div>
 
       <SummaryCards users={users} />
 
-      <div className="flex flex-wrap items-center gap-2 rounded border border-gray-200 bg-white p-3">
-        <label className="relative min-w-64 flex-1">
-          <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
-          <input
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value)
-              resetPage()
-            }}
-            placeholder="이름, 이메일, 회사 검색"
-            className="w-full rounded border border-gray-300 py-2 pl-8 pr-3 text-sm text-gray-900 outline-none focus:border-gray-600"
+      <UsersFilterPanel
+        search={search}
+        roleFilter={roleFilter}
+        unconfirmedOnly={unconfirmedOnly}
+        onSearchChange={(value) => {
+          setSearch(value)
+          resetListPosition()
+        }}
+        onRoleChange={(value) => {
+          setRoleFilter(value)
+          resetListPosition()
+        }}
+        onUnconfirmedChange={(value) => {
+          setUnconfirmedOnly(value)
+          resetListPosition()
+        }}
+      />
+
+      <MobileSortControls
+        options={ADMIN_USER_SORT_OPTIONS}
+        sortState={sortState}
+        onChange={handleMobileSortChange}
+      />
+
+      {error && (
+        <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {error}
+        </div>
+      )}
+      {notice && (
+        <div role="status" className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+          {notice}
+        </div>
+      )}
+
+      {loading ? (
+        <div className="flex flex-col items-center gap-3 rounded-2xl border border-slate-200 bg-white py-16 text-sm text-slate-500 shadow-sm">
+          <span className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" aria-hidden="true" />
+          가입자 목록을 불러오는 중...
+        </div>
+      ) : (
+        <>
+          <UsersMobileList
+            users={visibleUsers}
+            expandedUserId={expandedUserId}
+            onToggle={(id) => setExpandedUserId((current) => (current === id ? null : id))}
+            actions={actions}
           />
-        </label>
-        <select
-          value={roleFilter}
-          onChange={(event) => {
-            setRoleFilter(event.target.value as Role | 'all')
-            resetPage()
-          }}
-          aria-label="역할 필터"
-          className="rounded border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none focus:border-gray-600"
-        >
-          <option value="all">전체 역할</option>
-          {ROLES.map((role) => <option key={role} value={role}>{role}</option>)}
-        </select>
-        <label className="inline-flex items-center gap-2 whitespace-nowrap px-1 text-sm text-gray-700">
-          <input
-            type="checkbox"
-            checked={unconfirmedOnly}
-            onChange={(event) => {
-              setUnconfirmedOnly(event.target.checked)
-              resetPage()
-            }}
-            className="h-4 w-4 rounded border-gray-300"
+          <UsersTable users={visibleUsers} sortState={sortState} onSort={handleSort} actions={actions} />
+          <PaginationBar
+            total={sortedUsers.length}
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPrev={() => goToPage(Math.max(1, currentPage - 1))}
+            onNext={() => goToPage(Math.min(totalPages, currentPage + 1))}
           />
-          미인증만
-        </label>
-      </div>
-
-      {error && <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-      {notice && <p className="rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{notice}</p>}
-
-      <div className="overflow-hidden rounded border border-gray-200 bg-white">
-        {loading ? (
-          <div className="py-16 text-center text-sm text-gray-500">가입자 목록을 불러오는 중...</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] border-collapse text-left text-xs">
-              <thead className="bg-gray-50 text-gray-600">
-                <tr>
-                  <th className="px-3 py-2 font-medium">이름</th>
-                  <th className="px-3 py-2 font-medium">이메일</th>
-                  <th className="px-3 py-2 font-medium">역할</th>
-                  <th className="px-3 py-2 font-medium">본부·지사</th>
-                  <th className="px-3 py-2 font-medium">회사</th>
-                  <th className="px-3 py-2 font-medium">직책</th>
-                  <th className="px-3 py-2 font-medium">가입일</th>
-                  <th className="px-3 py-2 font-medium">최근 로그인</th>
-                  <th className="px-3 py-2 font-medium">인증 상태</th>
-                  <th className="px-3 py-2 text-right font-medium">작업</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 text-gray-700">
-                {visibleUsers.map((user) => (
-                  <tr key={user.id} className="hover:bg-gray-50/70">
-                    <td className="max-w-36 px-3 py-2">
-                      <p className="truncate font-medium text-gray-900">{user.full_name ?? '이름 없음'}</p>
-                      {!user.has_profile && <p className="mt-0.5 text-[11px] text-amber-700">프로필 없음</p>}
-                    </td>
-                    <td className="max-w-52 truncate px-3 py-2" title={user.email ?? undefined}>
-                      {user.email ?? '-'}
-                    </td>
-                    <td className="px-3 py-2">
-                      <span className={`inline-flex rounded px-2 py-0.5 ring-1 ring-inset ${roleBadgeClass(user.role)}`}>
-                        {user.role ?? '-'}
-                      </span>
-                    </td>
-                    <td className="max-w-40 px-3 py-2">
-                      <p className="truncate">{user.hq_division ?? '-'}</p>
-                      {user.branch_division && <p className="truncate text-gray-500">{user.branch_division}</p>}
-                    </td>
-                    <td className="max-w-40 truncate px-3 py-2" title={user.company_name ?? undefined}>
-                      {user.company_name ?? '-'}
-                    </td>
-                    <td className="max-w-28 truncate px-3 py-2">{user.position ?? '-'}</td>
-                    <td className="whitespace-nowrap px-3 py-2">{formatDate(user.created_at)}</td>
-                    <td className="whitespace-nowrap px-3 py-2">{formatDate(user.last_sign_in_at, true)}</td>
-                    <td className="px-3 py-2">
-                      {user.email_confirmed_at ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-700">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> 인증
-                        </span>
-                      ) : (
-                        <span className="text-amber-700">미인증</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex justify-end gap-1">
-                        {!user.email_confirmed_at && (
-                          <button
-                            type="button"
-                            onClick={() => void handleConfirm(user)}
-                            disabled={Boolean(pendingAction)}
-                            className="inline-flex items-center gap-1 rounded border border-emerald-200 px-2 py-1 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50"
-                          >
-                            <UserCheck className="h-3.5 w-3.5" />
-                            {pendingAction === `confirm-${user.id}` ? '처리 중' : '인증 처리'}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setEditingUser(user)}
-                          disabled={Boolean(pendingAction)}
-                          className="inline-flex items-center gap-1 rounded border border-gray-300 px-2 py-1 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          <Pencil className="h-3.5 w-3.5" /> 수정
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete(user)}
-                          disabled={Boolean(pendingAction)}
-                          className="inline-flex items-center gap-1 rounded border border-red-200 px-2 py-1 text-red-700 hover:bg-red-50 disabled:opacity-50"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          {pendingAction === `delete-${user.id}` ? '삭제 중' : '삭제'}
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {visibleUsers.length === 0 && (
-                  <tr>
-                    <td colSpan={10} className="px-3 py-16 text-center text-sm text-gray-500">
-                      조건에 맞는 가입자가 없습니다.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {!loading && (
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 px-3 py-2 text-xs text-gray-600">
-            <span>
-              검색 결과 {filteredUsers.length.toLocaleString()}명 · 페이지당 {PAGE_SIZE}명
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                aria-label="이전 페이지"
-                className="rounded border border-gray-300 p-1 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span>{currentPage.toLocaleString()} / {totalPages.toLocaleString()}</span>
-              <button
-                type="button"
-                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-                aria-label="다음 페이지"
-                className="rounded border border-gray-300 p-1 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+        </>
+      )}
 
       {editingUser && (
         <EditUserModal
