@@ -56,6 +56,54 @@ test('필터링된 전체 결과를 정렬한 뒤 페이지를 나눈다', () =>
   expect(sorted.slice(0, 2).map((row) => row.id)).toEqual(['newer', 'middle'])
 })
 
+test('정렬 한 번에 각 행의 정렬 값을 정확히 한 번만 계산한다', () => {
+  const rows = [
+    { id: 'r1', value: 5 },
+    { id: 'r2', value: 3 },
+    { id: 'r3', value: 8 },
+    { id: 'r4', value: 1 },
+    { id: 'r5', value: 7 },
+    { id: 'r6', value: 2 },
+    { id: 'r7', value: 6 },
+    { id: 'r8', value: 4 },
+  ]
+  const visited: string[] = []
+
+  sortRows(rows, { key: 'value', direction: 'asc' }, (row) => {
+    visited.push(row.id)
+    return row.value
+  })
+
+  expect(visited.length).toBe(rows.length)
+  expect([...visited].sort()).toEqual(rows.map((row) => row.id))
+})
+
+test('불리언 false는 빈 값이 아니라 true보다 앞선 값으로 정렬한다', () => {
+  const rows = [
+    { id: 'true', flag: true },
+    { id: 'empty', flag: null },
+    { id: 'false', flag: false },
+  ]
+
+  expect(sortRows(rows, { key: 'flag', direction: 'asc' }, (row) => row.flag).map((row) => row.id))
+    .toEqual(['false', 'true', 'empty'])
+  expect(sortRows(rows, { key: 'flag', direction: 'desc' }, (row) => row.flag).map((row) => row.id))
+    .toEqual(['true', 'false', 'empty'])
+})
+
+test('숫자 0은 빈 값이 아니라 가장 작은 값으로 정렬한다', () => {
+  const rows = [
+    { id: 'one', amount: 1 },
+    { id: 'missing', amount: null },
+    { id: 'zero', amount: 0 },
+  ]
+
+  expect(sortRows(rows, { key: 'amount', direction: 'asc' }, (row) => row.amount).map((row) => row.id))
+    .toEqual(['zero', 'one', 'missing'])
+  expect(sortRows(rows, { key: 'amount', direction: 'desc' }, (row) => row.amount).map((row) => row.id))
+    .toEqual(['one', 'zero', 'missing'])
+})
+
 test('가입자 열을 한국어 문자열, 날짜, 인증 상태 값으로 변환한다', () => {
   const user = {
     full_name: '김현우',

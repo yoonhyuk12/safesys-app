@@ -37,10 +37,10 @@ export function sortRows<T, K extends string>(
   const key = state.key
   const direction = state.direction
   return rows
-    .map((row, index) => ({ row, index }))
+    .map((row, index) => ({ row, index, value: getValue(row, key) }))
     .sort((left, right) => {
-      const leftValue = getValue(left.row, key)
-      const rightValue = getValue(right.row, key)
+      const leftValue = left.value
+      const rightValue = right.value
       const leftHasValue = hasValue(leftValue)
       const rightHasValue = hasValue(rightValue)
       if (!leftHasValue || !rightHasValue) {
