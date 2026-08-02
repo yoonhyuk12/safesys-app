@@ -49,6 +49,12 @@ export async function POST(request: NextRequest) {
   })
   if (error) {
     console.error('관리자 인증번호 발송 오류', error.message)
+    if (error.status === 429) {
+      return NextResponse.json(
+        { success: false, error: '인증번호 발송이 너무 잦습니다. 잠시 후 다시 시도해 주세요.' },
+        { status: 429 }
+      )
+    }
     return NextResponse.json(
       { success: false, error: '인증번호를 발송하지 못했습니다. 잠시 후 다시 시도해 주세요.' },
       { status: 500 }
