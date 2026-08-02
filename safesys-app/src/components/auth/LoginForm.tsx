@@ -40,13 +40,14 @@ const LoginForm: React.FC = () => {
   const [showFindPasswordModal, setShowFindPasswordModal] = useState(false)
   const [showContacts, setShowContacts] = useState(false)
   const [showSignupNotice, setShowSignupNotice] = useState(false)
-  // 관리자 로그인: 아이디에 @가 없으면 admin 아이디로 보고 메일 인증번호 흐름으로 전환
+  // 관리자 로그인: 아이디란에 정확히 admin을 입력했을 때만 메일 인증번호 흐름으로 전환
   const [otpStep, setOtpStep] = useState(false)
   const [otpToken, setOtpToken] = useState('')
   const [maskedEmail, setMaskedEmail] = useState('')
   const [cooldown, setCooldown] = useState(0)
 
-  const isAdminId = formData.email.trim() !== '' && !formData.email.includes('@')
+  // 서버의 ADMIN_LOGIN_ID와 같은 값이어야 한다 (입력값은 handleChange에서 소문자로 변환됨)
+  const isAdminId = formData.email.trim() === 'admin'
 
   // 인증번호 재발송 쿨다운 타이머
   useEffect(() => {
