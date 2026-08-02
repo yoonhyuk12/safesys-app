@@ -12,3 +12,6 @@
 - 사용자 지시로 admin은 매 로그인마다 이메일 인증번호(OTP) 입력 필수. 구현 방식은 Supabase signInWithOtp/verifyOtp + JWT amr에 otp 존재를 requireAdmin에서 서버 강제. 비밀번호 로그인만으로는 관리자 API 403.
 - 주의: 인증번호 숫자가 메일에 표시되려면 Supabase 대시보드의 Magic Link 이메일 템플릿에 {{ .Token }}이 있어야 한다. 기본 템플릿이면 링크만 온다. 대시보드 확인은 사용자 몫.
 - admin@umusun.com 메일함 실수신 가능 여부는 미확인 — 불가 시 ADMIN_EMAILS의 sales@umusun.com으로 로그인(계정 생성 필요) 또는 이메일 교체.
+- (변경) 사용자 지시로 admin 계정은 admin@umusun.com이 아니라 기존 yoonhyuk1@nate.com 계정을 사용, admin@umusun.com은 삭제. 인증번호도 yoonhyuk1@nate.com으로 발송. env는 ADMIN_EMAILS·ADMIN_LOGIN_ID(admin)·ADMIN_OTP_EMAIL 3종(.env.local + Vercel 등록 완료).
+- (변경) 사용자 지시로 별도 /admin-login 페이지 제거, 기존 LoginForm에 통합(커밋 6d80ac5). 아이디란에 @ 없는 값을 입력하면 관리자 흐름으로 전환 — 서버가 ADMIN_LOGIN_ID와 대조하므로 클라이언트에 admin 문자열 하드코딩 없음.
+- Orca 앱이 Worker C 작업 중 크래시(메모리 부족 추정) — OTP 라우트 2개·로그인 화면·루트 리다이렉트 잔여분은 Advisor가 직접 마무리. Orca 재시작 후 task_53edf47cba15가 dispatched로 남아 있으면 수동 정리 필요.
