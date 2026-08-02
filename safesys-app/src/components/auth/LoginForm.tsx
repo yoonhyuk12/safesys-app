@@ -43,6 +43,7 @@ const LoginForm: React.FC = () => {
   // 관리자 로그인: 아이디란에 정확히 admin을 입력했을 때만 메일 인증번호 흐름으로 전환
   const [otpStep, setOtpStep] = useState(false)
   const [otpToken, setOtpToken] = useState('')
+  const [adminEmail, setAdminEmail] = useState('')
   const [maskedEmail, setMaskedEmail] = useState('')
   const [cooldown, setCooldown] = useState(0)
 
@@ -115,7 +116,7 @@ const LoginForm: React.FC = () => {
       const response = await fetch('/api/admin/otp/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: formData.email.trim() }),
+        body: JSON.stringify({ id: formData.email.trim(), email: adminEmail.trim() }),
       })
       const result = await response.json()
       if (!response.ok || !result?.success) {
@@ -307,8 +308,31 @@ const LoginForm: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 관리자 아이디(admin) 입력 시 비밀번호 대신 인증번호 발송으로 진행 */}
-                {!isAdminId && (
+                {/* 관리자 아이디(admin) 입력 시 비밀번호 대신 인증번호 받을 이메일을 입력받는다 */}
+                {isAdminId ? (
+                  <div>
+                    <label htmlFor="admin-otp-email" className="block text-sm font-medium text-gray-700 mb-2">
+                      인증번호 받을 이메일
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="admin-otp-email"
+                        name="adminEmail"
+                        type="email"
+                        inputMode="email"
+                        autoComplete="off"
+                        required
+                        className="appearance-none rounded-lg relative block w-full px-3 py-3 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                        placeholder="관리자 이메일을 입력하세요"
+                        value={adminEmail}
+                        onChange={(e) => setAdminEmail(e.target.value.toLowerCase())}
+                      />
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <ShieldCheck className="h-5 w-5 text-gray-400" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                   <div>
                     <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                       비밀번호

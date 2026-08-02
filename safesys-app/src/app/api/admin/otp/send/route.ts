@@ -39,11 +39,21 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const id = typeof body === 'object' && body !== null && 'id' in body ? body.id : null
-  if (typeof id !== 'string' || id.trim() !== loginId) {
+  const record = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
+  const id = typeof record.id === 'string' ? record.id.trim() : ''
+  const email = typeof record.email === 'string' ? record.email.trim().toLowerCase() : ''
+
+  if (id !== loginId) {
     return NextResponse.json(
       { success: false, error: '아이디 또는 인증 정보가 올바르지 않습니다.' },
       { status: 401 }
+    )
+  }
+  // 수신 주소를 직접 입력하게 해서 아이디만 아는 사람이 발송을 반복 트리거하지 못하게 막는다.
+  if (email !== otpEmail.trim().toLowerCase()) {
+    return NextResponse.json(
+      { success: false, error: '관리자 이메일이 아닙니다.' },
+      { status: 403 }
     )
   }
 
