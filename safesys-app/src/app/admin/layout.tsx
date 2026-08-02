@@ -1,20 +1,24 @@
 'use client'
 
-// 관리자 섹션 공통 레이아웃 — 관리자 여부를 서버에 확인하는 가드와 탭 네비게이션
+// 관리자 섹션 공통 레이아웃 — 관리자 여부를 서버에 확인하는 가드와 반응형 콘솔 셸, 로그아웃
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { FolderKanban, Home, LogOut, ShieldCheck, UsersRound } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { performAdminSignOut } from '@/lib/admin-session'
 
 const TABS = [
-  { href: '/admin/users', label: '가입자 관리' },
-  { href: '/admin/projects', label: '프로젝트 현황' },
+  { href: '/admin/users', label: '가입자 관리', icon: UsersRound },
+  { href: '/admin/projects', label: '프로젝트 현황', icon: FolderKanban },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
   const pathname = usePathname()
   const [status, setStatus] = useState<'checking' | 'allowed'>('checking')
+  const [signingOut, setSigningOut] = useState(false)
+  const [logoutError, setLogoutError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -51,40 +55,145 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [router])
 
+  const handleSignOut = async () => {
+    setSigningOut(true)
+    setLogoutError(null)
+    try {
+      await performAdminSignOut(
+        () => supabase.auth.signOut(),
+        (path) => router.replace(path)
+      )
+    } catch {
+      setLogoutError('로그아웃하지 못했습니다. 잠시 후 다시 시도해 주세요.')
+    } finally {
+      setSigningOut(false)
+    }
+  }
+
   if (status !== 'allowed') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white text-sm text-gray-500">
-        관리자 권한 확인 중...
+      <div className="min-h-screen grid place-items-center bg-slate-100 px-4">
+        <div className="flex flex-col items-center gap-4">
+          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-[#0b1730] text-white shadow-lg shadow-slate-900/10">
+            <ShieldCheck className="h-7 w-7" aria-hidden="true" />
+          </span>
+          <span
+            className="h-6 w-6 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600"
+            aria-hidden="true"
+          />
+          <p className="text-sm font-medium text-slate-500">관리자 권한 확인 중</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-6">
-          <h1 className="text-lg font-bold text-gray-900">SafeSys 관리자</h1>
-          <nav className="flex gap-1">
-            {TABS.map((tab) => (
+    <div className="min-h-screen bg-slate-100 text-slate-950">
+      <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col bg-[#0b1730] md:flex">
+        <div className="flex items-center gap-3 px-5 py-6">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white">
+            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-sm font-bold text-white">SafeSys</span>
+            <span className="block text-xs text-slate-400">관리자 콘솔</span>
+          </span>
+        </div>
+        <nav className="flex flex-1 flex-col gap-1 px-3">
+          {TABS.map((tab) => {
+            const active = pathname?.startsWith(tab.href)
+            const Icon = tab.icon
+            return (
               <Link
                 key={tab.href}
                 href={tab.href}
-                className={`px-3 py-1.5 rounded text-sm ${
-                  pathname?.startsWith(tab.href)
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-600 hover:bg-gray-100'
+                aria-current={active ? 'page' : undefined}
+                className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition ${
+                  active
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/20'
+                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
                 }`}
               >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                 {tab.label}
               </Link>
-            ))}
-          </nav>
-          <Link href="/" className="ml-auto text-sm text-gray-500 hover:text-gray-800">
-            메인으로
+            )
+          })}
+        </nav>
+        <Link
+          href="/"
+          className="mx-3 mb-5 flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
+        >
+          <Home className="h-4 w-4 shrink-0" aria-hidden="true" />
+          메인으로
+        </Link>
+      </aside>
+
+      <header className="sticky top-0 z-40 bg-[#0b1730] md:hidden">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <Link href="/" className="flex min-w-0 items-center gap-2.5" title="메인으로">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white">
+              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <span className="truncate text-sm font-bold text-white">SafeSys 관리자</span>
           </Link>
+          <button
+            type="button"
+            onClick={() => void handleSignOut()}
+            disabled={signingOut}
+            className="ml-auto inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-xl border border-white/15 px-3 text-sm font-semibold text-slate-100 outline-none transition hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-50"
+          >
+            <LogOut className="h-4 w-4" aria-hidden="true" />
+            {signingOut ? '로그아웃 중' : '로그아웃'}
+          </button>
         </div>
+        <nav className="grid grid-cols-2 gap-1 px-3 pb-3">
+          {TABS.map((tab) => {
+            const active = pathname?.startsWith(tab.href)
+            const Icon = tab.icon
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                aria-current={active ? 'page' : undefined}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition ${
+                  active
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/20'
+                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                }`}
+              >
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                {tab.label}
+              </Link>
+            )
+          })}
+        </nav>
       </header>
-      <main className="max-w-6xl mx-auto px-4 py-6">{children}</main>
+
+      <div className="md:pl-60">
+        <div className="mx-auto w-full max-w-[1600px] px-4 py-5 md:px-8 md:py-8">
+          <div className="mb-4 hidden justify-end md:flex">
+            <button
+              type="button"
+              onClick={() => void handleSignOut()}
+              disabled={signingOut}
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition hover:border-slate-300 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+            >
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              {signingOut ? '로그아웃 중' : '로그아웃'}
+            </button>
+          </div>
+          {logoutError && (
+            <div
+              role="alert"
+              className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700"
+            >
+              {logoutError}
+            </div>
+          )}
+          <main>{children}</main>
+        </div>
+      </div>
     </div>
   )
 }
