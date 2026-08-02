@@ -149,7 +149,7 @@ const LoginForm: React.FC = () => {
       })
       const result = await response.json()
       if (!response.ok || !result?.success || !result?.session) {
-        setError(result?.error || '인증번호가 올바르지 않거나 만료되었습니다.')
+        setError(result?.error || '인증번호가 올바르지 않거나 5분이 지나 만료되었습니다.')
         return
       }
       const { error: sessionError } = await supabase.auth.setSession({
@@ -260,7 +260,7 @@ const LoginForm: React.FC = () => {
                     <ShieldCheck className="h-4 w-4" />
                     관리자 인증
                   </div>
-                  <p className="mt-1">메일로 발송된 인증번호를 입력하세요.</p>
+                  <p className="mt-1">메일로 발송된 인증번호를 5분 이내에 입력하세요.</p>
                   {maskedEmail && <p className="mt-1 font-medium text-gray-900">{maskedEmail}</p>}
                 </div>
                 <div>
