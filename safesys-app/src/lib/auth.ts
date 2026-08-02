@@ -214,37 +214,3 @@ export const checkEmailExists = async (email: string): Promise<boolean> => {
     return false // 예외 발생 시에도 사용 가능으로 처리
   }
 }
-
-// 비밀번호 찾기 (재설정 요청)
-export const resetPassword = async (email: string, name: string, phone: string) => {
-  try {
-    // 1. 사용자 정보 확인 (이메일은 소문자로 변환)
-    const lowerEmail = email.toLowerCase()
-    const { data: userProfile, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('id, email, full_name, phone_number')
-      .eq('email', lowerEmail)
-      .eq('full_name', name)
-      .eq('phone_number', phone)
-      .single()
-
-    if (profileError || !userProfile) {
-      throw new Error('입력하신 정보와 일치하는 계정을 찾을 수 없습니다.')
-    }
-
-    // 2. 비밀번호 재설정 이메일 발송
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(lowerEmail, {
-      redirectTo: `${window.location.origin}/reset-password`
-    })
-
-    if (resetError) {
-      console.error('Password reset error:', resetError)
-      throw new Error('비밀번호 재설정 이메일 발송에 실패했습니다.')
-    }
-
-    return { success: true }
-  } catch (error) {
-    console.error('Reset password error:', error)
-    throw error
-  }
-} 
