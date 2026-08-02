@@ -36,7 +36,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           return
         }
         if (!result?.otpVerified) {
-          router.replace('/admin-login')
+          // 인증번호 로그인이 아니면 로그인 화면에서 admin 아이디로 다시 로그인하게 한다
+          router.replace('/login')
           return
         }
         setStatus('allowed')

@@ -1,8 +1,9 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Mail, Lock, Eye, EyeOff, Share2, Phone, ChevronDown } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, Share2, Phone, ChevronDown, ShieldCheck } from 'lucide-react'
 import { signIn } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import FindIdModal from './FindIdModal'
 import FindPasswordModal from './FindPasswordModal'
@@ -39,6 +40,20 @@ const LoginForm: React.FC = () => {
   const [showFindPasswordModal, setShowFindPasswordModal] = useState(false)
   const [showContacts, setShowContacts] = useState(false)
   const [showSignupNotice, setShowSignupNotice] = useState(false)
+  // 관리자 로그인: 아이디에 @가 없으면 admin 아이디로 보고 메일 인증번호 흐름으로 전환
+  const [otpStep, setOtpStep] = useState(false)
+  const [otpToken, setOtpToken] = useState('')
+  const [maskedEmail, setMaskedEmail] = useState('')
+  const [cooldown, setCooldown] = useState(0)
+
+  const isAdminId = formData.email.trim() !== '' && !formData.email.includes('@')
+
+  // 인증번호 재발송 쿨다운 타이머
+  useEffect(() => {
+    if (cooldown <= 0) return
+    const timer = window.setTimeout(() => setCooldown((current) => Math.max(0, current - 1)), 1000)
+    return () => window.clearTimeout(timer)
+  }, [cooldown])
 
   // 회원가입 안내 팝업 확인 후 약관 페이지로 이동
   const handleProceedSignup = () => {
@@ -91,8 +106,80 @@ const LoginForm: React.FC = () => {
     }
   }, [])
 
+  // 관리자 아이디 확인 후 인증번호 메일 발송 요청
+  const sendAdminOtp = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch('/api/admin/otp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: formData.email.trim() }),
+      })
+      const result = await response.json()
+      if (!response.ok || !result?.success) {
+        setError(result?.error || '인증번호를 발송하지 못했습니다.')
+        return
+      }
+      setMaskedEmail(result.maskedEmail || '')
+      setOtpToken('')
+      setOtpStep(true)
+      setCooldown(60)
+    } catch {
+      setError('인증번호를 발송하지 못했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 인증번호 검증 후 세션 설정과 관리자 페이지 이동
+  const verifyAdminOtp = async () => {
+    if (!/^\d{6}$/.test(otpToken)) {
+      setError('6자리 인증번호를 입력해주세요.')
+      return
+    }
+    setLoading(true)
+    setError('')
+    try {
+      const response = await fetch('/api/admin/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: formData.email.trim(), token: otpToken }),
+      })
+      const result = await response.json()
+      if (!response.ok || !result?.success || !result?.session) {
+        setError(result?.error || '인증번호가 올바르지 않거나 만료되었습니다.')
+        return
+      }
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: result.session.access_token,
+        refresh_token: result.session.refresh_token,
+      })
+      if (sessionError) {
+        setError('로그인 세션을 설정하지 못했습니다. 다시 시도해주세요.')
+        return
+      }
+      router.replace('/admin')
+    } catch {
+      setError('인증 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // 관리자 흐름: 인증번호 확인 단계 → 검증, 아이디 단계 → 발송
+    if (otpStep) {
+      await verifyAdminOtp()
+      return
+    }
+    if (isAdminId) {
+      await sendAdminOtp()
+      return
+    }
+
     setLoading(true)
     setError('')
 
@@ -164,79 +251,117 @@ const LoginForm: React.FC = () => {
 
           {/* 로그인 폼 */}
           <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  이메일 주소
-                </label>
-                <div className="relative">
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    required
-                    className="appearance-none rounded-lg relative block w-full px-3 py-3 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
-                    placeholder="이메일을 입력하세요"
-                    value={formData.email}
-                    onChange={handleChange}
-                  />
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-gray-400" />
+            {otpStep ? (
+              <div className="space-y-4">
+                {/* 관리자 인증번호 입력 단계 */}
+                <div className="rounded-lg bg-blue-50 px-4 py-3 text-sm text-gray-700">
+                  <div className="flex items-center gap-2 font-medium text-blue-800">
+                    <ShieldCheck className="h-4 w-4" />
+                    관리자 인증
                   </div>
+                  <p className="mt-1">메일로 발송된 인증번호를 입력하세요.</p>
+                  {maskedEmail && <p className="mt-1 font-medium text-gray-900">{maskedEmail}</p>}
+                </div>
+                <div>
+                  <label htmlFor="otp-token" className="block text-sm font-medium text-gray-700 mb-2">
+                    6자리 인증번호
+                  </label>
+                  <input
+                    id="otp-token"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    required
+                    autoFocus
+                    className="appearance-none rounded-lg block w-full px-3 py-3 border border-gray-300 text-center text-lg font-semibold tracking-[0.35em] text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    placeholder="000000"
+                    value={otpToken}
+                    onChange={(e) => setOtpToken(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  />
                 </div>
               </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                    이메일 주소
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="email"
+                      name="email"
+                      type="text"
+                      inputMode="email"
+                      autoComplete="email"
+                      required
+                      className="appearance-none rounded-lg relative block w-full px-3 py-3 pl-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                      placeholder="이메일을 입력하세요"
+                      value={formData.email}
+                      onChange={handleChange}
+                    />
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Mail className="h-5 w-5 text-gray-400" />
+                    </div>
+                  </div>
+                </div>
 
-              <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                  비밀번호
-                </label>
-                <div className="relative">
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    required
-                    className="appearance-none rounded-lg relative block w-full px-3 py-3 pl-10 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
-                    placeholder="비밀번호를 입력하세요"
-                    value={formData.password}
-                    onChange={handleChange}
-                  />
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-gray-400" />
+                {/* 관리자 아이디(admin) 입력 시 비밀번호 대신 인증번호 발송으로 진행 */}
+                {!isAdminId && (
+                  <div>
+                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                      비밀번호
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        required
+                        className="appearance-none rounded-lg relative block w-full px-3 py-3 pl-10 pr-10 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition-colors"
+                        placeholder="비밀번호를 입력하세요"
+                        value={formData.password}
+                        onChange={handleChange}
+                      />
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Lock className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <button
+                        type="button"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-600 transition-colors"
+                        onClick={() => setShowPassword(!showPassword)}
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-5 w-5 text-gray-400" />
+                        ) : (
+                          <Eye className="h-5 w-5 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center hover:text-gray-600 transition-colors"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-5 w-5 text-gray-400" />
-                    ) : (
-                      <Eye className="h-5 w-5 text-gray-400" />
-                    )}
-                  </button>
-                </div>
+                )}
               </div>
-            </div>
+            )}
 
             {/* 로그인 정보 기억하기 체크박스 */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="remember-me"
-                  name="remember-me"
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
-                  로그인 정보 기억하기
-                </label>
+            {!otpStep && !isAdminId && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    id="remember-me"
+                    name="remember-me"
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
+                    로그인 정보 기억하기
+                  </label>
+                </div>
               </div>
-            </div>
+            )}
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -258,11 +383,42 @@ const LoginForm: React.FC = () => {
               >
                 {loading ? (
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                ) : otpStep ? (
+                  '확인'
+                ) : isAdminId ? (
+                  '인증번호 발송'
                 ) : (
                   '로그인'
                 )}
               </button>
             </div>
+
+            {/* 관리자 인증 단계 부가 버튼 */}
+            {otpStep && (
+              <div className="flex justify-center gap-4 text-sm">
+                <button
+                  type="button"
+                  disabled={loading || cooldown > 0}
+                  onClick={() => void sendAdminOtp()}
+                  className="text-gray-600 hover:text-gray-800 transition-colors disabled:cursor-not-allowed disabled:text-gray-400"
+                >
+                  {cooldown > 0 ? `${cooldown}초 후 재발송` : '인증번호 재발송'}
+                </button>
+                <span className="text-gray-300">|</span>
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={() => {
+                    setOtpStep(false)
+                    setOtpToken('')
+                    setError('')
+                  }}
+                  className="text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  처음으로
+                </button>
+              </div>
+            )}
 
             {/* 아이디/비밀번호 찾기 */}
             <div className="text-center space-y-2">
