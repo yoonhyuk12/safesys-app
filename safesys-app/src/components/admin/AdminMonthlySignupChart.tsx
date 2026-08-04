@@ -1,4 +1,4 @@
-// 관리자 가입자 관리 화면의 최근 12개월 역할별 누적 가입 추이 그래프
+// 관리자 가입자 관리 화면의 월별 역할별 누적 가입 추이 그래프
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { sortRows, type SortDirection } from '@/lib/admin-sort'
@@ -34,11 +34,9 @@ interface SignupSortState {
 }
 
 interface SignupEntry {
-  month: string
+  monthIndex: number
   segment: SegmentKey
 }
-
-const MONTHS_WINDOW = 12
 
 /** 누적 막대의 아래→위 순서. 색은 앱 전역 역할 색을 승계한다. */
 const SEGMENTS: readonly { key: SegmentKey; color: string }[] = [
@@ -69,6 +67,8 @@ const SIGNUP_CHART = {
   padBottom: 36,
   padLeft: 44,
   minWidth: 560,
+  /** 달마다 보장하는 최소 가로 폭. 넘치면 래퍼가 가로 스크롤한다. */
+  minMonthWidth: 44,
   maxBarWidth: 48,
   /** 최상단 세그먼트의 상단 모서리 라운드 */
   barRadius: 4,
@@ -80,19 +80,25 @@ const SIGNUP_CHART = {
   tickDivisions: 4,
 } as const
 
-function monthKey(year: number, monthIndex: number): string {
-  return `${year}-${String(monthIndex + 1).padStart(2, '0')}`
+/** 로컬(KST) 기준 연·월을 하나의 정수 축으로 환산한다. */
+function toMonthIndex(date: Date): number {
+  return date.getFullYear() * 12 + date.getMonth()
 }
 
-function monthLabel(year: number, monthIndex: number): string {
-  return `${String(year).slice(2)}.${String(monthIndex + 1).padStart(2, '0')}`
+function monthKey(monthIndex: number): string {
+  return `${Math.floor(monthIndex / 12)}-${String((monthIndex % 12) + 1).padStart(2, '0')}`
 }
 
-/** 가입일을 로컬(KST) 기준 월 버킷 키로 바꾼다. 파싱 실패한 행은 제외한다. */
+function monthLabel(monthIndex: number): string {
+  const year = Math.floor(monthIndex / 12) % 100
+  return `${String(year).padStart(2, '0')}.${String((monthIndex % 12) + 1).padStart(2, '0')}`
+}
+
+/** 가입일을 로컬(KST) 기준 월 인덱스로 바꾼다. 파싱 실패한 행은 제외한다. */
 function toSignupEntry(user: SignupUser): SignupEntry[] {
   const date = new Date(user.created_at)
   if (Number.isNaN(date.getTime())) return []
-  return [{ month: monthKey(date.getFullYear(), date.getMonth()), segment: user.role ?? '미배정' }]
+  return [{ monthIndex: toMonthIndex(date), segment: user.role ?? '미배정' }]
 }
 
 /** 요약 카드 포커스에 맞춰 집계 모수를 좁힌다. */
@@ -111,19 +117,24 @@ function countBySegment(segments: readonly SegmentKey[]): Record<SegmentKey, num
   }
 }
 
-/** 오늘이 속한 달을 포함한 최근 12개월 버킷을 월 오름차순으로 만든다. 0건인 달도 남긴다. */
+/** 가입 이력이 있는 첫 달부터 마지막 달까지 버킷을 월 오름차순으로 만든다. 중간의 0건인 달도 남긴다. */
 function buildMonthlyBuckets(users: readonly SignupUser[]): MonthlyBucket[] {
-  const now = new Date()
   const entries = users.flatMap(toSignupEntry)
+  if (entries.length === 0) return []
 
-  return Array.from({ length: MONTHS_WINDOW }, (_, index) => {
-    const cursor = new Date(now.getFullYear(), now.getMonth() - (MONTHS_WINDOW - 1 - index), 1)
-    const month = monthKey(cursor.getFullYear(), cursor.getMonth())
-    const monthSegments = entries.filter((entry) => entry.month === month).map((entry) => entry.segment)
+  const monthIndexes = entries.map((entry) => entry.monthIndex)
+  const firstMonth = monthIndexes.reduce((min, index) => Math.min(min, index))
+  const lastMonth = monthIndexes.reduce((max, index) => Math.max(max, index))
+
+  return Array.from({ length: lastMonth - firstMonth + 1 }, (_, offset) => {
+    const index = firstMonth + offset
+    const monthSegments = entries
+      .filter((entry) => entry.monthIndex === index)
+      .map((entry) => entry.segment)
 
     return {
-      month,
-      label: monthLabel(cursor.getFullYear(), cursor.getMonth()),
+      month: monthKey(index),
+      label: monthLabel(index),
       total: monthSegments.length,
       counts: countBySegment(monthSegments),
     }
@@ -217,8 +228,8 @@ export function AdminMonthlySignupChart({ users, focus }: AdminMonthlySignupChar
 
   const focusedUsers = useMemo(() => users.filter((user) => matchesFocus(user, focus)), [focus, users])
   const buckets = useMemo(() => buildMonthlyBuckets(focusedUsers), [focusedUsers])
-  const windowTotal = useMemo(() => buckets.reduce((sum, bucket) => sum + bucket.total, 0), [buckets])
-  const hasSignups = windowTotal > 0
+  const totalSignups = useMemo(() => buckets.reduce((sum, bucket) => sum + bucket.total, 0), [buckets])
+  const hasSignups = totalSignups > 0
 
   // 컨테이너 실측 폭에 막대와 간격만 맞추고 글자 크기는 고정한다.
   useEffect(() => {
@@ -250,7 +261,11 @@ export function AdminMonthlySignupChart({ users, focus }: AdminMonthlySignupChar
 
   const chart = useMemo(() => {
     const count = sortedBuckets.length
-    const width = Math.max(SIGNUP_CHART.minWidth, measuredWidth)
+    const width = Math.max(
+      SIGNUP_CHART.minWidth,
+      measuredWidth,
+      count * SIGNUP_CHART.minMonthWidth + SIGNUP_CHART.padLeft + SIGNUP_CHART.padRight
+    )
     const plotWidth = width - SIGNUP_CHART.padLeft - SIGNUP_CHART.padRight
     const plotHeight = SIGNUP_CHART.height - SIGNUP_CHART.padTop - SIGNUP_CHART.padBottom
     const plotBottom = SIGNUP_CHART.padTop + plotHeight
@@ -314,14 +329,14 @@ export function AdminMonthlySignupChart({ users, focus }: AdminMonthlySignupChar
     <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-950">
-          {focusLabel ? `최근 12개월 가입 추이 · ${focusLabel}` : '최근 12개월 가입 추이'}
+          {focusLabel ? `월별 가입 추이 · ${focusLabel}` : '월별 가입 추이'}
         </h3>
         {hasSignups && <SignupSortControls sortState={sortState} onChange={setSortState} />}
       </div>
 
       {!hasSignups ? (
         <p className="mt-4 rounded-xl bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-          {focusLabel ? `최근 12개월 ${focusLabel} 가입 기록이 없습니다.` : '최근 12개월 가입 기록이 없습니다.'}
+          {focusLabel ? `${focusLabel} 가입 기록이 없습니다.` : '가입 기록이 없습니다.'}
         </p>
       ) : (
         <>
@@ -334,7 +349,7 @@ export function AdminMonthlySignupChart({ users, focus }: AdminMonthlySignupChar
               viewBox={`0 0 ${chart.width} ${chart.height}`}
             >
               <title id={titleId}>
-                {`최근 12개월 월별 ${focusLabel ?? '전체'} 가입자 수를 역할별로 쌓아 보여주는 누적 막대 그래프`}
+                {`월별 ${focusLabel ?? '전체'} 가입자 수를 역할별로 쌓아 보여주는 누적 막대 그래프`}
               </title>
               {chart.ticks.map((tick) => (
                 <g key={`tick-${tick.value}`}>
@@ -435,7 +450,7 @@ export function AdminMonthlySignupChart({ users, focus }: AdminMonthlySignupChar
           </ul>
 
           <table className="sr-only">
-            <caption>최근 12개월 월별 역할별 가입자 수</caption>
+            <caption>월별 역할별 가입자 수</caption>
             <thead>
               <tr>
                 <th scope="col">월</th>
