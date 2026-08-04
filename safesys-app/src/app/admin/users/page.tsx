@@ -14,7 +14,7 @@ import {
   type AdminUserSortKey,
 } from '@/lib/admin-list-sort'
 import { AdminMobileDisclosure } from '@/components/admin/AdminMobileDisclosure'
-import { AdminMonthlySignupChart } from '@/components/admin/AdminMonthlySignupChart'
+import { AdminMonthlySignupChart, type ChartFocus } from '@/components/admin/AdminMonthlySignupChart'
 import { MobileSortControls, SortableHeader } from '@/components/admin/AdminSortControls'
 
 const PAGE_SIZE = 50
@@ -140,6 +140,7 @@ interface SummaryItem {
   hint: string
   icon: LucideIcon
   tone: SummaryTone
+  focusKey: ChartFocus
   highlight?: boolean
 }
 
@@ -151,11 +152,12 @@ const ROLE_SUMMARY_META: Record<Role, { icon: LucideIcon; tone: SummaryTone }> =
 
 function buildUserSummaries(users: AdminUser[]): SummaryItem[] {
   return [
-    { label: '전체', value: users.length, hint: '등록 계정', icon: UsersRound, tone: 'blue' },
+    { label: '전체', value: users.length, hint: '등록 계정', icon: UsersRound, tone: 'blue', focusKey: 'all' },
     ...ROLES.map((role) => ({
       label: role,
       value: users.filter((user) => user.role === role).length,
       hint: '역할 배정',
+      focusKey: role,
       ...ROLE_SUMMARY_META[role],
     })),
     {
@@ -164,22 +166,41 @@ function buildUserSummaries(users: AdminUser[]): SummaryItem[] {
       hint: '이메일 확인 대기',
       icon: Clock3,
       tone: 'amber',
+      focusKey: 'unconfirmed',
       highlight: true,
     },
   ]
 }
 
-function SummaryCards({ users }: { users: AdminUser[] }) {
+function summaryAriaLabel(summary: SummaryItem, active: boolean): string {
+  const count = `${summary.label} ${summary.value.toLocaleString()}명`
+  if (summary.focusKey === 'all') return `${count}, 누르면 그래프를 전체 가입자로 표시합니다`
+  if (active) return `${count}, 그래프에 적용 중, 누르면 전체 가입자로 되돌립니다`
+  return `${count}, 누르면 그래프를 ${summary.label}만 표시합니다`
+}
+
+function SummaryCards({ users, focus, onFocusChange }: {
+  users: AdminUser[]
+  focus: ChartFocus
+  onFocusChange: (focus: ChartFocus) => void
+}) {
   return (
     <div className="flex gap-2 overflow-x-auto pb-1 md:grid md:grid-cols-5 md:gap-3 md:overflow-visible md:pb-0">
       {buildUserSummaries(users).map((summary) => {
         const Icon = summary.icon
+        const active = focus === summary.focusKey
         return (
-          <div
+          <button
             key={summary.label}
-            className={`min-w-[132px] shrink-0 rounded-2xl border p-3 shadow-sm md:min-w-0 md:shrink md:p-4 ${
-              summary.highlight ? 'border-amber-200 bg-amber-50/70' : 'border-slate-200 bg-white'
-            }`}
+            type="button"
+            aria-pressed={active}
+            aria-label={summaryAriaLabel(summary, active)}
+            onClick={() => onFocusChange(active && summary.focusKey !== 'all' ? 'all' : summary.focusKey)}
+            className={`min-w-[132px] shrink-0 rounded-2xl border p-3 text-left shadow-sm outline-none transition focus-visible:ring-2 focus-visible:ring-blue-500 md:w-full md:min-w-0 md:shrink md:p-4 ${
+              summary.highlight
+                ? 'border-amber-200 bg-amber-50/70 hover:border-amber-300'
+                : 'border-slate-200 bg-white hover:border-slate-300'
+            } ${active ? 'ring-2 ring-blue-500 ring-offset-1' : ''}`}
           >
             <div className="flex items-center gap-2">
               <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${SUMMARY_TONES[summary.tone]}`}>
@@ -192,7 +213,7 @@ function SummaryCards({ users }: { users: AdminUser[] }) {
               <span className="ml-0.5 text-sm font-semibold text-slate-500">명</span>
             </p>
             <p className="mt-0.5 truncate text-[11px] text-slate-400">{summary.hint}</p>
-          </div>
+          </button>
         )
       })}
     </div>
@@ -618,6 +639,7 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1)
   const [sortState, setSortState] = useState<SortState<AdminUserSortKey>>({ key: null, direction: null })
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null)
+  const [chartFocus, setChartFocus] = useState<ChartFocus>('all')
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null)
   const [pendingAction, setPendingAction] = useState<string | null>(null)
 
@@ -762,9 +784,9 @@ export default function AdminUsersPage() {
         </button>
       </div>
 
-      <SummaryCards users={users} />
+      <SummaryCards users={users} focus={chartFocus} onFocusChange={setChartFocus} />
 
-      <AdminMonthlySignupChart users={users} />
+      <AdminMonthlySignupChart users={users} focus={chartFocus} />
 
       <UsersFilterPanel
         search={search}

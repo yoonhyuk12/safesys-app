@@ -7,13 +7,18 @@ type SignupRole = '발주청' | '감리단' | '시공사'
 type SegmentKey = SignupRole | '미배정'
 type SignupSortKey = 'month' | 'count'
 
+/** 요약 카드에서 고른 그래프 집계 모수. */
+export type ChartFocus = 'all' | SignupRole | 'unconfirmed'
+
 interface SignupUser {
   created_at: string
   role: SignupRole | null
+  email_confirmed_at: string | null
 }
 
 interface AdminMonthlySignupChartProps {
   users: SignupUser[]
+  focus: ChartFocus
 }
 
 interface MonthlyBucket {
@@ -48,6 +53,15 @@ const SORT_OPTIONS: readonly { key: SignupSortKey; label: string }[] = [
   { key: 'count', label: '가입자 수 순' },
 ]
 
+/** 전체 포커스는 별도 수식어가 없으므로 null이다. */
+const FOCUS_LABELS: Record<ChartFocus, string | null> = {
+  all: null,
+  발주청: '발주청',
+  감리단: '감리단',
+  시공사: '시공사',
+  unconfirmed: '미인증',
+}
+
 const SIGNUP_CHART = {
   height: 260,
   padTop: 24,
@@ -79,6 +93,13 @@ function toSignupEntry(user: SignupUser): SignupEntry[] {
   const date = new Date(user.created_at)
   if (Number.isNaN(date.getTime())) return []
   return [{ month: monthKey(date.getFullYear(), date.getMonth()), segment: user.role ?? '미배정' }]
+}
+
+/** 요약 카드 포커스에 맞춰 집계 모수를 좁힌다. */
+function matchesFocus(user: SignupUser, focus: ChartFocus): boolean {
+  if (focus === 'all') return true
+  if (focus === 'unconfirmed') return !user.email_confirmed_at
+  return user.role === focus
 }
 
 function countBySegment(segments: readonly SegmentKey[]): Record<SegmentKey, number> {
@@ -187,14 +208,15 @@ function SignupSortControls({ sortState, onChange }: {
   )
 }
 
-export function AdminMonthlySignupChart({ users }: AdminMonthlySignupChartProps) {
+export function AdminMonthlySignupChart({ users, focus }: AdminMonthlySignupChartProps) {
   const titleId = useId()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [sortState, setSortState] = useState<SignupSortState>({ key: 'month', direction: 'asc' })
   // 첫 페인트에 0폭이 되지 않도록 최소 폭으로 시작한다.
   const [measuredWidth, setMeasuredWidth] = useState<number>(SIGNUP_CHART.minWidth)
 
-  const buckets = useMemo(() => buildMonthlyBuckets(users), [users])
+  const focusedUsers = useMemo(() => users.filter((user) => matchesFocus(user, focus)), [focus, users])
+  const buckets = useMemo(() => buildMonthlyBuckets(focusedUsers), [focusedUsers])
   const windowTotal = useMemo(() => buckets.reduce((sum, bucket) => sum + bucket.total, 0), [buckets])
   const hasSignups = windowTotal > 0
 
@@ -216,9 +238,9 @@ export function AdminMonthlySignupChart({ users }: AdminMonthlySignupChartProps)
     () => SEGMENTS.map((segment) => ({ ...segment, total: sumSegment(buckets, segment.key) })),
     [buckets]
   )
-  // 미배정은 표시 기간 합계가 1건 이상일 때만 막대·범례에 나타낸다.
+  // 표시 기간 합계가 1건 이상인 역할만 막대·범례·대체 표에 나타낸다.
   const visibleSegments = useMemo(
-    () => segmentTotals.filter((segment) => segment.key !== '미배정' || segment.total > 0),
+    () => segmentTotals.filter((segment) => segment.total > 0),
     [segmentTotals]
   )
   const sortedBuckets = useMemo(
@@ -286,16 +308,20 @@ export function AdminMonthlySignupChart({ users }: AdminMonthlySignupChartProps)
     return { width, height: SIGNUP_CHART.height, plotBottom, ticks, bars }
   }, [measuredWidth, sortedBuckets, visibleSegments])
 
+  const focusLabel = FOCUS_LABELS[focus]
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-950">최근 12개월 가입 추이</h3>
+        <h3 className="text-sm font-semibold text-slate-950">
+          {focusLabel ? `최근 12개월 가입 추이 · ${focusLabel}` : '최근 12개월 가입 추이'}
+        </h3>
         {hasSignups && <SignupSortControls sortState={sortState} onChange={setSortState} />}
       </div>
 
       {!hasSignups ? (
         <p className="mt-4 rounded-xl bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-          최근 12개월 가입 기록이 없습니다.
+          {focusLabel ? `최근 12개월 ${focusLabel} 가입 기록이 없습니다.` : '최근 12개월 가입 기록이 없습니다.'}
         </p>
       ) : (
         <>
@@ -307,7 +333,9 @@ export function AdminMonthlySignupChart({ users }: AdminMonthlySignupChartProps)
               height={chart.height}
               viewBox={`0 0 ${chart.width} ${chart.height}`}
             >
-              <title id={titleId}>최근 12개월 월별 가입자 수를 역할별로 쌓아 보여주는 누적 막대 그래프</title>
+              <title id={titleId}>
+                {`최근 12개월 월별 ${focusLabel ?? '전체'} 가입자 수를 역할별로 쌓아 보여주는 누적 막대 그래프`}
+              </title>
               {chart.ticks.map((tick) => (
                 <g key={`tick-${tick.value}`}>
                   <line
