@@ -26,6 +26,7 @@ import {
 } from '@/lib/admin-list-sort'
 import { AdminMobileDisclosure } from '@/components/admin/AdminMobileDisclosure'
 import { MobileSortControls, SortableHeader } from '@/components/admin/AdminSortControls'
+import { MonthlyProjectChart } from '@/components/admin/MonthlyProjectChart'
 
 const PAGE_SIZE = 50
 
@@ -608,6 +609,8 @@ export default function AdminProjectsPage() {
   const firstVisible = sortedProjects.length === 0 ? 0 : (visiblePage - 1) * PAGE_SIZE + 1
   const lastVisible = Math.min(visiblePage * PAGE_SIZE, sortedProjects.length)
 
+  const projectCreatedAts = useMemo(() => projects.map((project) => project.created_at), [projects])
+
   const hqSummary = useMemo(
     () => Object.entries(stats.byHq).sort(([nameA, countA], [nameB, countB]) => (
       countB - countA || nameA.localeCompare(nameB, 'ko')
@@ -684,6 +687,8 @@ export default function AdminProjectsPage() {
       </div>
 
       <ProjectSummaryCards stats={stats} />
+
+      <MonthlyProjectChart createdAts={projectCreatedAts} loading={loading} />
 
       <HqSummaryPills
         summary={hqSummary}
