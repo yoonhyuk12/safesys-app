@@ -1,10 +1,16 @@
-// 관리자 가입자 관리 화면의 월별 역할별 누적 가입 추이 그래프
+// 관리자 가입자 관리 화면의 월별 누적 가입 추이 그래프(분해 축 전환 지원)
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp } from 'lucide-react'
 import { sortRows, type SortDirection } from '@/lib/admin-sort'
+import {
+  buildCategories,
+  getDimensionValue,
+  resolveCategoryKey,
+  type ChartDimension,
+  type DimensionCategory,
+} from '@/lib/admin-signup-dimension'
 
 type SignupRole = '발주청' | '감리단' | '시공사'
-type SegmentKey = SignupRole | '미배정'
 type SignupSortKey = 'month' | 'count'
 
 /** 요약 카드에서 고른 그래프 집계 모수. */
@@ -14,6 +20,8 @@ interface SignupUser {
   created_at: string
   role: SignupRole | null
   email_confirmed_at: string | null
+  position: string | null
+  hq_division: string | null
 }
 
 interface AdminMonthlySignupChartProps {
@@ -25,7 +33,7 @@ interface MonthlyBucket {
   month: string
   label: string
   total: number
-  counts: Record<SegmentKey, number>
+  counts: Record<string, number>
 }
 
 interface SignupSortState {
@@ -35,21 +43,24 @@ interface SignupSortState {
 
 interface SignupEntry {
   monthIndex: number
-  segment: SegmentKey
+  category: string
 }
-
-/** 누적 막대의 아래→위 순서. 색은 앱 전역 역할 색을 승계한다. */
-const SEGMENTS: readonly { key: SegmentKey; color: string }[] = [
-  { key: '발주청', color: '#2563eb' },
-  { key: '감리단', color: '#f59e0b' },
-  { key: '시공사', color: '#059669' },
-  { key: '미배정', color: '#94a3b8' },
-]
 
 const SORT_OPTIONS: readonly { key: SignupSortKey; label: string }[] = [
   { key: 'month', label: '월 순' },
   { key: 'count', label: '가입자 수 순' },
 ]
+
+const DIMENSION_KEYS: readonly ChartDimension[] = ['role', 'position', 'organization']
+
+const DIMENSION_LABELS: Record<ChartDimension, string> = {
+  role: '역할',
+  position: '직책',
+  organization: '본부',
+}
+
+/** 이 수보다 카테고리가 적으면 그 축으로는 막대를 나눌 수 없다. */
+const MIN_DIMENSION_CATEGORIES = 2
 
 /** 전체 포커스는 별도 수식어가 없으므로 null이다. */
 const FOCUS_LABELS: Record<ChartFocus, string | null> = {
@@ -94,11 +105,17 @@ function monthLabel(monthIndex: number): string {
   return `${String(year).padStart(2, '0')}.${String((monthIndex % 12) + 1).padStart(2, '0')}`
 }
 
-/** 가입일을 로컬(KST) 기준 월 인덱스로 바꾼다. 파싱 실패한 행은 제외한다. */
-function toSignupEntry(user: SignupUser): SignupEntry[] {
+/** 가입일을 로컬(KST) 기준 월 인덱스로, 축 값을 카테고리 키로 바꾼다. 파싱 실패한 행은 제외한다. */
+function toSignupEntry(
+  user: SignupUser,
+  dimension: ChartDimension,
+  categoryKeys: ReadonlySet<string>
+): SignupEntry[] {
   const date = new Date(user.created_at)
   if (Number.isNaN(date.getTime())) return []
-  return [{ monthIndex: toMonthIndex(date), segment: user.role ?? '미배정' }]
+
+  const value = getDimensionValue(user, dimension)
+  return [{ monthIndex: toMonthIndex(date), category: resolveCategoryKey(value, categoryKeys) }]
 }
 
 /** 요약 카드 포커스에 맞춰 집계 모수를 좁힌다. */
@@ -108,18 +125,25 @@ function matchesFocus(user: SignupUser, focus: ChartFocus): boolean {
   return user.role === focus
 }
 
-function countBySegment(segments: readonly SegmentKey[]): Record<SegmentKey, number> {
-  return {
-    발주청: segments.filter((segment) => segment === '발주청').length,
-    감리단: segments.filter((segment) => segment === '감리단').length,
-    시공사: segments.filter((segment) => segment === '시공사').length,
-    미배정: segments.filter((segment) => segment === '미배정').length,
+function countByCategory(
+  values: readonly string[],
+  categories: readonly DimensionCategory[]
+): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const category of categories) {
+    counts[category.key] = values.filter((value) => value === category.key).length
   }
+  return counts
 }
 
 /** 가입 이력이 있는 첫 달부터 마지막 달까지 버킷을 월 오름차순으로 만든다. 중간의 0건인 달도 남긴다. */
-function buildMonthlyBuckets(users: readonly SignupUser[]): MonthlyBucket[] {
-  const entries = users.flatMap(toSignupEntry)
+function buildMonthlyBuckets(
+  users: readonly SignupUser[],
+  dimension: ChartDimension,
+  categories: readonly DimensionCategory[]
+): MonthlyBucket[] {
+  const categoryKeys = new Set(categories.map((category) => category.key))
+  const entries = users.flatMap((user) => toSignupEntry(user, dimension, categoryKeys))
   if (entries.length === 0) return []
 
   const monthIndexes = entries.map((entry) => entry.monthIndex)
@@ -128,15 +152,15 @@ function buildMonthlyBuckets(users: readonly SignupUser[]): MonthlyBucket[] {
 
   return Array.from({ length: lastMonth - firstMonth + 1 }, (_, offset) => {
     const index = firstMonth + offset
-    const monthSegments = entries
+    const monthCategories = entries
       .filter((entry) => entry.monthIndex === index)
-      .map((entry) => entry.segment)
+      .map((entry) => entry.category)
 
     return {
       month: monthKey(index),
       label: monthLabel(index),
-      total: monthSegments.length,
-      counts: countBySegment(monthSegments),
+      total: monthCategories.length,
+      counts: countByCategory(monthCategories, categories),
     }
   })
 }
@@ -165,14 +189,14 @@ function roundedTopBarPath(x: number, y: number, width: number, height: number, 
   ].join(' ')
 }
 
-function sumSegment(buckets: readonly MonthlyBucket[], key: SegmentKey): number {
+function sumCategory(buckets: readonly MonthlyBucket[], key: string): number {
   return buckets.reduce((sum, bucket) => sum + bucket.counts[key], 0)
 }
 
-function buildTooltip(bucket: MonthlyBucket, segments: readonly { key: SegmentKey }[]): string {
-  const detail = segments
-    .filter((segment) => bucket.counts[segment.key] > 0)
-    .map((segment) => `${segment.key} ${bucket.counts[segment.key]}명`)
+function buildTooltip(bucket: MonthlyBucket, categories: readonly { key: string }[]): string {
+  const detail = categories
+    .filter((category) => bucket.counts[category.key] > 0)
+    .map((category) => `${category.key} ${bucket.counts[category.key]}명`)
     .join(' · ')
   if (!detail) return `${bucket.month} · 가입 없음`
   return `${bucket.month} · 전체 ${bucket.total}명\n${detail}`
@@ -219,17 +243,82 @@ function SignupSortControls({ sortState, onChange }: {
   )
 }
 
+function DimensionControls({ dimension, disabledReasons, onChange }: {
+  dimension: ChartDimension
+  disabledReasons: Record<ChartDimension, string | null>
+  onChange: (dimension: ChartDimension) => void
+}) {
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <span className="text-xs font-semibold text-slate-500">분류</span>
+      <div className="inline-flex items-center gap-0.5 rounded-xl bg-slate-100 p-0.5">
+        {DIMENSION_KEYS.map((key) => {
+          const active = dimension === key
+          const disabledReason = disabledReasons[key]
+          return (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={active}
+              disabled={disabledReason !== null}
+              title={disabledReason ?? undefined}
+              onClick={() => onChange(key)}
+              className={`inline-flex h-9 items-center rounded-lg px-3 text-xs font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-40 ${
+                active ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              {DIMENSION_LABELS[key]}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export function AdminMonthlySignupChart({ users, focus }: AdminMonthlySignupChartProps) {
   const titleId = useId()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [sortState, setSortState] = useState<SignupSortState>({ key: 'month', direction: 'asc' })
+  const [dimension, setDimension] = useState<ChartDimension>('role')
   // 첫 페인트에 0폭이 되지 않도록 최소 폭으로 시작한다.
   const [measuredWidth, setMeasuredWidth] = useState<number>(SIGNUP_CHART.minWidth)
 
   const focusedUsers = useMemo(() => users.filter((user) => matchesFocus(user, focus)), [focus, users])
-  const buckets = useMemo(() => buildMonthlyBuckets(focusedUsers), [focusedUsers])
+  // 축 버튼의 사용 가능 여부를 판단하려면 세 축의 카테고리를 모두 알아야 한다.
+  const categoriesByDimension = useMemo(() => ({
+    role: buildCategories(focusedUsers, 'role'),
+    position: buildCategories(focusedUsers, 'position'),
+    organization: buildCategories(focusedUsers, 'organization'),
+  }), [focusedUsers])
+  const categories = categoriesByDimension[dimension]
+  const buckets = useMemo(
+    () => buildMonthlyBuckets(focusedUsers, dimension, categories),
+    [categories, dimension, focusedUsers]
+  )
   const totalSignups = useMemo(() => buckets.reduce((sum, bucket) => sum + bucket.total, 0), [buckets])
   const hasSignups = totalSignups > 0
+  const focusLabel = FOCUS_LABELS[focus]
+
+  // 카테고리가 1종 이하인 축은 막대를 나누지 못하므로 버튼을 잠그고 이유를 알린다.
+  const disabledReasons = useMemo(() => {
+    const scope = focusLabel ? `${focusLabel} 기준으로 ` : ''
+    const reasonOf = (key: ChartDimension): string | null => (
+      categoriesByDimension[key].length >= MIN_DIMENSION_CATEGORIES
+        ? null
+        : `${scope}나눌 수 있는 ${DIMENSION_LABELS[key]} 정보가 없습니다`
+    )
+    return {
+      role: reasonOf('role'),
+      position: reasonOf('position'),
+      organization: reasonOf('organization'),
+    }
+  }, [categoriesByDimension, focusLabel])
+
+  // 포커스가 바뀌어 현재 축을 못 쓰게 되면 기본 축으로 되돌린다.
+  useEffect(() => {
+    if (dimension !== 'role' && disabledReasons[dimension] !== null) setDimension('role')
+  }, [dimension, disabledReasons])
 
   // 컨테이너 실측 폭에 막대와 간격만 맞추고 글자 크기는 고정한다.
   useEffect(() => {
@@ -245,14 +334,14 @@ export function AdminMonthlySignupChart({ users, focus }: AdminMonthlySignupChar
     return () => observer.disconnect()
   }, [hasSignups])
 
-  const segmentTotals = useMemo(
-    () => SEGMENTS.map((segment) => ({ ...segment, total: sumSegment(buckets, segment.key) })),
-    [buckets]
+  const categoryTotals = useMemo(
+    () => categories.map((category) => ({ ...category, total: sumCategory(buckets, category.key) })),
+    [buckets, categories]
   )
-  // 표시 기간 합계가 1건 이상인 역할만 막대·범례·대체 표에 나타낸다.
+  // 표시 기간 합계가 1건 이상인 카테고리만 막대·범례·대체 표에 나타낸다.
   const visibleSegments = useMemo(
-    () => segmentTotals.filter((segment) => segment.total > 0),
-    [segmentTotals]
+    () => categoryTotals.filter((category) => category.total > 0),
+    [categoryTotals]
   )
   const sortedBuckets = useMemo(
     () => sortRows(buckets, sortState, (bucket, key) => (key === 'month' ? bucket.month : bucket.total)),
@@ -323,14 +412,17 @@ export function AdminMonthlySignupChart({ users, focus }: AdminMonthlySignupChar
     return { width, height: SIGNUP_CHART.height, plotBottom, ticks, bars }
   }, [measuredWidth, sortedBuckets, visibleSegments])
 
-  const focusLabel = FOCUS_LABELS[focus]
+  const dimensionLabel = DIMENSION_LABELS[dimension]
+  const heading = [
+    '월별 가입 추이',
+    ...(focusLabel ? [focusLabel] : []),
+    ...(dimension === 'role' ? [] : [`${dimensionLabel}별`]),
+  ].join(' · ')
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm md:p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-slate-950">
-          {focusLabel ? `월별 가입 추이 · ${focusLabel}` : '월별 가입 추이'}
-        </h3>
+        <h3 className="text-sm font-semibold text-slate-950">{heading}</h3>
         {hasSignups && <SignupSortControls sortState={sortState} onChange={setSortState} />}
       </div>
 
@@ -349,7 +441,7 @@ export function AdminMonthlySignupChart({ users, focus }: AdminMonthlySignupChar
               viewBox={`0 0 ${chart.width} ${chart.height}`}
             >
               <title id={titleId}>
-                {`월별 ${focusLabel ?? '전체'} 가입자 수를 역할별로 쌓아 보여주는 누적 막대 그래프`}
+                {`월별 ${focusLabel ?? '전체'} 가입자 수를 ${dimensionLabel}별로 쌓아 보여주는 누적 막대 그래프`}
               </title>
               {chart.ticks.map((tick) => (
                 <g key={`tick-${tick.value}`}>
@@ -449,8 +541,14 @@ export function AdminMonthlySignupChart({ users, focus }: AdminMonthlySignupChar
             ))}
           </ul>
 
+          <DimensionControls
+            dimension={dimension}
+            disabledReasons={disabledReasons}
+            onChange={setDimension}
+          />
+
           <table className="sr-only">
-            <caption>월별 역할별 가입자 수</caption>
+            <caption>{`월별 ${dimensionLabel}별 가입자 수`}</caption>
             <thead>
               <tr>
                 <th scope="col">월</th>
