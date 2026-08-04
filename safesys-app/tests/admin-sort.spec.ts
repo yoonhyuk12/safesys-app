@@ -124,13 +124,13 @@ test('가입자 열을 한국어 문자열, 날짜, 인증 상태 값으로 변�
   expect(getAdminUserSortValue(user, 'confirmed')).toBe(true)
 })
 
-test('프로젝트 열을 등록자, 날짜, 활성 상태 값으로 변환한다', () => {
+test('프로젝트 열을 등록자, 날짜, 인계 상태 값으로 변환한다', () => {
   const project = {
     project_name: '광역철도 제2공구',
     managing_hq: '경기본부',
     managing_branch: '수원지사',
     created_at: '2026-07-28T00:00:00.000Z',
-    isActive: false,
+    isHandedOver: false,
     creator: { fullName: '김현우', companyName: '한국안전건설' },
   }
 

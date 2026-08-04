@@ -6,12 +6,12 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 const PROJECT_BATCH_SIZE = 1000
 const RECENT_DAYS = 30
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000
-
-type ActivityValue = boolean | Record<string, unknown> | null
+const CLIENT_ROLE = '발주청'
 
 interface CreatorProfile {
   full_name: string | null
   company_name: string | null
+  role: string | null
 }
 
 interface ProjectQueryRow {
@@ -21,7 +21,6 @@ interface ProjectQueryRow {
   managing_branch: string | null
   created_by: string
   created_at: string
-  is_active: ActivityValue
   creator: CreatorProfile | CreatorProfile[] | null
 }
 
@@ -32,8 +31,7 @@ interface AdminProject {
   managing_branch: string
   created_by: string
   created_at: string
-  is_active: ActivityValue
-  isActive: boolean
+  isHandedOver: boolean
   creator: {
     fullName: string
     companyName: string
@@ -42,17 +40,17 @@ interface AdminProject {
 
 interface ProjectStats {
   total: number
-  active: number
-  inactive: number
+  handedOver: number
+  notHandedOver: number
   recent30d: number
   byHq: Record<string, number>
   byBranch: Record<string, number>
 }
 
-function isProjectActive(value: ActivityValue): boolean {
-  if (typeof value === 'boolean') return value
-  if (!value || typeof value !== 'object') return false
-  return Object.values(value).some((status) => status === true)
+// 인계는 소유권 이전(transfer_project_ownership이 created_by를 교체)이라 별도 이력이 남지 않는다.
+// 그래서 현재 소유자의 역할로 판별한다 — 발주청이 들고 있으면 미인계, 시공사·감리단이면 인계 완료.
+function isHandedOver(role: string | null | undefined): boolean {
+  return Boolean(role) && role !== CLIENT_ROLE
 }
 
 function normalizeDivision(value: string | null): string {
@@ -69,8 +67,7 @@ function normalizeProject(row: ProjectQueryRow): AdminProject {
     managing_branch: normalizeDivision(row.managing_branch),
     created_by: row.created_by,
     created_at: row.created_at,
-    is_active: row.is_active,
-    isActive: isProjectActive(row.is_active),
+    isHandedOver: isHandedOver(creator?.role),
     creator: creator
       ? {
           fullName: creator.full_name?.trim() || '이름 미등록',
@@ -91,8 +88,8 @@ function calculateStats(projects: AdminProject[]): ProjectStats {
 
       return {
         total: stats.total + 1,
-        active: stats.active + (project.isActive ? 1 : 0),
-        inactive: stats.inactive + (project.isActive ? 0 : 1),
+        handedOver: stats.handedOver + (project.isHandedOver ? 1 : 0),
+        notHandedOver: stats.notHandedOver + (project.isHandedOver ? 0 : 1),
         recent30d: stats.recent30d + (isRecent ? 1 : 0),
         byHq: {
           ...stats.byHq,
@@ -104,7 +101,7 @@ function calculateStats(projects: AdminProject[]): ProjectStats {
         },
       }
     },
-    { total: 0, active: 0, inactive: 0, recent30d: 0, byHq: {}, byBranch: {} }
+    { total: 0, handedOver: 0, notHandedOver: 0, recent30d: 0, byHq: {}, byBranch: {} }
   )
 }
 
@@ -131,10 +128,10 @@ export async function GET(request: NextRequest) {
           managing_branch,
           created_by,
           created_at,
-          is_active,
           creator:user_profiles!projects_created_by_fkey (
             full_name,
-            company_name
+            company_name,
+            role
           )
         `)
         .order('created_at', { ascending: false })

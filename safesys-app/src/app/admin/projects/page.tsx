@@ -37,7 +37,7 @@ interface AdminProject {
   managing_branch: string
   created_by: string
   created_at: string
-  isActive: boolean
+  isHandedOver: boolean
   creator: {
     fullName: string
     companyName: string
@@ -46,8 +46,8 @@ interface AdminProject {
 
 interface ProjectStats {
   total: number
-  active: number
-  inactive: number
+  handedOver: number
+  notHandedOver: number
   recent30d: number
   byHq: Record<string, number>
   byBranch: Record<string, number>
@@ -63,8 +63,8 @@ type DeleteApiResponse =
 
 const EMPTY_STATS: ProjectStats = {
   total: 0,
-  active: 0,
-  inactive: 0,
+  handedOver: 0,
+  notHandedOver: 0,
   recent30d: 0,
   byHq: {},
   byBranch: {},
@@ -87,8 +87,8 @@ interface ProjectSummaryCard {
 function buildProjectSummaries(stats: ProjectStats): ProjectSummaryCard[] {
   return [
     { label: '전체', value: stats.total, hint: '등록된 프로젝트', icon: FolderKanban, tone: 'bg-blue-50 text-blue-600' },
-    { label: '활성', value: stats.active, hint: '활성 항목 보유', icon: CircleCheck, tone: 'bg-emerald-50 text-emerald-600' },
-    { label: '비활성', value: stats.inactive, hint: '활성 항목 없음', icon: CirclePause, tone: 'bg-slate-100 text-slate-500' },
+    { label: '인계', value: stats.handedOver, hint: '시공사·감리단이 인수', icon: CircleCheck, tone: 'bg-emerald-50 text-emerald-600' },
+    { label: '미인계', value: stats.notHandedOver, hint: '발주청이 보유 중', icon: CirclePause, tone: 'bg-slate-100 text-slate-500' },
     { label: '최근 30일 등록', value: stats.recent30d, hint: '최근 30일 신규', icon: CalendarPlus, tone: 'bg-amber-50 text-amber-600' },
   ]
 }
@@ -170,22 +170,22 @@ function ProjectFilterPanel({
   selectedHq,
   selectedBranch,
   searchTerm,
-  activeOnly,
+  handedOverOnly,
   onHqChange,
   onBranchChange,
   onSearchChange,
-  onActiveOnlyChange,
+  onHandedOverOnlyChange,
 }: {
   hqOptions: string[]
   branchOptions: string[]
   selectedHq: string
   selectedBranch: string
   searchTerm: string
-  activeOnly: boolean
+  handedOverOnly: boolean
   onHqChange: (value: string) => void
   onBranchChange: (value: string) => void
   onSearchChange: (value: string) => void
-  onActiveOnlyChange: (value: boolean) => void
+  onHandedOverOnlyChange: (value: boolean) => void
 }) {
   const selectClass = 'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100'
 
@@ -226,27 +226,27 @@ function ProjectFilterPanel({
       <label className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-700 md:whitespace-nowrap">
         <input
           type="checkbox"
-          checked={activeOnly}
-          onChange={(event) => onActiveOnlyChange(event.target.checked)}
+          checked={handedOverOnly}
+          onChange={(event) => onHandedOverOnlyChange(event.target.checked)}
           className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-2 focus:ring-blue-200"
         />
-        활성만
+        인계만
       </label>
     </div>
   )
 }
 
-function ProjectStatusBadge({ isActive }: { isActive: boolean }) {
+function ProjectStatusBadge({ isHandedOver }: { isHandedOver: boolean }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-        isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+        isHandedOver ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
       }`}
     >
-      {isActive
+      {isHandedOver
         ? <CircleCheck className="h-3.5 w-3.5" aria-hidden="true" />
         : <CirclePause className="h-3.5 w-3.5" aria-hidden="true" />}
-      {isActive ? '활성' : '비활성'}
+      {isHandedOver ? '인계' : '미인계'}
     </span>
   )
 }
@@ -281,7 +281,7 @@ function ProjectTableRow({
       </td>
       <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-600">{formatDate(project.created_at)}</td>
       <td className="px-3 py-2.5 text-center">
-        <ProjectStatusBadge isActive={project.isActive} />
+        <ProjectStatusBadge isHandedOver={project.isHandedOver} />
       </td>
       <td className="px-4 py-2.5 text-right">
         <button
@@ -376,10 +376,10 @@ function ProjectMobileSummary({ project }: { project: AdminProject }) {
       </span>
       <span
         className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${
-          project.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
+          project.isHandedOver ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'
         }`}
       >
-        {project.isActive ? '활성' : '비활성'}
+        {project.isHandedOver ? '인계' : '미인계'}
       </span>
     </div>
   )
@@ -521,7 +521,7 @@ export default function AdminProjectsPage() {
   const [selectedHq, setSelectedHq] = useState('')
   const [selectedBranch, setSelectedBranch] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
-  const [activeOnly, setActiveOnly] = useState(false)
+  const [handedOverOnly, setHandedOverOnly] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [sortState, setSortState] = useState<SortState<AdminProjectSortKey>>({ key: null, direction: null })
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null)
@@ -563,7 +563,7 @@ export default function AdminProjectsPage() {
   useEffect(() => {
     setCurrentPage(1)
     setExpandedProjectId(null)
-  }, [selectedHq, selectedBranch, searchTerm, activeOnly])
+  }, [selectedHq, selectedBranch, searchTerm, handedOverOnly])
 
   const hqOptions = useMemo(
     () => Array.from(new Set(projects.map((project) => project.managing_hq))).sort((a, b) => a.localeCompare(b, 'ko')),
@@ -585,7 +585,7 @@ export default function AdminProjectsPage() {
     return projects.filter((project) => {
       if (selectedHq && project.managing_hq !== selectedHq) return false
       if (selectedBranch && project.managing_branch !== selectedBranch) return false
-      if (activeOnly && !project.isActive) return false
+      if (handedOverOnly && !project.isHandedOver) return false
       if (!normalizedSearch) return true
 
       return (
@@ -593,7 +593,7 @@ export default function AdminProjectsPage() {
         (project.creator?.fullName.toLocaleLowerCase('ko-KR').includes(normalizedSearch) ?? false)
       )
     })
-  }, [activeOnly, projects, searchTerm, selectedBranch, selectedHq])
+  }, [handedOverOnly, projects, searchTerm, selectedBranch, selectedHq])
 
   const sortedProjects = useMemo(
     () => sortRows(filteredProjects, sortState, getAdminProjectSortValue),
@@ -673,7 +673,7 @@ export default function AdminProjectsPage() {
         <div className="min-w-0">
           <p className="text-[11px] font-bold tracking-[0.18em] text-blue-600">PROJECT CONTROL</p>
           <h2 className="mt-1 text-xl font-bold text-slate-950 md:text-2xl">프로젝트 등록 현황</h2>
-          <p className="mt-1 text-sm text-slate-500">전체 프로젝트의 등록 정보와 활성 상태를 관리합니다.</p>
+          <p className="mt-1 text-sm text-slate-500">전체 프로젝트의 등록 정보와 인계 상태를 관리합니다.</p>
         </div>
         <button
           type="button"
@@ -705,14 +705,14 @@ export default function AdminProjectsPage() {
         selectedHq={selectedHq}
         selectedBranch={selectedBranch}
         searchTerm={searchTerm}
-        activeOnly={activeOnly}
+        handedOverOnly={handedOverOnly}
         onHqChange={(value) => {
           setSelectedHq(value)
           setSelectedBranch('')
         }}
         onBranchChange={setSelectedBranch}
         onSearchChange={setSearchTerm}
-        onActiveOnlyChange={setActiveOnly}
+        onHandedOverOnlyChange={setHandedOverOnly}
       />
 
       <MobileSortControls
