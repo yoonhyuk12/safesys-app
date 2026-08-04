@@ -14,6 +14,7 @@ import {
   type AdminUserSortKey,
 } from '@/lib/admin-list-sort'
 import { AdminMobileDisclosure } from '@/components/admin/AdminMobileDisclosure'
+import { AdminMonthlySignupChart } from '@/components/admin/AdminMonthlySignupChart'
 import { MobileSortControls, SortableHeader } from '@/components/admin/AdminSortControls'
 
 const PAGE_SIZE = 50
@@ -762,6 +763,8 @@ export default function AdminUsersPage() {
       </div>
 
       <SummaryCards users={users} />
+
+      <AdminMonthlySignupChart users={users} />
 
       <UsersFilterPanel
         search={search}
