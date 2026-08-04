@@ -1,6 +1,6 @@
 'use client'
 
-// 품질시험 월례보고서 작성/수정 폼 — 헤더 정보 + 행 입력 테이블(소계·계·누계·시공잔량 자동 계산)
+// 품질시험 월례보고서 작성/수정 폼 — 헤더 정보 + 행 입력 테이블(소계·계·누계·시공잔량 자동 계산, 금월까지 누계는 직접 수정 가능)
 
 import React, { useLayoutEffect, useRef, useState } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
@@ -58,6 +58,13 @@ const VOLUME_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
   'yearlyPlan', 'monthVolume', 'nextMonthPlan',
 ]
 
+// 금월까지 누계 6칸의 수정값 필드 — 값을 넣으면 자동 계산 대신 그 값이 쓰이고, 비우면 다시 자동 계산된다.
+// 다른 입력칸과 달리 같은 공종 행으로 전파하지 않는다(누계는 행마다 실제 이력이 달라서).
+const CUMUL_OVERRIDE_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
+  'cumulVolumeOverride', 'cumulTotalOverride', 'cumulQualityTestOverride',
+  'cumulConfirmSubtotalOverride', 'cumulExpertConfirmOverride', 'cumulOtherConfirmOverride',
+]
+
 // 행의 횟수 자동 계산 기준 물량 — 자동 계산 대상이 아니면 null
 const volumePerTestOf = (row: QualityMonthlyReportRow): number | null => {
   if (row.workType === '콘크리트') return CONCRETE_VOLUME_PER_TEST
@@ -69,12 +76,16 @@ const INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm t
 const TH_CLASS = 'border border-gray-300 bg-gray-100 px-1.5 py-1.5 text-xs font-semibold text-gray-700 whitespace-nowrap'
 const TD_CLASS = 'border border-gray-300 px-1 py-1'
 const CALC_TD_CLASS = 'border border-gray-300 px-1.5 py-1 bg-blue-50 text-sm text-blue-900 text-right whitespace-nowrap'
+// 금월까지 누계 입력칸 — 자동 계산 상태는 계산 셀과 같은 파란 톤, 직접 고친 칸은 흰 배경·굵은 글씨로 구분
+const CUMUL_AUTO_INPUT_CLASS = 'w-full px-1.5 py-1 border border-gray-300 rounded text-sm text-blue-900 bg-blue-50'
+const CUMUL_EDITED_INPUT_CLASS = 'w-full px-1.5 py-1 border border-blue-500 rounded text-sm text-blue-900 font-semibold bg-white'
 
 // 입력값 폭에 맞춰 늘어나는 인풋 — 같은 서체의 투명 사이저를 겹쳐 컬럼 폭이 데이터 최대폭을 따라가게 함
 function SizedInput({
   value,
   minWidthClass,
   alignRight,
+  inputClass,
   onChange,
   onFocus,
   onBlur,
@@ -82,6 +93,7 @@ function SizedInput({
   value: string
   minWidthClass: string
   alignRight?: boolean // 숫자 컬럼은 우측 정렬
+  inputClass?: string // 기본 입력칸 스타일 대체 (누계 칸의 자동/수정 상태 구분용)
   onChange: (value: string) => void
   onFocus?: (e: React.FocusEvent<HTMLInputElement>) => void
   onBlur?: () => void
@@ -121,7 +133,7 @@ function SizedInput({
         }}
         onFocus={onFocus}
         onBlur={onBlur}
-        className={`${INPUT_CLASS} col-start-1 row-start-1${alignRight ? ' text-right' : ''}`}
+        className={`${inputClass ?? INPUT_CLASS} col-start-1 row-start-1${alignRight ? ' text-right' : ''}`}
       />
     </div>
   )
@@ -136,10 +148,14 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
   }
 
   const updateRow = (index: number, field: keyof QualityMonthlyReportRow, value: string) => {
-    if (NUMERIC_FIELDS.includes(field)) value = formatThousands(value)
+    if (NUMERIC_FIELDS.includes(field) || CUMUL_OVERRIDE_FIELDS.includes(field)) value = formatThousands(value)
     const edited = formData.report_rows[index]
     // 물량 칸에 숫자만 입력하면 년 시공계획 물량의 단위를 자동으로 붙임 (시공계획 자신은 기존 단위 유지)
-    if (VOLUME_FIELDS.includes(field) && parseNum(value) !== null && extractUnit(value) === '') {
+    if (
+      (VOLUME_FIELDS.includes(field) || field === 'cumulVolumeOverride') &&
+      parseNum(value) !== null &&
+      extractUnit(value) === ''
+    ) {
       value += extractUnit(edited.yearlyPlan)
     }
     const normalizedWorkType = edited.workType.trim()
@@ -357,6 +373,26 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
               const d = deriveRow(row)
               const volumeUnit = extractUnit(row.yearlyPlan)
               const countUnit = extractUnit(row.yearlyPlanCount)
+              // 금월까지 누계 칸 — 수정값이 있으면 그 값을, 없으면 자동 계산값을 보여준다 (지우면 자동으로 복귀)
+              const cumulCell = (
+                field: keyof QualityMonthlyReportRow,
+                auto: number | null,
+                unit: string,
+                minWidthClass: string
+              ) => {
+                const override = row[field] ?? ''
+                return (
+                  <td className={`${TD_CLASS} bg-blue-50/50`}>
+                    <SizedInput
+                      value={override || (auto !== null ? formatNum(auto) + unit : '')}
+                      minWidthClass={minWidthClass}
+                      alignRight
+                      inputClass={override ? CUMUL_EDITED_INPUT_CLASS : CUMUL_AUTO_INPUT_CLASS}
+                      onChange={(v) => updateRow(index, field, v)}
+                    />
+                  </td>
+                )
+              }
               return (
                 <tr key={index}>
                   <td className={TD_CLASS}>
@@ -415,13 +451,13 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
                   <td className={`${TD_CLASS} bg-amber-50/50`}>
                     <SizedInput value={row.monthOtherConfirm} minWidthClass="min-w-16" alignRight onChange={(v) => updateRow(index, 'monthOtherConfirm', v)} />
                   </td>
-                  {/* 금월까지 누계 — 직전 보고서 이월 누계 + 금월 실적 자동 합산 (읽기 전용) */}
-                  <td className={CALC_TD_CLASS}>{d.cumulVolume !== null ? formatNum(d.cumulVolume) + volumeUnit : '-'}</td>
-                  <td className={CALC_TD_CLASS}>{d.cumulTotal !== null ? formatNum(d.cumulTotal) + countUnit : '-'}</td>
-                  <td className={CALC_TD_CLASS}>{d.cumulQualityTest !== null ? formatNum(d.cumulQualityTest) + countUnit : '-'}</td>
-                  <td className={CALC_TD_CLASS}>{d.cumulConfirmSubtotal !== null ? formatNum(d.cumulConfirmSubtotal) + countUnit : '-'}</td>
-                  <td className={CALC_TD_CLASS}>{d.cumulExpertConfirm !== null ? formatNum(d.cumulExpertConfirm) + countUnit : '-'}</td>
-                  <td className={CALC_TD_CLASS}>{d.cumulOtherConfirm !== null ? formatNum(d.cumulOtherConfirm) + countUnit : '-'}</td>
+                  {/* 금월까지 누계 — 직전 보고서 이월 누계 + 금월 실적 자동 합산, 필요하면 칸을 직접 고쳐 덮어쓸 수 있음 */}
+                  {cumulCell('cumulVolumeOverride', d.cumulVolume, volumeUnit, 'min-w-20')}
+                  {cumulCell('cumulTotalOverride', d.cumulTotal, countUnit, 'min-w-16')}
+                  {cumulCell('cumulQualityTestOverride', d.cumulQualityTest, countUnit, 'min-w-16')}
+                  {cumulCell('cumulConfirmSubtotalOverride', d.cumulConfirmSubtotal, countUnit, 'min-w-16')}
+                  {cumulCell('cumulExpertConfirmOverride', d.cumulExpertConfirm, countUnit, 'min-w-16')}
+                  {cumulCell('cumulOtherConfirmOverride', d.cumulOtherConfirm, countUnit, 'min-w-16')}
                   <td className={TD_CLASS}>
                     <SizedInput value={row.nextMonthPlan} minWidthClass="min-w-20" alignRight onChange={(v) => updateRow(index, 'nextMonthPlan', v)} />
                   </td>
@@ -447,6 +483,8 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
         </button>
         <p className="text-xs text-gray-400">
           ※ 시험실적은 실시대장의 일련번호 기준으로 자동 반영되며(실시대장에 없는 항목은 월 실적 칸에 직접 입력), 확인시험 소계·계(①+②)·누계·시공잔량도 자동 계산되어 PDF 양식에 반영됩니다.
+          <br />
+          ※ 금월까지 누계 6칸은 자동 계산값이 그대로 보이지만 직접 고쳐 쓸 수 있습니다(흰 배경·굵은 글씨 = 수정한 칸). 칸을 비우면 다시 자동 계산으로 돌아가고, 수정한 값은 시공잔량·다음 달 전월누계·PDF에도 그대로 반영됩니다.
         </p>
       </div>
     </div>

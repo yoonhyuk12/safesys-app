@@ -1,6 +1,7 @@
 // 품질시험 월례보고서(금월 품질시험실적 및 다음월 시공계획, 별지 제3호서식) 타입 정의와 파생값 계산 헬퍼
 
 // 표 행 하나 — 공종/시험항목 단위. 소계·계·누계·시공잔량은 파생값이므로 저장하지 않는다.
+// 단, 금월까지 누계 6칸은 사용자가 직접 고칠 수 있어 그 수정값만 `cumul*Override`로 저장한다(비어 있으면 자동 계산).
 export interface QualityMonthlyReportRow {
   workType: string // 공종
   testItem: string // 시험항목
@@ -16,6 +17,12 @@ export interface QualityMonthlyReportRow {
   prevCumulOtherConfirm: string // 전월까지 누계 기타확인 회수
   nextMonthPlan: string // 다음월 시공계획 물량
   nextMonthPlanCount: string // 다음월 시공계획 횟수
+  cumulVolumeOverride: string // 금월까지 누계 시공물량 수정값
+  cumulTotalOverride: string // 금월까지 누계 계(①+②) 수정값
+  cumulQualityTestOverride: string // 금월까지 누계 품질시험① 수정값
+  cumulConfirmSubtotalOverride: string // 금월까지 누계 확인시험② 소계 수정값
+  cumulExpertConfirmOverride: string // 금월까지 누계 전문기관확인 수정값
+  cumulOtherConfirmOverride: string // 금월까지 누계 기타확인 수정값
 }
 
 export interface QualityMonthlyReportFormData {
@@ -60,6 +67,12 @@ export function createEmptyRow(): QualityMonthlyReportRow {
     prevCumulOtherConfirm: '',
     nextMonthPlan: '',
     nextMonthPlanCount: '',
+    cumulVolumeOverride: '',
+    cumulTotalOverride: '',
+    cumulQualityTestOverride: '',
+    cumulConfirmSubtotalOverride: '',
+    cumulExpertConfirmOverride: '',
+    cumulOtherConfirmOverride: '',
   }
 }
 
@@ -230,17 +243,39 @@ export interface QualityMonthlyRowDerived {
   remainingCount: number | null
 }
 
+// 누계 칸 수정값 우선 — 숫자가 들어 있으면 자동 계산값 대신 그 값을 쓴다.
+const overrideOr = (override: string, auto: number | null): number | null => {
+  const edited = parseNum(override)
+  return edited !== null ? edited : auto
+}
+
 export function deriveRow(row: QualityMonthlyReportRow): QualityMonthlyRowDerived {
   const monthConfirmSubtotal = sumNums(parseNum(row.monthExpertConfirm), parseNum(row.monthOtherConfirm))
   const monthTotal = sumNums(parseNum(row.monthQualityTest), monthConfirmSubtotal)
   const prevConfirmSubtotal = sumNums(parseNum(row.prevCumulExpertConfirm), parseNum(row.prevCumulOtherConfirm))
   const prevTotal = sumNums(parseNum(row.prevCumulQualityTest), prevConfirmSubtotal)
-  const cumulVolume = sumNums(parseNum(row.prevCumulVolume), parseNum(row.monthVolume))
-  const cumulQualityTest = sumNums(parseNum(row.prevCumulQualityTest), parseNum(row.monthQualityTest))
-  const cumulExpertConfirm = sumNums(parseNum(row.prevCumulExpertConfirm), parseNum(row.monthExpertConfirm))
-  const cumulOtherConfirm = sumNums(parseNum(row.prevCumulOtherConfirm), parseNum(row.monthOtherConfirm))
-  const cumulConfirmSubtotal = sumNums(cumulExpertConfirm, cumulOtherConfirm)
-  const cumulTotal = sumNums(cumulQualityTest, cumulConfirmSubtotal)
+  const cumulVolume = overrideOr(
+    row.cumulVolumeOverride,
+    sumNums(parseNum(row.prevCumulVolume), parseNum(row.monthVolume))
+  )
+  const cumulQualityTest = overrideOr(
+    row.cumulQualityTestOverride,
+    sumNums(parseNum(row.prevCumulQualityTest), parseNum(row.monthQualityTest))
+  )
+  const cumulExpertConfirm = overrideOr(
+    row.cumulExpertConfirmOverride,
+    sumNums(parseNum(row.prevCumulExpertConfirm), parseNum(row.monthExpertConfirm))
+  )
+  const cumulOtherConfirm = overrideOr(
+    row.cumulOtherConfirmOverride,
+    sumNums(parseNum(row.prevCumulOtherConfirm), parseNum(row.monthOtherConfirm))
+  )
+  // 소계·계는 수정값이 없으면 위 4칸(수정값 포함)을 그대로 합산한다.
+  const cumulConfirmSubtotal = overrideOr(
+    row.cumulConfirmSubtotalOverride,
+    sumNums(cumulExpertConfirm, cumulOtherConfirm)
+  )
+  const cumulTotal = overrideOr(row.cumulTotalOverride, sumNums(cumulQualityTest, cumulConfirmSubtotal))
   const yearlyPlan = parseNum(row.yearlyPlan)
   const remaining = yearlyPlan !== null && cumulVolume !== null ? yearlyPlan - cumulVolume : null
   // 시공잔량 횟수 = 년시공계획 횟수 - 금월까지 시험 계(①+②) 누계
