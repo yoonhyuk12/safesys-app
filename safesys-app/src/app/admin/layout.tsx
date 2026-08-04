@@ -1,7 +1,7 @@
 'use client'
 
 // 관리자 섹션 공통 레이아웃 — 관리자 여부를 서버에 확인하는 가드와 반응형 콘솔 셸, 로그아웃
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { FolderKanban, Home, LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck, UsersRound } from 'lucide-react'
@@ -20,6 +20,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [signingOut, setSigningOut] = useState(false)
   const [logoutError, setLogoutError] = useState<string | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const lastTouchToggleRef = useRef(0)
+
+  const toggleSidebar = () => setSidebarCollapsed((prev) => !prev)
+
+  // 사이드바 빈 공간: 마우스는 더블클릭, 터치는 한 번 탭으로 접고 펼친다
+  const handleBlankDoubleClick = () => {
+    // 터치 기기에서 탭 직후 합성 dblclick이 뒤따라 토글이 상쇄되는 것을 막는다
+    if (Date.now() - lastTouchToggleRef.current < 700) return
+    toggleSidebar()
+  }
+
+  const handleBlankTouchEnd = () => {
+    lastTouchToggleRef.current = Date.now()
+    toggleSidebar()
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -111,7 +126,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           )}
           <button
             type="button"
-            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            onClick={toggleSidebar}
             aria-expanded={!sidebarCollapsed}
             aria-label={sidebarCollapsed ? '사이드바 펼치기' : '사이드바 접기'}
             title={sidebarCollapsed ? '사이드바 펼치기' : '사이드바 접기'}
@@ -126,7 +141,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )}
           </button>
         </div>
-        <nav className="flex flex-1 flex-col gap-1 px-3">
+        <nav className="flex flex-col gap-1 px-3">
           {TABS.map((tab) => {
             const active = pathname?.startsWith(tab.href)
             const Icon = tab.icon
@@ -150,6 +165,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             )
           })}
         </nav>
+        <div
+          className="flex-1 select-none"
+          onDoubleClick={handleBlankDoubleClick}
+          onTouchEnd={handleBlankTouchEnd}
+          title={sidebarCollapsed ? '두 번 클릭하거나 터치하면 펼쳐집니다' : '두 번 클릭하거나 터치하면 접힙니다'}
+          aria-hidden="true"
+        />
         <Link
           href="/"
           title={sidebarCollapsed ? '메인으로' : undefined}
