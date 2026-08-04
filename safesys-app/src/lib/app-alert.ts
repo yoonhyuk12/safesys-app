@@ -11,11 +11,14 @@ export interface AppAlertResponse {
 
 /**
  * 텔레그램 HTML 메시지를 태그 제거한 plain text로 변환한다.
- * <b> <i> <code> <a> 등 태그 제거 + 기본 엔티티(&lt; &gt; &amp;) 복원.
+ * <b> <i> <code> 등 태그 제거 + 기본 엔티티(&lt; &gt; &amp;) 복원.
+ * <a> 링크는 URL을 버리지 않고 "텍스트 URL" 형태로 보존한다
+ * (앱 알림 피드의 LinkifyText가 URL 텍스트를 탭 가능한 링크로 렌더링).
  * @param text - 텔레그램용 HTML 메시지
  */
 export function stripTelegramHtml(text: string): string {
   return text
+    .replace(/<a\s[^>]*href="([^"]*)"[^>]*>([^<]*)<\/a>/g, '$2 $1')
     .replace(/<[^>]*>/g, '')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
