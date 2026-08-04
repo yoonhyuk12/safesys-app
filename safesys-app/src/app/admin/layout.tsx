@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { FolderKanban, Home, LogOut, ShieldCheck, UsersRound } from 'lucide-react'
+import { FolderKanban, Home, LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck, UsersRound } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { performAdminSignOut } from '@/lib/admin-session'
 
@@ -19,6 +19,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [status, setStatus] = useState<'checking' | 'allowed'>('checking')
   const [signingOut, setSigningOut] = useState(false)
   const [logoutError, setLogoutError] = useState<string | null>(null)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -89,15 +90,41 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-950">
-      <aside className="fixed inset-y-0 left-0 hidden w-60 flex-col bg-[#0b1730] md:flex">
-        <div className="flex items-center gap-3 px-5 py-6">
+      <aside
+        className={`fixed inset-y-0 left-0 hidden flex-col bg-[#0b1730] transition-[width] duration-200 md:flex ${
+          sidebarCollapsed ? 'w-16' : 'w-60'
+        }`}
+      >
+        <div
+          className={`flex py-6 ${
+            sidebarCollapsed ? 'flex-col items-center gap-3 px-3' : 'items-center gap-3 px-5'
+          }`}
+        >
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 text-white">
             <ShieldCheck className="h-5 w-5" aria-hidden="true" />
           </span>
-          <span className="min-w-0">
-            <span className="block text-sm font-bold text-white">SafeSys</span>
-            <span className="block text-xs text-slate-400">관리자 콘솔</span>
-          </span>
+          {!sidebarCollapsed && (
+            <span className="min-w-0">
+              <span className="block text-sm font-bold text-white">SafeSys</span>
+              <span className="block text-xs text-slate-400">관리자 콘솔</span>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
+            aria-expanded={!sidebarCollapsed}
+            aria-label={sidebarCollapsed ? '사이드바 펼치기' : '사이드바 접기'}
+            title={sidebarCollapsed ? '사이드바 펼치기' : '사이드바 접기'}
+            className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl text-slate-400 outline-none transition hover:bg-white/5 hover:text-white focus-visible:ring-2 focus-visible:ring-blue-400 ${
+              sidebarCollapsed ? '' : 'ml-auto'
+            }`}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
         </div>
         <nav className="flex flex-1 flex-col gap-1 px-3">
           {TABS.map((tab) => {
@@ -108,24 +135,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 key={tab.href}
                 href={tab.href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition ${
+                title={sidebarCollapsed ? tab.label : undefined}
+                className={`flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold transition ${
+                  sidebarCollapsed ? 'justify-center' : 'gap-3'
+                } ${
                   active
                     ? 'bg-blue-600 text-white shadow-lg shadow-blue-950/20'
                     : 'text-slate-300 hover:bg-white/5 hover:text-white'
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-                {tab.label}
+                {!sidebarCollapsed && <span className="truncate">{tab.label}</span>}
               </Link>
             )
           })}
         </nav>
         <Link
           href="/"
-          className="mx-3 mb-5 flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white"
+          title={sidebarCollapsed ? '메인으로' : undefined}
+          className={`mx-3 mb-5 flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-slate-400 transition hover:bg-white/5 hover:text-white ${
+            sidebarCollapsed ? 'justify-center' : 'gap-3'
+          }`}
         >
           <Home className="h-4 w-4 shrink-0" aria-hidden="true" />
-          메인으로
+          {!sidebarCollapsed && <span className="truncate">메인으로</span>}
         </Link>
       </aside>
 
@@ -170,7 +203,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </nav>
       </header>
 
-      <div className="md:pl-60">
+      <div className={`transition-[padding] duration-200 ${sidebarCollapsed ? 'md:pl-16' : 'md:pl-60'}`}>
         <div className="mx-auto w-full max-w-[1600px] px-4 py-5 md:px-8 md:py-8">
           <div className="mb-4 hidden justify-end md:flex">
             <button
