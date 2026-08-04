@@ -6,7 +6,7 @@ test.describe('Authentication Flow', () => {
         await page.goto('/');
 
         // Check main elements
-        await expect(page.getByRole('heading', { name: '안전관리 시스템' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'AI안전관리 시스템' })).toBeVisible();
         await expect(page.getByLabel('이메일 주소')).toBeVisible();
         await expect(page.getByLabel('비밀번호')).toBeVisible();
 

@@ -301,7 +301,7 @@ export default function LegalCompliancePage() {
               `🏗️ <b>현장:</b> ${project?.project_name || ''}\n` +
               `📅 <b>연도·분기:</b> ${year}년 ${quarter}분기` +
               (discipline ? `\n🔧 <b>공종:</b> ${discipline}` : '') +
-              `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+              `\n\n🔗 <a href="https://safesys.vercel.app/">AI안전관리 시스템 바로가기</a>`
 
             await fetch('/api/telegram', {
               method: 'POST',

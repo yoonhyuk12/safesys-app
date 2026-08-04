@@ -261,7 +261,7 @@ export default function DailyInspectionPage() {
             (dangerItems.length === 0 && cautionItems.length === 0
               ? `\n✅ 전 항목 양호`
               : '') +
-            `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+            `\n\n🔗 <a href="https://safesys.vercel.app/">AI안전관리 시스템 바로가기</a>`
 
           await fetch('/api/telegram', {
             method: 'POST',

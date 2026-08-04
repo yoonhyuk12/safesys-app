@@ -288,7 +288,7 @@ export default function PTWPage() {
               `📋 <b>종류:</b> ${config.label}\n` +
               `🔧 <b>작업내용:</b> ${workContent || '(미입력)'}\n` +
               `👤 <b>신청인:</b> ${applicantName || '(미입력)'}` +
-              `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+              `\n\n🔗 <a href="https://safesys.vercel.app/">AI안전관리 시스템 바로가기</a>`
 
             await fetch('/api/telegram', {
               method: 'POST',

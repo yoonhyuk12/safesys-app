@@ -1241,7 +1241,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
             }
 
             telegramMessage += (educationPhotoUrl ? `\n\n📷 교육사진이 첨부되었습니다.` : '') +
-              `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+              `\n\n🔗 <a href="https://safesys.vercel.app/">AI안전관리 시스템 바로가기</a>`
 
             await fetch('/api/telegram', {
               method: 'POST',

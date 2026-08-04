@@ -48,7 +48,7 @@ export default function TermsPage() {
               </div>
             </div>
             <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-              안전관리 시스템
+              AI안전관리 시스템
             </h2>
             <p className="mt-2 text-center text-sm text-gray-600">
               서비스 이용을 위해 약관에 동의해주세요

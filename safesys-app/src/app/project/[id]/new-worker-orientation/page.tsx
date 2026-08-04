@@ -247,7 +247,7 @@ export default function NewWorkerOrientationPage() {
               `📍 <b>장소:</b> ${formData.location || '(미입력)'}\n` +
               `👥 <b>인원:</b> ${workerCount}명\n` +
               `👤 <b>확인자:</b> ${formData.manager_name || '(미입력)'}` +
-              `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+              `\n\n🔗 <a href="https://safesys.vercel.app/">AI안전관리 시스템 바로가기</a>`
 
             await fetch('/api/telegram', {
               method: 'POST',

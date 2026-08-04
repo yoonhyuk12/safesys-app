@@ -537,7 +537,7 @@ export default function IssueManagementPage() {
               `👤 <b>점검자:</b> ${payload.inspector_name || '(미입력)'}\n` +
               `📍 <b>지적부위:</b> ${payload.location || '(미입력)'}\n` +
               `📝 <b>내용:</b> ${contentPreview || '(미입력)'}` +
-              `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+              `\n\n🔗 <a href="https://safesys.vercel.app/">AI안전관리 시스템 바로가기</a>`
 
             await fetch('/api/telegram', {
               method: 'POST',

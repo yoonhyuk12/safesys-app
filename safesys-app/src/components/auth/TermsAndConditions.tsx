@@ -217,7 +217,7 @@ const TermsAndConditions: React.FC<TermsAndConditionsProps> = ({ onAgree }) => {
 
                 <div>
                   <p className="font-semibold mt-2">1. 개인정보의 수집 및 이용 목적</p>
-                  <p>- 안전관리 시스템 서비스 제공</p>
+                  <p>- AI안전관리 시스템 서비스 제공</p>
                   <p>- 건설 현장 안전점검 관리 및 기록</p>
                   <p>- 사용자 본인 확인 및 서비스 이용</p>
                   <p>- 안전점검 증빙 자료 관리</p>
@@ -324,11 +324,11 @@ const TermsAndConditions: React.FC<TermsAndConditionsProps> = ({ onAgree }) => {
           {showTermsDetails && (
             <div className="ml-8 mb-3">
               <div className="bg-gray-50 rounded-lg p-4 text-xs text-gray-700 space-y-2 max-h-60 overflow-y-auto border border-gray-200">
-                <p className="font-bold text-sm">안전관리 시스템 서비스 이용약관</p>
+                <p className="font-bold text-sm">AI안전관리 시스템 서비스 이용약관</p>
 
                 <div>
                   <p className="font-semibold mt-2">제1조 (목적)</p>
-                  <p>본 약관은 한국농어촌공사 경기지역본부 안전관리센터가 제공하는 안전관리 시스템 서비스의 이용과 관련하여 회사와 이용자의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.</p>
+                  <p>본 약관은 한국농어촌공사 경기지역본부 안전관리센터가 제공하는 AI안전관리 시스템 서비스의 이용과 관련하여 회사와 이용자의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.</p>
                 </div>
 
                 <div>
@@ -444,7 +444,7 @@ const TermsAndConditions: React.FC<TermsAndConditionsProps> = ({ onAgree }) => {
 
                 <div className="border-t border-gray-200 pt-2">
                   <p className="font-semibold text-red-600">8. 동의 철회</p>
-                  <p className="ml-2">- 동의를 철회하실 경우 안전관리시스템 이용 및 회원가입이 불가합니다.</p>
+                  <p className="ml-2">- 동의를 철회하실 경우 AI안전관리 시스템 이용 및 회원가입이 불가합니다.</p>
                   <p className="ml-2">- 철회 문의: 경기지역본부 안전관리센터 (031-250-3611)</p>
                 </div>
 

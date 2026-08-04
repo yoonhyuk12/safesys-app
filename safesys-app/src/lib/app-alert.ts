@@ -58,7 +58,7 @@ export async function sendAppAlert(
         },
         body: JSON.stringify({
           target_code: targetCode,
-          camera_name: projectName || '안전관리시스템',
+          camera_name: projectName || 'AI안전관리 시스템',
           detection_type: '안전알림',
           message,
           source_device: 'SafeSys',

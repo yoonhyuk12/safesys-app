@@ -1357,7 +1357,7 @@ export default function HeadquartersInspectionPage() {
               `📝 <b>지적사항:</b>\n` +
               `1. ${newRecord.issue_content1}` +
               (newRecord.issue_content2 ? `\n2. ${newRecord.issue_content2}` : '') +
-              `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+              `\n\n🔗 <a href="https://safesys.vercel.app/">AI안전관리 시스템 바로가기</a>`
 
             await fetch('/api/telegram', {
               method: 'POST',

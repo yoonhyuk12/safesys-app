@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'KRC안전 - 안전관리 시스템',
+  title: 'AI안전관리 시스템',
   description: '스마트한 안전관리 솔루션으로 작업장의 안전을 지켜보세요',
   manifest: '/manifest.json',
   icons: {
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'KRC안전',
+    title: 'AI안전관리',
   },
   other: {
     'Cache-Control': 'no-cache, no-store, must-revalidate',

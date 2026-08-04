@@ -608,7 +608,7 @@ const SafetyCheckForm: React.FC<SafetyCheckFormProps> = ({ onBack, embedded = fa
             (nonCompliantItems.length > 0
               ? `\n\n⚠️ <b>불이행 항목:</b>\n${nonCompliantItems.map(item => `- ${item}`).join('\n')}`
               : '') +
-            `\n\n🔗 <a href="https://safesys.vercel.app/">안전관리시스템 바로가기</a>`
+            `\n\n🔗 <a href="https://safesys.vercel.app/">AI안전관리 시스템 바로가기</a>`
 
           await fetch('/api/telegram', {
             method: 'POST',

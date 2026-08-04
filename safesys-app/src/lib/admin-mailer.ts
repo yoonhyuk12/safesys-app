@@ -4,7 +4,7 @@ import { OTP_TTL_MINUTES } from '@/lib/admin-otp'
 
 const SMTP_HOST = 'smtp.gmail.com'
 const SMTP_PORT = 465
-const SENDER_NAME = '안전관리시스템'
+const SENDER_NAME = 'AI안전관리 시스템'
 
 // 앱 비밀번호로 인증하는 Gmail 전송기를 만든다. env가 없으면 발송 전에 실패시킨다.
 function createMailer(): { transporter: nodemailer.Transporter; sender: string } {

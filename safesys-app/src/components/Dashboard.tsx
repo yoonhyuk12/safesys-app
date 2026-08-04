@@ -4941,7 +4941,7 @@ const Dashboard: React.FC = () => {
                 aria-label="대시보드 리스트로 이동"
               >
                 <Shield className="h-6 w-6 lg:h-8 lg:w-8 text-blue-600 mr-2 lg:mr-3 flex-shrink-0" />
-                <h1 className="text-sm lg:text-xl font-bold text-gray-900 truncate">안전관리 시스템</h1>
+                <h1 className="text-sm lg:text-xl font-bold text-gray-900 truncate">AI안전관리 시스템</h1>
               </button>
             </div>
             <div className="flex items-center space-x-2 lg:space-x-4">

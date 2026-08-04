@@ -168,7 +168,7 @@ const ProjectRegistrationForm: React.FC = () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               targetCodes: app,
-              projectName: formData.project_name || '안전관리시스템',
+              projectName: formData.project_name || 'AI안전관리 시스템',
               message: `SafeSys 테스트 메시지\n\n현장: ${formData.project_name || '(미입력)'}\n수신자: ${label}\n\n이 메시지가 정상적으로 수신되었다면 앱 알림 설정이 완료된 것입니다.`
             })
           }).then(r => r.json())

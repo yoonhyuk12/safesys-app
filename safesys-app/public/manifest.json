@@ -1,7 +1,7 @@
 {
-  "name": "KRC안전 - 안전관리 시스템",
-  "short_name": "KRC안전",
-  "description": "안전관리 시스템 - 작업장 안전을 위한 통합 관리 도구",
+  "name": "AI안전관리",
+  "short_name": "AI안전관리",
+  "description": "AI안전관리 시스템 - 작업장 안전을 위한 통합 관리 도구",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
