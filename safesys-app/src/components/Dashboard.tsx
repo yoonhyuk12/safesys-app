@@ -346,6 +346,11 @@ const Dashboard: React.FC = () => {
   // 분기 토글 UI 표시 여부: 발주청이면 모두 표시 (편집 권한과 별개)
   const showQuarters = userProfile?.role === '발주청'
 
+  // 지사 소속 여부: 소속이 본사·본부가 아니면 지사급으로 본다 (본부/본사/미지정은 false)
+  const isBranchLevelUser = !!userProfile?.branch_division &&
+    userProfile.branch_division !== '본사' &&
+    !userProfile.branch_division.endsWith('본부')
+
   // 본부별 공사중 토글 상태 Map (본부명 -> 분기별 상태)
   const [quartersToggleMap, setQuartersToggleMap] = useState<Map<string, QuarterToggleState>>(new Map())
   const [isQuarterPanelOpen, setIsQuarterPanelOpen] = useState(false)
@@ -4127,7 +4132,8 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 5대 핵심이행사항 카드 */}
+                {/* 5대 핵심이행사항 카드 (지사 소속에게는 숨김) */}
+                {!isBranchLevelUser && (
                 <div
                   className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-lg hover:border-emerald-300 hover:bg-emerald-50/30 transition-all duration-200 cursor-pointer transform hover:scale-[1.02]"
                   onClick={() => {
@@ -4151,6 +4157,7 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* 사고 통계 분석 카드 */}
                 <button
