@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Calendar, FileText, ChevronLeft, ChevronRight, X, Upload, Camera, ChevronDown, ChevronUp, CheckCircle, Clock, AlertCircle, Edit, Trash2, Download, Printer, RotateCw, Phone, Save, Crop, RotateCcw, Copy, Check, User, HardHat, PenTool } from 'lucide-react'
+import { ArrowLeft, Plus, Calendar, FileText, ChevronLeft, ChevronRight, X, Upload, Camera, ChevronDown, ChevronUp, CheckCircle, Clock, AlertCircle, Edit, Trash2, Download, Printer, Phone, Save, Copy, Check, User, HardHat, PenTool } from 'lucide-react'
 import { generateHeadquartersInspectionReport } from '@/lib/reports/headquarters-inspection'
 import { downloadHeadquartersInspectionHwpx } from '@/lib/hwpx/headquarters-inspection-hwpx-export'
 import { Project } from '@/lib/projects'
@@ -183,15 +183,8 @@ export default function HeadquartersInspectionPage() {
   const [aiRemarksLoading, setAiRemarksLoading] = useState(false)
   const [aiRemarksProgress, setAiRemarksProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 })
 
-  // 크롭 관련 상태
-  const [showCropModal, setShowCropModal] = useState(false)
-  const [cropImageSrc, setCropImageSrc] = useState<string>('')
-  const [cropPhotoType, setCropPhotoType] = useState<'overview' | 'issue1' | 'issue2'>('overview')
-  const [cropArea, setCropArea] = useState({ x: 0, y: 0, width: 100, height: 100 }) // 퍼센트 값
-  const [isDragging, setIsDragging] = useState<'tl' | 'br' | null>(null) // 좌측상단(tl), 우측하단(br)
-  const cropContainerRef = useRef<HTMLDivElement>(null)
-  const cropHandleTlRef = useRef<HTMLDivElement>(null) // 좌측 상단 핸들 ref
-  const cropHandleBrRef = useRef<HTMLDivElement>(null) // 우측 하단 핸들 ref
+  // 등록 폼 사진 편집(회전·크롭) 모달 상태
+  const [editingNewPhoto, setEditingNewPhoto] = useState<{ type: 'overview' | 'issue1' | 'issue2'; url: string } | null>(null)
 
   // 등록 폼 상태
   const [newRecord, setNewRecord] = useState({
@@ -313,370 +306,64 @@ export default function HeadquartersInspectionPage() {
     })
   }
 
-  // URL에서 이미지를 다운로드해서 File 객체로 변환
-  const urlToFile = async (url: string, filename: string): Promise<File | null> => {
-    try {
-      const response = await fetch(url)
-      const blob = await response.blob()
-      return new File([blob], filename, { type: blob.type || 'image/jpeg' })
-    } catch (error) {
-      console.error('URL to File 변환 오류:', error)
-      return null
-    }
-  }
+  // 등록 폼 사진 편집(회전·크롭) 모달 열기
+  const openNewPhotoEditor = (photoType: 'overview' | 'issue1' | 'issue2') => {
+    const file = photoType === 'overview'
+      ? newRecord.site_photo_overview
+      : photoType === 'issue1'
+        ? newRecord.site_photo_issue1
+        : newRecord.site_photo_issue2
+    const preview = photoType === 'overview'
+      ? newRecord.site_photo_overview_preview
+      : photoType === 'issue1'
+        ? newRecord.site_photo_issue1_preview
+        : newRecord.site_photo_issue2_preview
 
-  // 이미지 파일 90도 회전 (시계/반시계)
-  const rotateImageFile = (file: File, direction: 'cw' | 'ccw' = 'cw', quality = 0.9): Promise<File> => {
-    return new Promise((resolve) => {
-      try {
-        const img = new (window as any).Image()
-        const objectUrl = URL.createObjectURL(file)
-        img.onload = () => {
-          try {
-            const canvas = document.createElement('canvas')
-            const ctx = canvas.getContext('2d')
-            if (!ctx) {
-              URL.revokeObjectURL(objectUrl)
-              resolve(file)
-              return
-            }
-            const angle = direction === 'cw' ? Math.PI / 2 : -Math.PI / 2
-            canvas.width = img.height
-            canvas.height = img.width
-            ctx.translate(canvas.width / 2, canvas.height / 2)
-            ctx.rotate(angle)
-            ctx.drawImage(img, -img.width / 2, -img.height / 2)
-            canvas.toBlob((blob) => {
-              URL.revokeObjectURL(objectUrl)
-              if (!blob) {
-                resolve(file)
-                return
-              }
-              const baseName = file.name.replace(/\.[^.]+$/, '')
-              const rotated = new File([blob], `${baseName}_rotated.jpg`, { type: 'image/jpeg' })
-              resolve(rotated)
-            }, 'image/jpeg', quality)
-          } catch {
-            URL.revokeObjectURL(objectUrl)
-            resolve(file)
-          }
-        }
-        img.onerror = () => {
-          URL.revokeObjectURL(objectUrl)
-          resolve(file)
-        }
-        img.src = objectUrl
-      } catch {
-        resolve(file)
-      }
-    })
-  }
-
-  // 크롭 모달 열기
-  const openCropModal = (photoType: 'overview' | 'issue1' | 'issue2') => {
-    let src = ''
-    if (photoType === 'overview') {
-      if (newRecord.site_photo_overview) {
-        src = URL.createObjectURL(newRecord.site_photo_overview)
-      } else {
-        src = newRecord.site_photo_overview_preview
-      }
-    } else if (photoType === 'issue1') {
-      if (newRecord.site_photo_issue1) {
-        src = URL.createObjectURL(newRecord.site_photo_issue1)
-      } else {
-        src = newRecord.site_photo_issue1_preview
-      }
-    } else {
-      if (newRecord.site_photo_issue2) {
-        src = URL.createObjectURL(newRecord.site_photo_issue2)
-      } else {
-        src = newRecord.site_photo_issue2_preview
-      }
-    }
-    
+    const src = preview || (file ? URL.createObjectURL(file) : '')
     if (!src) return
-    
-    setCropImageSrc(src)
-    setCropPhotoType(photoType)
-    setCropArea({ x: 0, y: 0, width: 100, height: 100 }) // 초기에는 전체 영역
-    setShowCropModal(true)
+
+    setEditingNewPhoto({ type: photoType, url: src })
   }
 
-  // 크롭 적용 함수
-  const applyCrop = async () => {
-    if (!cropImageSrc) return
+  // 편집(회전·크롭)한 등록 폼 사진 반영
+  const handleSaveNewPhotoEdit = async (editedImageBlob: Blob) => {
+    if (!editingNewPhoto) return
 
-    const img = new (window as any).Image()
-    img.crossOrigin = 'anonymous'
-    
-    return new Promise<void>((resolve) => {
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas')
-          const ctx = canvas.getContext('2d')
-          if (!ctx) {
-            resolve()
-            return
-          }
+    const edited = new File([editedImageBlob], `edited_${Date.now()}.jpg`, { type: 'image/jpeg' })
+    const resized = await resizeImageToJpeg(edited, 1920, 1440, 0.95)
+    const previewUrl = URL.createObjectURL(resized)
 
-          // 실제 크롭 좌표 계산 (퍼센트 -> 픽셀)
-          const srcX = (cropArea.x / 100) * img.width
-          const srcY = (cropArea.y / 100) * img.height
-          const srcWidth = (cropArea.width / 100) * img.width
-          const srcHeight = (cropArea.height / 100) * img.height
-
-          canvas.width = srcWidth
-          canvas.height = srcHeight
-
-          ctx.drawImage(img, srcX, srcY, srcWidth, srcHeight, 0, 0, srcWidth, srcHeight)
-
-          canvas.toBlob(async (blob) => {
-            if (!blob) {
-              resolve()
-              return
-            }
-
-            const filename = `cropped_${Date.now()}.jpg`
-            const file = new File([blob], filename, { type: 'image/jpeg' })
-            
-            // 리사이즈 적용 (HeadquartersInspection은 1240x1754 사용)
-            const resized = await resizeImageToJpeg(file, 1240, 1754, 0.95)
-            const previewUrl = URL.createObjectURL(resized)
-
-            // 이전 프리뷰 URL 해제
-            if (cropPhotoType === 'overview') {
-              if (newRecord.site_photo_overview_preview && newRecord.site_photo_overview_preview.startsWith('blob:')) {
-                URL.revokeObjectURL(newRecord.site_photo_overview_preview)
-              }
-              if (newRecord.site_photo_overview) {
-                URL.revokeObjectURL(URL.createObjectURL(newRecord.site_photo_overview))
-              }
-              setNewRecord({
-                ...newRecord,
-                site_photo_overview: resized,
-                site_photo_overview_preview: previewUrl
-              })
-            } else if (cropPhotoType === 'issue1') {
-              if (newRecord.site_photo_issue1_preview && newRecord.site_photo_issue1_preview.startsWith('blob:')) {
-                URL.revokeObjectURL(newRecord.site_photo_issue1_preview)
-              }
-              if (newRecord.site_photo_issue1) {
-                URL.revokeObjectURL(URL.createObjectURL(newRecord.site_photo_issue1))
-              }
-              setNewRecord({
-                ...newRecord,
-                site_photo_issue1: resized,
-                site_photo_issue1_preview: previewUrl
-              })
-            } else {
-              if (newRecord.site_photo_issue2_preview && newRecord.site_photo_issue2_preview.startsWith('blob:')) {
-                URL.revokeObjectURL(newRecord.site_photo_issue2_preview)
-              }
-              if (newRecord.site_photo_issue2) {
-                URL.revokeObjectURL(URL.createObjectURL(newRecord.site_photo_issue2))
-              }
-              setNewRecord({
-                ...newRecord,
-                site_photo_issue2: resized,
-                site_photo_issue2_preview: previewUrl
-              })
-            }
-
-            setShowCropModal(false)
-            resolve()
-          }, 'image/jpeg', 0.9)
-        } catch (err) {
-          console.error('크롭 실패:', err)
-          resolve()
-        }
+    if (editingNewPhoto.type === 'overview') {
+      if (newRecord.site_photo_overview_preview?.startsWith('blob:')) {
+        URL.revokeObjectURL(newRecord.site_photo_overview_preview)
       }
-      img.onerror = () => {
-        console.error('이미지 로드 실패')
-        resolve()
-      }
-      img.src = cropImageSrc
-    })
-  }
-
-  // 크롭 핸들 드래그 핸들러
-  // 마우스와 터치 이벤트를 모두 처리하는 통합 핸들러
-  const getClientCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
-    if ('touches' in e && e.touches.length > 0) {
-      return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY }
-    } else if ('clientX' in e) {
-      return { clientX: e.clientX, clientY: e.clientY }
-    }
-    return { clientX: 0, clientY: 0 }
-  }
-
-  const handleCropStart = (corner: 'tl' | 'br', e: React.MouseEvent | React.TouchEvent) => {
-    // 터치 이벤트가 아닐 때만 preventDefault 호출 (passive 이벤트 오류 방지)
-    if (!('touches' in e)) {
-      e.preventDefault()
-    }
-    e.stopPropagation()
-    setIsDragging(corner)
-  }
-
-  const handleCropMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDragging || !cropContainerRef.current) return
-    
-    const { clientX, clientY } = getClientCoordinates(e)
-    const rect = cropContainerRef.current.getBoundingClientRect()
-    const x = ((clientX - rect.left) / rect.width) * 100
-    const y = ((clientY - rect.top) / rect.height) * 100
-    
-    // 0-100 범위로 제한
-    const clampedX = Math.max(0, Math.min(100, x))
-    const clampedY = Math.max(0, Math.min(100, y))
-    
-    if (isDragging === 'tl') {
-      // 좌측 상단 핸들: x, y를 조정하고 width, height를 재계산
-      const newX = Math.min(clampedX, cropArea.x + cropArea.width - 10)
-      const newY = Math.min(clampedY, cropArea.y + cropArea.height - 10)
-      const newWidth = cropArea.width + (cropArea.x - newX)
-      const newHeight = cropArea.height + (cropArea.y - newY)
-      
-      setCropArea({
-        x: newX,
-        y: newY,
-        width: newWidth,
-        height: newHeight
+      setNewRecord({
+        ...newRecord,
+        site_photo_overview: resized,
+        site_photo_overview_preview: previewUrl
       })
-    } else if (isDragging === 'br') {
-      // 우측 하단 핸들: width, height만 조정
-      const newWidth = Math.max(10, clampedX - cropArea.x)
-      const newHeight = Math.max(10, clampedY - cropArea.y)
-      
-      setCropArea({
-        ...cropArea,
-        width: newWidth,
-        height: newHeight
+    } else if (editingNewPhoto.type === 'issue1') {
+      if (newRecord.site_photo_issue1_preview?.startsWith('blob:')) {
+        URL.revokeObjectURL(newRecord.site_photo_issue1_preview)
+      }
+      setNewRecord({
+        ...newRecord,
+        site_photo_issue1: resized,
+        site_photo_issue1_preview: previewUrl
+      })
+    } else {
+      if (newRecord.site_photo_issue2_preview?.startsWith('blob:')) {
+        URL.revokeObjectURL(newRecord.site_photo_issue2_preview)
+      }
+      setNewRecord({
+        ...newRecord,
+        site_photo_issue2: resized,
+        site_photo_issue2_preview: previewUrl
       })
     }
+
+    setEditingNewPhoto(null)
   }
-
-  const handleCropEnd = () => {
-    setIsDragging(null)
-  }
-
-  // 핸들 요소에 네이티브 이벤트 리스너 등록 (passive: false로 preventDefault 가능하게)
-  useEffect(() => {
-    if (!showCropModal) return // 모달이 열려있을 때만 등록
-
-    const handleTlStart = (e: MouseEvent | TouchEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setIsDragging('tl')
-    }
-
-    const handleBrStart = (e: MouseEvent | TouchEvent) => {
-      e.preventDefault()
-      e.stopPropagation()
-      setIsDragging('br')
-    }
-
-    // 약간의 지연을 두어 DOM이 완전히 렌더링된 후 ref를 확인
-    const timeoutId = setTimeout(() => {
-      const tlElement = cropHandleTlRef.current
-      const brElement = cropHandleBrRef.current
-
-      if (tlElement) {
-        tlElement.addEventListener('mousedown', handleTlStart)
-        tlElement.addEventListener('touchstart', handleTlStart, { passive: false })
-      }
-
-      if (brElement) {
-        brElement.addEventListener('mousedown', handleBrStart)
-        brElement.addEventListener('touchstart', handleBrStart, { passive: false })
-      }
-    }, 100)
-
-    return () => {
-      clearTimeout(timeoutId)
-      const tlElement = cropHandleTlRef.current
-      const brElement = cropHandleBrRef.current
-
-      if (tlElement) {
-        tlElement.removeEventListener('mousedown', handleTlStart)
-        tlElement.removeEventListener('touchstart', handleTlStart)
-      }
-      if (brElement) {
-        brElement.removeEventListener('mousedown', handleBrStart)
-        brElement.removeEventListener('touchstart', handleBrStart)
-      }
-    }
-  }, [showCropModal])
-
-  // 전역 마우스/터치 이벤트 처리 (드래그 중일 때)
-  useEffect(() => {
-    if (!isDragging) return
-
-    const handleGlobalMove = (e: MouseEvent | TouchEvent) => {
-      if (!cropContainerRef.current) return
-      
-      // 터치 이벤트일 때 preventDefault로 스크롤 방지
-      if ('touches' in e) {
-        e.preventDefault()
-      }
-      
-      const clientX = 'touches' in e && e.touches.length > 0 
-        ? e.touches[0].clientX 
-        : (e as MouseEvent).clientX
-      const clientY = 'touches' in e && e.touches.length > 0 
-        ? e.touches[0].clientY 
-        : (e as MouseEvent).clientY
-      
-      const rect = cropContainerRef.current.getBoundingClientRect()
-      const x = ((clientX - rect.left) / rect.width) * 100
-      const y = ((clientY - rect.top) / rect.height) * 100
-      
-      const clampedX = Math.max(0, Math.min(100, x))
-      const clampedY = Math.max(0, Math.min(100, y))
-      
-      if (isDragging === 'tl') {
-        const newX = Math.min(clampedX, cropArea.x + cropArea.width - 10)
-        const newY = Math.min(clampedY, cropArea.y + cropArea.height - 10)
-        const newWidth = cropArea.width + (cropArea.x - newX)
-        const newHeight = cropArea.height + (cropArea.y - newY)
-        
-        setCropArea({
-          x: newX,
-          y: newY,
-          width: newWidth,
-          height: newHeight
-        })
-      } else if (isDragging === 'br') {
-        const newWidth = Math.max(10, clampedX - cropArea.x)
-        const newHeight = Math.max(10, clampedY - cropArea.y)
-        
-        setCropArea(prev => ({
-          ...prev,
-          width: newWidth,
-          height: newHeight
-        }))
-      }
-    }
-
-    const handleGlobalEnd = () => {
-      setIsDragging(null)
-    }
-
-    window.addEventListener('mousemove', handleGlobalMove)
-    window.addEventListener('mouseup', handleGlobalEnd)
-    window.addEventListener('touchmove', handleGlobalMove, { passive: false })
-    window.addEventListener('touchend', handleGlobalEnd, { passive: false })
-    window.addEventListener('touchcancel', handleGlobalEnd, { passive: false })
-
-    return () => {
-      window.removeEventListener('mousemove', handleGlobalMove)
-      window.removeEventListener('mouseup', handleGlobalEnd)
-      window.removeEventListener('touchmove', handleGlobalMove)
-      window.removeEventListener('touchend', handleGlobalEnd)
-      window.removeEventListener('touchcancel', handleGlobalEnd)
-    }
-  }, [isDragging, cropArea])
 
   const loadProject = async () => {
     try {
@@ -2468,37 +2155,10 @@ export default function HeadquartersInspectionPage() {
                                           <button
                                             type="button"
                                             className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
-                                            title="시계방향 회전"
-                                            onClick={async () => {
-                                              // 기존 URL인 경우 먼저 File로 변환
-                                              let fileToRotate = newRecord.site_photo_overview
-                                              if (!fileToRotate && newRecord.site_photo_overview_preview) {
-                                                fileToRotate = await urlToFile(newRecord.site_photo_overview_preview, 'overview.jpg')
-                                                if (!fileToRotate) return
-                                              }
-                                              if (!fileToRotate) return
-
-                                              const rotated = await rotateImageFile(fileToRotate, 'cw')
-                                              const previewUrl = URL.createObjectURL(rotated)
-                                              if (newRecord.site_photo_overview_preview && newRecord.site_photo_overview_preview.startsWith('blob:')) {
-                                                URL.revokeObjectURL(newRecord.site_photo_overview_preview)
-                                              }
-                                              setNewRecord({
-                                                ...newRecord,
-                                                site_photo_overview: rotated,
-                                                site_photo_overview_preview: previewUrl
-                                              })
-                                            }}
+                                            title="편집 (회전·크롭)"
+                                            onClick={() => openNewPhotoEditor('overview')}
                                           >
-                                            <RotateCw className="h-4 w-4" />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
-                                            title="크롭"
-                                            onClick={() => openCropModal('overview')}
-                                          >
-                                            <Crop className="h-4 w-4" />
+                                            <Edit className="h-4 w-4" />
                                           </button>
                                           <button
                                             type="button"
@@ -2589,37 +2249,10 @@ export default function HeadquartersInspectionPage() {
                                             <button
                                               type="button"
                                               className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
-                                              title="시계방향 회전"
-                                              onClick={async () => {
-                                                // 기존 URL인 경우 먼저 File로 변환
-                                                let fileToRotate = newRecord.site_photo_issue1
-                                                if (!fileToRotate && newRecord.site_photo_issue1_preview) {
-                                                  fileToRotate = await urlToFile(newRecord.site_photo_issue1_preview, 'issue1.jpg')
-                                                  if (!fileToRotate) return
-                                                }
-                                                if (!fileToRotate) return
-
-                                                const rotated = await rotateImageFile(fileToRotate, 'cw')
-                                                const previewUrl = URL.createObjectURL(rotated)
-                                                if (newRecord.site_photo_issue1_preview && newRecord.site_photo_issue1_preview.startsWith('blob:')) {
-                                                  URL.revokeObjectURL(newRecord.site_photo_issue1_preview)
-                                                }
-                                                setNewRecord({
-                                                  ...newRecord,
-                                                  site_photo_issue1: rotated,
-                                                  site_photo_issue1_preview: previewUrl
-                                                })
-                                              }}
+                                              title="편집 (회전·크롭)"
+                                              onClick={() => openNewPhotoEditor('issue1')}
                                             >
-                                              <RotateCw className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
-                                              title="크롭"
-                                              onClick={() => openCropModal('issue1')}
-                                            >
-                                              <Crop className="h-4 w-4" />
+                                              <Edit className="h-4 w-4" />
                                             </button>
                                             <button
                                               type="button"
@@ -2743,37 +2376,10 @@ export default function HeadquartersInspectionPage() {
                                             <button
                                               type="button"
                                               className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
-                                              title="시계방향 회전"
-                                              onClick={async () => {
-                                                // 기존 URL인 경우 먼저 File로 변환
-                                                let fileToRotate = newRecord.site_photo_issue2
-                                                if (!fileToRotate && newRecord.site_photo_issue2_preview) {
-                                                  fileToRotate = await urlToFile(newRecord.site_photo_issue2_preview, 'issue2.jpg')
-                                                  if (!fileToRotate) return
-                                                }
-                                                if (!fileToRotate) return
-
-                                                const rotated = await rotateImageFile(fileToRotate, 'cw')
-                                                const previewUrl = URL.createObjectURL(rotated)
-                                                if (newRecord.site_photo_issue2_preview && newRecord.site_photo_issue2_preview.startsWith('blob:')) {
-                                                  URL.revokeObjectURL(newRecord.site_photo_issue2_preview)
-                                                }
-                                                setNewRecord({
-                                                  ...newRecord,
-                                                  site_photo_issue2: rotated,
-                                                  site_photo_issue2_preview: previewUrl
-                                                })
-                                              }}
+                                              title="편집 (회전·크롭)"
+                                              onClick={() => openNewPhotoEditor('issue2')}
                                             >
-                                              <RotateCw className="h-4 w-4" />
-                                            </button>
-                                            <button
-                                              type="button"
-                                              className="bg-black bg-opacity-60 text-white rounded-full p-1 hover:bg-opacity-70"
-                                              title="크롭"
-                                              onClick={() => openCropModal('issue2')}
-                                            >
-                                              <Crop className="h-4 w-4" />
+                                              <Edit className="h-4 w-4" />
                                             </button>
                                             <button
                                               type="button"
@@ -3595,163 +3201,6 @@ export default function HeadquartersInspectionPage() {
           </div>
         )}
 
-        {/* 크롭 모달 */}
-        {showCropModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-2">
-              {/* 헤더 */}
-              <div className="flex items-center justify-between p-4 border-b">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <Crop className="h-5 w-5" />
-                  이미지 크롭
-                </h2>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setCropArea({ x: 0, y: 0, width: 100, height: 100 })}
-                    className="p-2 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                    title="초기화"
-                  >
-                    <RotateCcw className="h-5 w-5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={applyCrop}
-                    className="p-2 text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
-                    title="크롭 적용"
-                  >
-                    <Save className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() => setShowCropModal(false)}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    title="닫기"
-                  >
-                    <X className="h-6 w-6" />
-                  </button>
-                </div>
-              </div>
-
-              {/* 크롭 영역 */}
-              <div className="p-4">
-                <p className="text-sm text-gray-600 mb-3">
-                  L형 핸들을 드래그하여 크롭 영역을 조정하세요. 투명한 영역이 잘려나갑니다.
-                </p>
-                
-                <div 
-                  ref={cropContainerRef}
-                  className="relative w-full bg-gray-100 rounded-lg select-none"
-                  style={{ aspectRatio: '4/3' }}
-                >
-                  {/* 원본 이미지 */}
-                  <img 
-                    src={cropImageSrc} 
-                    alt="크롭할 이미지" 
-                    className="absolute inset-0 w-full h-full object-contain"
-                    draggable={false}
-                  />
-                  
-                  {/* 크롭되지 않는 영역 (반투명 오버레이) */}
-                  {/* 상단 영역 */}
-                  <div 
-                    className="absolute bg-black/50 pointer-events-none"
-                    style={{
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: `${cropArea.y}%`
-                    }}
-                  />
-                  {/* 하단 영역 */}
-                  <div 
-                    className="absolute bg-black/50 pointer-events-none"
-                    style={{
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      height: `${100 - cropArea.y - cropArea.height}%`
-                    }}
-                  />
-                  {/* 좌측 영역 */}
-                  <div 
-                    className="absolute bg-black/50 pointer-events-none"
-                    style={{
-                      top: `${cropArea.y}%`,
-                      left: 0,
-                      width: `${cropArea.x}%`,
-                      height: `${cropArea.height}%`
-                    }}
-                  />
-                  {/* 우측 영역 */}
-                  <div 
-                    className="absolute bg-black/50 pointer-events-none"
-                    style={{
-                      top: `${cropArea.y}%`,
-                      right: 0,
-                      width: `${100 - cropArea.x - cropArea.width}%`,
-                      height: `${cropArea.height}%`
-                    }}
-                  />
-                  
-                  {/* 크롭 영역 테두리 */}
-                  <div 
-                    className="absolute border-2 border-black pointer-events-none"
-                    style={{
-                      left: `${cropArea.x}%`,
-                      top: `${cropArea.y}%`,
-                      width: `${cropArea.width}%`,
-                      height: `${cropArea.height}%`,
-                      boxShadow: '0 0 0 9999px transparent'
-                    }}
-                  />
-                  
-                  {/* 좌측 상단 L형 핸들 */}
-                  <div
-                    ref={cropHandleTlRef}
-                    className="absolute cursor-nw-resize z-20 touch-manipulation"
-                    style={{
-                      left: `${cropArea.x}%`,
-                      top: `${cropArea.y}%`,
-                      transform: 'translate(-12px, -12px)',
-                      width: '48px',
-                      height: '48px',
-                      touchAction: 'none'
-                    }}
-                  >
-                    {/* L형 모양 */}
-                    <div className="relative w-8 h-8" style={{ margin: '8px' }}>
-                      <div className="absolute bg-black rounded-sm shadow-lg" style={{ top: 0, left: 0, width: '28px', height: '4px' }} />
-                      <div className="absolute bg-black rounded-sm shadow-lg" style={{ top: 0, left: 0, width: '4px', height: '28px' }} />
-                      <div className="absolute bg-white rounded-full w-3 h-3 shadow-lg border-2 border-black" style={{ top: '-4px', left: '-4px' }} />
-                    </div>
-                  </div>
-                  
-                  {/* 우측 하단 L형 핸들 */}
-                  <div
-                    ref={cropHandleBrRef}
-                    className="absolute cursor-se-resize z-20 touch-manipulation"
-                    style={{
-                      left: `${cropArea.x + cropArea.width}%`,
-                      top: `${cropArea.y + cropArea.height}%`,
-                      transform: 'translate(-36px, -36px)',
-                      width: '48px',
-                      height: '48px',
-                      touchAction: 'none'
-                    }}
-                  >
-                    {/* L형 모양 (반대 방향) */}
-                    <div className="relative w-8 h-8" style={{ margin: '8px' }}>
-                      <div className="absolute bg-black rounded-sm shadow-lg" style={{ bottom: 0, right: 0, width: '28px', height: '4px' }} />
-                      <div className="absolute bg-black rounded-sm shadow-lg" style={{ bottom: 0, right: 0, width: '4px', height: '28px' }} />
-                      <div className="absolute bg-white rounded-full w-3 h-3 shadow-lg border-2 border-black" style={{ bottom: '-4px', right: '-4px' }} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* 서명 모달 */}
         {showSignatureModal && (
           <SignaturePad
@@ -3776,6 +3225,15 @@ export default function HeadquartersInspectionPage() {
             imageUrl={editingImage.url}
             onSave={handleSaveEditedImage}
             onClose={() => setEditingImage(null)}
+          />
+        )}
+
+        {/* 등록 폼 사진 편집 모달 */}
+        {editingNewPhoto && (
+          <ImageEditor
+            imageUrl={editingNewPhoto.url}
+            onSave={handleSaveNewPhotoEdit}
+            onClose={() => setEditingNewPhoto(null)}
           />
         )}
 
