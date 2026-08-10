@@ -149,6 +149,9 @@ export default function HeadquartersInspectionPage() {
   const projectId = params.id as string
   const fromBranch = searchParams.get('fromBranch')
 
+  // 점검 내역 수정은 본부 소속 발주청만 가능 (지사·본사 소속은 조회만)
+  const canEditInspection = userProfile?.role === '발주청' && !!userProfile?.branch_division?.endsWith('본부')
+
   const [project, setProject] = useState<ExtendedProject | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -770,7 +773,7 @@ export default function HeadquartersInspectionPage() {
   // 점검 항목 클릭 시 수정 모드로 전환
   const handleInspectionClick = async (inspection: any) => {
     if (isDeleteMode || isDownloadMode || isResignMode) return // 삭제/다운로드/재서명 모드에서는 동작 안 함
-    if (userProfile?.role !== '발주청') return // 발주청만 수정 가능
+    if (!canEditInspection) return // 본부 소속 발주청만 수정 가능
 
     try {
       setLoading(true)
@@ -1630,7 +1633,7 @@ export default function HeadquartersInspectionPage() {
                         {filteredInspections.map((inspection, index) => {
                           const hasSecondIssue = inspection.issue_content2 && inspection.issue_content2.trim()
                           const rowSpan = hasSecondIssue ? 2 : 1
-                          const canEdit = userProfile?.role === '발주청'
+                          const canEdit = canEditInspection
 
                           return (
                             <React.Fragment key={inspection.id}>
