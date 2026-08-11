@@ -93,13 +93,6 @@ const QUALITY_MONTHLY_ACTUAL_FIELDS: QualityMonthlyActualField[] = [
   'prevCumulOtherConfirm',
 ]
 
-// 실시대장 집계가 없을 때(count 0) 기존 수동 입력값을 보존하는 필드 — 월 실적 3칸(실시대장 우선, 없을 때만 수동)
-const QUALITY_MONTHLY_MANUAL_FALLBACK_FIELDS: QualityMonthlyActualField[] = [
-  'monthQualityTest',
-  'monthExpertConfirm',
-  'monthOtherConfirm',
-]
-
 const normalizeActualLabel = (value: string): string => value.trim().replace(/\s+/g, ' ')
 
 const actualRowKey = (workType: string, testItem: string): string =>
@@ -160,9 +153,9 @@ export function applyQualityTestActuals(
     return QUALITY_MONTHLY_ACTUAL_FIELDS.reduce(
       (nextRow, field) => {
         const count = tally?.get(field)?.size ?? 0
-        // 집계가 없으면 월 실적 3칸은 기존 수동 입력값을 유지(실시대장 우선, 없을 때만 수동), 나머지는 비운다.
-        const fallback = QUALITY_MONTHLY_MANUAL_FALLBACK_FIELDS.includes(field) ? row[field] : ''
-        return { ...nextRow, [field]: count ? String(count) : fallback }
+        // 집계가 없으면 기존 값을 유지한다(실시대장 우선, 없을 때만 기존값).
+        // 월 실적 3칸은 수기 입력값이고, 전월까지 누계 3칸은 직전 보고서에서 이월된 값이라 지우면 금월까지 누계가 빈칸이 된다.
+        return { ...nextRow, [field]: count ? String(count) : row[field] }
       },
       { ...row }
     )
