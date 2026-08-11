@@ -2713,7 +2713,7 @@ export async function getQualityTestCountsByUserBranch(
         .in('project_id', projectIds),
       supabase
         .from('quality_test_records')
-        .select('project_id')
+        .select('project_id, id, serial_no')
         .in('project_id', projectIds)
         .or('supervision_engineer_signature.is.null,supervision_engineer_signature.eq.'),
       supabase
@@ -2754,10 +2754,25 @@ export async function getQualityTestCountsByUserBranch(
       return countMap
     }
 
+    // 실시대장은 일련번호 하나가 한 제출건(시험 항목 여러 행이 같은 번호·같은 서명을 공유)이므로
+    // 행이 아닌 일련번호 단위로 센다. 일련번호가 없는 레거시 행은 행 하나를 한 건으로 본다.
+    const buildSubmissionCountMap = (
+      rows: { project_id: string; id: string; serial_no: number | null }[] | null
+    ) => {
+      const submissionKeys = new Map<string, Set<string>>()
+      ; (rows || []).forEach(row => {
+        const key = row.serial_no == null ? `record:${row.id}` : `serial:${row.serial_no}`
+        const keys = submissionKeys.get(row.project_id) || new Set<string>()
+        keys.add(key)
+        submissionKeys.set(row.project_id, keys)
+      })
+      return new Map(Array.from(submissionKeys, ([projectId, keys]) => [projectId, keys.size]))
+    }
+
     const testCountMap = buildCountMap(recordResult.data)
     const verificationCountMap = buildCountMap(verificationResult.data)
     const summaryCountMap = buildCountMap(summaryResult.data)
-    const testSupervisorUnsignedCountMap = buildCountMap(testSupervisorUnsignedResult.data)
+    const testSupervisorUnsignedCountMap = buildSubmissionCountMap(testSupervisorUnsignedResult.data)
     const verificationSupervisorUnsignedCountMap = buildCountMap(verificationSupervisorUnsignedResult.data)
     const hqUnsignedCountMap = buildCountMap(hqUnsignedResult.data)
 
