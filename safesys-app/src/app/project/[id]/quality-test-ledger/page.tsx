@@ -91,7 +91,11 @@ export default function QualityTestLedgerPage() {
   } | null>(null)
   const [isSharedWithMe, setIsSharedWithMe] = useState(false)
   const [progressAnchors, setProgressAnchors] = useState<ProgressAnchor[]>([])
-  const [activeTab, setActiveTab] = useState<TabKey | null>(null)
+  // tab 쿼리로 진입하면 선택 화면을 건너뛰고 해당 양식을 바로 연다 (예: 사업현황 실시대장 행 클릭)
+  const requestedTab = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState<TabKey | null>(
+    TABS.some(tab => tab.key === requestedTab) ? (requestedTab as TabKey) : null
+  )
   const [summaryUnreadRejectionCount, setSummaryUnreadRejectionCount] = useState(0)
 
   const handleBack = () => {

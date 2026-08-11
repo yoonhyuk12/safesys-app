@@ -4224,7 +4224,7 @@ const Dashboard: React.FC = () => {
                 testCounts={qualityTestCounts}
                 initialBranch={searchParams.get('branch')}
                 onBack={() => setSelectedBusinessCard(null)}
-                onRowClickProject={(projectId, branch) => router.push(`/project/${projectId}/quality-test-ledger?returnUrl=${encodeURIComponent(`/business?card=qualityTest&branch=${branch ?? ''}`)}`)}
+                onRowClickProject={(projectId, branch) => router.push(`/project/${projectId}/quality-test-ledger?tab=records&returnUrl=${encodeURIComponent(`/business?card=qualityTest&branch=${branch ?? ''}`)}`)}
               />
             ) : selectedBusinessCard === 'disasterPrevention' ? (
               <BusinessDisasterPreventionView

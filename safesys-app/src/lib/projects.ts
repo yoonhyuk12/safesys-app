@@ -2701,7 +2701,7 @@ export async function getQualityTestCountsByUserBranch(
     ] = await Promise.all([
       supabase
         .from('quality_test_records')
-        .select('project_id')
+        .select('project_id, id, serial_no')
         .in('project_id', projectIds),
       supabase
         .from('quality_verification_requests')
@@ -2769,7 +2769,7 @@ export async function getQualityTestCountsByUserBranch(
       return new Map(Array.from(submissionKeys, ([projectId, keys]) => [projectId, keys.size]))
     }
 
-    const testCountMap = buildCountMap(recordResult.data)
+    const testCountMap = buildSubmissionCountMap(recordResult.data)
     const verificationCountMap = buildCountMap(verificationResult.data)
     const summaryCountMap = buildCountMap(summaryResult.data)
     const testSupervisorUnsignedCountMap = buildSubmissionCountMap(testSupervisorUnsignedResult.data)
