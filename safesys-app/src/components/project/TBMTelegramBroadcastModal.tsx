@@ -81,8 +81,12 @@ interface TargetRow {
   personnelText: string
 }
 
+// 행 단위 분석 진행 상태 — 청크 응답이 올 때마다 done으로 바뀐다
+type AnalyzeRowStatus = 'pending' | 'analyzing' | 'done' | 'error'
+
 // 분석 결과 행 — 메시지는 사용자가 수정 가능, 발송 후 결과 부착
 interface AnalyzedRow extends TargetRow {
+  status: AnalyzeRowStatus
   analysis: string
   message: string
   sendClient: boolean
@@ -108,6 +112,7 @@ interface SendProgressState {
 
 const ALL_CATEGORY = '전체'
 const PREPARE_CHUNK_SIZE = 100
+const ANALYZE_CHUNK_SIZE = 5
 const MAX_ANALYZE_TARGETS = 50
 const MAX_SEND_TARGETS = 30
 const MIN_MODAL_HEIGHT = 320
@@ -422,6 +427,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     return targets.filter(t => t.projectCategory === categoryFilter)
   }, [targets, categoryFilter])
 
+  const analyzedCount = rows.filter(r => r.status === 'done').length
   const checkedCount = rows.filter(r => r.sendClient || r.sendContractor).length
   const selectedClientCount = rows.filter(r => r.sendClient).length
   const selectedContractorCount = rows.filter(r => r.sendContractor).length
@@ -458,57 +464,82 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
     handle.addEventListener('pointercancel', onEnd)
   }
 
+  // 대상 전체를 대기 상태로 깔아둔 뒤 5건씩 나눠 호출하고, 응답이 오는 청크부터 행을 채운다
   const startAnalyze = async () => {
     const sites = filteredTargets
-    if (sites.length === 0 || sites.length > MAX_ANALYZE_TARGETS || !userRequest.trim()) return
+    const trimmedRequest = userRequest.trim()
+    if (sites.length === 0 || sites.length > MAX_ANALYZE_TARGETS || !trimmedRequest) return
     const requestGeneration = analyzeRequestGenerationRef.current + 1
     analyzeRequestGenerationRef.current = requestGeneration
     setStep('results')
     setAnalyzing(true)
     setAnalyzeError('')
-    setRows([])
     setSendError('')
+    setRows(sites.map(t => ({
+      ...t,
+      status: 'pending',
+      analysis: '',
+      message: '',
+      sendClient: false,
+      sendContractor: false
+    })))
+
     try {
-      const res = await fetchWithAuth('/api/tbm-telegram/analyze', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          userRequest: userRequest.trim(),
-          date: selectedDate,
-          sites: sites.map(t => ({
-            key: t.record.id,
-            projectName: t.record.project_name,
-            projectCategory: t.projectCategory,
-            todayWork: t.record.today_work || '',
-            personnel: t.personnelText,
-            equipment: t.record.equipment_input || ''
-          }))
+      for (let start = 0; start < sites.length; start += ANALYZE_CHUNK_SIZE) {
+        if (requestGeneration !== analyzeRequestGenerationRef.current) return
+        const chunk = sites.slice(start, start + ANALYZE_CHUNK_SIZE)
+        const chunkKeys = new Set(chunk.map(t => t.record.id))
+        setRows(prev => prev.map(row => (
+          chunkKeys.has(row.record.id) ? { ...row, status: 'analyzing' } : row
+        )))
+
+        const res = await fetchWithAuth('/api/tbm-telegram/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            userRequest: trimmedRequest,
+            date: selectedDate,
+            sites: chunk.map(t => ({
+              key: t.record.id,
+              projectName: t.record.project_name,
+              projectCategory: t.projectCategory,
+              todayWork: t.record.today_work || '',
+              personnel: t.personnelText,
+              equipment: t.record.equipment_input || ''
+            }))
+          })
         })
-      })
-      const data = await parseJsonResponse<AnalyzeResponse>(
-        res,
-        'AI 분석 요청을 처리하지 못했습니다.'
-      )
-      if (!res.ok || !data.results) {
-        throw new Error(data.error || 'AI 분석에 실패했습니다.')
-      }
-      if (requestGeneration !== analyzeRequestGenerationRef.current) return
-      const byKey = new Map(data.results.map(r => [r.key, r]))
-      setRows(sites.map(t => {
-        const result = byKey.get(t.record.id)
-        return {
-          ...t,
-          analysis: result?.analysis || '',
-          message: result?.message || '',
-          sendClient: t.hasClientTelegram,
-          sendContractor: t.hasContractorTelegram
+        const data = await parseJsonResponse<AnalyzeResponse>(
+          res,
+          'AI 분석 요청을 처리하지 못했습니다.'
+        )
+        if (!res.ok || !data.results) {
+          throw new Error(data.error || 'AI 분석에 실패했습니다.')
         }
-      }))
+        if (requestGeneration !== analyzeRequestGenerationRef.current) return
+        const byKey = new Map(data.results.map(r => [r.key, r]))
+        setRows(prev => prev.map(row => {
+          const result = chunkKeys.has(row.record.id) ? byKey.get(row.record.id) : undefined
+          if (!result) return row
+          return {
+            ...row,
+            status: 'done',
+            analysis: result.analysis,
+            message: result.message,
+            sendClient: row.hasClientTelegram,
+            sendContractor: row.hasContractorTelegram
+          }
+        }))
+      }
     } catch (err) {
       if (requestGeneration !== analyzeRequestGenerationRef.current) return
       setAnalyzeError(err instanceof Error ? err.message : 'AI 분석에 실패했습니다.')
+      // 이미 받은 행은 그대로 두고, 남은 대기·진행 행만 실패로 표시한다
+      setRows(prev => prev.map(row => (
+        row.status === 'done' ? row : { ...row, status: 'error' }
+      )))
     } finally {
       if (requestGeneration === analyzeRequestGenerationRef.current) {
         setAnalyzing(false)
@@ -675,7 +706,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
             )}
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            {step === 'results' && rows.length > 0 && (
+            {step === 'results' && rows.length > 0 && !analyzing && (
               <button
                 type="button"
                 disabled={sending}
@@ -839,179 +870,180 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
         {step === 'results' && (
           <>
             <div className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col">
-              {analyzing ? (
-                <div className="flex-1 flex flex-col items-center justify-center py-16">
-                  <Loader2 className="h-8 w-8 animate-spin text-sky-600" />
-                  <p className="mt-3 text-sm text-gray-600">AI 분석 중…</p>
-                  <p className="mt-1 text-xs text-gray-400">현장 수에 따라 시간이 걸릴 수 있습니다.</p>
-                </div>
-              ) : analyzeError ? (
-                <div className="flex-1 flex flex-col items-center justify-center py-16 gap-3">
-                  <p className="text-sm text-red-600">{analyzeError}</p>
-                  <button
-                    type="button"
-                    onClick={() => { setAnalyzeError(''); setStep('targets') }}
-                    className="px-3 py-1.5 rounded-md text-xs font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
-                  >
-                    이전 단계로
-                  </button>
-                </div>
-              ) : (
-                <div className="border border-gray-200 rounded-md flex-1 min-h-0 overflow-auto">
-                  <table className="w-full min-w-[1500px] table-fixed text-xs">
-                    <colgroup>
-                      <col className="w-[14%]" />
-                      <col className="w-[17%]" />
-                      <col className="w-[24%]" />
-                      <col />
-                      <col className="w-28" />
-                      <col className="w-44" />
-                    </colgroup>
-                    <thead className="bg-gray-50 sticky top-0">
-                      <tr className="text-left text-gray-600">
-                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">
-                          <span className="block">현장명</span>
-                          <span className="block text-[10px] font-normal text-gray-500">(지사명)</span>
-                        </th>
-                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">작업·인원·장비</th>
-                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">분석 요약</th>
-                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">메시지 (수정 가능)</th>
-                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">수신 가능</th>
-                        <th className="px-2 py-1.5 font-medium whitespace-nowrap">전송</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map(row => (
-                        <tr key={row.record.id} className="border-t border-gray-100 align-top">
-                          <td className="px-2 py-1.5 text-gray-900">
-                            <span className="block truncate font-medium" title={row.record.project_name}>
-                              {row.record.project_name}
-                            </span>
-                            <span className="block truncate text-[11px] text-gray-500" title={row.record.managing_branch || '지사 미분류'}>
-                              ({row.record.managing_branch || '지사 미분류'})
-                            </span>
-                            <span className="block truncate text-[11px] text-gray-500" title={row.projectCategory || '소관사업 미분류'}>
-                              ({row.projectCategory || '소관사업 미분류'})
-                            </span>
-                          </td>
-                          <td className="px-2 py-1.5 text-gray-700">
-                            <span className="block truncate" title={row.record.today_work}>{row.record.today_work || '-'}</span>
-                            <span className="block truncate text-gray-500" title={row.record.equipment_input || ''}>
-                              {row.personnelText} · {row.record.equipment_input || '장비 없음'}
-                            </span>
-                          </td>
-                          <td className="px-2 py-1.5 text-gray-700">
-                            <div className="whitespace-pre-wrap break-words">{row.analysis || '-'}</div>
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <textarea
-                              ref={autoResizeTextarea}
-                              value={row.message}
-                              onChange={e => {
-                                updateMessage(row.record.id, e.target.value)
-                                autoResizeTextarea(e.target)
-                              }}
-                              disabled={sending}
-                              maxLength={1000}
-                              rows={4}
-                              className="w-full min-w-[220px] border border-gray-300 rounded-md p-1.5 text-xs text-gray-900 disabled:bg-gray-100 disabled:text-gray-500"
-                            />
-                          </td>
-                          <td className="px-2 py-1.5 whitespace-nowrap">
-                            <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] ${row.hasClientTelegram ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
-                              발주청
-                            </span>
-                            <span className={`ml-1 inline-block rounded px-1.5 py-0.5 text-[10px] ${row.hasContractorTelegram ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
-                              시공사
-                            </span>
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <div className="space-y-1">
-                              <label className={`flex items-center gap-1 text-[11px] ${row.hasClientTelegram ? 'text-gray-700' : 'text-gray-400'}`}>
-                                <input
-                                  type="checkbox"
-                                  checked={row.sendClient}
-                                  onChange={e => updateSendRecipient(row.record.id, 'client', e.target.checked)}
-                                  disabled={sending || !row.hasClientTelegram}
-                                  aria-label={`${row.record.project_name} 발주청 전송`}
-                                />
-                                발주청
-                              </label>
-                              <label className={`flex items-center gap-1 text-[11px] ${row.hasContractorTelegram ? 'text-gray-700' : 'text-gray-400'}`}>
-                                <input
-                                  type="checkbox"
-                                  checked={row.sendContractor}
-                                  onChange={e => updateSendRecipient(row.record.id, 'contractor', e.target.checked)}
-                                  disabled={sending || !row.hasContractorTelegram}
-                                  aria-label={`${row.record.project_name} 시공사 전송`}
-                                />
-                                시공사
-                              </label>
-                            </div>
-                            {row.sendResult && (
-                              <div className="mt-1 space-y-0.5 text-[10px]">
-                                {row.sendResult.client && (
-                                  <div
-                                    className={row.sendResult.client.ok ? 'text-green-600' : 'text-red-600'}
-                                    title={row.sendResult.client.description || ''}
-                                  >
-                                    발주청 {row.sendResult.client.ok ? '✓' : `✗ ${row.sendResult.client.description || ''}`}
-                                  </div>
-                                )}
-                                {row.sendResult.contractor && (
-                                  <div
-                                    className={row.sendResult.contractor.ok ? 'text-green-600' : 'text-red-600'}
-                                    title={row.sendResult.contractor.description || ''}
-                                  >
-                                    시공사 {row.sendResult.contractor.ok ? '✓' : `✗ ${row.sendResult.contractor.description || ''}`}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+              {analyzeError && (
+                <div className="mb-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+                  {analyzeError}
                 </div>
               )}
+              {analyzing && (
+                <div className="mb-2 flex items-center gap-2 text-xs text-gray-600">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-sky-600" />
+                  AI 분석 중… {analyzedCount}/{rows.length}건 완료
+                </div>
+              )}
+              <div className="border border-gray-200 rounded-md flex-1 min-h-0 overflow-auto">
+                <table className="w-full min-w-[1500px] table-fixed text-xs">
+                  <colgroup>
+                    <col className="w-[14%]" />
+                    <col className="w-[17%]" />
+                    <col className="w-[24%]" />
+                    <col />
+                    <col className="w-28" />
+                    <col className="w-44" />
+                  </colgroup>
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr className="text-left text-gray-600">
+                      <th className="px-2 py-1.5 font-medium whitespace-nowrap">
+                        <span className="block">현장명</span>
+                        <span className="block text-[10px] font-normal text-gray-500">(지사명)</span>
+                      </th>
+                      <th className="px-2 py-1.5 font-medium whitespace-nowrap">작업·인원·장비</th>
+                      <th className="px-2 py-1.5 font-medium whitespace-nowrap">분석 요약</th>
+                      <th className="px-2 py-1.5 font-medium whitespace-nowrap">메시지 (수정 가능)</th>
+                      <th className="px-2 py-1.5 font-medium whitespace-nowrap">수신 가능</th>
+                      <th className="px-2 py-1.5 font-medium whitespace-nowrap">전송</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map(row => (
+                      <tr key={row.record.id} className="border-t border-gray-100 align-top">
+                        <td className="px-2 py-1.5 text-gray-900">
+                          <span className="block truncate font-medium" title={row.record.project_name}>
+                            {row.record.project_name}
+                          </span>
+                          <span className="block truncate text-[11px] text-gray-500" title={row.record.managing_branch || '지사 미분류'}>
+                            ({row.record.managing_branch || '지사 미분류'})
+                          </span>
+                          <span className="block truncate text-[11px] text-gray-500" title={row.projectCategory || '소관사업 미분류'}>
+                            ({row.projectCategory || '소관사업 미분류'})
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5 text-gray-700">
+                          <span className="block truncate" title={row.record.today_work}>{row.record.today_work || '-'}</span>
+                          <span className="block truncate text-gray-500" title={row.record.equipment_input || ''}>
+                            {row.personnelText} · {row.record.equipment_input || '장비 없음'}
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5 text-gray-700">
+                          {row.status === 'pending' ? (
+                            <span className="text-gray-400">대기</span>
+                          ) : row.status === 'analyzing' ? (
+                            <span className="inline-flex items-center gap-1 text-sky-600">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              분석 중
+                            </span>
+                          ) : row.status === 'error' ? (
+                            <span className="text-red-600">분석 실패</span>
+                          ) : (
+                            <div className="whitespace-pre-wrap break-words">{row.analysis || '-'}</div>
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <textarea
+                            ref={autoResizeTextarea}
+                            value={row.message}
+                            onChange={e => {
+                              updateMessage(row.record.id, e.target.value)
+                              autoResizeTextarea(e.target)
+                            }}
+                            disabled={sending || row.status !== 'done'}
+                            maxLength={1000}
+                            rows={4}
+                            className="w-full min-w-[220px] border border-gray-300 rounded-md p-1.5 text-xs text-gray-900 disabled:bg-gray-100 disabled:text-gray-500"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5 whitespace-nowrap">
+                          <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] ${row.hasClientTelegram ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
+                            발주청
+                          </span>
+                          <span className={`ml-1 inline-block rounded px-1.5 py-0.5 text-[10px] ${row.hasContractorTelegram ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
+                            시공사
+                          </span>
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="space-y-1">
+                            <label className={`flex items-center gap-1 text-[11px] ${row.hasClientTelegram ? 'text-gray-700' : 'text-gray-400'}`}>
+                              <input
+                                type="checkbox"
+                                checked={row.sendClient}
+                                onChange={e => updateSendRecipient(row.record.id, 'client', e.target.checked)}
+                                disabled={sending || !row.hasClientTelegram || row.status !== 'done'}
+                                aria-label={`${row.record.project_name} 발주청 전송`}
+                              />
+                              발주청
+                            </label>
+                            <label className={`flex items-center gap-1 text-[11px] ${row.hasContractorTelegram ? 'text-gray-700' : 'text-gray-400'}`}>
+                              <input
+                                type="checkbox"
+                                checked={row.sendContractor}
+                                onChange={e => updateSendRecipient(row.record.id, 'contractor', e.target.checked)}
+                                disabled={sending || !row.hasContractorTelegram || row.status !== 'done'}
+                                aria-label={`${row.record.project_name} 시공사 전송`}
+                              />
+                              시공사
+                            </label>
+                          </div>
+                          {row.sendResult && (
+                            <div className="mt-1 space-y-0.5 text-[10px]">
+                              {row.sendResult.client && (
+                                <div
+                                  className={row.sendResult.client.ok ? 'text-green-600' : 'text-red-600'}
+                                  title={row.sendResult.client.description || ''}
+                                >
+                                  발주청 {row.sendResult.client.ok ? '✓' : `✗ ${row.sendResult.client.description || ''}`}
+                                </div>
+                              )}
+                              {row.sendResult.contractor && (
+                                <div
+                                  className={row.sendResult.contractor.ok ? 'text-green-600' : 'text-red-600'}
+                                  title={row.sendResult.contractor.description || ''}
+                                >
+                                  시공사 {row.sendResult.contractor.ok ? '✓' : `✗ ${row.sendResult.contractor.description || ''}`}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
             {/* 하단 고정 발송 영역 */}
-            {!analyzing && !analyzeError && (
-              <div className="border-t border-gray-200 px-4 py-3 flex items-center justify-between gap-3">
+            <div className="border-t border-gray-200 px-4 py-3 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setStep('targets')}
+                disabled={sending || analyzing}
+                className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 disabled:opacity-50"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                대상 다시 선택
+              </button>
+              <div className="flex items-center gap-3">
+                {sendError && <span className="text-xs text-red-600">{sendError}</span>}
+                {hasSelectedEmptyMessage && (
+                  <span className="text-xs text-amber-600">선택한 현장의 메시지를 입력해 주세요.</span>
+                )}
+                {sendLimitExceeded && (
+                  <span className="text-xs text-amber-600">발송 대상은 최대 30건입니다. 일부 선택을 해제해 주세요.</span>
+                )}
+                <span className="text-xs text-gray-500">
+                  전송 선택 · 발주청 {selectedClientCount}건 · 시공사 {selectedContractorCount}건
+                </span>
                 <button
                   type="button"
-                  onClick={() => setStep('targets')}
-                  disabled={sending}
-                  className="inline-flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900 disabled:opacity-50"
+                  onClick={() => { void handleSend() }}
+                  disabled={checkedCount === 0 || sendLimitExceeded || hasSelectedEmptyMessage || sending || analyzing}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium bg-sky-600 text-white hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  대상 다시 선택
+                  {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                  {sending ? '발송 중…' : `메시지 발송(${checkedCount}건)`}
                 </button>
-                <div className="flex items-center gap-3">
-                  {sendError && <span className="text-xs text-red-600">{sendError}</span>}
-                  {hasSelectedEmptyMessage && (
-                    <span className="text-xs text-amber-600">선택한 현장의 메시지를 입력해 주세요.</span>
-                  )}
-                  {sendLimitExceeded && (
-                    <span className="text-xs text-amber-600">발송 대상은 최대 30건입니다. 일부 선택을 해제해 주세요.</span>
-                  )}
-                  <span className="text-xs text-gray-500">
-                    전송 선택 · 발주청 {selectedClientCount}건 · 시공사 {selectedContractorCount}건
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => { void handleSend() }}
-                    disabled={checkedCount === 0 || sendLimitExceeded || hasSelectedEmptyMessage || sending}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-medium bg-sky-600 text-white hover:bg-sky-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {sending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    {sending ? '발송 중…' : `메시지 발송(${checkedCount}건)`}
-                  </button>
-                </div>
               </div>
-            )}
+            </div>
           </>
         )}
 
