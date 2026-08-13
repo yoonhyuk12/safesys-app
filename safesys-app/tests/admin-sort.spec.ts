@@ -131,7 +131,7 @@ test('프로젝트 열을 등록자, 날짜, 인계 상태 값으로 변환한�
     managing_branch: '수원지사',
     created_at: '2026-07-28T00:00:00.000Z',
     isHandedOver: false,
-    creator: { fullName: '김현우', companyName: '한국안전건설' },
+    creator: { fullName: '김현우', affiliation: '한국안전건설' },
   }
 
   expect(getAdminProjectSortValue(project, 'creator')).toBe('김현우 한국안전건설')

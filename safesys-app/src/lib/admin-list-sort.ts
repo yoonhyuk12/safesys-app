@@ -38,7 +38,7 @@ type UserSortRecord = {
 type ProjectSortRecord = {
   project_name: string; managing_hq: string; managing_branch: string
   created_at: string; isHandedOver: boolean
-  creator: { fullName: string; companyName: string } | null
+  creator: { fullName: string; affiliation: string } | null
 }
 
 function timestamp(value: string | null): number | null {
@@ -67,7 +67,7 @@ export function getAdminProjectSortValue(row: ProjectSortRecord, key: AdminProje
     name: row.project_name,
     hq: row.managing_hq,
     branch: row.managing_branch,
-    creator: row.creator ? `${row.creator.fullName} ${row.creator.companyName}`.trim() : null,
+    creator: row.creator ? `${row.creator.fullName} ${row.creator.affiliation}`.trim() : null,
     createdAt: timestamp(row.created_at),
     status: row.isHandedOver,
   }

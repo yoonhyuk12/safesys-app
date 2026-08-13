@@ -40,7 +40,7 @@ interface AdminProject {
   isHandedOver: boolean
   creator: {
     fullName: string
-    companyName: string
+    affiliation: string
   } | null
 }
 
@@ -277,7 +277,7 @@ function ProjectTableRow({
       <td className="whitespace-nowrap px-3 py-2.5">{project.managing_branch}</td>
       <td className="px-3 py-2.5">
         <div className="font-medium text-slate-800">{project.creator?.fullName || '등록자 정보 없음'}</div>
-        <div className="text-xs text-slate-500">{project.creator?.companyName || '-'}</div>
+        <div className="text-xs text-slate-500">{project.creator?.affiliation || '-'}</div>
       </td>
       <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-600">{formatDate(project.created_at)}</td>
       <td className="px-3 py-2.5 text-center">
@@ -402,8 +402,8 @@ function ProjectMobileDetails({
           <dd className="mt-1 truncate font-medium text-slate-700">{project.creator?.fullName || '등록자 정보 없음'}</dd>
         </div>
         <div>
-          <dt className="text-xs text-slate-400">회사</dt>
-          <dd className="mt-1 truncate font-medium text-slate-700">{project.creator?.companyName || '-'}</dd>
+          <dt className="text-xs text-slate-400">소속</dt>
+          <dd className="mt-1 truncate font-medium text-slate-700">{project.creator?.affiliation || '-'}</dd>
         </div>
         <div className="col-span-2">
           <dt className="text-xs text-slate-400">등록일</dt>

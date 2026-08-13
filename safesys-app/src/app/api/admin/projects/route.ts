@@ -12,6 +12,8 @@ interface CreatorProfile {
   full_name: string | null
   company_name: string | null
   role: string | null
+  hq_division: string | null
+  branch_division: string | null
 }
 
 interface ProjectQueryRow {
@@ -34,7 +36,7 @@ interface AdminProject {
   isHandedOver: boolean
   creator: {
     fullName: string
-    companyName: string
+    affiliation: string
   } | null
 }
 
@@ -57,6 +59,21 @@ function normalizeDivision(value: string | null): string {
   return value?.trim() || '미지정'
 }
 
+// 발주청 등록자는 회사명 대신 본부·지사로 소속을 밝힌다 — 회사명이 없으면 "발주청 (전남본부/나주지사)" 형태로 대체한다.
+function formatAffiliation(creator: CreatorProfile): string {
+  const companyName = creator.company_name?.trim()
+  if (companyName) return companyName
+
+  const role = creator.role?.trim()
+  const division = [creator.hq_division, creator.branch_division]
+    .map((value) => value?.trim())
+    .filter(Boolean)
+    .join('/')
+
+  if (role && division) return `${role} (${division})`
+  return role || division || '소속 미등록'
+}
+
 function normalizeProject(row: ProjectQueryRow): AdminProject {
   const creator = Array.isArray(row.creator) ? row.creator[0] ?? null : row.creator
 
@@ -71,7 +88,7 @@ function normalizeProject(row: ProjectQueryRow): AdminProject {
     creator: creator
       ? {
           fullName: creator.full_name?.trim() || '이름 미등록',
-          companyName: creator.company_name?.trim() || '회사 미등록',
+          affiliation: formatAffiliation(creator),
         }
       : null,
   }
@@ -131,7 +148,9 @@ export async function GET(request: NextRequest) {
           creator:user_profiles!projects_created_by_fkey (
             full_name,
             company_name,
-            role
+            role,
+            hq_division,
+            branch_division
           )
         `)
         .order('created_at', { ascending: false })
