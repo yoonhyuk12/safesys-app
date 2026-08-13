@@ -4,13 +4,14 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { FolderKanban, Home, LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck, UsersRound } from 'lucide-react'
+import { Bot, FolderKanban, Home, LogOut, PanelLeftClose, PanelLeftOpen, ShieldCheck, UsersRound } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { performAdminSignOut } from '@/lib/admin-session'
 
 const TABS = [
   { href: '/admin/users', label: '가입자 관리', icon: UsersRound },
   { href: '/admin/projects', label: '프로젝트 현황', icon: FolderKanban },
+  { href: '/admin/ai-usage', label: 'AI 사용현황', icon: Bot },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -202,7 +203,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {signingOut ? '로그아웃 중' : '로그아웃'}
           </button>
         </div>
-        <nav className="grid grid-cols-2 gap-1 px-3 pb-3">
+        <nav className="grid grid-cols-3 gap-1 px-3 pb-3">
           {TABS.map((tab) => {
             const active = pathname?.startsWith(tab.href)
             const Icon = tab.icon
