@@ -1,13 +1,14 @@
 'use client'
 // 관리자가 AI 기능별 제조사·모델명·비고를 확인하고 편집하는 화면
 
-import { useCallback, useEffect, useState } from 'react'
-import { Bot, CloudDownload, Loader2, Pencil, RefreshCw, TriangleAlert, X } from 'lucide-react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import type { KeyboardEvent } from 'react'
+import { Bot, Loader2, Pencil, RefreshCw, TriangleAlert, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { AiProvider } from '@/lib/ai-models'
 
 const PROVIDERS: readonly AiProvider[] = ['OpenAI', 'Google']
-const MODEL_LIST_ID = 'ai-model-candidates'
+const EDIT_HINT = '클릭하면 제조사·모델명을 편집합니다.'
 
 interface AiUsageItem {
   featureKey: string
@@ -60,11 +61,156 @@ function ProviderBadge({ provider }: { provider: AiProvider }) {
   )
 }
 
-function ModelCandidateList({ models }: { models: string[] }) {
+// 입력창에 포커스하면 후보 목록을 펼치는 콤보박스. 목록에 없는 모델명도 그대로 입력할 수 있다.
+function ModelCombobox({
+  provider,
+  value,
+  onChange,
+  candidates,
+  loading,
+  error,
+  onRefresh,
+}: {
+  provider: AiProvider
+  value: string
+  onChange: (next: string) => void
+  candidates: string[]
+  loading: boolean
+  error: string | null
+  onRefresh: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const listId = useId()
+
+  const keyword = value.trim().toLowerCase()
+  const filtered = keyword
+    ? candidates.filter((model) => model.toLowerCase().includes(keyword))
+    : candidates
+
+  useEffect(() => {
+    setActiveIndex(-1)
+  }, [candidates])
+
+  useEffect(() => {
+    if (!open) return
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const container = containerRef.current
+      if (container && !container.contains(event.target as Node)) setOpen(false)
+    }
+
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [open])
+
+  const selectModel = (model: string) => {
+    onChange(model)
+    setOpen(false)
+    setActiveIndex(-1)
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Escape') {
+      if (!open) return
+      event.preventDefault()
+      setOpen(false)
+      setActiveIndex(-1)
+      return
+    }
+
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      if (filtered.length === 0) return
+      event.preventDefault()
+
+      if (!open) {
+        setOpen(true)
+        setActiveIndex(0)
+        return
+      }
+
+      const step = event.key === 'ArrowDown' ? 1 : -1
+      setActiveIndex((current) => {
+        const next = current + step
+        if (next < 0) return filtered.length - 1
+        if (next >= filtered.length) return 0
+        return next
+      })
+      return
+    }
+
+    if (event.key === 'Enter' && open && activeIndex >= 0 && activeIndex < filtered.length) {
+      event.preventDefault()
+      selectModel(filtered[activeIndex])
+    }
+  }
+
   return (
-    <datalist id={MODEL_LIST_ID}>
-      {models.map((model) => <option key={model} value={model} />)}
-    </datalist>
+    <div ref={containerRef} className="grid gap-1.5">
+      <div className="flex gap-2">
+        <input
+          type="text"
+          role="combobox"
+          value={value}
+          onChange={(event) => {
+            onChange(event.target.value)
+            setOpen(true)
+            setActiveIndex(-1)
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={handleKeyDown}
+          aria-label="모델명"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
+          autoComplete="off"
+          placeholder="모델명을 고르거나 직접 입력합니다"
+          className={`${inputClass} font-mono`}
+        />
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          aria-label={`${provider} 최신 모델 다시 조회`}
+          title={`${provider} 최신 모델 다시 조회`}
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 outline-none transition hover:border-slate-300 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+        </button>
+      </div>
+
+      {open && (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          {loading && candidates.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-slate-500">{provider} 최신 모델을 불러오는 중입니다.</p>
+          ) : error && candidates.length === 0 ? (
+            <p className="px-3 py-2 text-xs font-semibold text-red-600">{error}</p>
+          ) : filtered.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-slate-500">일치하는 모델이 없습니다. 입력한 값을 그대로 사용합니다.</p>
+          ) : (
+            <ul id={listId} role="listbox" aria-label={`${provider} 모델 후보`} className="max-h-52 overflow-y-auto py-1">
+              {filtered.map((model, index) => (
+                <li
+                  key={model}
+                  id={`${listId}-${index}`}
+                  role="option"
+                  aria-selected={model === value}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => selectModel(model)}
+                  className={`cursor-pointer px-3 py-1.5 font-mono text-xs transition ${
+                    index === activeIndex ? 'bg-blue-50 text-blue-700' : 'text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {model}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -74,14 +220,14 @@ function EditFields({
   candidates,
   modelsLoading,
   modelsError,
-  onFetchModels,
+  onRefreshModels,
 }: {
   draft: EditDraft
   onChange: (next: EditDraft) => void
   candidates: string[]
   modelsLoading: boolean
   modelsError: string | null
-  onFetchModels: () => void
+  onRefreshModels: () => void
 }) {
   return (
     <div className="grid gap-2">
@@ -94,29 +240,15 @@ function EditFields({
         {PROVIDERS.map((provider) => <option key={provider} value={provider}>{provider}</option>)}
       </select>
 
-      <div className="flex gap-2">
-        <input
-          type="text"
-          list={MODEL_LIST_ID}
-          value={draft.model}
-          onChange={(event) => onChange({ ...draft, model: event.target.value })}
-          aria-label="모델명"
-          placeholder="모델명을 고르거나 직접 입력합니다"
-          className={`${inputClass} font-mono`}
-        />
-        <button
-          type="button"
-          onClick={onFetchModels}
-          disabled={modelsLoading}
-          title={`${draft.provider} 최신 모델 목록 불러오기`}
-          className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 outline-none transition hover:border-slate-300 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
-        >
-          {modelsLoading
-            ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-            : <CloudDownload className="h-3.5 w-3.5" aria-hidden="true" />}
-          최신 모델 조회
-        </button>
-      </div>
+      <ModelCombobox
+        provider={draft.provider}
+        value={draft.model}
+        onChange={(model) => onChange({ ...draft, model })}
+        candidates={candidates}
+        loading={modelsLoading}
+        error={modelsError}
+        onRefresh={onRefreshModels}
+      />
 
       <input
         type="text"
@@ -129,9 +261,11 @@ function EditFields({
 
       {modelsError
         ? <p className="text-xs font-semibold text-red-600">{modelsError}</p>
-        : candidates.length > 0
-          ? <p className="text-xs text-slate-400">{draft.provider} 모델 후보 {candidates.length}개를 불러왔습니다.</p>
-          : <p className="text-xs text-slate-400">최신 모델 조회를 누르면 목록에서 고를 수 있습니다.</p>}
+        : modelsLoading
+          ? <p className="text-xs text-slate-400">{draft.provider} 최신 모델을 불러오는 중입니다.</p>
+          : candidates.length > 0
+            ? <p className="text-xs text-slate-400">{draft.provider} 모델 후보 {candidates.length}개 중에서 고르거나 직접 입력합니다.</p>
+            : <p className="text-xs text-slate-400">모델 후보가 없어 직접 입력합니다.</p>}
     </div>
   )
 }
@@ -177,7 +311,7 @@ interface RowHandlers {
   modelsLoading: boolean
   modelsError: string | null
   onDraftChange: (next: EditDraft) => void
-  onFetchModels: () => void
+  onRefreshModels: () => void
   onEdit: (item: AiUsageItem) => void
   onSave: () => void
   onCancel: () => void
@@ -216,6 +350,8 @@ function AiUsageTable({ items, loading, handlers }: { items: AiUsageItem[]; load
               </tr>
             ) : items.map((item) => {
               const editing = handlers.editingKey === item.featureKey && handlers.draft !== null
+              const clickable = handlers.editingKey === null
+              const startEdit = clickable ? () => handlers.onEdit(item) : undefined
 
               return (
                 <tr key={item.featureKey} className="align-top transition hover:bg-slate-50">
@@ -227,13 +363,25 @@ function AiUsageTable({ items, loading, handlers }: { items: AiUsageItem[]; load
                         candidates={handlers.candidates}
                         modelsLoading={handlers.modelsLoading}
                         modelsError={handlers.modelsError}
-                        onFetchModels={handlers.onFetchModels}
+                        onRefreshModels={handlers.onRefreshModels}
                       />
                     </td>
                   ) : (
                     <>
-                      <td className="px-4 py-2.5"><ProviderBadge provider={item.provider} /></td>
-                      <td className="px-3 py-2.5 font-mono text-xs font-semibold text-slate-900">{item.model}</td>
+                      <td
+                        onClick={startEdit}
+                        title={clickable ? EDIT_HINT : undefined}
+                        className={`px-4 py-2.5 ${clickable ? 'cursor-pointer' : ''}`}
+                      >
+                        <ProviderBadge provider={item.provider} />
+                      </td>
+                      <td
+                        onClick={startEdit}
+                        title={clickable ? EDIT_HINT : undefined}
+                        className={`px-3 py-2.5 font-mono text-xs font-semibold text-slate-900 ${clickable ? 'cursor-pointer' : ''}`}
+                      >
+                        {item.model}
+                      </td>
                     </>
                   )}
                   <td className="max-w-[320px] px-3 py-2.5">
@@ -294,16 +442,29 @@ function AiUsageMobileList({ items, loading, handlers }: { items: AiUsageItem[];
     <div className="grid gap-2 md:hidden">
       {items.map((item) => {
         const editing = handlers.editingKey === item.featureKey && handlers.draft !== null
+        const clickable = handlers.editingKey === null
 
         return (
           <div key={item.featureKey} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="flex items-start gap-2">
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-slate-950">{item.feature}</span>
-                <span className="mt-1 flex items-center gap-2">
-                  <ProviderBadge provider={item.provider} />
-                  <span className="truncate font-mono text-xs font-semibold text-slate-700">{item.model}</span>
-                </span>
+                {clickable ? (
+                  <button
+                    type="button"
+                    onClick={() => handlers.onEdit(item)}
+                    title={EDIT_HINT}
+                    className="mt-1 flex w-full items-center gap-2 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                  >
+                    <ProviderBadge provider={item.provider} />
+                    <span className="truncate font-mono text-xs font-semibold text-slate-700">{item.model}</span>
+                  </button>
+                ) : (
+                  <span className="mt-1 flex items-center gap-2">
+                    <ProviderBadge provider={item.provider} />
+                    <span className="truncate font-mono text-xs font-semibold text-slate-700">{item.model}</span>
+                  </span>
+                )}
               </span>
               {!editing && (
                 <button
@@ -328,7 +489,7 @@ function AiUsageMobileList({ items, loading, handlers }: { items: AiUsageItem[];
                   candidates={handlers.candidates}
                   modelsLoading={handlers.modelsLoading}
                   modelsError={handlers.modelsError}
-                  onFetchModels={handlers.onFetchModels}
+                  onRefreshModels={handlers.onRefreshModels}
                 />
                 <EditActions saving={handlers.saving} onSave={handlers.onSave} onCancel={handlers.onCancel} />
               </div>
@@ -395,11 +556,7 @@ export default function AdminAiUsagePage() {
     setModelsError(null)
   }
 
-  // 제조사별로 한 번만 불러오고 그 뒤에는 캐시된 후보를 그대로 쓴다.
-  const handleFetchModels = async () => {
-    if (!draft) return
-    const provider = draft.provider
-
+  const loadModels = useCallback(async (provider: AiProvider) => {
     setModelsError(null)
     setModelsLoading(true)
 
@@ -420,7 +577,16 @@ export default function AdminAiUsagePage() {
     } finally {
       setModelsLoading(false)
     }
-  }
+  }, [])
+
+  // 편집을 시작하거나 제조사를 바꾸면 후보를 자동으로 채운다. 제조사별로 한 번만 불러오고 그 뒤에는 캐시를 쓴다.
+  const editingProvider = draft?.provider ?? null
+
+  useEffect(() => {
+    if (!editingKey || !editingProvider) return
+    if (modelOptions[editingProvider]) return
+    void loadModels(editingProvider)
+  }, [editingKey, editingProvider, modelOptions, loadModels])
 
   const handleSave = async () => {
     if (!editingKey || !draft) return
@@ -475,7 +641,7 @@ export default function AdminAiUsagePage() {
     modelsLoading,
     modelsError,
     onDraftChange: setDraft,
-    onFetchModels: () => void handleFetchModels(),
+    onRefreshModels: () => { if (draft) void loadModels(draft.provider) },
     onEdit: handleEdit,
     onSave: () => void handleSave(),
     onCancel: handleCancel,
@@ -483,8 +649,6 @@ export default function AdminAiUsagePage() {
 
   return (
     <section className="space-y-4">
-      <ModelCandidateList models={candidates} />
-
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-bold tracking-[0.18em] text-blue-600">AI CONTROL</p>
