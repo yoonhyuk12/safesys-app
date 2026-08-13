@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAiModel } from '@/lib/ai-models'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -37,7 +38,7 @@ ${equipmentInput ? `투입장비: "${equipmentInput}"` : ''}
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: await getAiModel('ai.tbm-safety-advice'),
         messages: [
           {
             role: 'system',

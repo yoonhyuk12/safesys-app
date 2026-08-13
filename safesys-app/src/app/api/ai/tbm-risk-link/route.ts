@@ -1,7 +1,7 @@
 // 수시위험성평가 행들과 TBM 금일 작업내용을 견줘 잠재위험요인·해결방안 최대 3건을 골라주는 라우트
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { RISK_AI_MODELS } from '@/lib/risk-assessment/types'
+import { getAiModelChain } from '@/lib/ai-models'
 import type { TbmRiskLinkItem, TbmRiskLinkRequest, TbmRiskLinkResponse } from '@/lib/risk-assessment/types'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
@@ -85,7 +85,7 @@ ${rows.map(describeRow).join('\n')}
 - 반드시 다음 JSON 형식으로만 응답한다: {"items":[{"index":0,"risk":"","solution":"","factor":""}]}`
 
     let lastError = ''
-    for (const model of RISK_AI_MODELS) {
+    for (const model of await getAiModelChain('ai.tbm-risk-link')) {
       const geminiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {

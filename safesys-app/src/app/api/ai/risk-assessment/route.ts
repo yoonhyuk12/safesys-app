@@ -1,6 +1,6 @@
 // 수시 위험성평가 AI 판정 — DB 원문 위험요인 중 선별·빈도·강도·장비만 Gemini에 위임 (텍스트 재작성 금지)
 import { NextRequest, NextResponse } from 'next/server'
-import { RISK_AI_MODELS } from '@/lib/risk-assessment/types'
+import { getAiModelChain } from '@/lib/ai-models'
 import type { RiskAiJudgement, RiskAiRequest, RiskAiResponse, RiskHazard } from '@/lib/risk-assessment/types'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
@@ -92,7 +92,7 @@ ${hazards.map(describeHazard).join('\n')}
 - 반드시 다음 JSON 형식으로만 응답한다: {"judgements":[{"hazardId":0,"selected":true,"frequency":2,"intensity":3,"equipment":"","reason":""}]}`
 
     let lastError = ''
-    for (const model of RISK_AI_MODELS) {
+    for (const model of await getAiModelChain('ai.risk-assessment')) {
       const geminiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {

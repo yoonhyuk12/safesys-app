@@ -1,7 +1,7 @@
 // 위험성평가 표에 넣을 새 행 1건을 AI가 직접 작성하는 라우트 (DB 원문에 없는 위험요인 보충용)
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { RISK_AI_MODELS } from '@/lib/risk-assessment/types'
+import { getAiModelChain } from '@/lib/ai-models'
 import type { RiskAiRowDraft, RiskAiRowRequest, RiskAiRowResponse } from '@/lib/risk-assessment/types'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
@@ -79,7 +79,7 @@ ${existingHazards.length > 0 ? existingHazards.map((hazard) => `- ${hazard}`).jo
 - 반드시 다음 JSON 형식으로만 응답한다: {"hazard":"","disasterType":"","frequency":2,"intensity":2,"equipment":"","measures":[""]}`
 
     let lastError = ''
-    for (const model of RISK_AI_MODELS) {
+    for (const model of await getAiModelChain('ai.risk-row')) {
       const geminiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {

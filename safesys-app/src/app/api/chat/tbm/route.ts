@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { getAiModel } from '@/lib/ai-models'
 import { parsePersonnelCount, TBM_PERSONNEL_GUIDE } from '@/lib/chat/tbm-personnel'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-
-// TBM 챗봇 응답 생성 모델 — GPT-5.6 Luna
-const OPENAI_MODEL = 'gpt-5.6-luna'
 
 // Supabase 클라이언트 (lazy 초기화 - 빌드 시 환경변수 없어도 에러 방지)
 let _supabase: ReturnType<typeof createClient> | null = null
@@ -254,7 +252,7 @@ export async function POST(request: NextRequest) {
         Authorization: `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: OPENAI_MODEL,
+        model: await getAiModel('chat.tbm'),
         messages,
         reasoning_effort: 'none',
         max_completion_tokens: 8192

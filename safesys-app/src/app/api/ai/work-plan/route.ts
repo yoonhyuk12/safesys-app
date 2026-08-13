@@ -1,5 +1,6 @@
 // AI 작업계획서 초안 생성 — planTypes별 위험요인·개선대책·작업순서·전기작업단계·사전조사 초안을 Gemini로 생성
 import { NextRequest, NextResponse } from 'next/server'
+import { getAiModel } from '@/lib/ai-models'
 import { CONSTRUCTION_SURVEY_ITEMS, PLAN_TYPE_OPTIONS } from '@/lib/work-plan/constants'
 import type {
   ConstructionSurveyType,
@@ -11,9 +12,6 @@ import type {
 } from '@/lib/work-plan/types'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-
-// 검측 체크리스트 라우트와 동일하게 검증된 3.1-flash-lite를 사용한다. 상위 모델 출시 시 배열 앞에 추가하면 자동 폴백된다.
-const GEMINI_MODELS = ['gemini-3.1-flash-lite']
 
 const VALID_PLAN_TYPES: readonly PlanType[] = ['loading', 'construction', 'electric', 'heavy', 'excavation']
 const VALID_SURVEY_TYPES: readonly ConstructionSurveyType[] = [
@@ -209,7 +207,8 @@ ${selectedInstructions}
 }`
 
     let lastError = ''
-    for (const model of GEMINI_MODELS) {
+    const geminiModels = [await getAiModel('ai.work-plan')]
+    for (const model of geminiModels) {
       const geminiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {

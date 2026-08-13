@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAiModel } from '@/lib/ai-models'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest) {
           'Authorization': `Bearer ${OPENAI_API_KEY}`
         },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: await getAiModel('ai.tts.translate'),
           messages: [
             {
               role: 'user',
@@ -91,7 +92,7 @@ export async function POST(request: NextRequest) {
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'tts-1',
+        model: await getAiModel('ai.tts.speech'),
         input: textToSpeak,
         voice: 'nova', // alloy, echo, fable, onyx, nova, shimmer 중 선택
         response_format: 'mp3',

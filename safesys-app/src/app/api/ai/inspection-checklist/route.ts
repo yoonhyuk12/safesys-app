@@ -1,12 +1,9 @@
 // 검측 체크리스트 항목 AI 자동 생성 — 위키 검사기준 지식 + 현장 입력으로 검측항목·검사기준 생성 (Gemini)
 import { NextRequest, NextResponse } from 'next/server'
+import { getAiModel } from '@/lib/ai-models'
 import { INSPECTION_CRITERIA_KNOWLEDGE } from '@/lib/inspection/inspection-criteria-knowledge'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-
-// gemini-3.5-flash-lite는 현재 Gemini API에 존재하지 않아(404 model not found) 검증된 3.1-flash-lite를 사용한다.
-// Google이 3.5-lite를 출시하면 배열 앞에 추가하면 자동 폴백된다.
-const GEMINI_MODELS = ['gemini-3.1-flash-lite']
 
 const MAX_ITEMS = 14
 
@@ -58,7 +55,8 @@ ${inspectionItems ? `- 검측 사항(요청서): ${inspectionItems}` : ''}
 - 반드시 다음 JSON 형식으로만 응답한다: {"items":[{"item":"","standard":""}]}`
 
     let lastError = ''
-    for (const model of GEMINI_MODELS) {
+    const geminiModels = [await getAiModel('ai.inspection-checklist')]
+    for (const model of geminiModels) {
       const geminiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {

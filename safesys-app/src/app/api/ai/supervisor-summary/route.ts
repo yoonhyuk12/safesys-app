@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getAiModel } from '@/lib/ai-models'
 import {
   STANDARD_EQUIPMENT_NAMES,
   STANDARD_WORKER_TYPES,
@@ -6,9 +7,6 @@ import {
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-
-// 장비/인력 분류(work-daily-classify) 전용 모델 — Gemini 3.1 Flash Lite
-const GEMINI_CLASSIFY_MODEL = 'gemini-3.1-flash-lite'
 
 export async function POST(request: NextRequest) {
   try {
@@ -91,8 +89,9 @@ ${existingPersonnel.length > 0 ? `기존 인력 분류 목록: ${existingPersonn
 
     // ── 장비/인력 분류: Gemini 3.1 Flash Lite 사용 (키가 없으면 아래 OpenAI로 폴백)
     if (type === 'work-daily-classify' && GEMINI_API_KEY) {
+      const classifyModel = await getAiModel('ai.supervisor-summary.classify')
       const geminiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CLASSIFY_MODEL}:generateContent`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${classifyModel}:generateContent`,
         {
           method: 'POST',
           headers: {
@@ -158,7 +157,7 @@ ${existingPersonnel.length > 0 ? `기존 인력 분류 목록: ${existingPersonn
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: await getAiModel('ai.supervisor-summary.remarks'),
         messages: [
           {
             role: 'system',

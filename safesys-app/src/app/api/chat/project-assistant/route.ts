@@ -6,9 +6,9 @@ import {
   getUnsignedSupervisorDetails,
   type UnsignedTargetDetail,
 } from '@/lib/bulk-sign/unsigned-supervisor-details'
+import { getAiModel } from '@/lib/ai-models'
 import { PROJECT_ROUTE_MAP } from '@/lib/project-assistant/route-map'
 
-const OPENAI_MODEL = 'gpt-5.6-luna'
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
 const MAX_TOOL_ROUNDS = 5
 const DEFAULT_QUERY_LIMIT = 20
@@ -338,7 +338,7 @@ async function requestOpenAI(
   if (!apiKey) throw new OpenAIRequestError('OpenAI API 키가 설정되지 않았습니다.')
 
   const body: Record<string, unknown> = {
-    model: OPENAI_MODEL,
+    model: await getAiModel('chat.project-assistant'),
     messages,
     reasoning_effort: 'none',
     max_completion_tokens: 8192,

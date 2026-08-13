@@ -1,12 +1,12 @@
 // TBM 일괄 텔레그램 발송 — 사용자 검토 요청을 OpenAI로 분석해 현장별 텔레그램 문안을 생성하는 API
 import { NextRequest, NextResponse } from 'next/server'
+import { getAiModel } from '@/lib/ai-models'
 import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
 import { isOrganizationInUserScope } from '@/lib/organization-scope'
 import { authenticateRequest } from '../auth'
 import { isCanonicalUuid, resolveProjects } from '../resolve-projects'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
-const OPENAI_MODEL = 'gpt-5.6-luna'
 const CHUNK_SIZE = 15
 const MAX_ANALYZE_SITES = 50
 const MAX_USER_REQUEST_LENGTH = 1000
@@ -168,7 +168,7 @@ ${siteLines}
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: OPENAI_MODEL,
+        model: await getAiModel('tbm-telegram.analyze'),
         messages: [
           { role: 'system', content: systemMessage },
           { role: 'user', content: prompt },

@@ -1,7 +1,7 @@
 // 작업내용 자유 텍스트를 위험요인 DB의 분류 조합(공사>단위작업>세부단위작업)으로 매칭하는 라우트 — 실존 조합만 통과시킨다
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { RISK_AI_MODELS } from '@/lib/risk-assessment/types'
+import { getAiModelChain } from '@/lib/ai-models'
 import type { RiskClassifyMatch, RiskClassifyRequest, RiskClassifyResponse } from '@/lib/risk-assessment/types'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
@@ -61,7 +61,7 @@ async function fetchCombos(businessType: string): Promise<TaxonomyCombo[]> {
 /** Gemini를 모델 순서대로 시도해 JSON 객체를 받는다. 모두 실패하면 마지막 사유로 예외를 던진다. */
 async function callGemini(systemMessage: string, prompt: string): Promise<Record<string, unknown>> {
   let lastError = ''
-  for (const model of RISK_AI_MODELS) {
+  for (const model of await getAiModelChain('ai.risk-classify')) {
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
