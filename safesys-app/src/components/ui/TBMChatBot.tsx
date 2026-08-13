@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import { MessageCircle, X, Send, Bot, User, Loader2, Minimize2, Maximize2, RotateCcw } from 'lucide-react'
+import { useAiModel } from '@/lib/use-ai-model'
 
 interface Message {
   id: string
@@ -54,6 +55,7 @@ export default function TBMChatBot({ userProfile }: TBMChatBotProps) {
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const aiModel = useAiModel('chat.tbm', 'GPT-5.6 Luna')
 
   // 메시지 스크롤
   useEffect(() => {
@@ -197,7 +199,7 @@ export default function TBMChatBot({ userProfile }: TBMChatBotProps) {
                 <h3 className="font-semibold text-sm">TBM AI 어시스턴트</h3>
                 {!isMinimized && (
                   <p className="text-xs text-blue-100">
-                    GPT-5.6 Luna · Supabase · {userProfile?.branch_division && !userProfile.branch_division.endsWith('본부')
+                    {aiModel} · Supabase · {userProfile?.branch_division && !userProfile.branch_division.endsWith('본부')
                       ? userProfile.branch_division 
                       : userProfile?.hq_division 
                         ? userProfile.hq_division 

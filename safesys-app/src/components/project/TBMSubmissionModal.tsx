@@ -9,6 +9,7 @@ import VworldMapAddressModal from '@/components/ui/VworldMapAddressModal'
 import TbmRiskLinkButton from '@/components/project/risk-assessment/TbmRiskLinkButton'
 import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
 import type { TbmRiskLinkItem } from '@/lib/risk-assessment/types'
+import { useAiModel } from '@/lib/use-ai-model'
 
 interface TBMSubmissionModalProps {
   isOpen: boolean
@@ -152,6 +153,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
   onDraftSave
 }) => {
   const { userProfile } = useAuth()
+  const aiModel = useAiModel('ai.write-risk-analysis', 'GPT-5.4 nano')
   const [loading, setLoading] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [showSignaturePad, setShowSignaturePad] = useState(false)
@@ -1669,7 +1671,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-gray-700">AI 위험요인 분석</h3>
-                  <div className="text-xs text-gray-500">powered by GPT-5.4 nano</div>
+                  <div className="text-xs text-gray-500">powered by {aiModel}</div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button

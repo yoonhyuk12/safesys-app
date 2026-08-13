@@ -7,6 +7,7 @@ import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
 import { supabase } from '@/lib/supabase'
 import { BRANCH_OPTIONS } from '@/lib/constants'
 import { exportTbmTelegramAnalysis, type TbmAnalysisExportRow } from '@/lib/excel/tbm-telegram-analysis-export'
+import { useAiModel } from '@/lib/use-ai-model'
 
 const BRANCH_SORT_INDEX = new Map(
   Object.entries(BRANCH_OPTIONS).flatMap(([hq, branches], hqIndex) =>
@@ -274,6 +275,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
   selectedDate
 }) => {
   const [step, setStep] = useState<'targets' | 'results'>('targets')
+  const aiModel = useAiModel('tbm-telegram.analyze', 'GPT-5.6 Luna')
 
   // 1단계 — 대상 정리
   const [prepareLoading, setPrepareLoading] = useState(false)
@@ -736,7 +738,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
                 엑셀
               </button>
             )}
-            <span className="text-xs text-gray-500">사용 모델 · GPT-5.6 Luna</span>
+            <span className="text-xs text-gray-500">사용 모델 · {aiModel}</span>
             <button
               type="button"
               onClick={handleClose}

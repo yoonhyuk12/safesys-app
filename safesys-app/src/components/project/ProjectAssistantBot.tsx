@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { MessageCircle, X, Send, Bot, User, Loader2, Minimize2, Maximize2, RotateCcw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { PROJECT_ROUTE_SEGMENTS } from '@/lib/project-assistant/route-map'
+import { useAiModel } from '@/lib/use-ai-model'
 
 interface Message {
   id: string
@@ -29,6 +30,7 @@ export default function ProjectAssistantBot({ projectId, projectName }: ProjectA
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const hasBriefedRef = useRef(false)
+  const aiModel = useAiModel('chat.project-assistant', 'GPT-5.6 Luna')
 
   // 안전서류 점검 화면은 우하단에 "진행상황" 플로팅 버튼이 있어 겹친다 — 그 위로 올려 띄운다
   const pathname = usePathname()
@@ -248,7 +250,7 @@ export default function ProjectAssistantBot({ projectId, projectName }: ProjectA
                 <h3 className="font-semibold text-sm">현장 AI 비서</h3>
                 {!isMinimized && (
                   <p className="text-xs text-emerald-100">
-                    GPT-5.6 Luna · {projectName || '프로젝트'}
+                    {aiModel} · {projectName || '프로젝트'}
                   </p>
                 )}
               </div>
