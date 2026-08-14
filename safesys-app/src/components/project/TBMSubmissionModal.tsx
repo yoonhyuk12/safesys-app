@@ -2008,7 +2008,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                             <Upload className="h-3 w-3 mr-1" />
                             앨범
                           </button>
-                          <span className="text-[11px] text-gray-400">사진 (선택)</span>
+                          <span className="text-[11px] text-gray-400">사진 업로드는 필수가 아닙니다</span>
                         </div>
                         {renderSolutionPhotoPreview(num)}
                       </div>
