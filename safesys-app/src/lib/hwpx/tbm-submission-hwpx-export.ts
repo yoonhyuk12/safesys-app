@@ -339,8 +339,16 @@ function buildFirstParagraph(lawText: string): string {
 
 // ── 본문(TBM 일지) 표 구성 ──
 
-// 9열 그리드 폭(합 = 51024) — 사용자 수정본(성남 골프장 _직접수정.hwpx) 열 비율을 15mm 여백 본문 폭으로 스케일
-const COLS_MAIN = [3189, 3189, 14883, 599, 6542, 4744, 2397, 8041, 7440]
+// 9열 그리드 폭(합 = 51024) — 사용자 수정본(성남 골프장 _직접수정.hwpx) 열 비율을 15mm 여백 본문 폭으로 스케일.
+// 원본 배열은 [3189, 3189, 14883, 599, 6542, 4744, 2397, 8041, 7440]이었고, 여기서 D = 2800만큼
+// 열2를 줄이고 열4에 더했다(14883 → 12083, 6542 → 9342). 총합 51024는 그대로다.
+//   - 사진 칸(열0~3)만 D만큼 좁아지고 투입인원 칸(열4~6)만 D만큼 넓어진다.
+//   - TBM리더 소속·TBM 장소·중점위험 선정·작업내용 좌측(모두 열2~4)과 잠재위험요소(열0~6),
+//     작업내용 우측·중점위험 대책(열5~8)은 폭이 변하지 않는다.
+// D의 상한은 잠재위험요인 칸(열0~2)에 들어가는 머리글 "잠재위험요인(수시위험성평가와 연계)"이 정한다.
+// 한글 2020 실측 렌더로 확인한 결과 D = 3200이면 이 머리글이 두 줄로 감기고 D = 2800이면 한 줄을 유지한다.
+// 그래서 D = 2800으로 잡아 투입인원 칸을 13683 → 16483(안쪽 폭 13401 → 16201)으로 21% 넓혔다.
+const COLS_MAIN = [3189, 3189, 12083, 599, 9342, 4744, 2397, 8041, 7440]
 
 function getDayOfWeek(dateStr: string): string {
     const days = ['일', '월', '화', '수', '목', '금', '토']
@@ -365,10 +373,29 @@ const PAGE_CAPACITY = 69788 - 4420 - 1500
 // 사진을 줄여야 할 때의 하한 — 이보다 작으면 TBM 실시사진을 알아보기 어렵다
 const PHOTO_MIN_H = 7000
 
-// 셀 폭 기준 표시 줄 수 추정(줄바꿈 + 자동 줄바꿈) — 10pt 한글 글자 폭 약 1000 HWPUNIT 가정
+// 글자 폭 추정(HWPUNIT). 10pt 한글·전각은 글자 크기 그대로 1000이고, ASCII(영문·숫자·공백·기호)는 그 절반쯤이다.
+// 500은 한글 2020 실측 렌더에 맞춘 값이다 — 투입인원 13줄짜리 원문이 실제로 15줄로 감기는데,
+// 모든 글자를 1000으로 세던 기존 방식은 17줄로 과대 추정했고 500 기준은 실측과 같은 15줄을 낸다.
+const FULL_CHAR_W = 1000
+const ASCII_CHAR_W = 500
+
+// 셀 폭 기준 표시 줄 수 추정(줄바꿈 + 자동 줄바꿈) — 글자 폭을 누적해 안쪽 폭을 넘을 때마다 줄을 넘긴다
 function estDisplayLines(text: string, cellW: number): number {
-    const charsPerLine = Math.max(10, Math.floor((cellW - CELL_PAD) / 1000))
-    return text.split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / charsPerLine)), 0)
+    const lineW = Math.max(FULL_CHAR_W, cellW - CELL_PAD)
+    return text.split('\n').reduce((n, line) => {
+        let used = 0
+        let rows = 1
+        for (const ch of line) {
+            const w = ch.charCodeAt(0) < 128 ? ASCII_CHAR_W : FULL_CHAR_W
+            if (used + w > lineW) {
+                rows++
+                used = w
+            } else {
+                used += w
+            }
+        }
+        return n + rows
+    }, 0)
 }
 
 // 내용이 자라는 행의 예상 렌더 높이 (선언 높이는 최소값)
@@ -407,6 +434,34 @@ function estRenderRowH(row: Row): number {
         maxH = Math.max(maxH, estDisplayLines(t, w) * LINE_H + CELL_PAD)
     }
     return maxH
+}
+
+// 행 내용만으로 필요한 높이 — 선언 최소 높이는 무시한다
+function estContentRowH(row: Row): number {
+    let colAddr = 0
+    let maxH = 0
+    for (const cell of row.cells) {
+        const span = cell.span ?? 1
+        const w = sumRange(COLS_MAIN, colAddr, span)
+        colAddr += span
+        const t = trimCellText(cell.text ?? '')
+        if (cell.picId || !t) continue
+        maxH = Math.max(maxH, estDisplayLines(t, w) * LINE_H + CELL_PAD)
+    }
+    return maxH
+}
+
+// 표가 1페이지 예산을 넘치면 선언 높이가 내용보다 큰 행에서 그 여유분만 비례로 회수한다.
+// stretchRowsToFillPage(남는 높이를 나눠 주는 쪽)의 대칭 동작이며, 내용 높이 아래로는 줄이지 않아 글자가 잘리지 않는다.
+// 첫 행(TBM리더)은 서명 겹침 좌표가 고정이라 줄이지 않는다.
+function shrinkRowsToFitPage(rows: Row[]): Row[] {
+    const excess = rows.reduce((sum, r) => sum + estRenderRowH(r), 0) - PAGE_CAPACITY
+    if (excess <= 0) return rows
+    const slack = rows.map((row, i) => (i === 0 ? 0 : Math.max(0, row.height - estContentRowH(row))))
+    const totalSlack = slack.reduce((a, b) => a + b, 0)
+    if (totalSlack <= 0) return rows
+    const ratio = Math.min(1, excess / totalSlack)
+    return rows.map((row, i) => (slack[i] > 0 ? { ...row, height: row.height - Math.round(slack[i] * ratio) } : row))
 }
 
 // 1페이지 하단 여백이 남지 않도록, 남는 높이를 행 높이에 비례 배분해 표를 늘린다.
@@ -603,7 +658,7 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: PhotoRef | null): Ro
         ],
     })
 
-    return stretchRowsToFillPage(rows)
+    return stretchRowsToFillPage(shrinkRowsToFitPage(rows))
 }
 
 // ── 근로자 교육 확인 서명부(별지) 표 구성 ──
