@@ -7,6 +7,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, getHeatWaveCheckCountByUserBranch, getManagerInspectionCountByUserBranch, getHeadquartersInspectionCountByUserBranch, getTBMSafetyInspectionCountByUserBranch, getSafeDocumentInspectionCountByUserBranch, getPtwPermitsByUserBranch, getPtwPermitCountByUserBranch, getInspectionRequestCountsByUserBranch, getQualityMonthlyReportStatusByUserBranch, getQualityTestCountsByUserBranch, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type PtwPermitSummary, type WorkerCountByProject, type MaterialCountByProject, type InspectionRequestCountByProject, type QualityReportStatusByProject, type QualityTestCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
 import { getTBMRecords, type TBMRecord } from '@/lib/tbm'
 import { downloadProjectListExcel } from '@/lib/excel/project-list-export'
+import { downloadProjectSafetyDbExcel } from '@/lib/excel/project-safety-db-export'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS, DEBUG_LOGS } from '@/lib/constants'
 import { supabase } from '@/lib/supabase'
 import { getQuartersToggleMap, updateQuartersToggleSetting, type QuarterToggleState } from '@/lib/ui-settings'
@@ -355,6 +356,7 @@ const Dashboard: React.FC = () => {
   const [quartersToggleMap, setQuartersToggleMap] = useState<Map<string, QuarterToggleState>>(new Map())
   const [isQuarterPanelOpen, setIsQuarterPanelOpen] = useState(false)
   const [isAddressUpdating, setIsAddressUpdating] = useState(false)
+  const [isDownloadingProjectSafetyDbExcel, setIsDownloadingProjectSafetyDbExcel] = useState(false)
   const [isBulkMenuOpen, setIsBulkMenuOpen] = useState(false)
   const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false)
   const bulkMenuRef = useRef<HTMLDivElement>(null)
@@ -2728,6 +2730,21 @@ const Dashboard: React.FC = () => {
     })
   }, [projects, selectedHq, selectedBranch])
 
+  const handleProjectSafetyDbExcelDownload = async () => {
+    if (isDownloadingProjectSafetyDbExcel) return
+
+    setIsDownloadingProjectSafetyDbExcel(true)
+    try {
+      await downloadProjectSafetyDbExcel(
+        filteredProjects.filter(p => !(typeof p.is_active === 'object' && p.is_active?.completed === true))
+      )
+    } catch {
+      alert('DB 엑셀 다운로드 중 오류가 발생했습니다. 다시 시도해주세요.')
+    } finally {
+      setIsDownloadingProjectSafetyDbExcel(false)
+    }
+  }
+
   // 검색어 기반 필터링 (list 뷰용)
   const searchFilteredProjects = React.useMemo(() => {
     if (!searchQuery.trim()) return filteredProjects
@@ -2949,13 +2966,27 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center gap-2">
               {/* 엑셀 다운로드 버튼 - 목록보기/지도보기에서만 표시 */}
               {(viewMode === 'list' || viewMode === 'map') && (
-                <button
-                  onClick={() => downloadProjectListExcel(filteredProjects.filter(p => !(typeof p.is_active === 'object' && p.is_active?.completed === true)))}
-                  className="flex items-center px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm font-medium whitespace-nowrap"
-                >
-                  <FileDown className="h-4 w-4 sm:mr-1.5" />
-                  <span className="hidden sm:inline">엑셀 다운</span>
-                </button>
+                <>
+                  <button
+                    onClick={handleProjectSafetyDbExcelDownload}
+                    disabled={isDownloadingProjectSafetyDbExcel}
+                    className={`flex items-center px-3 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors text-sm font-medium whitespace-nowrap ${isDownloadingProjectSafetyDbExcel ? 'opacity-75 cursor-not-allowed' : ''}`}
+                  >
+                    {isDownloadingProjectSafetyDbExcel ? (
+                      <Loader2 className="h-4 w-4 animate-spin sm:mr-1.5" />
+                    ) : (
+                      <FileDown className="h-4 w-4 sm:mr-1.5" />
+                    )}
+                    <span className="hidden sm:inline">DB 엑셀</span>
+                  </button>
+                  <button
+                    onClick={() => downloadProjectListExcel(filteredProjects.filter(p => !(typeof p.is_active === 'object' && p.is_active?.completed === true)))}
+                    className="flex items-center px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors text-sm font-medium whitespace-nowrap"
+                  >
+                    <FileDown className="h-4 w-4 sm:mr-1.5" />
+                    <span className="hidden sm:inline">엑셀 다운</span>
+                  </button>
+                </>
               )}
 
               {/* 뷰 모드 전환 버튼 */}
