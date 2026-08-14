@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { X, Thermometer, Camera, Upload, Loader2, Calendar, User, CloudSun, Crop } from 'lucide-react'
 import Image from 'next/image'
 import SignatureModal from './SignatureModal'
@@ -505,6 +505,9 @@ export default function HeatWaveInspectionModal({
     }
   }
 
+  const photoCameraRef = useRef<HTMLInputElement>(null)
+  const photoAlbumRef = useRef<HTMLInputElement>(null)
+
   const handlePhotoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
@@ -851,17 +854,35 @@ export default function HeatWaveInspectionModal({
                 점검 사진 업로드 {!editData && <span className="text-red-500">*</span>}
                 <span className="text-sm text-gray-500 ml-2">{editData ? '(새로 선택하지 않으면 기존 사진 유지)' : '(근로자 휴식 사진 권장)'}</span>
               </h3>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <span className="text-xs text-gray-500">최대 20MB</span>
-                <label htmlFor="photo-upload" className="cursor-pointer">
-                  <div className="flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors">
-                    <Upload className="h-4 w-4 mr-1" />
-                    사진 선택
-                  </div>
-                </label>
+                <button
+                  type="button"
+                  onClick={() => photoCameraRef.current?.click()}
+                  className="flex items-center px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                >
+                  <Camera className="h-4 w-4 mr-1" />
+                  촬영
+                </button>
+                <button
+                  type="button"
+                  onClick={() => photoAlbumRef.current?.click()}
+                  className="flex items-center px-3 py-1.5 text-sm bg-white text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  <Upload className="h-4 w-4 mr-1" />
+                  앨범
+                </button>
               </div>
               <input
-                id="photo-upload"
+                ref={photoCameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handlePhotoUpload}
+                className="hidden"
+              />
+              <input
+                ref={photoAlbumRef}
                 type="file"
                 accept="image/*,.heic,.HEIC"
                 onChange={handlePhotoUpload}
