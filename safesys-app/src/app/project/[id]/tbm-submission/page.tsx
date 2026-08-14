@@ -351,7 +351,10 @@ export default function TBMSubmissionPage() {
       name: submission.reporter_name || '',
       signature: (submission as any).signature_url || '',
       constructionCompany: (submission as any).construction_company || '',
-      photo: (submission as any).education_photo_url || ''
+      photo: (submission as any).education_photo_url || '',
+      solutionPhoto1: (submission as any).solution_1_photo_url || '',
+      solutionPhoto2: (submission as any).solution_2_photo_url || '',
+      solutionPhoto3: (submission as any).solution_3_photo_url || ''
     }
   }
 

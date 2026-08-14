@@ -296,7 +296,8 @@ function buildCellXml(cell: Cell, colAddr: number, rowAddr: number, width: numbe
 }
 
 // 표를 감싼 문단 XML 반환. floats는 이 표가 놓인 쪽에 겹칠 떠 있는 그림 XML 목록.
-function buildTableParagraph(colWidths: number[], rows: Row[], tblId: number, zOrder: number, floats: string[] = []): string {
+// pageBreak=true면 이 표가 새 쪽에서 시작한다.
+function buildTableParagraph(colWidths: number[], rows: Row[], tblId: number, zOrder: number, floats: string[] = [], pageBreak = false): string {
     const colCnt = colWidths.length
     const trs = rows.map((row, r) => {
         let colAddr = 0
@@ -311,7 +312,7 @@ function buildTableParagraph(colWidths: number[], rows: Row[], tblId: number, zO
     }).join('')
     const totalW = colWidths.reduce((a, b) => a + b, 0)
     const tbl = `<hp:tbl id="${tblId}" zOrder="${zOrder}" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${rows.length}" colCnt="${colCnt}" cellSpacing="0" borderFillIDRef="2" noAdjust="0"><hp:sz width="${totalW}" widthRelTo="ABSOLUTE" height="0" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/>${trs}</hp:tbl>`
-    return `<hp:p id="${nextId()}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0">${floats.join('')}${tbl}<hp:t/></hp:run>${lineseg(CONTENT_WIDTH, 1000)}</hp:p>`
+    return `<hp:p id="${nextId()}" paraPrIDRef="0" styleIDRef="0" pageBreak="${pageBreak ? '1' : '0'}" columnBreak="0" merged="0"><hp:run charPrIDRef="0">${floats.join('')}${tbl}<hp:t/></hp:run>${lineseg(CONTENT_WIDTH, 1000)}</hp:p>`
 }
 
 // 표 밖 단독 문단(법조문·제목·하단메모·서명부 제목 등)
@@ -581,6 +582,58 @@ function buildSignatureRows(entries: TBMWorkerSignatureEntry[]): Row[] {
     return rows
 }
 
+// ── 대책 사진대지(별지) 구성 ──
+
+// 사진대지는 본문 폭 전체를 쓰는 1열 그리드 (셀 폭 = 그리드 합, 함정 4 회피)
+const COLS_PHOTO_SHEET = [CONTENT_WIDTH]
+
+// 프레임 = 사진 셀 + 캡션 행. 본문 세로 69788 예산: (30000+1700)×2 = 63400 → 문단 간격용 여유 6388 남김
+const PHOTO_SHEET_IMG_H = 30000
+const PHOTO_SHEET_CAPTION_H = 1700
+const PHOTO_SHEET_PER_PAGE = 2
+
+interface SolutionPhotoItem {
+    id: string   // ImageCollector가 부여한 이미지 id
+    no: number   // 사진이 속한 대책 번호
+}
+
+// 프레임 1개(사진 셀 + 캡션 행)의 행 구성. 사진은 원본 비율을 유지해 셀에 맞춘다(측정 불가 환경은 셀 채움).
+function buildSolutionPhotoFrameRows(collector: ImageCollector, item: SolutionPhotoItem): Row[] {
+    const availW = CONTENT_WIDTH - 282
+    const availH = PHOTO_SHEET_IMG_H - 282
+    const entry = collector.find(item.id)
+    let w = availW
+    let h = availH
+    if (entry?.wPx && entry?.hPx) {
+        const scale = Math.min(availW / entry.wPx, availH / entry.hPx)
+        w = Math.round(entry.wPx * scale)
+        h = Math.round(entry.hPx * scale)
+    }
+    return [
+        { height: PHOTO_SHEET_IMG_H, cells: [{ picId: item.id, picW: w, picH: h, center: true }] },
+        { height: PHOTO_SHEET_CAPTION_H, cells: [{ text: `잠재위험요인 조치 사진대지 (대책 ${item.no})`, cp: 1, center: true }] },
+    ]
+}
+
+// 대책 사진대지 문단들. 페이지당 프레임 2개(마지막 페이지는 1개일 수 있음), 각 페이지 첫 표가 새 쪽에서 시작한다.
+function buildSolutionPhotoParts(collector: ImageCollector, items: SolutionPhotoItem[], tblIdBase: number): string[] {
+    const parts: string[] = []
+    for (let i = 0; i < items.length; i += PHOTO_SHEET_PER_PAGE) {
+        items.slice(i, i + PHOTO_SHEET_PER_PAGE).forEach((item, idx) => {
+            const seq = i + idx
+            parts.push(buildTableParagraph(
+                COLS_PHOTO_SHEET,
+                buildSolutionPhotoFrameRows(collector, item),
+                tblIdBase + 3 + seq,
+                3 + seq,
+                [],
+                idx === 0
+            ))
+        })
+    }
+    return parts
+}
+
 // ── 최종 조립 ──
 
 const LAW_TEXT = '건설기술 진흥법 시행령 103조(안전교육) 제3항에 따른 안전교육내용 기록'
@@ -596,6 +649,16 @@ async function buildSubmissionParts(
     // 이미지 수집: 사진(정규화 JPEG), 작성자 서명(원본 PNG-투명), 근로자 서명(원본 PNG-투명)
     const photoId = await collector.collect(formData.photo, false)
     const sigId = formData.signature ? await collector.collect(formData.signature, true) : null
+
+    // 대책 사진(대책 1~3) — 값이 있는 것만 순서대로 사진대지 별지에 채운다
+    const solutionPhotoItems: SolutionPhotoItem[] = []
+    const solutionPhotoUrls = [formData.solutionPhoto1, formData.solutionPhoto2, formData.solutionPhoto3]
+    for (let i = 0; i < solutionPhotoUrls.length; i++) {
+        const url = (solutionPhotoUrls[i] || '').trim()
+        if (!url) continue
+        const id = await collector.collect(url, false)
+        if (id) solutionPhotoItems.push({ id, no: i + 1 })
+    }
 
     const workerSigIds: (string | null)[] = []
     for (const e of signatures) {
@@ -635,6 +698,9 @@ async function buildSubmissionParts(
     }
     parts.push(buildTableParagraph(COLS_MAIN, buildTbmTableRows(formData, photo), tblIdBase + 1, 1, mainFloats))
     parts.push(buildTextParagraph('붙임) TBM 참여 서명부 _ 작업장 출입 전.후 근로자 작업가능상태 점검', 5, false, false))
+
+    // 대책 사진대지 — 회의록 뒤, 서명부 앞
+    parts.push(...buildSolutionPhotoParts(collector, solutionPhotoItems, tblIdBase))
 
     if (signatures.length > 0) {
         const dow = formData.educationDate ? getDayOfWeek(formData.educationDate) : ''

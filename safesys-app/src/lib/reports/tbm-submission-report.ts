@@ -31,6 +31,32 @@ interface TBMSubmissionFormData {
   signature?: string
   constructionCompany?: string
   photo?: string
+  solutionPhoto1?: string
+  solutionPhoto2?: string
+  solutionPhoto3?: string
+}
+
+// 사진대지에 실을 대책 사진 1장 (no = 사진이 속한 대책 번호)
+interface SolutionPhotoItem {
+  url: string
+  no: number
+}
+
+// 사진대지 프레임 치수 (A4 1123px 기준: 상하 패딩 91px + 프레임 2개 456px + 간격 20px = 1023px)
+const SOLUTION_PHOTO_FRAME_HEIGHT = 420
+const SOLUTION_PHOTOS_PER_PAGE = 2
+
+// 대책 1~3 사진 중 값이 있는 것만 순서대로 추려 페이지 단위(페이지당 2장)로 나눈다
+export function buildSolutionPhotoPages(formData: TBMSubmissionFormData): SolutionPhotoItem[][] {
+  const items: SolutionPhotoItem[] = [formData.solutionPhoto1, formData.solutionPhoto2, formData.solutionPhoto3]
+    .map((url, index) => ({ url: (url || '').trim(), no: index + 1 }))
+    .filter(item => item.url !== '')
+
+  const pages: SolutionPhotoItem[][] = []
+  for (let i = 0; i < items.length; i += SOLUTION_PHOTOS_PER_PAGE) {
+    pages.push(items.slice(i, i + SOLUTION_PHOTOS_PER_PAGE))
+  }
+  return pages
 }
 
 class PDFGenerator {
@@ -603,6 +629,33 @@ class PDFGenerator {
     `
   }
 
+  // 대책 사진대지 1페이지 HTML 생성 (페이지당 프레임 최대 2개, 사진은 원본 비율 유지)
+  private createSolutionPhotoSheetHTML(items: SolutionPhotoItem[]): string {
+    const containerTopBottomPadding = '76px 30px 15px 30px' // 회의록 페이지와 동일한 여백
+
+    const frames = items.map(item => `
+        <div style="border: 1px solid #000; margin-bottom: 20px; box-sizing: border-box;">
+          <div style="display: table; width: 100%; height: ${SOLUTION_PHOTO_FRAME_HEIGHT}px;">
+            <div style="display: table-cell; vertical-align: middle; text-align: center;">
+              <img src="${item.url}" style="max-width: 100%; max-height: ${SOLUTION_PHOTO_FRAME_HEIGHT}px; object-fit: contain; vertical-align: middle;" />
+            </div>
+          </div>
+          <div style="border-top: 1px solid #000; text-align: center; padding: 8px; font-size: 14px;">잠재위험요인 조치 사진대지 (대책 ${item.no})</div>
+        </div>`).join('')
+
+    return `
+      <div style="font-family: 'Malgun Gothic', '맑은 고딕', Arial, sans-serif; padding: ${containerTopBottomPadding}; width: 734px; margin: 0 auto; box-sizing: content-box;">${frames}
+      </div>
+    `
+  }
+
+  // 대책 사진이 있으면 사진대지 페이지들을 순서대로 추가한다 (없으면 아무 페이지도 추가하지 않음)
+  async appendSolutionPhotoPages(formData: TBMSubmissionFormData) {
+    for (const items of buildSolutionPhotoPages(formData)) {
+      await this.appendHTMLPage(this.createSolutionPhotoSheetHTML(items))
+    }
+  }
+
   // PDF 다운로드
   downloadPDF(filename: string) {
     if (this.doc) {
@@ -655,6 +708,7 @@ export async function generateTBMSubmissionReport(
 ): Promise<void> {
   const generator = new PDFGenerator()
   await generator.generateTBMReport(formData)
+  await generator.appendSolutionPhotoPages(formData)
   if (options?.signatures && options.signatures.length > 0) {
     await generator.appendHTMLPage(createWorkerSignatureSheetHTML(options.signatures, formData.educationDate || ''))
   }
@@ -672,6 +726,7 @@ export async function generateTBMSubmissionReportBlob(
 ): Promise<Blob> {
   const generator = new PDFGenerator()
   await generator.generateTBMReport(formData)
+  await generator.appendSolutionPhotoPages(formData)
   if (options?.signatures && options.signatures.length > 0) {
     await generator.appendHTMLPage(createWorkerSignatureSheetHTML(options.signatures, formData.educationDate || ''))
   }
@@ -700,6 +755,7 @@ export async function generateTBMSubmissionBulkReport(
   for (let i = 0; i < formDataList.length; i++) {
     const formData = formDataList[i]
     await generator.appendTBMReportPage(formData)
+    await generator.appendSolutionPhotoPages(formData)
     const signatures = options?.signaturesList?.[i]
     if (signatures && signatures.length > 0) {
       await generator.appendHTMLPage(createWorkerSignatureSheetHTML(signatures, formData.educationDate || ''))
