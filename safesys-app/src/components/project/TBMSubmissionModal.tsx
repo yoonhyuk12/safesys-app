@@ -1991,7 +1991,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                       />
                       {/* 대책 사진 (선택) */}
                       <div className="mt-2">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center justify-center gap-1">
                           <button
                             type="button"
                             onClick={() => openSolutionPhotoPicker(num, 'camera')}
