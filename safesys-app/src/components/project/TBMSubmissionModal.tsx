@@ -1963,53 +1963,57 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                 />
 
                 {[1, 2, 3].map(num => (
-                  <div key={num} className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        잠재위험요인 {num} <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData[`potentialRisk${num}` as keyof FormData] as string}
-                        onChange={(e) => handleInputChange(`potentialRisk${num}` as keyof FormData, e.target.value)}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        required
-                        maxLength={50}
-                      />
+                  <div key={num}>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          잠재위험요인 {num} <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={formData[`potentialRisk${num}` as keyof FormData] as string}
+                          onChange={(e) => handleInputChange(`potentialRisk${num}` as keyof FormData, e.target.value)}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          required
+                          maxLength={50}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          대책 {num} <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={formData[`solution${num}` as keyof FormData] as string}
+                          onChange={(e) => handleInputChange(`solution${num}` as keyof FormData, e.target.value)}
+                          className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                          required
+                          maxLength={50}
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        대책 {num} <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={formData[`solution${num}` as keyof FormData] as string}
-                        onChange={(e) => handleInputChange(`solution${num}` as keyof FormData, e.target.value)}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        required
-                        maxLength={50}
-                      />
-                      {/* 대책 사진 (선택) */}
-                      <div className="mt-2">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => openSolutionPhotoPicker(num, 'camera')}
-                            className="flex items-center px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                          >
-                            <Camera className="h-3 w-3 mr-1" />
-                            촬영
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openSolutionPhotoPicker(num, 'album')}
-                            className="flex items-center px-2 py-1 text-xs bg-white text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
-                          >
-                            <Upload className="h-3 w-3 mr-1" />
-                            앨범
-                          </button>
-                          <span className="text-[11px] text-gray-400">사진 업로드는 필수가 아닙니다</span>
-                        </div>
+                    {/* 대책 사진 (선택) — 행 전체 폭 기준 가운데 정렬 */}
+                    <div className="mt-2">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openSolutionPhotoPicker(num, 'camera')}
+                          className="flex items-center px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          <Camera className="h-3 w-3 mr-1" />
+                          촬영
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openSolutionPhotoPicker(num, 'album')}
+                          className="flex items-center px-2 py-1 text-xs bg-white text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
+                        >
+                          <Upload className="h-3 w-3 mr-1" />
+                          앨범
+                        </button>
+                        <span className="text-[11px] text-gray-400">사진 업로드는 필수가 아닙니다</span>
+                      </div>
+                      <div className="flex justify-center">
                         {renderSolutionPhotoPreview(num)}
                       </div>
                     </div>
