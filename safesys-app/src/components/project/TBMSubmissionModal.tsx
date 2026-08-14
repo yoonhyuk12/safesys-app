@@ -1992,29 +1992,32 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                         />
                       </div>
                     </div>
-                    {/* 대책 사진 (선택) — 행 전체 폭 기준 가운데 정렬 */}
-                    <div className="mt-2">
-                      <div className="flex items-center justify-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => openSolutionPhotoPicker(num, 'camera')}
-                          className="flex items-center px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                        >
-                          <Camera className="h-3 w-3 mr-1" />
-                          촬영
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openSolutionPhotoPicker(num, 'album')}
-                          className="flex items-center px-2 py-1 text-xs bg-white text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
-                        >
-                          <Upload className="h-3 w-3 mr-1" />
-                          앨범
-                        </button>
-                        <span className="text-[11px] text-gray-400">사진 업로드는 필수가 아닙니다</span>
-                      </div>
-                      <div className="flex justify-center">
-                        {renderSolutionPhotoPreview(num)}
+                    {/* 대책 사진 (선택) — 모바일은 행 전체 가운데, 데스크탑(sm 이상)은 대책 칸 아래 배치 */}
+                    <div className="mt-2 sm:grid sm:grid-cols-2 sm:gap-4">
+                      <div className="hidden sm:block" />
+                      <div>
+                        <div className="flex items-center justify-center sm:justify-start gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openSolutionPhotoPicker(num, 'camera')}
+                            className="flex items-center px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            <Camera className="h-3 w-3 mr-1" />
+                            촬영
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openSolutionPhotoPicker(num, 'album')}
+                            className="flex items-center px-2 py-1 text-xs bg-white text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
+                          >
+                            <Upload className="h-3 w-3 mr-1" />
+                            앨범
+                          </button>
+                          <span className="text-[11px] text-gray-400">사진 업로드는 필수가 아닙니다</span>
+                        </div>
+                        <div className="flex justify-center sm:justify-start">
+                          {renderSolutionPhotoPreview(num)}
+                        </div>
                       </div>
                     </div>
                   </div>
