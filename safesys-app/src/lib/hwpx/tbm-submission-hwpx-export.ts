@@ -269,6 +269,14 @@ function sumRange(widths: number[], start: number, count: number): number {
     return s
 }
 
+// 셀 텍스트 정규화 — 줄 끝 공백과 문자열 뒤쪽 공백·빈 줄을 제거한다(줄 앞 들여쓰기는 의도일 수 있어 보존).
+// 높이 추정과 실제 렌더가 같은 문자열을 보도록 양쪽에서 동일하게 적용한다.
+function trimCellText(text: string): string {
+    const lines = text.split('\n').map(line => line.replace(/\s+$/, ''))
+    while (lines.length > 0 && lines[lines.length - 1] === '') lines.pop()
+    return lines.join('\n')
+}
+
 // 셀 내부 본문(여러 줄이면 문단 분리) 조립
 function buildCellBody(cell: Cell, cellW: number): string {
     const cp = cell.cp ?? 0
@@ -281,7 +289,7 @@ function buildCellBody(cell: Cell, cellW: number): string {
         return `<hp:p id="${nextId()}" paraPrIDRef="1" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0">${pic}</hp:run>${lineseg(innerW, 1000)}</hp:p>`
     }
 
-    const lines = (cell.text ?? '').split('\n')
+    const lines = trimCellText(cell.text ?? '').split('\n')
     return lines.map(line =>
         `<hp:p id="${nextId()}" paraPrIDRef="${pp}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="${cp}"><hp:t>${esc(line)}</hp:t></hp:run>${lineseg(innerW, h)}</hp:p>`
     ).join('')
@@ -351,6 +359,12 @@ const ROW_H = {
 const LINE_H = 1300   // 10pt × 줄간격 130%
 const CELL_PAD = 282  // 셀 상하 여백
 
+// 1페이지가 표에 내어줄 수 있는 높이 = 본문 세로(69788) - 법조문·제목·붙임 줄(4420) - 안전 버퍼(1500)
+const PAGE_CAPACITY = 69788 - 4420 - 1500
+
+// 사진을 줄여야 할 때의 하한 — 이보다 작으면 TBM 실시사진을 알아보기 어렵다
+const PHOTO_MIN_H = 7000
+
 // 셀 폭 기준 표시 줄 수 추정(줄바꿈 + 자동 줄바꿈) — 10pt 한글 글자 폭 약 1000 HWPUNIT 가정
 function estDisplayLines(text: string, cellW: number): number {
     const charsPerLine = Math.max(10, Math.floor((cellW - CELL_PAD) / 1000))
@@ -388,7 +402,7 @@ function estRenderRowH(row: Row): number {
         const span = cell.span ?? 1
         const w = sumRange(COLS_MAIN, colAddr, span)
         colAddr += span
-        const t = cell.text ?? ''
+        const t = trimCellText(cell.text ?? '')
         if (cell.picId || !t) continue
         maxH = Math.max(maxH, estDisplayLines(t, w) * LINE_H + CELL_PAD)
     }
@@ -398,7 +412,7 @@ function estRenderRowH(row: Row): number {
 // 1페이지 하단 여백이 남지 않도록, 남는 높이를 행 높이에 비례 배분해 표를 늘린다.
 // 첫 행(TBM리더)은 서명 겹침 좌표가 고정이라 늘리지 않는다.
 function stretchRowsToFillPage(rows: Row[]): Row[] {
-    const capacity = 69788 - 4420 - 1500 // 본문 세로 - 법조문·제목·붙임 줄 - 안전 버퍼
+    const capacity = PAGE_CAPACITY
     const est = rows.map(estRenderRowH)
     const total = est.reduce((a, b) => a + b, 0)
     if (total >= capacity) return rows
@@ -422,15 +436,42 @@ function splitWorkDescLines(text: string): [string, string] {
     return [lines.slice(0, cut).join('\n'), lines.slice(cut).join('\n')]
 }
 
-function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: number; h: number } | null): Row[] {
+// 사진 원본 픽셀 크기 참조 — 배치 크기는 남은 1페이지 예산이 정해진 뒤 계산한다
+interface PhotoRef {
+    id: string
+    wPx?: number
+    hPx?: number
+}
+
+// 사진 행에 허용할 높이. 나머지 행이 예산을 다 쓰면 사진 여백을 줄여 1페이지에 맞춘다.
+// 하한은 같은 행의 투입인원·투입장비 텍스트가 필요로 하는 높이와 사진 최소 높이 중 큰 값.
+function resolvePhotoRowH(otherRowsH: number, personnel: string, equipment: string): number {
+    const wPersonnel = COLS_MAIN.slice(4, 7).reduce((a, b) => a + b, 0)
+    const wEquip = COLS_MAIN.slice(7).reduce((a, b) => a + b, 0)
+    const textH = Math.max(
+        estDisplayLines(personnel, wPersonnel) * LINE_H + CELL_PAD,
+        estDisplayLines(equipment, wEquip) * LINE_H + CELL_PAD
+    )
+    const minH = Math.max(PHOTO_MIN_H, textH)
+    return Math.max(minH, Math.min(ROW_H.photoBody, PAGE_CAPACITY - otherRowsH))
+}
+
+// 원본 비율을 유지해 주어진 공간에 맞춘다. 크기 측정 불가 환경(서버·비브라우저)은 공간 채움.
+function fitPhoto(photo: PhotoRef, availW: number, availH: number): { w: number; h: number } {
+    if (!photo.wPx || !photo.hPx) return { w: availW, h: availH }
+    const scale = Math.min(availW / photo.wPx, availH / photo.hPx)
+    return { w: Math.round(photo.wPx * scale), h: Math.round(photo.hPx * scale) }
+}
+
+function buildTbmTableRows(f: TBMSubmissionFormData, photo: PhotoRef | null): Row[] {
     const dateTime = `${f.educationDate || ''} ${f.educationStartTime || ''} (20분) 작업 날짜와 동일함`
     const workName = `${f.projectName || ''} (${f.headquarters || ''}-${f.branch || ''})`
 
-    let personnel = (f.personnelInput || '').trimStart()
+    let personnel = trimCellText((f.personnelInput || '').trimStart())
     if (f.newWorkerCount && f.newWorkerCount !== '0') {
         personnel += personnel ? `\n\n신규근로자: ${f.newWorkerCount}명` : `신규근로자: ${f.newWorkerCount}명`
     }
-    const equipment = (f.equipmentInput || '').trimStart()
+    const equipment = trimCellText((f.equipmentInput || '').trimStart())
 
     const risks = [
         { r: f.potentialRisk1, s: f.solution1 },
@@ -457,8 +498,9 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: num
     // 작업명
     rows.push({ height: ROW_H.workName, cells: [{ text: '작업명', span: 2, header: true, cp: 1, center: true }, { text: workName, span: 7 }] })
     // 작업내용 — 가변 내용을 합쳐 1페이지를 넘길 상황이면 데이터 칸을 좌우 2칸으로 나눠 담는다
-    const workDesc = f.todayWork || ''
-    if (shouldSplitWorkDesc(workDesc, (f.otherRemarks || '').trimStart(), personnel, equipment)) {
+    const workDesc = trimCellText(f.todayWork || '')
+    const etcBody = trimCellText((f.otherRemarks || '').trimStart())
+    if (shouldSplitWorkDesc(workDesc, etcBody, personnel, equipment)) {
         const [left, right] = splitWorkDescLines(workDesc)
         rows.push({
             height: ROW_H.workDesc,
@@ -533,7 +575,7 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: num
     // 기타사항 머리
     rows.push({ height: ROW_H.etcHead, cells: [{ text: '■ 기타사항(교육내용, 제안제도, 아차사고 등)', span: 9, header: true, cp: 1 }] })
     // 기타사항 내용
-    rows.push({ height: ROW_H.etcBody, cells: [{ text: (f.otherRemarks || '').trimStart(), span: 9 }] })
+    rows.push({ height: ROW_H.etcBody, cells: [{ text: etcBody, span: 9 }] })
     // 사진/투입 머리
     rows.push({
         height: ROW_H.photoHead,
@@ -543,13 +585,19 @@ function buildTbmTableRows(f: TBMSubmissionFormData, photo: { id: string; w: num
             { text: '투입장비', span: 2, header: true, cp: 1, center: true },
         ],
     })
-    // 사진/투입 데이터 — 사진은 원본 비율을 유지해 셀에 맞춘다
+    // 사진/투입 데이터 — 앞선 행들이 쓰고 남은 1페이지 예산만큼만 사진 행에 준다.
+    // 사진 셀 폭(그리드 합)은 그대로 두고 높이만 조정하며, 사진은 그 안에 원본 비율로 맞춘다.
+    const photoRowH = resolvePhotoRowH(rows.reduce((sum, r) => sum + estRenderRowH(r), 0), personnel, equipment)
+    let photoCell: Cell = { text: '사진 없음', span: 4, cp: 7, center: true }
+    if (photo) {
+        const availW = COLS_MAIN.slice(0, 4).reduce((a, b) => a + b, 0) - CELL_PAD
+        const fit = fitPhoto(photo, availW, photoRowH - CELL_PAD)
+        photoCell = { span: 4, picId: photo.id, picW: fit.w, picH: fit.h, center: true }
+    }
     rows.push({
-        height: ROW_H.photoBody,
+        height: photoRowH,
         cells: [
-            photo
-                ? { span: 4, picId: photo.id, picW: photo.w, picH: photo.h, center: true }
-                : { text: '사진 없음', span: 4, cp: 7, center: true },
+            photoCell,
             { text: personnel, span: 3 },
             { text: equipment, span: 2 },
         ],
@@ -671,21 +719,9 @@ async function buildSubmissionParts(
     const PAGE_CONTENT_TOP = 7200
     const line = (cpHeight: number) => Math.round(cpHeight * 1.3) // 줄간격 130%
 
-    // 사진은 원본 비율을 유지해 사진 셀(20646×photoBody) 안에 맞춘다. 크기 측정 불가 환경은 셀 채움.
-    let photo: { id: string; w: number; h: number } | null = null
-    if (photoId) {
-        const availW = COLS_MAIN.slice(0, 4).reduce((a, b) => a + b, 0) - 282
-        const availH = ROW_H.photoBody - 282
-        const entry = collector.find(photoId)
-        let w = availW
-        let h = availH
-        if (entry?.wPx && entry?.hPx) {
-            const scale = Math.min(availW / entry.wPx, availH / entry.hPx)
-            w = Math.round(entry.wPx * scale)
-            h = Math.round(entry.hPx * scale)
-        }
-        photo = { id: photoId, w, h }
-    }
+    // 사진은 원본 픽셀 크기만 넘긴다 — 실제 배치 크기는 표 조립 단계에서 사진 행 높이가 정해진 뒤 계산된다.
+    const photoEntry = photoId ? collector.find(photoId) : null
+    const photo: PhotoRef | null = photoId ? { id: photoId, wPx: photoEntry?.wPx, hPx: photoEntry?.hPx } : null
 
     parts.push(first ? buildFirstParagraph(LAW_TEXT) : buildTextParagraph(LAW_TEXT, 3, false, true))
     parts.push(buildTextParagraph('일일안전교육일지(TBM 회의록)', 2, true, false))
