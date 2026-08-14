@@ -48,6 +48,10 @@ export async function POST(request: NextRequest) {
       .map((risk) => String(risk || '').trim())
       .filter(Boolean)
       .slice(0, MAX_RECENT_RISKS)
+    // 같은 화면에서 이미 뽑은 위험요인 원문 — 다시 누르면 다른 항목이 나오게 후보에서 뺀다
+    const excludeHazards = (Array.isArray(body.excludeHazards) ? body.excludeHazards : [])
+      .map((hazard) => String(hazard || '').trim())
+      .filter(Boolean)
 
     if (!GEMINI_API_KEY) {
       return NextResponse.json<TbmRiskLinkResponse>(
@@ -73,13 +77,13 @@ export async function POST(request: NextRequest) {
     const systemMessage =
       '당신은 한국 건설현장(농어촌공사 계열)의 안전관리자입니다. 실시된 위험성평가 결과에서 오늘 작업과 직접 관련된 항목을 골라 TBM 일지의 잠재위험요인과 해결방안 칸을 채웁니다. 주어진 번호로만 답하고 반드시 유효한 JSON으로만 응답하세요.'
 
-    const prompt = `아래 "금일 작업내용"과 직접 관련된 항목을 "위험성평가 행 목록"에서 골라 TBM 칸에 맞게 정리하세요.
+    const buildPrompt = (promptRows: LinkRow[]) => `아래 "금일 작업내용"과 직접 관련된 항목을 "위험성평가 행 목록"에서 골라 TBM 칸에 맞게 정리하세요.
 
 # 금일 작업내용
 ${todayWork}
 
 # 위험성평가 행 목록 ([번호] 위험요인 | 재해유형 | 위험성 | 감소대책)
-${rows.map(describeRow).join('\n')}
+${promptRows.map(describeRow).join('\n')}
 ${recentRisks.length ? `
 # 최근 TBM에서 이미 다룬 잠재위험요인 (되도록 피할 것)
 ${recentRisks.map((risk) => `- ${risk}`).join('\n')}
@@ -96,85 +100,114 @@ ${recentRisks.map((risk) => `- ${risk}`).join('\n')}
 - 반드시 다음 JSON 형식으로만 응답한다: {"items":[{"index":0,"risk":"","solution":"","factor":""}]}`
 
     let lastError = ''
-    for (const model of await getAiModelChain('ai.tbm-risk-link')) {
-      const geminiResponse = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': GEMINI_API_KEY,
-          },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemMessage }] },
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: {
-              temperature: 0.2,
-              responseMimeType: 'application/json',
+
+    // 주어진 후보 행으로 한 번 고른다. 모델 폴백은 이 안에서 처리한다.
+    const selectFrom = async (promptRows: LinkRow[]): Promise<{ data: TbmRiskLinkItem[]; usedHazards: string[] } | null> => {
+      const prompt = buildPrompt(promptRows)
+
+      for (const model of await getAiModelChain('ai.tbm-risk-link')) {
+        const geminiResponse = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-goog-api-key': GEMINI_API_KEY,
             },
-          }),
-        }
-      )
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: systemMessage }] },
+              contents: [{ role: 'user', parts: [{ text: prompt }] }],
+              generationConfig: {
+                temperature: 0.2,
+                responseMimeType: 'application/json',
+              },
+            }),
+          }
+        )
 
-      if (!geminiResponse.ok) {
-        const errorData = await geminiResponse.json().catch(() => ({}))
-        lastError = `${geminiResponse.status} ${JSON.stringify(errorData).slice(0, 200)}`
-        console.error(`Gemini API Error (${model}):`, lastError)
-        continue // 다음 모델로 폴백
-      }
-
-      const geminiResult = await geminiResponse.json()
-      const content = geminiResult.candidates?.[0]?.content?.parts
-        ?.map((part: { text?: string }) => part.text || '')
-        .join('')
-
-      if (!content) {
-        lastError = 'AI 응답 본문 없음'
-        console.error(`Gemini 응답 없음 (${model}):`, JSON.stringify(geminiResult).slice(0, 300))
-        continue
-      }
-
-      try {
-        const parsed = JSON.parse(content) as Record<string, unknown>
-        const rawItems: unknown[] = Array.isArray(parsed.items) ? parsed.items : []
-        const seen = new Set<number>()
-        const data: TbmRiskLinkItem[] = []
-
-        for (const raw of rawItems) {
-          if (!raw || typeof raw !== 'object') continue
-          const item = raw as Record<string, unknown>
-          const index = Number(item.index)
-          // 목록 밖 번호는 환각이므로 버린다
-          if (!Number.isInteger(index) || index < 0 || index >= rows.length || seen.has(index)) continue
-          seen.add(index)
-
-          const source = rows[index]
-          const risk = String(item.risk || '').trim() || source.hazard
-          const solution = String(item.solution || '').trim() || (source.measures || []).join(' / ')
-          const factor = String(item.factor || '').trim()
-          data.push({ risk, solution, factor })
-          if (data.length >= MAX_ITEMS) break
+        if (!geminiResponse.ok) {
+          const errorData = await geminiResponse.json().catch(() => ({}))
+          lastError = `${geminiResponse.status} ${JSON.stringify(errorData).slice(0, 200)}`
+          console.error(`Gemini API Error (${model}):`, lastError)
+          continue // 다음 모델로 폴백
         }
 
-        if (data.length === 0) {
-          return NextResponse.json<TbmRiskLinkResponse>(
-            { success: false, error: '금일 작업과 연결할 위험요인을 찾지 못했습니다. 금일 작업내용을 더 구체적으로 적어주세요.' },
-            { status: 422 }
-          )
+        const geminiResult = await geminiResponse.json()
+        const content = geminiResult.candidates?.[0]?.content?.parts
+          ?.map((part: { text?: string }) => part.text || '')
+          .join('')
+
+        if (!content) {
+          lastError = 'AI 응답 본문 없음'
+          console.error(`Gemini 응답 없음 (${model}):`, JSON.stringify(geminiResult).slice(0, 300))
+          continue
         }
 
-        return NextResponse.json<TbmRiskLinkResponse>({ success: true, data })
-      } catch {
-        lastError = 'JSON 파싱 실패'
-        console.error(`Gemini 응답 파싱 실패 (${model}):`, content.slice(0, 300))
-        continue
+        try {
+          const parsed = JSON.parse(content) as Record<string, unknown>
+          const rawItems: unknown[] = Array.isArray(parsed.items) ? parsed.items : []
+          const seen = new Set<number>()
+          const data: TbmRiskLinkItem[] = []
+          const usedHazards: string[] = []
+
+          for (const raw of rawItems) {
+            if (!raw || typeof raw !== 'object') continue
+            const item = raw as Record<string, unknown>
+            const index = Number(item.index)
+            // 목록 밖 번호는 환각이므로 버린다
+            if (!Number.isInteger(index) || index < 0 || index >= promptRows.length || seen.has(index)) continue
+            seen.add(index)
+
+            const source = promptRows[index]
+            const risk = String(item.risk || '').trim() || source.hazard
+            const solution = String(item.solution || '').trim() || (source.measures || []).join(' / ')
+            const factor = String(item.factor || '').trim()
+            data.push({ risk, solution, factor })
+            usedHazards.push(source.hazard)
+            if (data.length >= MAX_ITEMS) break
+          }
+
+          return { data, usedHazards }
+        } catch {
+          lastError = 'JSON 파싱 실패'
+          console.error(`Gemini 응답 파싱 실패 (${model}):`, content.slice(0, 300))
+          continue
+        }
       }
+
+      return null // 모든 모델 실패
     }
 
-    return NextResponse.json<TbmRiskLinkResponse>(
-      { success: false, error: `위험성평가 연계에 실패했습니다. (${lastError})` },
-      { status: 502 }
-    )
+    // 이미 뽑았던 행은 후보에서 뺀다. 남은 후보가 없으면 처음부터 다시 돈다.
+    const excludeSet = new Set(excludeHazards)
+    const remaining = rows.filter((row) => !excludeSet.has(row.hazard))
+    const isRetryable = remaining.length > 0 && remaining.length < rows.length
+
+    let picked = await selectFrom(remaining.length > 0 ? remaining : rows)
+    // 남은 후보 중엔 금일 작업과 맞는 게 없을 수도 있다. 이때도 한 바퀴 리셋해 다시 고른다.
+    if (isRetryable && picked && picked.data.length === 0) {
+      picked = await selectFrom(rows)
+    }
+
+    if (!picked) {
+      return NextResponse.json<TbmRiskLinkResponse>(
+        { success: false, error: `위험성평가 연계에 실패했습니다. (${lastError})` },
+        { status: 502 }
+      )
+    }
+
+    if (picked.data.length === 0) {
+      return NextResponse.json<TbmRiskLinkResponse>(
+        { success: false, error: '금일 작업과 연결할 위험요인을 찾지 못했습니다. 금일 작업내용을 더 구체적으로 적어주세요.' },
+        { status: 422 }
+      )
+    }
+
+    return NextResponse.json<TbmRiskLinkResponse>({
+      success: true,
+      data: picked.data,
+      usedHazards: picked.usedHazards,
+    })
   } catch (error) {
     console.error('TBM 위험성평가 연계 API 오류:', error)
     return NextResponse.json<TbmRiskLinkResponse>(

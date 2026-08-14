@@ -135,6 +135,7 @@ export interface TbmRiskLinkRequest {
   todayWork: string            // TBM 금일 작업내용
   rows: Array<Pick<RiskAssessmentRow, 'hazard' | 'disasterType' | 'measures' | 'frequency' | 'intensity'>>
   recentRisks?: string[]       // 최근 TBM에서 이미 쓴 잠재위험요인 — 매번 같은 항목이 뽑히지 않게 회피 대상으로 넘긴다
+  excludeHazards?: string[]    // 같은 화면에서 이미 뽑은 위험요인 원문 — 후보에서 제외해 다시 누르면 다른 항목이 나오게 한다
 }
 
 /** TBM 잠재위험요인 1건 — risk는 평가서 위험요인 원문 기반, solution은 감소대책 요약, factor는 위험을 유발하는 상태·대상(잠재위험요소) */
@@ -147,6 +148,7 @@ export interface TbmRiskLinkItem {
 export interface TbmRiskLinkResponse {
   success: boolean
   data?: TbmRiskLinkItem[]     // 관련도 순 최대 3건
+  usedHazards?: string[]       // 이번에 고른 행의 위험요인 원문 — 다음 요청의 excludeHazards로 되돌려 보낸다
   error?: string
 }
 

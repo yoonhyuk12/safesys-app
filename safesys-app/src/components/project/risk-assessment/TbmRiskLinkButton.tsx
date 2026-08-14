@@ -32,6 +32,13 @@ export default function TbmRiskLinkButton({ projectId, todayWork, disabled, onAp
   const [assessments, setAssessments] = useState<RiskAssessmentOption[]>([])
   const [open, setOpen] = useState(false)
   const [linkingId, setLinkingId] = useState<string | null>(null)
+  // 평가서별로 이번 화면에서 이미 뽑은 위험요인 원문 — 다시 누르면 다음 후보가 나오게 누적한다
+  const [usedHazards, setUsedHazards] = useState<Record<string, string[]>>({})
+
+  // 금일 작업이 바뀌면 관련 있는 위험요인도 달라지므로 제외 이력을 비운다
+  useEffect(() => {
+    setUsedHazards({})
+  }, [todayWork])
 
   const loadAssessments = useCallback(async () => {
     const { data, error } = await supabase
@@ -93,7 +100,11 @@ export default function TbmRiskLinkButton({ projectId, todayWork, disabled, onAp
       alert('금일 작업내용을 먼저 입력해주세요.')
       return
     }
-    if (!confirm(`「${assessment.title}」의 위험요인으로 잠재위험요인 1~3과 해결방안 1~3을 채웁니다.\n기존에 입력된 내용은 덮어씁니다. 계속할까요?`)) return
+    const excludeHazards = usedHazards[assessment.id] || []
+    const notice = excludeHazards.length
+      ? '이미 뽑은 위험요인을 빼고 다른 항목으로 다시 채웁니다.'
+      : `「${assessment.title}」의 위험요인으로 잠재위험요인 1~3과 해결방안 1~3을 채웁니다.`
+    if (!confirm(`${notice}\n기존에 입력된 내용은 덮어씁니다. 계속할까요?`)) return
 
     setLinkingId(assessment.id)
     try {
@@ -118,6 +129,7 @@ export default function TbmRiskLinkButton({ projectId, todayWork, disabled, onAp
             intensity: row.intensity,
           })),
           recentRisks,
+          excludeHazards,
         }),
       })
 
@@ -125,6 +137,14 @@ export default function TbmRiskLinkButton({ projectId, todayWork, disabled, onAp
       if (!response.ok || !result.success || !result.data) {
         throw new Error(result.error || '위험성평가 연계에 실패했습니다.')
       }
+
+      // 이번에 쓴 행을 누적해 다음 클릭 때 제외한다. 후보를 다 쓰면 서버가 처음부터 다시 돌린다.
+      const picked = result.usedHazards || []
+      setUsedHazards((current) => {
+        const merged = [...new Set([...(current[assessment.id] || []), ...picked])]
+        const exhausted = merged.length >= (assessment.rows || []).length
+        return { ...current, [assessment.id]: exhausted ? picked : merged }
+      })
 
       onApply(result.data)
       setOpen(false)
@@ -159,7 +179,8 @@ export default function TbmRiskLinkButton({ projectId, todayWork, disabled, onAp
           <div className="absolute right-0 z-20 mt-1 w-[min(24rem,calc(100vw-3rem))] rounded-lg border border-gray-200 bg-white shadow-lg">
             <p className="border-b border-gray-100 px-3 py-2 text-xs text-amber-700">
               선택하면 금일 작업과 관련된 위험요인 최대 3건으로 잠재위험요인·해결방안을 덮어씁니다.
-            </p>
+              내용이 마음에 안 들면 다시 선택하세요. 이미 나온 항목을 빼고 다른 위험요인으로 채웁니다.
+</p>
             <ul className="max-h-56 divide-y divide-gray-100 overflow-y-auto">
               {assessments.map((assessment) => (
                 <li key={assessment.id}>
