@@ -10,6 +10,8 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const MAX_ROWS = 60
 const MAX_ITEMS = 3
 const MAX_MEASURE_CHARS = 200
+// 프롬프트에 넣는 "최근 사용한 잠재위험요인" 상한
+const MAX_RECENT_RISKS = 30
 
 type LinkRow = TbmRiskLinkRequest['rows'][number]
 
@@ -42,6 +44,10 @@ export async function POST(request: NextRequest) {
     const rows = (Array.isArray(body.rows) ? body.rows : [])
       .filter((row) => row && String(row.hazard || '').trim())
       .slice(0, MAX_ROWS)
+    const recentRisks = (Array.isArray(body.recentRisks) ? body.recentRisks : [])
+      .map((risk) => String(risk || '').trim())
+      .filter(Boolean)
+      .slice(0, MAX_RECENT_RISKS)
 
     if (!GEMINI_API_KEY) {
       return NextResponse.json<TbmRiskLinkResponse>(
@@ -74,10 +80,15 @@ ${todayWork}
 
 # 위험성평가 행 목록 ([번호] 위험요인 | 재해유형 | 위험성 | 감소대책)
 ${rows.map(describeRow).join('\n')}
-
+${recentRisks.length ? `
+# 최근 TBM에서 이미 다룬 잠재위험요인 (되도록 피할 것)
+${recentRisks.map((risk) => `- ${risk}`).join('\n')}
+` : ''}
 # 규칙
 - 금일 작업과 직접 관련된 행만 최대 ${MAX_ITEMS}개, 관련도 높은 순으로 고른다. 관련 항목이 적으면 적게 고른다.
-- 위험성(빈도×강도)이 높은 항목을 우선한다.
+- 위험성(빈도×강도)이 높은 항목을 우선한다.${recentRisks.length ? `
+- "최근 TBM에서 이미 다룬 잠재위험요인"과 같거나 사실상 같은 내용인 행은 후순위로 미룬다. 매일 같은 항목만 반복되면 교육 효과가 없다.
+- 다만 금일 작업과 관련된 행이 부족하면 최근에 다룬 항목이라도 고른다. 관련 없는 행으로 억지로 채우지 않는다.` : ''}
 - 목록에 있는 번호만 쓴다. 목록에 없는 번호나 새 위험요인을 지어내지 않는다.
 - risk: 고른 행의 위험요인 원문을 근거로, 근로자가 TBM에서 바로 알아듣도록 한 문장으로 다듬는다. 없는 내용을 보태지 않는다.
 - solution: 그 행의 감소대책을 현장에서 바로 실행할 수 있게 1~2문장으로 요약한다.

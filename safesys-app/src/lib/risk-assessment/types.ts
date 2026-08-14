@@ -134,6 +134,7 @@ export interface RiskAiRowResponse {
 export interface TbmRiskLinkRequest {
   todayWork: string            // TBM 금일 작업내용
   rows: Array<Pick<RiskAssessmentRow, 'hazard' | 'disasterType' | 'measures' | 'frequency' | 'intensity'>>
+  recentRisks?: string[]       // 최근 TBM에서 이미 쓴 잠재위험요인 — 매번 같은 항목이 뽑히지 않게 회피 대상으로 넘긴다
 }
 
 /** TBM 잠재위험요인 1건 — risk는 평가서 위험요인 원문 기반, solution은 감소대책 요약, factor는 위험을 유발하는 상태·대상(잠재위험요소) */

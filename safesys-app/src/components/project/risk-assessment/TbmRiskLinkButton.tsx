@@ -23,6 +23,9 @@ interface TbmRiskLinkButtonProps {
 
 const LIMIT = 20
 
+// 최근 며칠치 TBM에서 이미 쓴 잠재위험요인을 회피 대상으로 넘길지
+const RECENT_RISK_DAYS = 14
+
 const formatDate = (value: string) => value.slice(0, 10).replace(/-/g, '.')
 
 export default function TbmRiskLinkButton({ projectId, todayWork, disabled, onApply }: TbmRiskLinkButtonProps) {
@@ -51,6 +54,28 @@ export default function TbmRiskLinkButton({ projectId, todayWork, disabled, onAp
     if (projectId) loadAssessments()
   }, [projectId, loadAssessments])
 
+  // 최근 TBM에서 이미 쓴 잠재위험요인 — 조회 실패는 회피 없이 진행한다(연계 자체를 막지 않는다)
+  const loadRecentRisks = useCallback(async (): Promise<string[]> => {
+    const since = new Date()
+    since.setDate(since.getDate() - RECENT_RISK_DAYS)
+
+    const { data, error } = await supabase
+      .from('tbm_submissions')
+      .select('potential_risk_1, potential_risk_2, potential_risk_3')
+      .eq('project_id', projectId)
+      .gte('education_date', since.toISOString().slice(0, 10))
+      .order('education_date', { ascending: false })
+      .limit(RECENT_RISK_DAYS)
+
+    if (error) {
+      console.error('최근 TBM 잠재위험요인 조회 실패:', error)
+      return []
+    }
+
+    const risks = (data || []).flatMap((row) => [row.potential_risk_1, row.potential_risk_2, row.potential_risk_3])
+    return [...new Set(risks.map((risk) => String(risk || '').trim()).filter(Boolean))]
+  }, [projectId])
+
   const hasAssessment = assessments.length > 0
 
   // 비활성 모양이어도 클릭은 받아 안내를 띄운다 (disabled 속성을 쓰면 클릭이 막힌다)
@@ -75,6 +100,8 @@ export default function TbmRiskLinkButton({ projectId, todayWork, disabled, onAp
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('로그인이 만료되었습니다. 다시 로그인해주세요.')
 
+      const recentRisks = await loadRecentRisks()
+
       const response = await fetch('/api/ai/tbm-risk-link', {
         method: 'POST',
         headers: {
@@ -90,6 +117,7 @@ export default function TbmRiskLinkButton({ projectId, todayWork, disabled, onAp
             frequency: row.frequency,
             intensity: row.intensity,
           })),
+          recentRisks,
         }),
       })
 
