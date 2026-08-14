@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAiModel } from '@/lib/ai-models'
+import { getAiModel, supportsSamplingParams } from '@/lib/ai-models'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -46,6 +46,8 @@ export async function POST(request: NextRequest) {
 
 카테고리는 "기본안전" 8개, "공종안전" 15개로 구분해주세요.`
 
+    const model = await getAiModel('ai.daily-inspection')
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -53,7 +55,7 @@ export async function POST(request: NextRequest) {
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: await getAiModel('ai.daily-inspection'),
+        model,
         messages: [
           {
             role: 'system',
@@ -64,7 +66,7 @@ export async function POST(request: NextRequest) {
             content: prompt
           }
         ],
-        temperature: 0.7
+        ...(supportsSamplingParams(model) ? { temperature: 0.7 } : {})
       })
     })
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAiModel } from '@/lib/ai-models'
+import { getAiModel, supportsSamplingParams, tokenLimitParam } from '@/lib/ai-models'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -28,6 +28,8 @@ ${equipmentInput ? `투입장비: "${equipmentInput}"` : ''}
 위 내용에 대해서, 한국농어촌공사 공사감독으로써 안전조치 확인 해야할 사항 6가지를 적어줘.
 각 항목은 번호와 한 줄로 간결하게 작성해줘. HTML 태그 없이 플레인 텍스트로 작성해줘.`
 
+    const model = await getAiModel('ai.tbm-safety-advice')
+
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 50000)
 
@@ -38,7 +40,7 @@ ${equipmentInput ? `투입장비: "${equipmentInput}"` : ''}
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: await getAiModel('ai.tbm-safety-advice'),
+        model,
         messages: [
           {
             role: 'system',
@@ -49,8 +51,8 @@ ${equipmentInput ? `투입장비: "${equipmentInput}"` : ''}
             content: prompt
           }
         ],
-        temperature: 0.7,
-        max_tokens: 500
+        ...(supportsSamplingParams(model) ? { temperature: 0.7 } : {}),
+        ...tokenLimitParam(model, 500)
       }),
       signal: controller.signal
     })

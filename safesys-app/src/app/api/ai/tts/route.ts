@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAiModel } from '@/lib/ai-models'
+import { getAiModel, supportsSamplingParams, tokenLimitParam } from '@/lib/ai-models'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
 
     // 한국어가 아닌 경우 GPT-4o-mini로 번역
     if (language && language !== 'ko') {
+      const translateModel = await getAiModel('ai.tts.translate')
       const translationResponse = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -62,15 +63,15 @@ export async function POST(request: NextRequest) {
           'Authorization': `Bearer ${OPENAI_API_KEY}`
         },
         body: JSON.stringify({
-          model: await getAiModel('ai.tts.translate'),
+          model: translateModel,
           messages: [
             {
               role: 'user',
               content: getTranslationPrompt(text, language)
             }
           ],
-          temperature: 0.3,
-          max_tokens: 2000
+          ...(supportsSamplingParams(translateModel) ? { temperature: 0.3 } : {}),
+          ...tokenLimitParam(translateModel, 2000)
         })
       })
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAiModel } from '@/lib/ai-models'
+import { getAiModel, supportsSamplingParams } from '@/lib/ai-models'
 import {
   STANDARD_EQUIPMENT_NAMES,
   STANDARD_WORKER_TYPES,
@@ -150,6 +150,8 @@ ${existingPersonnel.length > 0 ? `기존 인력 분류 목록: ${existingPersonn
       )
     }
 
+    const remarksModel = await getAiModel('ai.supervisor-summary.remarks')
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -157,7 +159,7 @@ ${existingPersonnel.length > 0 ? `기존 인력 분류 목록: ${existingPersonn
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: await getAiModel('ai.supervisor-summary.remarks'),
+        model: remarksModel,
         messages: [
           {
             role: 'system',
@@ -168,7 +170,9 @@ ${existingPersonnel.length > 0 ? `기존 인력 분류 목록: ${existingPersonn
             content: prompt
           }
         ],
-        temperature: type === 'supervisor-instructions' ? 0.7 : type === 'work-daily-classify' ? 0.2 : 0.5,
+        ...(supportsSamplingParams(remarksModel)
+          ? { temperature: type === 'supervisor-instructions' ? 0.7 : type === 'work-daily-classify' ? 0.2 : 0.5 }
+          : {}),
         ...(type === 'work-daily-classify' ? { response_format: { type: 'json_object' } } : {})
       })
     })

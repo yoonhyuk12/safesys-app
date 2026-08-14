@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAiModel } from '@/lib/ai-models'
+import { getAiModel, supportsSamplingParams } from '@/lib/ai-models'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -32,6 +32,8 @@ ${numberedTexts}
 [1] 2
 [2] 3`
 
+    const model = await getAiModel('ai.extract-equipment-count')
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -39,7 +41,7 @@ ${numberedTexts}
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: await getAiModel('ai.extract-equipment-count'),
+        model,
         messages: [
           {
             role: 'system',
@@ -50,7 +52,7 @@ ${numberedTexts}
             content: prompt
           }
         ],
-        temperature: 0
+        ...(supportsSamplingParams(model) ? { temperature: 0 } : {})
       })
     })
 

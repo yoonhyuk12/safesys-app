@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAiModel } from '@/lib/ai-models'
+import { getAiModel, supportsSamplingParams, tokenLimitParam } from '@/lib/ai-models'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -44,6 +44,8 @@ ${location ? `작업위치: "${location}"` : ''}
 검토의견: (내용)
 조치결과: (내용)`
 
+    const model = await getAiModel('ai.ptw-risk-analysis')
+
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 50000)
 
@@ -54,7 +56,7 @@ ${location ? `작업위치: "${location}"` : ''}
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: await getAiModel('ai.ptw-risk-analysis'),
+        model,
         messages: [
           {
             role: 'system',
@@ -65,8 +67,8 @@ ${location ? `작업위치: "${location}"` : ''}
             content: prompt
           }
         ],
-        temperature: 0.7,
-        max_tokens: 500
+        ...(supportsSamplingParams(model) ? { temperature: 0.7 } : {}),
+        ...tokenLimitParam(model, 500)
       }),
       signal: controller.signal
     })

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAiModel } from '@/lib/ai-models'
+import { getAiModel, supportsSamplingParams, tokenLimitParam } from '@/lib/ai-models'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -150,6 +150,8 @@ ${numbered}
 - 25자 절대 초과 금지. 18자 이상 권장.
 - HTML/마크다운/설명/주석 금지. JSON 객체만 출력.`
 
+    const model = await getAiModel('ai.headquarters-remarks')
+
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 50000)
 
@@ -160,7 +162,7 @@ ${numbered}
         Authorization: `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: await getAiModel('ai.headquarters-remarks'),
+        model,
         messages: [
           {
             role: 'system',
@@ -172,11 +174,10 @@ ${numbered}
             content: prompt
           }
         ],
-        temperature: 1.0,
-        top_p: 0.95,
-        frequency_penalty: 0.6,
-        presence_penalty: 0.4,
-        max_tokens: 2000,
+        ...(supportsSamplingParams(model)
+          ? { temperature: 1.0, top_p: 0.95, frequency_penalty: 0.6, presence_penalty: 0.4 }
+          : {}),
+        ...tokenLimitParam(model, 2000),
         response_format: { type: 'json_object' }
       }),
       signal: controller.signal

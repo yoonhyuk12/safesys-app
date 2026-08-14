@@ -249,6 +249,31 @@ export async function getAiModel(featureKey: AiFeatureKey): Promise<string> {
   return map.get(featureKey) || fallback
 }
 
+// 샘플링 파라미터(temperature·top_p·penalty 계열)를 지원하는 구세대 모델 접두사 허용 목록.
+// gpt-5 이후 추론 계열은 이 파라미터들을 전부 거부하므로, 목록에 없는 모델(향후 교체될 새 모델 포함)은
+// 미전송이 항상 안전한 기본값이다. 새 모델 도입 시 이 목록만 손보면 된다.
+const SAMPLING_PARAM_MODEL_PREFIXES = ['gpt-4', 'gpt-3.5']
+
+/** temperature 등 샘플링 파라미터 전송 가능 여부를 판별한다 — 허용 목록에 없는 모델은 보내지 않는다. */
+export function supportsSamplingParams(model: string): boolean {
+  return SAMPLING_PARAM_MODEL_PREFIXES.some((prefix) => model.startsWith(prefix))
+}
+
+// 추론 계열 모델의 max_completion_tokens에는 눈에 보이지 않는 추론 토큰이 함께 계산된다.
+// 실측상 짧은 프롬프트도 추론에만 300~400 토큰을 쓰므로, 기존 한도를 그대로 넘기면 본문이 잘려 빈 응답이 된다.
+// 상한일 뿐 실제 과금은 사용량 기준이므로 넉넉히 잡아 잘림만 막는다.
+const REASONING_RESERVE_TOKENS = 4000
+
+/** 모델에 맞는 토큰 상한 파라미터를 만든다 — 구세대 모델은 max_tokens, 그 외(추론 계열·향후 모델)는 max_completion_tokens에 추론 예비분을 더한다. */
+export function tokenLimitParam(
+  model: string,
+  limit: number
+): { max_tokens: number } | { max_completion_tokens: number } {
+  return supportsSamplingParams(model)
+    ? { max_tokens: limit }
+    : { max_completion_tokens: limit + REASONING_RESERVE_TOKENS }
+}
+
 /** 위험성평가 계열용 — DB(또는 기본값) 모델을 선두에 두고 기존 폴백 체인을 뒤에 붙인다. */
 export async function getAiModelChain(featureKey: AiFeatureKey): Promise<string[]> {
   const primary = await getAiModel(featureKey)

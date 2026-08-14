@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAiModel } from '@/lib/ai-models'
+import { getAiModel, supportsSamplingParams, tokenLimitParam } from '@/lib/ai-models'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -40,6 +40,8 @@ export async function POST(request: NextRequest) {
 만약 특정 정보를 찾을 수 없다면 해당 필드는 빈 문자열("")로 반환하세요.
 날짜는 반드시 YYYY-MM-DD 형식으로 변환해주세요. (예: 2024년 6월 1일 → 2024-06-01)`
 
+    const model = await getAiModel('ai.ocr-card')
+
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -47,7 +49,7 @@ export async function POST(request: NextRequest) {
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: await getAiModel('ai.ocr-card'),
+        model,
         messages: [
           {
             role: 'user',
@@ -66,8 +68,8 @@ export async function POST(request: NextRequest) {
             ]
           }
         ],
-        max_tokens: 500,
-        temperature: 0.1
+        ...tokenLimitParam(model, 500),
+        ...(supportsSamplingParams(model) ? { temperature: 0.1 } : {})
       })
     })
 
