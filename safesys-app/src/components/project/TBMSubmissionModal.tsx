@@ -1,10 +1,13 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { X, Save, Loader2, MapPin, Camera, RefreshCw, Trash2 } from 'lucide-react'
+import { X, Save, Loader2, MapPin, Camera, RefreshCw, Trash2, Upload, Crop } from 'lucide-react'
+// compressImage 내부에서 브라우저 전역 Image를 쓰므로 next/image는 별칭으로 가져온다
+import NextImage from 'next/image'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import SignaturePad from '@/components/ui/SignaturePad'
+import ImageEditor from '@/components/ui/ImageEditor'
 import VworldMapAddressModal from '@/components/ui/VworldMapAddressModal'
 import TbmRiskLinkButton from '@/components/project/risk-assessment/TbmRiskLinkButton'
 import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
@@ -47,6 +50,10 @@ interface FormData {
   solution2: string
   potentialRisk3: string
   solution3: string
+  // 대책 1~3에 첨부하는 사진 (선택 사항)
+  solutionPhoto1: File | null
+  solutionPhoto2: File | null
+  solutionPhoto3: File | null
   mainRiskSelection: string
   mainRiskSolution: string
   riskFactor1: string
@@ -170,6 +177,14 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
   const [recentCandidates, setRecentCandidates] = useState<any[]>([])
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // 대책 사진: 촬영/앨범 input 2개를 3개 슬롯이 공유하고, 선택 대상 번호는 ref로 들고 있는다
+  const solutionCameraRef = useRef<HTMLInputElement>(null)
+  const solutionAlbumRef = useRef<HTMLInputElement>(null)
+  const solutionPhotoSlotRef = useRef<number>(1)
+  // 수정 모드에서 이미 저장된 대책 사진 URL (삭제하면 null이 되어 저장 시 컬럼도 비워진다)
+  const [existingSolutionPhotoUrls, setExistingSolutionPhotoUrls] = useState<(string | null)[]>([null, null, null])
+  // 회전/크롭 편집 중인 대책 사진 (slot: 1~3)
+  const [editingSolutionPhoto, setEditingSolutionPhoto] = useState<{ slot: number; dataUrl: string } | null>(null)
   const [formData, setFormData] = useState<FormData>({
     todayWork: '',
     noWorkCheck: false,
@@ -191,6 +206,9 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
     solution2: '',
     potentialRisk3: '',
     solution3: '',
+    solutionPhoto1: null,
+    solutionPhoto2: null,
+    solutionPhoto3: null,
     mainRiskSelection: '',
     mainRiskSolution: '',
     riskFactor1: '',
@@ -235,6 +253,9 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
           solution2: editingSubmission.solution_2 || '',
           potentialRisk3: editingSubmission.potential_risk_3 || '',
           solution3: editingSubmission.solution_3 || '',
+          solutionPhoto1: null,
+          solutionPhoto2: null,
+          solutionPhoto3: null,
           mainRiskSelection: editingSubmission.main_risk_selection || '',
           mainRiskSolution: editingSubmission.main_risk_solution || '',
           riskFactor1: editingSubmission.risk_factor_1 || '',
@@ -249,6 +270,12 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         })
         // 저장된 총원이 자동 계산값과 다르면 수동 수정된 값으로 간주해 자동 재계산을 막는다.
         setPersonnelTotalManual(editHasStored && Number(editStored) !== editAuto)
+        // 기존에 저장된 대책 사진은 미리보기·재편집 대상으로 보관한다
+        setExistingSolutionPhotoUrls([
+          editingSubmission.solution_1_photo_url || null,
+          editingSubmission.solution_2_photo_url || null,
+          editingSubmission.solution_3_photo_url || null
+        ])
       } else {
         // 프로젝트 정보로 기본값 설정
         setFormData(prev => ({
@@ -273,6 +300,9 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
           solution2: '',
           potentialRisk3: '',
           solution3: '',
+          solutionPhoto1: null,
+          solutionPhoto2: null,
+          solutionPhoto3: null,
           mainRiskSelection: '',
           mainRiskSolution: '',
           riskFactor1: '',
@@ -286,7 +316,9 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
           longitude: ''
         }))
         setPersonnelTotalManual(false)
+        setExistingSolutionPhotoUrls([null, null, null])
       }
+      setEditingSolutionPhoto(null)
     }
   }, [isOpen, selectedDate, editingSubmission])
 
@@ -400,6 +432,116 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
     handleInputChange('educationPhoto', file)
   }
 
+  const getSolutionPhoto = (slot: number): File | null =>
+    (formData[`solutionPhoto${slot}` as keyof FormData] as File | null) || null
+
+  // 대책 사진 선택 — 촬영/앨범 input을 공유하므로 대상 슬롯 번호를 ref에 담아 둔다
+  const openSolutionPhotoPicker = (slot: number, source: 'camera' | 'album') => {
+    solutionPhotoSlotRef.current = slot
+    if (source === 'camera') {
+      solutionCameraRef.current?.click()
+    } else {
+      solutionAlbumRef.current?.click()
+    }
+  }
+
+  const handleSolutionPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // 같은 파일을 다시 고를 수 있도록 input 값을 비운다
+    e.target.value = ''
+    if (!file) return
+
+    handleInputChange(`solutionPhoto${solutionPhotoSlotRef.current}` as keyof FormData, file)
+  }
+
+  // 대책 사진 삭제 — 새로 고른 파일과 기존 저장 URL을 모두 비워 저장 시 컬럼이 null이 되게 한다
+  const removeSolutionPhoto = (slot: number) => {
+    handleInputChange(`solutionPhoto${slot}` as keyof FormData, null)
+    setExistingSolutionPhotoUrls(prev => prev.map((url, idx) => (idx === slot - 1 ? null : url)))
+  }
+
+  // 새로 고른 대책 사진 회전/크롭 편집기 열기 — object URL은 렌더마다 바뀌므로 data URL로 넘긴다
+  const openSolutionPhotoEditor = async (slot: number) => {
+    const photo = getSolutionPhoto(slot)
+    if (!photo) return
+
+    try {
+      setEditingSolutionPhoto({ slot, dataUrl: await getBase64(photo) })
+    } catch (error: any) {
+      console.error('대책 사진 편집기 열기 오류:', error)
+      alert('사진을 불러오지 못했습니다.')
+    }
+  }
+
+  // 기존 저장 대책 사진 편집기 열기 — 원격 URL을 data URL로 바꿔 편집기에 넘긴다
+  const openExistingSolutionPhotoEditor = async (slot: number) => {
+    const photoUrl = existingSolutionPhotoUrls[slot - 1]
+    if (!photoUrl) return
+
+    try {
+      const response = await fetch(photoUrl)
+      if (!response.ok) {
+        throw new Error(`사진 로드 실패 (${response.status})`)
+      }
+      const blob = await response.blob()
+      setEditingSolutionPhoto({ slot, dataUrl: await getBase64(blob) })
+    } catch (error: any) {
+      console.error('기존 대책 사진 편집기 열기 오류:', error)
+      alert('기존 사진을 불러오지 못했습니다.')
+    }
+  }
+
+  // 편집 결과를 File로 되돌려 해당 슬롯 사진을 교체한다 (기존 저장 사진을 편집한 경우 새 사진으로 대체됨)
+  const handleSolutionPhotoEditSave = (blob: Blob) => {
+    if (!editingSolutionPhoto) return
+
+    const { slot } = editingSolutionPhoto
+    const original = getSolutionPhoto(slot)
+    const baseName = original ? original.name.replace(/\.[^.]+$/, '') : `solution_${slot}_photo`
+    const editedFile = new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' })
+    handleInputChange(`solutionPhoto${slot}` as keyof FormData, editedFile)
+    setEditingSolutionPhoto(null)
+  }
+
+  // 대책 사진 미리보기 — 새로 고른 사진이 있으면 그 사진을, 없으면 기존 저장 사진을 보여준다
+  const renderSolutionPhotoPreview = (slot: number) => {
+    const photo = getSolutionPhoto(slot)
+    const existingUrl = existingSolutionPhotoUrls[slot - 1]
+    if (!photo && !existingUrl) return null
+
+    const previewUrl = photo ? URL.createObjectURL(photo) : (existingUrl as string)
+
+    return (
+      <div className="relative mt-2 inline-block">
+        <NextImage
+          src={previewUrl}
+          alt={`대책 ${slot} 사진`}
+          width={160}
+          height={80}
+          className="h-20 w-auto rounded border border-gray-200 object-cover"
+          unoptimized
+        />
+        <button
+          type="button"
+          onClick={() => (photo ? openSolutionPhotoEditor(slot) : openExistingSolutionPhotoEditor(slot))}
+          className="absolute -top-2 right-4 bg-white text-gray-700 border border-gray-300 rounded-full w-5 h-5 flex items-center justify-center shadow hover:bg-gray-100"
+          title="회전/크롭"
+        >
+          <Crop className="h-3 w-3" />
+        </button>
+        <button
+          type="button"
+          onClick={() => removeSolutionPhoto(slot)}
+          className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-600"
+          title="사진 삭제"
+        >
+          <X className="h-3 w-3" />
+        </button>
+        {!photo && <p className="mt-1 text-[11px] text-gray-500 text-center">기존 등록 사진</p>}
+      </div>
+    )
+  }
+
   const handleNoWorkCheck = (checked: boolean) => {
     setFormData(prev => ({
       ...prev,
@@ -493,6 +635,30 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       .getPublicUrl(filePath)
 
     return publicUrl
+  }
+
+  // 대책 1~3 사진 업로드 — 새로 고른 파일만 올리고, 없으면 보관 중인 기존 URL을 그대로 쓴다
+  const uploadSolutionPhotos = async (): Promise<(string | null)[]> => {
+    const photoUrls = [...existingSolutionPhotoUrls]
+    if (formData.noWorkCheck) {
+      return photoUrls
+    }
+
+    const photos = [formData.solutionPhoto1, formData.solutionPhoto2, formData.solutionPhoto3]
+    for (let i = 0; i < photos.length; i++) {
+      const photo = photos[i]
+      if (!photo) continue
+
+      try {
+        const compressedFile = await compressImage(photo, 1200, 0.75)
+        photoUrls[i] = await uploadToStorage(compressedFile, 'solutions', photo.name)
+      } catch (error) {
+        console.warn('대책 사진 압축 실패, 원본 사용:', error)
+        photoUrls[i] = await uploadToStorage(photo, 'solutions', photo.name)
+      }
+    }
+
+    return photoUrls
   }
 
   const handleAIWrite = async () => {
@@ -878,6 +1044,9 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       solution2: '',
       potentialRisk3: '',
       solution3: '',
+      solutionPhoto1: null,
+      solutionPhoto2: null,
+      solutionPhoto3: null,
       mainRiskSelection: '',
       mainRiskSolution: '',
       riskFactor1: '',
@@ -933,6 +1102,8 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         }
       }
 
+      const solutionPhotoUrls = await uploadSolutionPhotos()
+
       if (formData.signature && !formData.noWorkCheck) {
         const base64Data = formData.signature.split(',')[1] || formData.signature
         const byteCharacters = atob(base64Data)
@@ -981,6 +1152,9 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         solution_2: formData.solution2,
         potential_risk_3: formData.potentialRisk3,
         solution_3: formData.solution3,
+        solution_1_photo_url: solutionPhotoUrls[0],
+        solution_2_photo_url: solutionPhotoUrls[1],
+        solution_3_photo_url: solutionPhotoUrls[2],
         main_risk_selection: formData.mainRiskSelection,
         main_risk_solution: formData.mainRiskSolution,
         risk_factor_1: formData.riskFactor1,
@@ -1102,6 +1276,8 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         }
       }
 
+      const solutionPhotoUrls = await uploadSolutionPhotos()
+
       if (formData.signature && !formData.noWorkCheck) {
         // 서명은 base64 데이터이므로 Blob로 변환
         const base64Data = formData.signature.split(',')[1] || formData.signature
@@ -1156,6 +1332,9 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         solution_2: formData.solution2,
         potential_risk_3: formData.potentialRisk3,
         solution_3: formData.solution3,
+        solution_1_photo_url: solutionPhotoUrls[0],
+        solution_2_photo_url: solutionPhotoUrls[1],
+        solution_3_photo_url: solutionPhotoUrls[2],
         main_risk_selection: formData.mainRiskSelection,
         main_risk_solution: formData.mainRiskSolution,
         risk_factor_1: formData.riskFactor1,
@@ -1766,6 +1945,23 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
             {/* 잠재위험요인/대책 */}
             {!formData.noWorkCheck && (
               <>
+                {/* 대책 사진 선택용 공용 input (촬영/앨범) — 대상 대책 번호는 solutionPhotoSlotRef가 들고 있다 */}
+                <input
+                  ref={solutionCameraRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  onChange={handleSolutionPhotoChange}
+                  className="hidden"
+                />
+                <input
+                  ref={solutionAlbumRef}
+                  type="file"
+                  accept="image/*,.heic,.HEIC"
+                  onChange={handleSolutionPhotoChange}
+                  className="hidden"
+                />
+
                 {[1, 2, 3].map(num => (
                   <div key={num} className="grid grid-cols-2 gap-4">
                     <div>
@@ -1793,6 +1989,29 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
                         required
                         maxLength={50}
                       />
+                      {/* 대책 사진 (선택) */}
+                      <div className="mt-2">
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openSolutionPhotoPicker(num, 'camera')}
+                            className="flex items-center px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                          >
+                            <Camera className="h-3 w-3 mr-1" />
+                            촬영
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openSolutionPhotoPicker(num, 'album')}
+                            className="flex items-center px-2 py-1 text-xs bg-white text-gray-700 border border-gray-300 rounded hover:bg-gray-50"
+                          >
+                            <Upload className="h-3 w-3 mr-1" />
+                            앨범
+                          </button>
+                          <span className="text-[11px] text-gray-400">사진 (선택)</span>
+                        </div>
+                        {renderSolutionPhotoPreview(num)}
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -1978,6 +2197,15 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
           />
         )
       }
+
+      {/* 대책 사진 편집 모달 (회전/크롭) */}
+      {editingSolutionPhoto && (
+        <ImageEditor
+          imageUrl={editingSolutionPhoto.dataUrl}
+          onSave={handleSolutionPhotoEditSave}
+          onClose={() => setEditingSolutionPhoto(null)}
+        />
+      )}
 
       {/* 주소 검색 모달 */}
       <VworldMapAddressModal
