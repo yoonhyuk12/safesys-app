@@ -629,19 +629,44 @@ class PDFGenerator {
     `
   }
 
-  // 대책 사진대지 1페이지 HTML 생성 (페이지당 프레임 최대 2개, 사진은 원본 비율 유지)
-  private createSolutionPhotoSheetHTML(items: SolutionPhotoItem[]): string {
-    const containerTopBottomPadding = '76px 30px 15px 30px' // 회의록 페이지와 동일한 여백
+  // 사진 고유 크기 측정 — html2canvas가 max-*·object-fit 의존 레이아웃을 간헐적으로 잘못 그리므로
+  // 명시 크기 계산에 쓴다. 측정 실패 시 null(폴백 마크업 사용).
+  private measureImage(url: string): Promise<{ w: number; h: number } | null> {
+    return new Promise(resolve => {
+      const img = new Image()
+      img.onload = () => resolve(img.naturalWidth > 0 ? { w: img.naturalWidth, h: img.naturalHeight } : null)
+      img.onerror = () => resolve(null)
+      img.src = url
+    })
+  }
 
-    const frames = items.map(item => `
+  // 대책 사진대지 1페이지 HTML 생성 (페이지당 프레임 최대 2개, 사진은 원본 비율 유지)
+  // 사진은 사전 측정한 명시 px 크기 + margin 계산으로 배치한다 — 고유 크기 의존 레이아웃은
+  // html2canvas 클론 렌더에서 간헐적으로 좌측 시작·가로 늘림으로 깨진다(실측 재현).
+  private createSolutionPhotoSheetHTML(items: (SolutionPhotoItem & { size: { w: number; h: number } | null })[]): string {
+    const containerTopBottomPadding = '76px 30px 15px 30px' // 회의록 페이지와 동일한 여백
+    const frameInnerWidth = 732 // 734 - 좌우 테두리 2px
+
+    const frames = items.map(item => {
+      let imgStyle: string
+      if (item.size) {
+        const scale = Math.min(frameInnerWidth / item.size.w, SOLUTION_PHOTO_FRAME_HEIGHT / item.size.h)
+        const w = Math.round(item.size.w * scale)
+        const h = Math.round(item.size.h * scale)
+        const marginTop = Math.floor((SOLUTION_PHOTO_FRAME_HEIGHT - h) / 2)
+        const marginBottom = SOLUTION_PHOTO_FRAME_HEIGHT - h - marginTop
+        imgStyle = `display: block; width: ${w}px; height: ${h}px; margin: ${marginTop}px auto ${marginBottom}px auto;`
+      } else {
+        imgStyle = `max-width: 100%; max-height: ${SOLUTION_PHOTO_FRAME_HEIGHT}px; object-fit: contain; vertical-align: middle;`
+      }
+      return `
         <div style="border: 1px solid #000; margin-bottom: 20px; box-sizing: border-box;">
-          <div style="display: table; width: 100%; height: ${SOLUTION_PHOTO_FRAME_HEIGHT}px;">
-            <div style="display: table-cell; vertical-align: middle; text-align: center;">
-              <img src="${item.url}" style="max-width: 100%; max-height: ${SOLUTION_PHOTO_FRAME_HEIGHT}px; object-fit: contain; vertical-align: middle;" />
-            </div>
+          <div style="width: 100%; height: ${SOLUTION_PHOTO_FRAME_HEIGHT}px; text-align: center;">
+            <img src="${item.url}" style="${imgStyle}" />
           </div>
           <div style="border-top: 1px solid #000; text-align: center; padding: 8px; font-size: 14px;">잠재위험요인 조치 사진대지 (대책 ${item.no})</div>
-        </div>`).join('')
+        </div>`
+    }).join('')
 
     return `
       <div style="font-family: 'Malgun Gothic', '맑은 고딕', Arial, sans-serif; padding: ${containerTopBottomPadding}; width: 734px; margin: 0 auto; box-sizing: content-box;">${frames}
@@ -652,7 +677,10 @@ class PDFGenerator {
   // 대책 사진이 있으면 사진대지 페이지들을 순서대로 추가한다 (없으면 아무 페이지도 추가하지 않음)
   async appendSolutionPhotoPages(formData: TBMSubmissionFormData) {
     for (const items of buildSolutionPhotoPages(formData)) {
-      await this.appendHTMLPage(this.createSolutionPhotoSheetHTML(items))
+      const measured = await Promise.all(
+        items.map(async item => ({ ...item, size: await this.measureImage(item.url) }))
+      )
+      await this.appendHTMLPage(this.createSolutionPhotoSheetHTML(measured))
     }
   }
 
