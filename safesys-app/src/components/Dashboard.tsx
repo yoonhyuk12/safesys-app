@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
-import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2, ClipboardCheck, ClipboardList, GitMerge, FlaskConical, TestTubes, Coins, ScrollText, BarChart3, ShieldCheck, ShieldAlert } from 'lucide-react'
+import { Shield, AlertTriangle, CheckCircle, Activity, LogOut, Plus, Building, Map as MapIcon, List, Calendar, Thermometer, ChevronDown, ChevronUp, Edit, Trash2, ArrowLeft, ChevronLeft, Download, FileDown, RefreshCw, Users, Briefcase, Package, Search, X, Loader2, ClipboardCheck, ClipboardList, GitMerge, FlaskConical, TestTubes, Coins, ScrollText, BarChart3, ShieldCheck, ShieldAlert, MessageSquare } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { getUserProjects, getProjectsByUserBranch, getHeatWaveChecksByUserBranch, deleteProject, getAllProjectsDebug, getManagerInspectionsByUserBranch, getHeadquartersInspectionsByUserBranch, getTBMSafetyInspectionsByUserBranch, getSafeDocumentInspectionsByUserBranch, getWorkerCountsByUserBranch, getMaterialCountsByUserBranch, getSafetyInspectionCountsByUserBranch, getSharedProjects, bulkUpdateActualWorkAddress, getHeatWaveCheckCountByUserBranch, getManagerInspectionCountByUserBranch, getHeadquartersInspectionCountByUserBranch, getTBMSafetyInspectionCountByUserBranch, getSafeDocumentInspectionCountByUserBranch, getPtwPermitsByUserBranch, getPtwPermitCountByUserBranch, getInspectionRequestCountsByUserBranch, getQualityMonthlyReportStatusByUserBranch, getQualityTestCountsByUserBranch, type Project, type ProjectWithCoords, type HeatWaveCheck, type ManagerInspection, type HeadquartersInspection, type TBMSafetyInspection, type SafeDocumentInspection, type PtwPermitSummary, type WorkerCountByProject, type MaterialCountByProject, type InspectionRequestCountByProject, type QualityReportStatusByProject, type QualityTestCountByProject, type SafetyInspectionCountByProject } from '@/lib/projects'
@@ -4985,6 +4985,15 @@ const Dashboard: React.FC = () => {
             <div className="flex items-center space-x-2 lg:space-x-4">
               {/* PWA 설치 버튼 */}
               <PWAInstallButtonHeader />
+
+              <button
+                onClick={() => router.push('/board')}
+                className="flex items-center gap-1 h-9 px-2.5 lg:px-3 flex-shrink-0 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-blue-600 text-xs lg:text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                title="요청사항 게시판"
+              >
+                <MessageSquare className="hidden sm:block h-4 w-4" />
+                <span>게시판</span>
+              </button>
 
               {/* 사용자 드롭다운 메뉴 */}
               <div className="relative" ref={userMenuRef}>
