@@ -3,12 +3,12 @@
 export const BOARD_STATUSES = ['접수', '검토중', '반영완료', '보류'] as const
 export type BoardStatus = (typeof BOARD_STATUSES)[number]
 
-// 상태 뱃지 스타일 (Tailwind 클래스)
+// 상태 뱃지 스타일 (Tailwind 클래스). 기본 상태인 접수는 대시보드 기조색인 파랑을 쓴다.
 export const BOARD_STATUS_STYLES: Record<BoardStatus, string> = {
-  접수: 'bg-gray-100 text-gray-700 border-gray-200',
+  접수: 'bg-blue-50 text-blue-700 border-blue-200',
   검토중: 'bg-amber-100 text-amber-800 border-amber-200',
   반영완료: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  보류: 'bg-slate-100 text-slate-500 border-slate-200',
+  보류: 'bg-gray-100 text-gray-600 border-gray-200',
 }
 
 // 1 = 추천, -1 = 비추천
