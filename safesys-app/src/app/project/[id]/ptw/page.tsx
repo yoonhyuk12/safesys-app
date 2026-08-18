@@ -200,15 +200,21 @@ export default function PTWPage() {
     setShowForm(true)
   }
 
+  // 수정·삭제 권한: 작성자 본인 외에 프로젝트 소유자·공유받은자·발주청도 가능
+  const canManageAll =
+    userProfile?.role === '발주청' ||
+    (!!project?.created_by && project.created_by === user?.id) ||
+    isSharedWithMe
+
   // 저장/수정
   const handleSave = async () => {
     if (!user || !permitType || !formData) return
 
-    // RLS상 수정은 작성자 본인만 가능 — 사전에 명확히 안내
+    // RLS상 수정은 작성자·프로젝트 소유자·공유받은자·발주청만 가능 — 사전에 명확히 안내
     if (editingRecordId) {
       const editingRecord = records.find((r) => r.id === editingRecordId)
-      if (editingRecord && editingRecord.created_by !== user.id) {
-        alert('작성자 본인만 수정할 수 있습니다.')
+      if (editingRecord && editingRecord.created_by !== user.id && !canManageAll) {
+        alert('작성자 본인 또는 프로젝트 소유자·공유받은자·발주청만 수정할 수 있습니다.')
         return
       }
     }
@@ -248,7 +254,6 @@ export default function PTWPage() {
     try {
       const dataToSave = {
         project_id: projectId,
-        created_by: user.id,
         permit_type: permitType,
         permit_date: permitDate,
         work_content: workContent,
@@ -261,15 +266,20 @@ export default function PTWPage() {
       }
 
       if (editingRecordId) {
-        const { error } = await (supabase as any)
+        const { data: updated, error } = await (supabase as any)
           .from('ptw_permits')
           .update(dataToSave)
           .eq('id', editingRecordId)
+          .select('id')
         if (error) throw error
+        // RLS에 막히면 오류 없이 0건만 갱신된다 — 조용한 실패를 막는다
+        if (!updated || updated.length === 0) {
+          throw new Error('수정 권한이 없습니다. (RLS 정책 적용 여부를 확인하세요)')
+        }
       } else {
         const { error } = await (supabase as any)
           .from('ptw_permits')
-          .insert([dataToSave])
+          .insert([{ ...dataToSave, created_by: user.id }])
         if (error) throw error
 
         // 텔레그램 알림 발송 (발주청) - 신규 등록 시에만
@@ -402,12 +412,6 @@ export default function PTWPage() {
     delete next[key]
     setSignatures(next)
   }
-
-  // 삭제 권한: 작성자 본인 외에 프로젝트 소유자·공유받은자·발주청도 삭제 가능
-  const canManageAll =
-    userProfile?.role === '발주청' ||
-    (!!project?.created_by && project.created_by === user?.id) ||
-    isSharedWithMe
 
   const config = permitType ? PERMIT_TYPE_CONFIGS[permitType] : null
 
