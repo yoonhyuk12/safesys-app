@@ -251,12 +251,13 @@ export default function RiskAssessmentPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[860px] text-sm">
+                <table className="w-full min-w-[960px] text-sm">
                   <thead className="bg-gray-50 text-xs text-gray-600">
                     <tr>
                       <th className="px-4 py-3 text-center font-semibold sm:px-6">제목</th>
                       <th className="px-4 py-3 text-center font-semibold">수시평가 사유</th>
                       <th className="px-4 py-3 text-center font-semibold">관리기간</th>
+                      <th className="px-4 py-3 text-center font-semibold">작성자</th>
                       <th className="px-4 py-3 text-center font-semibold">작성일</th>
                       <th className="px-4 py-3 text-center font-semibold">엑셀</th>
                       <th className="px-4 py-3 text-center font-semibold">관리</th>
@@ -283,6 +284,7 @@ export default function RiskAssessmentPage() {
                         <td className="whitespace-nowrap px-4 py-3 text-gray-600">
                           {formatManagePeriod(record.manage_period_start, record.manage_period_end) || '-'}
                         </td>
+                        <td className="whitespace-nowrap px-4 py-3 text-gray-600">{record.author_name || '-'}</td>
                         <td className="whitespace-nowrap px-4 py-3 text-gray-600">{formatDate(record.created_at)}</td>
                         <td className="px-4 py-3 text-center">
                           <button
