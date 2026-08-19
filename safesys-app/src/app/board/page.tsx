@@ -89,6 +89,7 @@ export default function BoardPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
       <BoardHeader
+        wide
         title="요청사항 게시판"
         onBack={() => router.push('/list')}
         action={
@@ -103,7 +104,7 @@ export default function BoardPage() {
         }
       />
 
-      <main className="mx-auto max-w-4xl px-4 py-4 sm:px-6">
+      <main className="mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:max-w-none lg:px-4">
         <div className="space-y-3">
           <BoardErrorBanner message={error} onDismiss={() => setError(null)} />
 

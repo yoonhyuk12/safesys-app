@@ -8,12 +8,18 @@ interface BoardHeaderProps {
   title: string
   onBack: () => void
   action?: ReactNode
+  /** 목록처럼 넓은 화면을 쓰는 페이지에서 본문 폭에 맞춰 헤더도 넓힌다 */
+  wide?: boolean
 }
 
-export default function BoardHeader({ title, onBack, action }: BoardHeaderProps) {
+export default function BoardHeader({ title, onBack, action, wide = false }: BoardHeaderProps) {
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
-      <div className="mx-auto flex h-16 max-w-4xl items-center px-4 sm:px-6">
+      <div
+        className={`mx-auto flex h-16 items-center px-4 sm:px-6 ${
+          wide ? 'max-w-7xl lg:max-w-none lg:px-4' : 'max-w-4xl'
+        }`}
+      >
         <button
           type="button"
           onClick={onBack}
