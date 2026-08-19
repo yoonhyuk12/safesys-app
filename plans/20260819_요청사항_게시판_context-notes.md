@@ -52,3 +52,15 @@ Worker A가 쓴 초안은 `board_posts`의 BEFORE UPDATE 트리거에서 무조�
 배경이 어두워지면서 카드 밖에 놓인 텍스트가 안 보이게 되는 위험이 있어 전 화면을 확인했다. 모든 본문이 `bg-white` 카드 안에 있고, 오류 배너도 `bg-red-50` 밝은 카드라 문제없다.
 
 상태 뱃지는 접수를 회색에서 기조색 파랑으로 옮기고 보류를 회색으로 정리했다. 기존에는 접수(gray-100)와 보류(slate-100)가 거의 같은 색이라 구분이 안 됐다.
+
+## 2026-08-19 — 조회수 추가
+
+목록과 상세에 조회수를 표시한다. 중복 방지 없이 상세 화면을 열 때마다 1씩 오르는 단순 카운터로 정했다 — 사내 요청사항 게시판이라 조회수 조작 동기가 없고, 사용자별 중복 제거는 테이블이 하나 더 필요해 과하다.
+
+**RPC를 쓴 이유.** `board_posts` 의 UPDATE RLS 정책은 작성자 본인만 허용한다. 조회수는 남의 글에서도 올라가야 하므로 클라이언트가 직접 update 하면 실패한다. `increment_board_post_view()` 를 `SECURITY DEFINER` 로 만들고 `authenticated` 에게만 EXECUTE 를 줬다.
+
+**가드 트리거와의 상호작용.** 이 UPDATE 도 `board_posts` 의 BEFORE UPDATE 가드를 지나가지만 `status` 도 `title`/`content` 도 안 건드리므로 예외가 나지 않고 `updated_at` 도 안 오른다. 앞서 고쳐 둔 "본문이 바뀔 때만 updated_at 갱신" 덕분에 조회했다고 "(수정됨)" 이 붙지 않는다.
+
+**StrictMode 이중 증가.** React 개발 모드는 effect 를 두 번 실행하므로 `viewedPostIdRef` 로 글당 1회만 증가하도록 막았다. 화면 숫자는 서버 재조회 대신 로컬에서 +1 해 왕복을 1회 줄였다.
+
+`incrementPostView()` 는 이 모듈에서 유일하게 실패를 throw 하지 않는 함수다. 조회수는 부수 지표이고, 여기서 throw 하면 글이 아예 안 보이는 장애로 번진다.

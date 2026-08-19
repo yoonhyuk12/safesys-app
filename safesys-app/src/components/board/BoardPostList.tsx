@@ -2,7 +2,7 @@
 // 게시글 데이터를 데스크탑 표와 모바일 카드 형식으로 반응형 렌더링하는 목록
 
 import type { KeyboardEvent } from 'react'
-import { MessageSquare } from 'lucide-react'
+import { Eye, MessageSquare } from 'lucide-react'
 import type { BoardPost, VoteValue } from '@/lib/board/types'
 import BoardStatusBadge from './BoardStatusBadge'
 import BoardVoteButtons from './BoardVoteButtons'
@@ -34,14 +34,15 @@ export default function BoardPostList({
   return (
     <>
       <div className="hidden overflow-x-auto sm:block">
-        <table className="min-w-[820px] w-full table-fixed text-left text-sm">
+        <table className="min-w-[900px] w-full table-fixed text-left text-sm">
           <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium text-gray-500">
             <tr>
-              <th className="w-[27%] px-3 py-2.5">제목</th>
-              <th className="w-[12%] px-3 py-2.5">작성자</th>
-              <th className="w-[11%] px-3 py-2.5">상태</th>
-              <th className="w-[30%] px-3 py-2.5">추천</th>
-              <th className="w-[8%] px-3 py-2.5 text-center">댓글수</th>
+              <th className="w-[25%] px-3 py-2.5">제목</th>
+              <th className="w-[11%] px-3 py-2.5">작성자</th>
+              <th className="w-[10%] px-3 py-2.5">상태</th>
+              <th className="w-[28%] px-3 py-2.5">추천</th>
+              <th className="w-[7%] px-3 py-2.5 text-center">댓글수</th>
+              <th className="w-[7%] px-3 py-2.5 text-center">조회수</th>
               <th className="w-[12%] px-3 py-2.5">작성일</th>
             </tr>
           </thead>
@@ -75,6 +76,7 @@ export default function BoardPostList({
                   />
                 </td>
                 <td className="px-3 py-3 text-center tabular-nums">{post.comment_count}</td>
+                <td className="px-3 py-3 text-center tabular-nums">{post.view_count}</td>
                 <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500">
                   {formatBoardDate(post.created_at)}
                 </td>
@@ -113,6 +115,10 @@ export default function BoardPostList({
                 <span className="inline-flex items-center gap-1">
                   <MessageSquare className="h-3.5 w-3.5" />
                   댓글 {post.comment_count}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Eye className="h-3.5 w-3.5" />
+                  조회 {post.view_count}
                 </span>
               </div>
 

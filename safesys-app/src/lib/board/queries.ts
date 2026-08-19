@@ -17,7 +17,7 @@ type ExistingVoteRow = { id: string; vote: VoteValue }
 type VoteTarget = { column: 'post_id' | 'comment_id'; id: string; label: '게시글' | '댓글' }
 
 const POST_COLUMNS =
-  'id, title, content, author_id, author_name, status, upvotes, downvotes, comment_count, created_at, updated_at'
+  'id, title, content, author_id, author_name, status, upvotes, downvotes, comment_count, view_count, created_at, updated_at'
 const COMMENT_COLUMNS =
   'id, post_id, content, author_id, author_name, upvotes, downvotes, created_at, updated_at'
 
@@ -32,6 +32,7 @@ function toBoardPost(row: BoardPostRow, myVote: VoteValue | null): BoardPost {
     upvotes: row.upvotes,
     downvotes: row.downvotes,
     comment_count: row.comment_count,
+    view_count: row.view_count,
     created_at: row.created_at,
     updated_at: row.updated_at,
     my_vote: myVote,
@@ -119,6 +120,15 @@ export async function fetchPost(postId: string, userId: string | null): Promise<
   }
 
   return toBoardPost(data as BoardPostRow, myVote)
+}
+
+export async function incrementPostView(postId: string): Promise<void> {
+  const { error } = await supabase.rpc('increment_board_post_view', { p_post_id: postId })
+
+  // 조회수는 부수 지표이므로 실패해도 게시글 표시를 막지 않는다.
+  if (error) {
+    console.error('게시글 조회수 증가에 실패했습니다.', error)
+  }
 }
 
 export async function createPost(

@@ -24,6 +24,7 @@ export interface BoardPost {
   upvotes: number
   downvotes: number
   comment_count: number
+  view_count: number
   created_at: string
   updated_at: string
   /** 현재 로그인 사용자의 투표. 투표하지 않았으면 null */

@@ -1,9 +1,9 @@
 'use client'
 // 요청사항 본문과 투표, 작성자·관리자 동작 및 댓글을 제공하는 상세 페이지
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Eye, Pencil, Trash2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import BoardErrorBanner from '@/components/board/BoardErrorBanner'
@@ -15,6 +15,7 @@ import { applyOptimisticVote, formatBoardDate } from '@/components/board/boardHe
 import {
   deletePost,
   fetchPost,
+  incrementPostView,
   votePost,
 } from '@/lib/board/queries'
 import {
@@ -40,6 +41,7 @@ export default function BoardPostDetailPage() {
   const { user, userProfile, loading: authLoading } = useAuth()
   const userId = user?.id ?? null
   const authorName = userProfile?.full_name || user?.email || '사용자'
+  const viewedPostIdRef = useRef<string | null>(null)
 
   const [post, setPost] = useState<BoardPost | null>(null)
   const [adminState, setAdminState] = useState<BoardAdminState | null>(null)
@@ -60,7 +62,13 @@ export default function BoardPostDetailPage() {
     setError(null)
     try {
       const nextPost = await fetchPost(postId, userId)
-      setPost(nextPost)
+      if (nextPost && viewedPostIdRef.current !== nextPost.id) {
+        viewedPostIdRef.current = nextPost.id
+        void incrementPostView(nextPost.id)
+        setPost({ ...nextPost, view_count: nextPost.view_count + 1 })
+      } else {
+        setPost(nextPost)
+      }
       if (!nextPost) setError('요청사항을 찾을 수 없습니다.')
     } catch {
       setError('요청사항을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
@@ -176,6 +184,10 @@ export default function BoardPostDetailPage() {
                   <span className="max-w-full truncate font-medium text-gray-700">{post.author_name}</span>
                   <span>{formatBoardDate(post.created_at, true)}</span>
                   {post.updated_at !== post.created_at && <span>(수정됨)</span>}
+                  <span className="inline-flex items-center gap-1">
+                    <Eye className="h-3.5 w-3.5" />
+                    조회 {post.view_count}
+                  </span>
                 </div>
 
                 <div className="my-4 border-t border-gray-100" />
