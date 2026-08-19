@@ -177,6 +177,10 @@ export default function BoardPostDetailPage() {
                   <h1 className="min-w-0 flex-1 truncate text-lg font-bold text-gray-900 sm:text-xl" title={post.title}>
                     {post.title}
                   </h1>
+                  <span className="inline-flex shrink-0 items-center gap-1 py-0.5 text-xs text-gray-500">
+                    <Eye className="h-3.5 w-3.5" />
+                    조회 {post.view_count}
+                  </span>
                   <BoardStatusBadge status={post.status} />
                 </div>
 
@@ -184,10 +188,6 @@ export default function BoardPostDetailPage() {
                   <span className="max-w-full truncate font-medium text-gray-700">{post.author_name}</span>
                   <span>{formatBoardDate(post.created_at, true)}</span>
                   {post.updated_at !== post.created_at && <span>(수정됨)</span>}
-                  <span className="inline-flex items-center gap-1">
-                    <Eye className="h-3.5 w-3.5" />
-                    조회 {post.view_count}
-                  </span>
                 </div>
 
                 <div className="my-4 border-t border-gray-100" />
