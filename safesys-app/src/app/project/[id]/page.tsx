@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Phone, MoreVertical, Copy, Check, FileText, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, Phone, MoreVertical, Copy, Check, FileText, RefreshCw, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react'
 import { Project, deleteProject } from '@/lib/projects'
 import { computeProgressRate, ProgressAnchor } from '@/lib/work-daily-report/work-daily-report-types'
 import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
@@ -952,6 +952,16 @@ export default function ProjectDetailPage() {
             <div className="flex items-center space-x-2 lg:space-x-4">
               {/* PWA 설치 버튼 */}
               <PWAInstallButtonHeader />
+
+              {/* 요청사항 게시판 */}
+              <button
+                onClick={() => router.push('/board')}
+                className="flex items-center gap-1 h-9 px-2.5 lg:px-3 flex-shrink-0 rounded-md border border-red-600 bg-red-600 text-white shadow-sm hover:bg-red-700 hover:border-red-700 text-xs lg:text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                title="요청사항 게시판"
+              >
+                <MessageSquare className="hidden sm:block h-4 w-4" />
+                <span>게시판</span>
+              </button>
 
               <div className="text-xs lg:text-sm text-gray-700 flex-shrink-0">
                 <span className="font-medium hidden sm:inline">{userProfile?.full_name}</span>

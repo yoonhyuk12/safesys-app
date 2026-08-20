@@ -5004,7 +5004,7 @@ const Dashboard: React.FC = () => {
 
               <button
                 onClick={() => router.push('/board')}
-                className="flex items-center gap-1 h-9 px-2.5 lg:px-3 flex-shrink-0 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-blue-600 text-xs lg:text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                className="flex items-center gap-1 h-9 px-2.5 lg:px-3 flex-shrink-0 rounded-md border border-red-600 bg-red-600 text-white shadow-sm hover:bg-red-700 hover:border-red-700 text-xs lg:text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
                 title="요청사항 게시판"
               >
                 <MessageSquare className="hidden sm:block h-4 w-4" />
