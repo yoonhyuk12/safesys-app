@@ -13,9 +13,8 @@ safesys-app/safesys-app/
 # AI tool configs
 .agent/
 .agents/
-.claude/
-.claude/skills/
 .claude/settings.local.json
+.claude/scheduled_tasks.lock
 .codex/
 .cursor/
 .gemini/
