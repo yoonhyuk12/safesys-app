@@ -1,6 +1,6 @@
 # Coding Style
 
-> 단순성(불필요한 추상화·과잉 구현 지양)과 외과적 변경 원칙은 [CLAUDE.md](../../../CLAUDE.md) 가이드 #2·#3을 따른다. 이 파일은 불변성·파일 구성·에러 처리·입력 검증 등 구체 규칙을 담는다.
+> 단순성(불필요한 추상화·과잉 구현 지양)과 외과적 변경 원칙은 [CLAUDE.md](../../../CLAUDE.md) 가이드 #2·#3을 따른다. 이 파일은 불변성과 파일 구성 규칙을 담는다.
 
 ## Immutability (CRITICAL)
 
@@ -21,30 +21,3 @@ MANY SMALL FILES > FEW LARGE FILES:
 - 200-400 lines typical, 800 max
 - Extract utilities from large modules
 - Organize by feature/domain, not by type
-
-## Error Handling
-
-ALWAYS handle errors comprehensively:
-- Handle errors explicitly at every level
-- Provide user-friendly error messages in UI-facing code
-- Log detailed error context on the server side
-- Never silently swallow errors
-
-## Input Validation
-
-ALWAYS validate at system boundaries:
-- Validate all user input before processing
-- Use schema-based validation where available
-- Fail fast with clear error messages
-- Never trust external data (API responses, user input, file content)
-
-## Code Quality Checklist
-
-Before marking work complete:
-- [ ] Code is readable and well-named
-- [ ] Functions are small (<50 lines)
-- [ ] Files are focused (<800 lines)
-- [ ] No deep nesting (>4 levels)
-- [ ] Proper error handling
-- [ ] No hardcoded values (use constants or config)
-- [ ] No mutation (immutable patterns used)
