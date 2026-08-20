@@ -72,6 +72,16 @@ const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffec
 const FLIP_DURATION_MS = 200
 const REORDER_LOCK_MS = 260
 
+// 준공 처리 여부 판정 (is_active JSON의 completed 플래그)
+const isProjectCompleted = (project: Project): boolean =>
+  typeof project.is_active === 'object' && project.is_active?.completed === true
+
+// 기존 순서는 그대로 둔 채 준공 프로젝트만 항상 뒤로 밀어내는 정렬
+const withCompletedLast = (projects: Project[]): Project[] => [
+  ...projects.filter((p: Project) => !isProjectCompleted(p)),
+  ...projects.filter((p: Project) => isProjectCompleted(p)),
+]
+
 const Dashboard: React.FC = () => {
   const { user, userProfile, signOut } = useAuth()
   const router = useRouter()
@@ -2763,6 +2773,12 @@ const Dashboard: React.FC = () => {
     })
   }, [filteredProjects, searchQuery])
 
+  // 단일 그리드(본사 외 소속)용 — 기존 순서를 유지하되 준공 프로젝트는 뒤로 배치
+  const searchFilteredProjectsCompletedLast = React.useMemo(
+    () => withCompletedLast(searchFilteredProjects),
+    [searchFilteredProjects]
+  )
+
   const filteredProjectsWithCoords = React.useMemo(() => {
     return projectsWithCoords.filter((project: ProjectWithCoords) => {
       if (selectedHq && project.managing_hq !== selectedHq) return false
@@ -4464,9 +4480,9 @@ const Dashboard: React.FC = () => {
                     groups.get(key)!.push(p)
                   })
 
-                  // 각 그룹을 display_order로 정렬
+                  // 각 그룹을 display_order로 정렬하고, 준공 프로젝트는 뒤로 배치
                   groups.forEach((projects, key) => {
-                    groups.set(key, sortByDisplayOrder(projects))
+                    groups.set(key, withCompletedLast(sortByDisplayOrder(projects)))
                   })
 
                   // 특정 지사가 선택된 경우: 해당 지사만 표시
@@ -4765,12 +4781,12 @@ const Dashboard: React.FC = () => {
                       }
 
                       return allHqNames.map((hqName) => {
-                        // 해당 본부의 프로젝트 필터링 및 정렬
-                        const items = sortByDisplayOrder(
+                        // 해당 본부의 프로젝트 필터링 및 정렬 (준공은 뒤로)
+                        const items = withCompletedLast(sortByDisplayOrder(
                           searchFilteredProjects.filter((p: Project) =>
                             p.managing_hq === hqName
                           )
-                        )
+                        ))
 
                         // 검색 중이고 매칭 결과가 없는 본부 숨기기
                         if (searchQuery.trim() && items.length === 0) return null
@@ -4895,7 +4911,7 @@ const Dashboard: React.FC = () => {
                 ) : (
                   // 본사가 아닌 경우: 기존 단일 그리드 표시
                   <div data-project-edit-grid="true" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-                    {searchFilteredProjects.map((project: Project, index: number) => (
+                    {searchFilteredProjectsCompletedLast.map((project: Project, index: number) => (
                       <ProjectCard
                         key={project.id}
                         project={project}
@@ -4909,13 +4925,13 @@ const Dashboard: React.FC = () => {
                         editableQuarters={getEditableQuartersForProject(project)}
                         onIsActiveChange={isProjectEditMode ? undefined : handleProjectIsActiveJsonChange}
                         isEditMode={isProjectEditMode}
-                        displayOrder={getProjectDisplayOrder(project, index, searchFilteredProjects)}
+                        displayOrder={getProjectDisplayOrder(project, index, searchFilteredProjectsCompletedLast)}
                         onLongPressStart={handleProjectLongPressStart}
                         onLongPressEnd={handleProjectLongPressEnd}
                         onDragStart={() => handleProjectDragStart(project.id)}
-                        onDragOver={(e) => handleProjectDragOver(e, project.id, searchFilteredProjects)}
-                        onDragEnd={() => void handleProjectDragEnd(searchFilteredProjects)}
-                        onDrop={(e) => handleProjectDrop(e, project.id, searchFilteredProjects)}
+                        onDragOver={(e) => handleProjectDragOver(e, project.id, searchFilteredProjectsCompletedLast)}
+                        onDragEnd={() => void handleProjectDragEnd(searchFilteredProjectsCompletedLast)}
+                        onDrop={(e) => handleProjectDrop(e, project.id, searchFilteredProjectsCompletedLast)}
                         isDragging={draggedProjectId === project.id}
                         isDragOver={dragOverProjectId === project.id}
                         hqPendingCount={hqPendingCounts[project.id]}
