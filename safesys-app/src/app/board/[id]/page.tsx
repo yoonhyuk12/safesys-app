@@ -8,7 +8,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import BoardErrorBanner from '@/components/board/BoardErrorBanner'
 import BoardHeader from '@/components/board/BoardHeader'
-import BoardStatusBadge from '@/components/board/BoardStatusBadge'
 import BoardVoteButtons from '@/components/board/BoardVoteButtons'
 import CommentSection from '@/components/board/CommentSection'
 import { applyOptimisticVote, formatBoardDate } from '@/components/board/boardHelpers'
@@ -181,7 +180,6 @@ export default function BoardPostDetailPage() {
                     <Eye className="h-3.5 w-3.5" />
                     조회 {post.view_count}
                   </span>
-                  <BoardStatusBadge status={post.status} />
                 </div>
 
                 <div className="mt-2 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
@@ -202,6 +200,7 @@ export default function BoardPostDetailPage() {
                     myVote={post.my_vote}
                     onVote={(vote) => void handleVote(vote)}
                     disabled={!userId || voting}
+                    showScore={false}
                   />
 
                   {ownPost && (

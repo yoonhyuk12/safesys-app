@@ -35,14 +35,14 @@ export default function BoardPostList({
     <>
       <div className="hidden overflow-x-auto sm:block">
         <table className="min-w-[900px] w-full table-fixed text-left text-sm">
-          <thead className="border-b border-gray-200 bg-gray-50 text-xs font-medium text-gray-500">
+          <thead className="border-b border-gray-200 bg-gray-50 text-center text-xs font-medium text-gray-500">
             <tr>
               <th className="w-[38%] px-3 py-2.5">제목</th>
               <th className="w-[10%] px-3 py-2.5">작성자</th>
               <th className="w-[8%] px-3 py-2.5">상태</th>
               <th className="w-[18%] px-3 py-2.5">추천</th>
-              <th className="w-[7%] px-3 py-2.5 text-center">댓글수</th>
-              <th className="w-[7%] px-3 py-2.5 text-center">조회수</th>
+              <th className="w-[7%] px-3 py-2.5">댓글수</th>
+              <th className="w-[7%] px-3 py-2.5">조회수</th>
               <th className="w-[12%] px-3 py-2.5">작성일</th>
             </tr>
           </thead>
@@ -72,6 +72,7 @@ export default function BoardPostList({
                     myVote={post.my_vote}
                     onVote={(vote) => onVote(post.id, vote)}
                     disabled={!userId || votingIds.has(post.id)}
+                    showScore={false}
                     compact
                   />
                 </td>
