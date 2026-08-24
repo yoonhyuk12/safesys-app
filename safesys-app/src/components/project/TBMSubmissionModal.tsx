@@ -1374,8 +1374,9 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
       }
 
       // 텔레그램 알림 발송 (발주청)
+      // 신규 제출과 임시저장(draft) → 제출 전환일 때 발송한다. 이미 제출된 건의 재수정은 발송하지 않는다
       try {
-        if (!editingSubmission) {
+        if (!editingSubmission || editingSubmission.status === 'draft') {
           // AI 안전조치 조회 + 텔레그램 ID 조회 병렬 실행
           const aiAdvicePromise = !formData.noWorkCheck && formData.todayWork
             ? fetch('/api/ai/tbm-safety-advice', {
