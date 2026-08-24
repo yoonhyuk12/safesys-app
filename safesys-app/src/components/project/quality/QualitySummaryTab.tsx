@@ -144,6 +144,12 @@ export default function QualitySummaryTab({
   const [aggregating, setAggregating] = useState(false)
   const [aggregateNotice, setAggregateNotice] = useState('')
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  // 다운로드 형식 선택 메뉴 (표 컨테이너가 overflow-auto라 fixed 좌표로 띄운다)
+  const [downloadMenu, setDownloadMenu] = useState<{
+    report: QualitySummaryReport
+    x: number
+    y: number
+  } | null>(null)
   const [activeSignKey, setActiveSignKey] = useState<SignKey | null>(null)
   const [rejectionSaving, setRejectionSaving] = useState(false)
 
@@ -568,30 +574,22 @@ export default function QualitySummaryTab({
                       </span>
                     </td>
                     <td className="px-2 py-2 text-center">
-                      <div className="inline-flex items-center justify-center gap-0.5">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDownload(report, report.id, 'excel')
-                          }}
-                          disabled={downloadingId === report.id}
-                          className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50"
-                          title="엑셀 다운로드"
-                        >
-                          <Download className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDownload(report, report.id, 'hwpx')
-                          }}
-                          disabled={downloadingId === report.id}
-                          className="p-1 text-blue-600 hover:text-blue-700 disabled:opacity-50"
-                          title="HWPX 다운로드"
-                        >
-                          <FileText className="h-4 w-4" />
-                        </button>
-                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          setDownloadMenu((prev) =>
+                            prev?.report.id === report.id
+                              ? null
+                              : { report, x: rect.right, y: rect.bottom }
+                          )
+                        }}
+                        disabled={downloadingId === report.id}
+                        className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50"
+                        title="다운로드"
+                      >
+                        <Download className="h-4 w-4" />
+                      </button>
                     </td>
                     <td className="px-2 py-2 text-center">
                       {(report.created_by === userId || canDeleteReports) && (
@@ -614,6 +612,40 @@ export default function QualitySummaryTab({
           </div>
         )}
       </div>
+
+      {/* 다운로드 형식 선택 메뉴 */}
+      {downloadMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setDownloadMenu(null)} />
+          <div
+            className="fixed z-50 w-32 -translate-x-full rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+            style={{ left: downloadMenu.x, top: downloadMenu.y + 4 }}
+          >
+            <button
+              onClick={() => {
+                const { report } = downloadMenu
+                setDownloadMenu(null)
+                handleDownload(report, report.id, 'excel')
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Download className="h-3.5 w-3.5 text-green-600" />
+              엑셀
+            </button>
+            <button
+              onClick={() => {
+                const { report } = downloadMenu
+                setDownloadMenu(null)
+                handleDownload(report, report.id, 'hwpx')
+              }}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <FileText className="h-3.5 w-3.5 text-blue-600" />
+              한글
+            </button>
+          </div>
+        </>
+      )}
 
       {/* 작성/수정 폼 */}
       {showForm && formData && (
