@@ -563,7 +563,10 @@ export default function ProjectDetailPage() {
         construction_end_date: c.endDate || project.construction_end_date || null,
         g2b_corp_nm: (c.corpNms || []).join(', ') || project.g2b_corp_nm || null,
         g2b_tot_amt: c.totCntrctAmt > 0 ? c.totCntrctAmt : (project.g2b_tot_amt || null),
-        g2b_thtm_amt: c.thtmCntrctAmt > 0 ? c.thtmCntrctAmt : (project.g2b_thtm_amt || null)
+        g2b_thtm_amt: c.thtmCntrctAmt > 0 ? c.thtmCntrctAmt : (project.g2b_thtm_amt || null),
+        // 조회된 확정계약번호(변경차수 포함)를 저장해 다음 갱신이 이 차수부터 탐색하게 한다 —
+        // 원계약 번호로 고정돼 있으면 변경차수가 추적 상한을 넘길 때 따라가지 못한다
+        g2b_cntrct_no: c.cntrctNo || project.g2b_cntrct_no || null
       }
       if (!next.construction_start_date && !next.construction_end_date &&
           !next.g2b_corp_nm && !next.g2b_tot_amt && !next.g2b_thtm_amt) {
@@ -575,7 +578,8 @@ export default function ProjectDetailPage() {
           (project.construction_end_date || null) === next.construction_end_date &&
           (project.g2b_corp_nm || null) === next.g2b_corp_nm &&
           (project.g2b_tot_amt || null) === next.g2b_tot_amt &&
-          (project.g2b_thtm_amt || null) === next.g2b_thtm_amt) {
+          (project.g2b_thtm_amt || null) === next.g2b_thtm_amt &&
+          (project.g2b_cntrct_no || null) === next.g2b_cntrct_no) {
         alert('업데이트 사항이 없습니다.')
         return
       }
