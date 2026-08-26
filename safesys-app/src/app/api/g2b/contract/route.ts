@@ -204,7 +204,6 @@ export async function GET(request: NextRequest) {
     // (조달청 API가 간헐적으로 오류를 반환하는 사례가 있어, 한 번의 실패로 전체 조회를 끊지 않음)
     let matchedBy: 'cntrct' | 'ntce' = 'cntrct'
     let matchedDiv = ''
-    let matchedOp = ''
     let lastErrorMsg = ''
     let result: { items: G2bRawContract[]; errorMsg?: string } = { items: [] }
     outer: for (const attempt of attempts) {
@@ -219,7 +218,6 @@ export async function GET(request: NextRequest) {
         if (result.items.length > 0) {
           matchedBy = attempt.matchedBy
           matchedDiv = g2bOp.div
-          matchedOp = g2bOp.op
           break outer
         }
       }
@@ -240,15 +238,19 @@ export async function GET(request: NextRequest) {
 
     // 변경계약(차수) 추적 — latest=1일 때만 수행한다.
     // 조달청은 변경계약을 '확정계약번호+변경차수'가 다른 별도 행으로 제공하고, 이 응답의 ntceNo는 비어 있어
-    // 원계약 번호(…00)만으로는 변경된 총·금차계약금액을 볼 수 없다 (2026-08-26 실호출 확인).
-    // 그래서 차수를 1씩 올려 조회하고, 빈 결과가 나오면(차수는 연속 부여) 중단한다
+    // 원계약 번호(…00)나 통합계약번호로는 변경된 총·금차계약금액을 볼 수 없다 (2026-08-26 실호출 확인).
+    // 그래서 조회된 확정계약번호의 차수를 1씩 올려 조회하고, 빈 결과가 나오면(차수는 연속 부여) 중단한다.
+    // 차수 조회는 dcsnCntrctNo를 받는 PPSSrch 오퍼레이션으로만 가능하다 — 기본(통합계약번호) 오퍼레이션에
+    // dcsnCntrctNo를 넘기면 조건이 무시돼 빈 결과가 온다 (2026-08-26 실호출 확인)
     const extraItems: G2bRawContract[] = []
-    if (wantLatest && matchedBy === 'cntrct' && matchedOp) {
+    const chgOrdOp = wantLatest ? PPSSRCH_OPS.find((o) => o.div === matchedDiv)?.op : undefined
+    if (chgOrdOp) {
+      // 여러 계약이 걸리는 공고번호 조회까지 전부 추적하면 호출이 급증하므로 대표(첫) 행만 추적한다
       const chgOrd = (result.items[0]?.dcsnCntrctNo || '').match(/^(R\d{2}TA\d{8})(\d{2})$/)
       if (chgOrd) {
         const from = Number(chgOrd[2])
         for (let ord = from + 1; ord <= Math.min(from + MAX_CHG_ORD_LOOKUP, 99); ord++) {
-          const chg = await fetchContracts(apiKey, matchedOp, 'dcsnCntrctNo', `${chgOrd[1]}${String(ord).padStart(2, '0')}`)
+          const chg = await fetchContracts(apiKey, chgOrdOp, 'dcsnCntrctNo', `${chgOrd[1]}${String(ord).padStart(2, '0')}`)
           if (chg.errorMsg || chg.items.length === 0) break
           extraItems.push(...chg.items)
         }
