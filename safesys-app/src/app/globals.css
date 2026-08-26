@@ -76,6 +76,37 @@ img[width="1"][height="1"] {
   animation: shake 0.5s ease-in-out infinite;
 }
 
+/* 금일 TBM 보고 현장 띠 — 빛이 좌→우로 흘러 "지금 작업 중"으로 읽히게 한다 */
+@keyframes tbm-live-flow {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.tbm-live-bar {
+  overflow: hidden;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.65);
+}
+
+.tbm-live-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.9) 50%, transparent 100%);
+  animation: tbm-live-flow 2.2s linear infinite;
+}
+
+/* 모션 최소화 설정을 켠 사용자에게는 흐름을 멈춘다 */
+@media (prefers-reduced-motion: reduce) {
+  .tbm-live-bar::after {
+    animation: none;
+    opacity: 0;
+  }
+}
+
 /* ===== 안전서류 점검 시스템 스타일 ===== */
 .safe-documents-container {
   position: relative;

@@ -93,6 +93,8 @@ const Dashboard: React.FC = () => {
   const [safetyPendingCounts, setSafetyPendingCounts] = useState<Record<string, number>>({})
   const [managerPendingCounts, setManagerPendingCounts] = useState<Record<string, number>>({})
   const [qualityRejectionCounts, setQualityRejectionCounts] = useState<Record<string, number>>({})
+  // 금일 TBM 보고가 올라온 프로젝트 id 집합 (카드 상단 액센트 띠 표시용)
+  const [tbmReportedProjectIds, setTbmReportedProjectIds] = useState<Set<string>>(new Set())
   const [heatWaveChecks, setHeatWaveChecks] = useState<HeatWaveCheck[]>([])
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const now = new Date()
@@ -1626,6 +1628,34 @@ const Dashboard: React.FC = () => {
           qCounts[report.project_id] = (qCounts[report.project_id] || 0) + 1
         })
         setQualityRejectionCounts(qCounts)
+      }
+
+      // 금일 TBM 보고 현장 — '작업없음' 제출은 보고로 치지 않는다
+      const now = new Date()
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      const { data: todayTbms } = await (supabase as any)
+        .from('tbm_submissions')
+        .select('project_id, project_name')
+        .eq('meeting_date', todayStr)
+        .eq('status', 'submitted')
+        .not('today_work', 'is', null)
+        .neq('today_work', '작업없음')
+
+      if (todayTbms) {
+        // 레거시 행은 project_id가 비어 있어 현장명으로 되짚는다
+        const idByName = new Map<string, string>()
+        projectList.forEach(p => { if (p.project_name) idByName.set(p.project_name, p.id) })
+        const idSet = new Set(projectIds)
+        const reported = new Set<string>()
+        todayTbms.forEach((row: { project_id: string | null; project_name: string | null }) => {
+          if (row.project_id && idSet.has(row.project_id)) {
+            reported.add(row.project_id)
+            return
+          }
+          const matched = row.project_name ? idByName.get(row.project_name) : undefined
+          if (matched) reported.add(matched)
+        })
+        setTbmReportedProjectIds(reported)
       }
     } catch (err) {
       console.error('미조치 건수 집계 실패:', err)
@@ -4578,6 +4608,7 @@ const Dashboard: React.FC = () => {
                                     hqPendingCount={hqPendingCounts[project.id]}
                                     safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
                                     qualityRejectionCount={qualityRejectionCounts[project.id]}
+                                    tbmReportedToday={tbmReportedProjectIds.has(project.id)}
                                     mergeSelectionMode={mergeSelectionStep ?? undefined}
                                     mergeSelectionState={project.id === mergeSource?.id ? 'source' : project.id === mergeTarget?.id ? 'target' : undefined}
                                     mergeSelectionDisabled={mergeSelectionStep === 'target' && project.id === mergeSource?.id}
@@ -4715,6 +4746,7 @@ const Dashboard: React.FC = () => {
                                     hqPendingCount={hqPendingCounts[project.id]}
                                     safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
                                     qualityRejectionCount={qualityRejectionCounts[project.id]}
+                                    tbmReportedToday={tbmReportedProjectIds.has(project.id)}
                                     mergeSelectionMode={mergeSelectionStep ?? undefined}
                                     mergeSelectionState={project.id === mergeSource?.id ? 'source' : project.id === mergeTarget?.id ? 'target' : undefined}
                                     mergeSelectionDisabled={mergeSelectionStep === 'target' && project.id === mergeSource?.id}
@@ -4876,6 +4908,7 @@ const Dashboard: React.FC = () => {
                                       hqPendingCount={hqPendingCounts[project.id]}
                                       safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
                                       qualityRejectionCount={qualityRejectionCounts[project.id]}
+                                      tbmReportedToday={tbmReportedProjectIds.has(project.id)}
                                       mergeSelectionMode={mergeSelectionStep ?? undefined}
                                       mergeSelectionState={project.id === mergeSource?.id ? 'source' : project.id === mergeTarget?.id ? 'target' : undefined}
                                       mergeSelectionDisabled={mergeSelectionStep === 'target' && project.id === mergeSource?.id}
@@ -4937,6 +4970,7 @@ const Dashboard: React.FC = () => {
                         hqPendingCount={hqPendingCounts[project.id]}
                         safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
                         qualityRejectionCount={qualityRejectionCounts[project.id]}
+                        tbmReportedToday={tbmReportedProjectIds.has(project.id)}
                         mergeSelectionMode={mergeSelectionStep ?? undefined}
                         mergeSelectionState={project.id === mergeSource?.id ? 'source' : project.id === mergeTarget?.id ? 'target' : undefined}
                         mergeSelectionDisabled={mergeSelectionStep === 'target' && project.id === mergeSource?.id}
@@ -4976,6 +5010,7 @@ const Dashboard: React.FC = () => {
       safetyPendingCounts={safetyPendingCounts}
       managerPendingCounts={managerPendingCounts}
       qualityRejectionCounts={qualityRejectionCounts}
+      tbmReportedProjectIds={tbmReportedProjectIds}
     />
   )
 
