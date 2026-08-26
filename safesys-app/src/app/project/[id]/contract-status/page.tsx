@@ -1411,7 +1411,21 @@ export default function ContractStatusPage() {
   // 다른 연차가 나오지 않는다 — 신규 연차 발견은 기간 목록 조회가 유일한 경로다.
   const openRefreshConfirm = () => {
     if (!user || refreshing) return
-    const targets = records.filter((r) => r.cntrct_no || r.unty_cntrct_no)
+    // 재조회는 계약(연차 그룹)별 최신 차수 1건만 한다 — 지난 연차는 값이 확정돼 매번 조회하면 시간만 든다.
+    // 변경계약은 그 최신 차수 쪽에서 잡힌다. 다만 금차 준공일이 빈 구버전 행은 백필이 필요해 예외로 포함
+    const latestIds = new Set(
+      groups
+        .map((g) =>
+          g.members
+            .filter((m) => m.cntrct_no || m.unty_cntrct_no)
+            .reduce<ContractRecord | null>((a, b) => (!a || (b.cntrct_date || '') > (a.cntrct_date || '') ? b : a), null)
+        )
+        .filter((r): r is ContractRecord => !!r)
+        .map((r) => r.id)
+    )
+    const targets = records.filter(
+      (r) => (r.cntrct_no || r.unty_cntrct_no) && (latestIds.has(r.id) || !r.thtm_end_date)
+    )
 
     // 신규 연차 탐색 대상: 미등록 차수가 있는 계약 + 기관명 확보 가능.
     // ① 금차 합 < 총액 → 미등록 차수 존재(과거·미래 불문), ② 차수 번호 1..최대 중 빠진 번호 → 과거 연차 누락
@@ -2317,7 +2331,7 @@ export default function ContractStatusPage() {
               </div>
               <div className="p-4 space-y-3 text-sm text-gray-700">
                 <p className="text-xs text-gray-500">
-                  등록 계약을 조달청 최신 정보로 재조회하고, 미등록 연차(차수) 계약을 월 단위 목록 조회로 탐색합니다.
+                  계약별 최신 차수를 조달청 최신 정보로 재조회하고, 미등록 연차(차수) 계약을 월 단위 목록 조회로 탐색합니다.
                   아래 숫자는 계약 건수가 아니라 조달청 조회 횟수입니다.
                 </p>
                 <div className="space-y-2">
@@ -2344,7 +2358,7 @@ export default function ContractStatusPage() {
                           {s.t} <span className="font-normal text-gray-500">— 총 {s.calls}회</span>
                         </span>
                         <span className="block text-xs text-gray-500">
-                          등록 {s.regCnt}건 재조회 {s.regCnt}회
+                          최신 차수 {s.regCnt}건 재조회 {s.regCnt}회
                           {s.scanCalls > 0 ? ` + 연차 탐색 ${s.planCnt}건 월별 조회 ${s.scanCalls}회` : ''}
                         </span>
                       </span>
