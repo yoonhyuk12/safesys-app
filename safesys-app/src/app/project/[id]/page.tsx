@@ -549,7 +549,8 @@ export default function ProjectDetailPage() {
     if (!no) return
     setG2bSyncing(true)
     try {
-      const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}`)
+      // latest=1 — 원계약 번호로 저장돼 있어도 최신 변경계약(차수)의 금액·기간을 가져온다
+      const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}&latest=1`)
       const json = await res.json()
       if (!json.success || !json.data?.contracts?.length) {
         alert(json.error || '나라장터에서 계약 정보를 찾지 못했습니다.')
