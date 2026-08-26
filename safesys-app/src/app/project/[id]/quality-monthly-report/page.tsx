@@ -358,7 +358,7 @@ export default function QualityMonthlyReportPage() {
                       <tr className="bg-gray-50 text-gray-600 text-xs">
                         <th className="px-3 py-2 text-left font-medium">보고 연월</th>
                         <th className="px-3 py-2 text-center font-medium">공종 행수</th>
-                        <th className="px-3 py-2 text-left font-medium hidden sm:table-cell">작성자</th>
+                        <th className="px-3 py-2 text-left font-medium hidden sm:table-cell">품질관리자</th>
                         <th className="px-3 py-2 text-left font-medium hidden sm:table-cell">확인자</th>
                         <th className="px-3 py-2 text-center font-medium">양식 출력</th>
                         <th className="px-3 py-2 text-center font-medium">삭제</th>

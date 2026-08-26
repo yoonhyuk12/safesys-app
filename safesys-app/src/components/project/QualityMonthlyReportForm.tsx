@@ -285,7 +285,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
           />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">작성자 (현장대리인)</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">작성자 (품질관리자)</label>
           <input
             type="text"
             value={formData.author_name}
