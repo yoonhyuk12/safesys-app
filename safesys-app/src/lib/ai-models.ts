@@ -10,6 +10,8 @@ export interface AiModelSetting {
   location: string
   feature: string
   remarks: string
+  inputPricePer1m: number | null
+  outputPricePer1m: number | null
 }
 
 /** AI 사용 인벤토리 기본값 22행 — 시드·폴백·관리자 화면 표시의 단일 출처 (2026-08-27 관리자 DB와 폴백 동기화) */
@@ -21,6 +23,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/chat/project-assistant/route.ts',
     feature: '현장 AI 비서 챗봇',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'chat.tbm',
@@ -29,6 +33,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/chat/tbm/route.ts',
     feature: 'TBM 현황 챗봇',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'tbm-telegram.analyze',
@@ -37,6 +43,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/tbm-telegram/analyze/route.ts',
     feature: 'TBM 텔레그램 문안 생성',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.write-risk-analysis',
@@ -45,6 +53,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/write-risk-analysis/route.ts',
     feature: 'TBM 위험분석 작성',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.translate',
@@ -53,6 +63,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/translate/route.ts',
     feature: '안전교육 다국어 번역',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.tts.translate',
@@ -61,6 +73,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/tts/route.ts',
     feature: 'TTS용 사전 번역',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.tts.speech',
@@ -69,6 +83,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/tts/route.ts',
     feature: '음성 합성',
     remarks: 'OpenAI TTS 전용 모델만 지정 가능',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.tbm-safety-advice',
@@ -77,6 +93,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/tbm-safety-advice/route.ts',
     feature: 'TBM 안전조치 확인사항',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.ptw-work-summary',
@@ -85,6 +103,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/ptw-work-summary/route.ts',
     feature: '작업허가서 업무요약',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.ptw-risk-analysis',
@@ -93,6 +113,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/ptw-risk-analysis/route.ts',
     feature: '작업허가서 위험분석',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.headquarters-remarks',
@@ -101,6 +123,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/headquarters-remarks/route.ts',
     feature: '본부점검 의견 생성',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.extract-equipment-count',
@@ -109,6 +133,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/extract-equipment-count/route.ts',
     feature: '장비 대수 추출',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.daily-inspection',
@@ -117,6 +143,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/daily-inspection/route.ts',
     feature: '일일점검 체크리스트 생성',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.ocr-card',
@@ -125,6 +153,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/ocr-card/route.ts',
     feature: '교육 이수증 OCR',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.supervisor-summary.remarks',
@@ -133,6 +163,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/supervisor-summary/route.ts',
     feature: '감독일지 의견·요약',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.inspection-checklist',
@@ -141,6 +173,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/inspection-checklist/route.ts',
     feature: '검측 체크리스트 생성',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.work-plan',
@@ -149,6 +183,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/work-plan/route.ts',
     feature: 'AI 작업계획서 초안',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.supervisor-summary.classify',
@@ -157,6 +193,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/supervisor-summary/route.ts',
     feature: '감독일지 장비·인력 분류',
     remarks: '',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.risk-assessment',
@@ -165,6 +203,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/risk-assessment/route.ts',
     feature: '수시 위험성평가 AI 판정',
     remarks: '폴백 체인 gemini-3.1-flash-lite 자동 적용',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.risk-classify',
@@ -173,6 +213,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/risk-classify/route.ts',
     feature: '작업내용 분류 매칭',
     remarks: '폴백 체인 gemini-3.1-flash-lite 자동 적용',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.risk-row',
@@ -181,6 +223,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/risk-row/route.ts',
     feature: '새 위험요인 행 작성',
     remarks: '폴백 체인 gemini-3.1-flash-lite 자동 적용',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
   {
     featureKey: 'ai.tbm-risk-link',
@@ -189,6 +233,8 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/tbm-risk-link/route.ts',
     feature: 'TBM 위험요인 연계',
     remarks: '폴백 체인 gemini-3.1-flash-lite 자동 적용',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
   },
 ] as const satisfies readonly AiModelSetting[]
 

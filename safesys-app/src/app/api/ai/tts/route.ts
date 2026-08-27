@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModel, supportsSamplingParams, tokenLimitParam } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -78,14 +79,17 @@ export async function POST(request: NextRequest) {
       if (!translationResponse.ok) {
         const errorData = await translationResponse.json()
         console.error('번역 API 오류:', errorData)
+        recordAiUsage({ featureKey: 'ai.tts.translate', provider: 'OpenAI', model: translateModel, success: false, errorMessage: `HTTP ${translationResponse.status}` })
         // 번역 실패 시 원문 사용
       } else {
         const translationData = await translationResponse.json()
+        recordAiUsage({ featureKey: 'ai.tts.translate', provider: 'OpenAI', model: translateModel, response: translationData })
         textToSpeak = translationData.choices[0]?.message?.content || text
       }
     }
 
     // OpenAI TTS API 호출
+    const speechModel = await getAiModel('ai.tts.speech')
     const ttsResponse = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
       headers: {
@@ -93,7 +97,7 @@ export async function POST(request: NextRequest) {
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: await getAiModel('ai.tts.speech'),
+        model: speechModel,
         input: textToSpeak,
         voice: 'nova', // alloy, echo, fable, onyx, nova, shimmer 중 선택
         response_format: 'mp3',
@@ -104,11 +108,14 @@ export async function POST(request: NextRequest) {
     if (!ttsResponse.ok) {
       const errorData = await ttsResponse.json()
       console.error('TTS API 오류:', errorData)
+      recordAiUsage({ featureKey: 'ai.tts.speech', provider: 'OpenAI', model: speechModel, promptChars: textToSpeak.length, success: false, errorMessage: `HTTP ${ttsResponse.status}` })
       return NextResponse.json(
         { error: 'TTS 생성 중 오류가 발생했습니다.' },
         { status: 500 }
       )
     }
+
+    recordAiUsage({ featureKey: 'ai.tts.speech', provider: 'OpenAI', model: speechModel, promptChars: textToSpeak.length })
 
     // 오디오 데이터를 base64로 변환
     const audioBuffer = await ttsResponse.arrayBuffer()

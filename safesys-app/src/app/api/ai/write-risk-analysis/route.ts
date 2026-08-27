@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModel } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -49,6 +50,8 @@ ${equipmentInput ? `        투입장비: "${equipmentInput}"` : ''}
         위험요소2: (잠재위험요인2와 연관된 단순 위험 요소, 대책 아님)
         위험요소3: (잠재위험요인3과 연관된 단순 위험 요소, 대책 아님)`
 
+    const model = await getAiModel('ai.write-risk-analysis')
+    const startedAt = Date.now()
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -56,7 +59,7 @@ ${equipmentInput ? `        투입장비: "${equipmentInput}"` : ''}
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: await getAiModel('ai.write-risk-analysis'),
+        model,
         messages: [
           {
             role: 'system',
@@ -73,6 +76,7 @@ ${equipmentInput ? `        투입장비: "${equipmentInput}"` : ''}
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       console.error('OpenAI API Error:', response.status, errorData)
+      recordAiUsage({ featureKey: 'ai.write-risk-analysis', provider: 'OpenAI', model, success: false, errorMessage: `HTTP ${response.status}`, durationMs: Date.now() - startedAt })
       return NextResponse.json(
         { error: 'AI 작성 중 오류가 발생했습니다.' },
         { status: 500 }
@@ -80,6 +84,7 @@ ${equipmentInput ? `        투입장비: "${equipmentInput}"` : ''}
     }
 
     const data = await response.json()
+    recordAiUsage({ featureKey: 'ai.write-risk-analysis', provider: 'OpenAI', model, response: data, durationMs: Date.now() - startedAt })
     const content = data.choices?.[0]?.message?.content
 
     if (!content) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModel, supportsSamplingParams, tokenLimitParam } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -46,6 +47,7 @@ ${location ? `작업위치: "${location}"` : ''}
 
     const model = await getAiModel('ai.ptw-risk-analysis')
 
+    const startedAt = Date.now()
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 50000)
 
@@ -78,6 +80,7 @@ ${location ? `작업위치: "${location}"` : ''}
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       console.error('OpenAI API Error:', response.status, errorData)
+      recordAiUsage({ featureKey: 'ai.ptw-risk-analysis', provider: 'OpenAI', model, success: false, errorMessage: `HTTP ${response.status}`, durationMs: Date.now() - startedAt })
       return NextResponse.json(
         { error: 'AI 작성 중 오류가 발생했습니다.' },
         { status: 500 }
@@ -85,6 +88,7 @@ ${location ? `작업위치: "${location}"` : ''}
     }
 
     const data = await response.json()
+    recordAiUsage({ featureKey: 'ai.ptw-risk-analysis', provider: 'OpenAI', model, response: data, durationMs: Date.now() - startedAt })
     const content = data.choices?.[0]?.message?.content
 
     if (!content) {

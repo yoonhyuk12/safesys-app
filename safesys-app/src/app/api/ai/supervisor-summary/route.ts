@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModel, supportsSamplingParams } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 import {
   STANDARD_EQUIPMENT_NAMES,
   STANDARD_WORKER_TYPES,
@@ -90,6 +91,7 @@ ${existingPersonnel.length > 0 ? `기존 인력 분류 목록: ${existingPersonn
     // ── 장비/인력 분류: 설정된 Gemini 모델 사용 (키가 없으면 아래 OpenAI로 폴백)
     if (type === 'work-daily-classify' && GEMINI_API_KEY) {
       const classifyModel = await getAiModel('ai.supervisor-summary.classify')
+      const geminiStartedAt = Date.now()
       const geminiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${classifyModel}:generateContent`,
         {
@@ -112,6 +114,7 @@ ${existingPersonnel.length > 0 ? `기존 인력 분류 목록: ${existingPersonn
       if (!geminiResponse.ok) {
         const errorData = await geminiResponse.json().catch(() => ({}))
         console.error('Gemini API Error:', geminiResponse.status, errorData)
+        recordAiUsage({ featureKey: 'ai.supervisor-summary.classify', provider: 'Google', model: classifyModel, success: false, errorMessage: `HTTP ${geminiResponse.status}`, durationMs: Date.now() - geminiStartedAt })
         return NextResponse.json(
           { error: 'AI 분류 중 오류가 발생했습니다. (Gemini)' },
           { status: 500 }
@@ -119,6 +122,7 @@ ${existingPersonnel.length > 0 ? `기존 인력 분류 목록: ${existingPersonn
       }
 
       const geminiResult = await geminiResponse.json()
+      recordAiUsage({ featureKey: 'ai.supervisor-summary.classify', provider: 'Google', model: classifyModel, response: geminiResult, durationMs: Date.now() - geminiStartedAt })
       const geminiContent = geminiResult.candidates?.[0]?.content?.parts
         ?.map((part: { text?: string }) => part.text || '')
         .join('')
@@ -152,6 +156,7 @@ ${existingPersonnel.length > 0 ? `기존 인력 분류 목록: ${existingPersonn
 
     const remarksModel = await getAiModel('ai.supervisor-summary.remarks')
 
+    const startedAt = Date.now()
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -180,6 +185,7 @@ ${existingPersonnel.length > 0 ? `기존 인력 분류 목록: ${existingPersonn
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       console.error('OpenAI API Error:', response.status, errorData)
+      recordAiUsage({ featureKey: 'ai.supervisor-summary.remarks', provider: 'OpenAI', model: remarksModel, success: false, errorMessage: `HTTP ${response.status}`, durationMs: Date.now() - startedAt })
       return NextResponse.json(
         { error: 'AI 요약 생성 중 오류가 발생했습니다.' },
         { status: 500 }
@@ -187,6 +193,7 @@ ${existingPersonnel.length > 0 ? `기존 인력 분류 목록: ${existingPersonn
     }
 
     const result = await response.json()
+    recordAiUsage({ featureKey: 'ai.supervisor-summary.remarks', provider: 'OpenAI', model: remarksModel, response: result, durationMs: Date.now() - startedAt })
     const content = result.choices?.[0]?.message?.content
 
     if (!content) {

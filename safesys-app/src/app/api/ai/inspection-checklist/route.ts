@@ -1,6 +1,7 @@
 // 검측 체크리스트 항목 AI 자동 생성 — 위키 검사기준 지식 + 현장 입력으로 검측항목·검사기준 생성 (Gemini)
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModel } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 import { INSPECTION_CRITERIA_KNOWLEDGE } from '@/lib/inspection/inspection-criteria-knowledge'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
@@ -57,6 +58,7 @@ ${inspectionItems ? `- 검측 사항(요청서): ${inspectionItems}` : ''}
     let lastError = ''
     const geminiModels = [await getAiModel('ai.inspection-checklist')]
     for (const model of geminiModels) {
+      const startedAt = Date.now()
       const geminiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
@@ -80,10 +82,12 @@ ${inspectionItems ? `- 검측 사항(요청서): ${inspectionItems}` : ''}
         const errorData = await geminiResponse.json().catch(() => ({}))
         lastError = `${geminiResponse.status} ${JSON.stringify(errorData).slice(0, 200)}`
         console.error(`Gemini API Error (${model}):`, lastError)
+        recordAiUsage({ featureKey: 'ai.inspection-checklist', provider: 'Google', model, success: false, errorMessage: `HTTP ${geminiResponse.status}`, durationMs: Date.now() - startedAt })
         continue // 다음 모델로 폴백
       }
 
       const geminiResult = await geminiResponse.json()
+      recordAiUsage({ featureKey: 'ai.inspection-checklist', provider: 'Google', model, response: geminiResult, durationMs: Date.now() - startedAt })
       const content = geminiResult.candidates?.[0]?.content?.parts
         ?.map((part: { text?: string }) => part.text || '')
         .join('')

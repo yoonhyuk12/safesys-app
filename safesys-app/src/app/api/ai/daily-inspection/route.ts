@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModel, supportsSamplingParams } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
 
     const model = await getAiModel('ai.daily-inspection')
 
+    const startedAt = Date.now()
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -71,6 +73,7 @@ export async function POST(request: NextRequest) {
     })
 
     const data = await response.json()
+    recordAiUsage({ featureKey: 'ai.daily-inspection', provider: 'OpenAI', model, response: data, success: response.ok, errorMessage: response.ok ? undefined : `HTTP ${response.status}`, durationMs: Date.now() - startedAt })
 
     if (data.choices && data.choices[0]) {
       return NextResponse.json({ content: data.choices[0].message.content })

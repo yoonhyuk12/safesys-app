@@ -53,6 +53,8 @@ function mergeWithDefaults(rows: readonly SettingRow[]): AiUsageItem[] {
       location: entry.location,
       feature: entry.feature,
       remarks: row ? row.remarks ?? '' : entry.remarks,
+      inputPricePer1m: entry.inputPricePer1m,
+      outputPricePer1m: entry.outputPricePer1m,
       sortOrder: index + 1,
     }
   })

@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getAiModelChain } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 import type { TbmRiskLinkItem, TbmRiskLinkRequest, TbmRiskLinkResponse } from '@/lib/risk-assessment/types'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
@@ -106,6 +107,7 @@ ${recentRisks.map((risk) => `- ${risk}`).join('\n')}
       const prompt = buildPrompt(promptRows)
 
       for (const model of await getAiModelChain('ai.tbm-risk-link')) {
+        const startedAt = Date.now()
         const geminiResponse = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
           {
@@ -129,10 +131,12 @@ ${recentRisks.map((risk) => `- ${risk}`).join('\n')}
           const errorData = await geminiResponse.json().catch(() => ({}))
           lastError = `${geminiResponse.status} ${JSON.stringify(errorData).slice(0, 200)}`
           console.error(`Gemini API Error (${model}):`, lastError)
+          recordAiUsage({ featureKey: 'ai.tbm-risk-link', provider: 'Google', model, success: false, errorMessage: `HTTP ${geminiResponse.status}`, durationMs: Date.now() - startedAt, userId: user.id })
           continue // 다음 모델로 폴백
         }
 
         const geminiResult = await geminiResponse.json()
+        recordAiUsage({ featureKey: 'ai.tbm-risk-link', provider: 'Google', model, response: geminiResult, durationMs: Date.now() - startedAt, userId: user.id })
         const content = geminiResult.candidates?.[0]?.content?.parts
           ?.map((part: { text?: string }) => part.text || '')
           .join('')

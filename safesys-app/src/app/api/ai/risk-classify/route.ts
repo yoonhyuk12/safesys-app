@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { getAiModelChain } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 import type { RiskClassifyMatch, RiskClassifyRequest, RiskClassifyResponse } from '@/lib/risk-assessment/types'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
@@ -59,9 +60,10 @@ async function fetchCombos(businessType: string): Promise<TaxonomyCombo[]> {
 }
 
 /** Gemini를 모델 순서대로 시도해 JSON 객체를 받는다. 모두 실패하면 마지막 사유로 예외를 던진다. */
-async function callGemini(systemMessage: string, prompt: string): Promise<Record<string, unknown>> {
+async function callGemini(systemMessage: string, prompt: string, userId: string): Promise<Record<string, unknown>> {
   let lastError = ''
   for (const model of await getAiModelChain('ai.risk-classify')) {
+    const startedAt = Date.now()
     const geminiResponse = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
@@ -85,10 +87,12 @@ async function callGemini(systemMessage: string, prompt: string): Promise<Record
       const errorData = await geminiResponse.json().catch(() => ({}))
       lastError = `${geminiResponse.status} ${JSON.stringify(errorData).slice(0, 200)}`
       console.error(`Gemini API Error (${model}):`, lastError)
+      recordAiUsage({ featureKey: 'ai.risk-classify', provider: 'Google', model, success: false, errorMessage: `HTTP ${geminiResponse.status}`, durationMs: Date.now() - startedAt, userId })
       continue // 다음 모델로 폴백
     }
 
     const geminiResult = await geminiResponse.json()
+    recordAiUsage({ featureKey: 'ai.risk-classify', provider: 'Google', model, response: geminiResult, durationMs: Date.now() - startedAt, userId })
     const content = geminiResult.candidates?.[0]?.content?.parts
       ?.map((part: { text?: string }) => part.text || '')
       .join('')
@@ -120,7 +124,8 @@ function situationBlock(workDescription: string, personnel: string, equipment: s
 /** 1차 좁히기 — 공사 단위로 관련 후보를 고른다 (사업별 무관 모드 전용). */
 async function pickConstructions(
   constructions: string[],
-  situation: string
+  situation: string,
+  userId: string
 ): Promise<string[]> {
   const prompt = `아래 "작업 상황"과 관련 있는 "공사"를 골라주세요.
 
@@ -137,7 +142,8 @@ ${constructions.join('\n')}
 
   const parsed = await callGemini(
     '당신은 한국 건설현장(농어촌공사 계열)의 위험성평가 전문가입니다. 주어진 목록에서만 고르고 반드시 유효한 JSON으로만 응답하세요.',
-    prompt
+    prompt,
+    userId
   )
   const raw = Array.isArray(parsed.constructions) ? parsed.constructions : []
   const known = new Set(constructions)
@@ -148,7 +154,7 @@ ${constructions.join('\n')}
 }
 
 /** 2차 선별 — 조합 번호로 최대 3건을 고르게 한다. 번호 참조라 문자열 오기입이 끼어들 수 없다. */
-async function pickCombos(combos: TaxonomyCombo[], situation: string): Promise<RiskClassifyMatch[]> {
+async function pickCombos(combos: TaxonomyCombo[], situation: string, userId: string): Promise<RiskClassifyMatch[]> {
   const prompt = `아래 "작업 상황"에 해당하는 "분류 조합"을 골라주세요.
 
 # 작업 상황
@@ -166,7 +172,8 @@ ${combos.map((combo, index) => `[${index}] ${comboLine(combo)}`).join('\n')}
 
   const parsed = await callGemini(
     '당신은 한국 건설현장(농어촌공사 계열)의 위험성평가 전문가입니다. 작업내용을 유해·위험요인 DB의 분류 체계에 매칭합니다. 주어진 번호로만 답하고 반드시 유효한 JSON으로만 응답하세요.',
-    prompt
+    prompt,
+    userId
   )
 
   const raw = Array.isArray(parsed.matches) ? parsed.matches : []
@@ -233,7 +240,7 @@ export async function POST(request: NextRequest) {
     let candidates = allCombos
     if (!businessType) {
       const constructions = [...new Set(allCombos.map((combo) => combo.construction))]
-      const picked = await pickConstructions(constructions, situation)
+      const picked = await pickConstructions(constructions, situation, user.id)
       if (picked.length === 0) {
         return NextResponse.json<RiskClassifyResponse>(
           { success: false, error: '작업내용과 맞는 공사를 찾지 못했습니다. 작업내용을 더 구체적으로 쓰거나 사업별을 지정해주세요.' },
@@ -256,7 +263,7 @@ export async function POST(request: NextRequest) {
       console.warn(`위험요인 분류 후보 축약: ${candidates.length}건 → ${trimmed.length}건 (프롬프트 상한)`)
     }
 
-    const data = await pickCombos(trimmed, situation)
+    const data = await pickCombos(trimmed, situation, user.id)
     if (data.length === 0) {
       return NextResponse.json<RiskClassifyResponse>(
         { success: false, error: 'AI가 작업내용에 맞는 분류를 찾지 못했습니다. 작업내용을 더 구체적으로 쓰거나 직접 선택으로 진행해주세요.' },

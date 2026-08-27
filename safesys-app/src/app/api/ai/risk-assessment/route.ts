@@ -1,6 +1,7 @@
 // 수시 위험성평가 AI 판정 — DB 원문 위험요인 중 선별·빈도·강도·장비만 Gemini에 위임 (텍스트 재작성 금지)
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModelChain } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 import type { RiskAiJudgement, RiskAiRequest, RiskAiResponse, RiskHazard } from '@/lib/risk-assessment/types'
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
@@ -93,6 +94,7 @@ ${hazards.map(describeHazard).join('\n')}
 
     let lastError = ''
     for (const model of await getAiModelChain('ai.risk-assessment')) {
+      const startedAt = Date.now()
       const geminiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
@@ -116,10 +118,12 @@ ${hazards.map(describeHazard).join('\n')}
         const errorData = await geminiResponse.json().catch(() => ({}))
         lastError = `${geminiResponse.status} ${JSON.stringify(errorData).slice(0, 200)}`
         console.error(`Gemini API Error (${model}):`, lastError)
+        recordAiUsage({ featureKey: 'ai.risk-assessment', provider: 'Google', model, success: false, errorMessage: `HTTP ${geminiResponse.status}`, durationMs: Date.now() - startedAt })
         continue // 다음 모델로 폴백
       }
 
       const geminiResult = await geminiResponse.json()
+      recordAiUsage({ featureKey: 'ai.risk-assessment', provider: 'Google', model, response: geminiResult, durationMs: Date.now() - startedAt })
       const content = geminiResult.candidates?.[0]?.content?.parts
         ?.map((part: { text?: string }) => part.text || '')
         .join('')

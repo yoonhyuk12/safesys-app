@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getAiModel } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 import { parsePersonnelCount, TBM_PERSONNEL_GUIDE } from '@/lib/chat/tbm-personnel'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
@@ -245,6 +246,8 @@ export async function POST(request: NextRequest) {
     ]
 
     // OpenAI Chat Completions API 호출
+    const model = await getAiModel('chat.tbm')
+    const startedAt = Date.now()
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -252,7 +255,7 @@ export async function POST(request: NextRequest) {
         Authorization: `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: await getAiModel('chat.tbm'),
+        model,
         messages,
         reasoning_effort: 'none',
         max_completion_tokens: 8192
@@ -262,6 +265,7 @@ export async function POST(request: NextRequest) {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       console.error('OpenAI API Error:', response.status, errorData)
+      recordAiUsage({ featureKey: 'chat.tbm', provider: 'OpenAI', model, success: false, errorMessage: `HTTP ${response.status}`, durationMs: Date.now() - startedAt })
 
       // 오류 유형별 상세 메시지
       let errorMessage = 'AI 응답 생성에 실패했습니다.'
@@ -280,6 +284,7 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json()
+    recordAiUsage({ featureKey: 'chat.tbm', provider: 'OpenAI', model, response: data, durationMs: Date.now() - startedAt })
     const assistantMessage = data.choices?.[0]?.message?.content || '응답을 생성하지 못했습니다.'
 
     return NextResponse.json({ response: assistantMessage })

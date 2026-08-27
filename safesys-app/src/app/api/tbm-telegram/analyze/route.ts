@@ -1,6 +1,7 @@
 // TBM 일괄 텔레그램 발송 — 사용자 검토 요청을 OpenAI로 분석해 현장별 텔레그램 문안을 생성하는 API
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModel } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 import { parsePersonnelCount } from '@/lib/chat/tbm-personnel'
 import { isOrganizationInUserScope } from '@/lib/organization-scope'
 import { authenticateRequest } from '../auth'
@@ -110,7 +111,8 @@ async function analyzeChunk(
   apiKey: string,
   userRequest: string,
   date: string,
-  sites: AnalyzeSite[]
+  sites: AnalyzeSite[],
+  projectId: string | null
 ): Promise<{ results: AnalyzeResult[] } | { error: string }> {
   const systemMessage = '건설 안전관리 전문가입니다. 반드시 유효한 JSON으로만 응답하세요.'
 
@@ -159,6 +161,8 @@ ${siteLines}
 - results에는 입력된 모든 현장을 순서대로 포함합니다.
 `
 
+  const model = await getAiModel('tbm-telegram.analyze')
+  const startedAt = Date.now()
   const openAIResponse = await fetch(
     'https://api.openai.com/v1/chat/completions',
     {
@@ -168,7 +172,7 @@ ${siteLines}
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: await getAiModel('tbm-telegram.analyze'),
+        model,
         messages: [
           { role: 'system', content: systemMessage },
           { role: 'user', content: prompt },
@@ -181,10 +185,12 @@ ${siteLines}
   if (!openAIResponse.ok) {
     const errorData = await openAIResponse.json().catch(() => ({}))
     console.error('OpenAI API 오류:', openAIResponse.status, errorData)
+    recordAiUsage({ featureKey: 'tbm-telegram.analyze', provider: 'OpenAI', model, success: false, errorMessage: `HTTP ${openAIResponse.status}`, durationMs: Date.now() - startedAt, projectId })
     return { error: 'AI 분석 중 오류가 발생했습니다. (OpenAI)' }
   }
 
   const openAIResult = (await openAIResponse.json()) as OpenAIChatCompletionResponse
+  recordAiUsage({ featureKey: 'tbm-telegram.analyze', provider: 'OpenAI', model, response: openAIResult, durationMs: Date.now() - startedAt, projectId })
   const openAIContent = openAIResult.choices?.[0]?.message?.content
 
   if (!openAIContent) {
@@ -312,11 +318,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // 요청이 한 프로젝트만 다룰 때만 기록에 남긴다 — 청크에 여러 현장이 섞이면 특정할 수 없다.
+    const loggedProjectIds = [...new Set(orderedSubmissions.map((row) => row.project_id).filter(isCanonicalUuid))]
+    const loggedProjectId = loggedProjectIds.length === 1 ? loggedProjectIds[0] : null
+
     // 출력 잘림 방지를 위해 15개 현장 단위로 나눠 순차 호출한다.
     const results: AnalyzeResult[] = []
     for (let i = 0; i < authoritativeSites.length; i += CHUNK_SIZE) {
       const chunk = authoritativeSites.slice(i, i + CHUNK_SIZE)
-      const outcome = await analyzeChunk(OPENAI_API_KEY, userRequest, date, chunk)
+      const outcome = await analyzeChunk(OPENAI_API_KEY, userRequest, date, chunk, loggedProjectId)
       if ('error' in outcome) {
         return NextResponse.json({ error: outcome.error }, { status: 500 })
       }

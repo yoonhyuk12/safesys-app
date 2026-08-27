@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModel, supportsSamplingParams, tokenLimitParam } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
     const jsonInput = JSON.stringify(texts, null, 2)
     const model = await getAiModel('ai.translate')
 
+    const startedAt = Date.now()
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -64,10 +66,12 @@ export async function POST(request: NextRequest) {
     })
 
     if (!response.ok) {
+      recordAiUsage({ featureKey: 'ai.translate', provider: 'OpenAI', model, success: false, errorMessage: `HTTP ${response.status}`, durationMs: Date.now() - startedAt })
       return NextResponse.json({ error: '번역 실패' }, { status: 500 })
     }
 
     const result = await response.json()
+    recordAiUsage({ featureKey: 'ai.translate', provider: 'OpenAI', model, response: result, durationMs: Date.now() - startedAt })
     const translated = JSON.parse(result.choices[0]?.message?.content || '{}')
 
     return NextResponse.json({ translated })
