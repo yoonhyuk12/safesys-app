@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     let textToSpeak = text
 
-    // 한국어가 아닌 경우 GPT-4o-mini로 번역
+    // 한국어가 아닌 경우 설정된 번역 모델로 번역
     if (language && language !== 'ko') {
       const translateModel = await getAiModel('ai.tts.translate')
       const translationResponse = await fetch('https://api.openai.com/v1/chat/completions', {

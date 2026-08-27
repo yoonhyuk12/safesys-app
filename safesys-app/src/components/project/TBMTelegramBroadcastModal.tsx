@@ -275,7 +275,7 @@ const TBMTelegramBroadcastModal: React.FC<TBMTelegramBroadcastModalProps> = ({
   selectedDate
 }) => {
   const [step, setStep] = useState<'targets' | 'results'>('targets')
-  const aiModel = useAiModel('tbm-telegram.analyze', 'GPT-5.6 Luna')
+  const aiModel = useAiModel('tbm-telegram.analyze', 'gpt-5.6-luna')
 
   // 1단계 — 대상 정리
   const [prepareLoading, setPrepareLoading] = useState(false)

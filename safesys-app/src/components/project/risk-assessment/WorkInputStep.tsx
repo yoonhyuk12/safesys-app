@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, ChevronDown, ChevronRight, Loader2, Plus, Sparkles, X } from 'lucide-react'
 import { RISK_AI_MODELS } from '@/lib/risk-assessment/types'
+import { useAiModel } from '@/lib/use-ai-model'
 import type { RiskAiJudgement, RiskAssessmentRow, RiskClassifyMatch, RiskHazard } from '@/lib/risk-assessment/types'
 import { classifyWork, fetchHazards, MAX_JUDGE_HAZARDS, requestAiJudgement } from './api'
 import { BUSINESS_TYPE_ALL, buildSiteContext, createRowFromHazard } from './record'
@@ -111,6 +112,7 @@ export default function WorkInputStep({
   onWorkLocationChange,
   onRowsReady,
 }: WorkInputStepProps) {
+  const riskAiModel = useAiModel('ai.risk-assessment', RISK_AI_MODELS[0])
   const [matches, setMatches] = useState<RiskClassifyMatch[]>([])
   const [excludedKeys, setExcludedKeys] = useState<string[]>([])
   const [phase, setPhase] = useState<Phase>('idle')
@@ -461,7 +463,7 @@ export default function WorkInputStep({
           {phase === 'classifying' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
           AI 자동 분류·판정
         </button>
-        <span className="text-xs lowercase text-gray-400">{RISK_AI_MODELS[0]}</span>
+        <span className="text-xs lowercase text-gray-400">{riskAiModel}</span>
         {matches.length > 0 && (
           <>
             <button

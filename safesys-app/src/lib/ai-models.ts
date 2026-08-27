@@ -12,7 +12,7 @@ export interface AiModelSetting {
   remarks: string
 }
 
-/** AI 사용 인벤토리 기본값 22행 — 시드·폴백·관리자 화면 표시의 단일 출처 (2026-08-13 전수 조사) */
+/** AI 사용 인벤토리 기본값 22행 — 시드·폴백·관리자 화면 표시의 단일 출처 (2026-08-27 관리자 DB와 폴백 동기화) */
 export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'chat.project-assistant',
@@ -41,7 +41,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.write-risk-analysis',
     provider: 'OpenAI',
-    model: 'gpt-5.4-nano',
+    model: 'gpt-5.6-luna',
     location: 'src/app/api/ai/write-risk-analysis/route.ts',
     feature: 'TBM 위험분석 작성',
     remarks: '',
@@ -49,7 +49,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.translate',
     provider: 'OpenAI',
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.6-luna',
     location: 'src/app/api/ai/translate/route.ts',
     feature: '안전교육 다국어 번역',
     remarks: '',
@@ -57,7 +57,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.tts.translate',
     provider: 'OpenAI',
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.6-luna',
     location: 'src/app/api/ai/tts/route.ts',
     feature: 'TTS용 사전 번역',
     remarks: '',
@@ -73,7 +73,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.tbm-safety-advice',
     provider: 'OpenAI',
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.6-luna',
     location: 'src/app/api/ai/tbm-safety-advice/route.ts',
     feature: 'TBM 안전조치 확인사항',
     remarks: '',
@@ -81,7 +81,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.ptw-work-summary',
     provider: 'OpenAI',
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.6-luna',
     location: 'src/app/api/ai/ptw-work-summary/route.ts',
     feature: '작업허가서 업무요약',
     remarks: '',
@@ -89,7 +89,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.ptw-risk-analysis',
     provider: 'OpenAI',
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.6-luna',
     location: 'src/app/api/ai/ptw-risk-analysis/route.ts',
     feature: '작업허가서 위험분석',
     remarks: '',
@@ -97,7 +97,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.headquarters-remarks',
     provider: 'OpenAI',
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.6-luna',
     location: 'src/app/api/ai/headquarters-remarks/route.ts',
     feature: '본부점검 의견 생성',
     remarks: '',
@@ -105,7 +105,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.extract-equipment-count',
     provider: 'OpenAI',
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.6-luna',
     location: 'src/app/api/ai/extract-equipment-count/route.ts',
     feature: '장비 대수 추출',
     remarks: '',
@@ -113,7 +113,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.daily-inspection',
     provider: 'OpenAI',
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.6-luna',
     location: 'src/app/api/ai/daily-inspection/route.ts',
     feature: '일일점검 체크리스트 생성',
     remarks: '',
@@ -121,7 +121,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.ocr-card',
     provider: 'OpenAI',
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.6-luna',
     location: 'src/app/api/ai/ocr-card/route.ts',
     feature: '교육 이수증 OCR',
     remarks: '',
@@ -129,7 +129,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.supervisor-summary.remarks',
     provider: 'OpenAI',
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.6-luna',
     location: 'src/app/api/ai/supervisor-summary/route.ts',
     feature: '감독일지 의견·요약',
     remarks: '',
@@ -137,7 +137,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.inspection-checklist',
     provider: 'Google',
-    model: 'gemini-3.1-flash-lite',
+    model: 'gemini-flash-lite-latest',
     location: 'src/app/api/ai/inspection-checklist/route.ts',
     feature: '검측 체크리스트 생성',
     remarks: '',
@@ -145,7 +145,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.work-plan',
     provider: 'Google',
-    model: 'gemini-3.1-flash-lite',
+    model: 'gemini-flash-lite-latest',
     location: 'src/app/api/ai/work-plan/route.ts',
     feature: 'AI 작업계획서 초안',
     remarks: '',
@@ -153,7 +153,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.supervisor-summary.classify',
     provider: 'Google',
-    model: 'gemini-3.1-flash-lite',
+    model: 'gemini-flash-lite-latest',
     location: 'src/app/api/ai/supervisor-summary/route.ts',
     feature: '감독일지 장비·인력 분류',
     remarks: '',

@@ -87,7 +87,7 @@ ${existingPersonnel.length > 0 ? `기존 인력 분류 목록: ${existingPersonn
       )
     }
 
-    // ── 장비/인력 분류: Gemini 3.1 Flash Lite 사용 (키가 없으면 아래 OpenAI로 폴백)
+    // ── 장비/인력 분류: 설정된 Gemini 모델 사용 (키가 없으면 아래 OpenAI로 폴백)
     if (type === 'work-daily-classify' && GEMINI_API_KEY) {
       const classifyModel = await getAiModel('ai.supervisor-summary.classify')
       const geminiResponse = await fetch(

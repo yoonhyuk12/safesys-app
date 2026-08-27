@@ -160,7 +160,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
   onDraftSave
 }) => {
   const { userProfile } = useAuth()
-  const aiModel = useAiModel('ai.write-risk-analysis', 'GPT-5.4 nano')
+  const aiModel = useAiModel('ai.write-risk-analysis', 'gpt-5.6-luna')
   const [loading, setLoading] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [showSignaturePad, setShowSignaturePad] = useState(false)
