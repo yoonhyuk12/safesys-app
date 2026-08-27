@@ -1,4 +1,4 @@
-// 관리자용 AI 사용현황 목록 조회와 제조사·모델명·비고 수정을 제공하는 API 라우트
+// 관리자용 AI 사용현황 목록 조회와 제조사·모델명·비고·원화 단가 수정을 제공하는 API 라우트
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
 import { DEFAULT_AI_MODELS, type AiModelSetting, type AiProvider } from '@/lib/ai-models'
@@ -11,6 +11,8 @@ interface SettingRow {
   provider: string
   model: string
   remarks: string | null
+  input_price_per_1m: unknown
+  output_price_per_1m: unknown
 }
 
 interface AiUsageItem extends AiModelSetting {
@@ -22,7 +24,12 @@ interface PatchInput {
   provider: AiProvider
   model: string
   remarks: string
+  inputPricePer1m: number | null
+  outputPricePer1m: number | null
 }
+
+// 단가는 NULL(미산정)이 정상 값이라 "빈 값"과 "잘못된 값"을 구분해야 한다.
+const INVALID_PRICE = Symbol('invalid-price')
 
 function isSettingRow(value: unknown): value is SettingRow {
   if (typeof value !== 'object' || value === null) return false
@@ -35,11 +42,34 @@ function isSettingRow(value: unknown): value is SettingRow {
   )
 }
 
+/** DB의 NUMERIC은 드라이버에 따라 number 또는 문자열로 온다. 음수·NaN은 단가로 인정하지 않는다. */
+function toPrice(value: unknown): number | null {
+  if (typeof value === 'number') return Number.isFinite(value) && value >= 0 ? value : null
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null
+  }
+  return null
+}
+
+// 빈 문자열·null·미전송은 NULL 저장(비용 미산정), 0 이상의 숫자만 단가로 받는다.
+function parsePrice(value: unknown): number | null | typeof INVALID_PRICE {
+  if (value === undefined || value === null) return null
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    const parsed = Number(trimmed)
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : INVALID_PRICE
+  }
+  if (typeof value === 'number') return Number.isFinite(value) && value >= 0 ? value : INVALID_PRICE
+  return INVALID_PRICE
+}
+
 function isProvider(value: unknown): value is AiProvider {
   return typeof value === 'string' && PROVIDERS.includes(value as AiProvider)
 }
 
-// 목록은 항상 코드의 22행을 기준으로 만들고 DB 행이 있으면 제조사·모델명·비고만 덮어쓴다.
+// 목록은 항상 코드의 22행을 기준으로 만들고 DB 행이 있으면 제조사·모델명·비고·단가만 덮어쓴다.
 // 위치·기능 설명은 코드가 진실이므로 DB 값이 낡아도 화면이 어긋나지 않는다.
 function mergeWithDefaults(rows: readonly SettingRow[]): AiUsageItem[] {
   const byKey = new Map(rows.map((row) => [row.feature_key, row]))
@@ -53,8 +83,8 @@ function mergeWithDefaults(rows: readonly SettingRow[]): AiUsageItem[] {
       location: entry.location,
       feature: entry.feature,
       remarks: row ? row.remarks ?? '' : entry.remarks,
-      inputPricePer1m: entry.inputPricePer1m,
-      outputPricePer1m: entry.outputPricePer1m,
+      inputPricePer1m: row ? toPrice(row.input_price_per_1m) : entry.inputPricePer1m,
+      outputPricePer1m: row ? toPrice(row.output_price_per_1m) : entry.outputPricePer1m,
       sortOrder: index + 1,
     }
   })
@@ -68,11 +98,15 @@ function parsePatchInput(body: unknown): PatchInput | null {
   const model = typeof input.model === 'string' ? input.model.trim() : ''
   const remarks = typeof input.remarks === 'string' ? input.remarks.trim() : ''
 
+  const inputPricePer1m = parsePrice(input.inputPricePer1m)
+  const outputPricePer1m = parsePrice(input.outputPricePer1m)
+
   if (!DEFAULT_AI_MODELS.some((entry) => entry.featureKey === featureKey)) return null
   if (!isProvider(input.provider)) return null
   if (!model) return null
+  if (inputPricePer1m === INVALID_PRICE || outputPricePer1m === INVALID_PRICE) return null
 
-  return { featureKey, provider: input.provider, model, remarks }
+  return { featureKey, provider: input.provider, model, remarks, inputPricePer1m, outputPricePer1m }
 }
 
 export async function GET(request: NextRequest) {
@@ -84,7 +118,7 @@ export async function GET(request: NextRequest) {
   try {
     const { data, error } = await supabaseAdmin
       .from('ai_model_settings')
-      .select('feature_key, provider, model, remarks')
+      .select('feature_key, provider, model, remarks, input_price_per_1m, output_price_per_1m')
 
     // 테이블이 아직 없으면(마이그레이션 전) 기본값 목록을 그대로 돌려주고 화면에서 안내한다.
     if (error) {
@@ -121,7 +155,7 @@ export async function PATCH(request: NextRequest) {
     const input = parsePatchInput(await request.json().catch(() => null))
     if (!input) {
       return NextResponse.json(
-        { success: false, error: '기능 키·제조사·모델명을 확인해주세요.' },
+        { success: false, error: '기능 키·제조사·모델명·단가를 확인해주세요.' },
         { status: 400 }
       )
     }
@@ -132,6 +166,8 @@ export async function PATCH(request: NextRequest) {
         provider: input.provider,
         model: input.model,
         remarks: input.remarks || null,
+        input_price_per_1m: input.inputPricePer1m,
+        output_price_per_1m: input.outputPricePer1m,
         updated_at: new Date().toISOString(),
       })
       .eq('feature_key', input.featureKey)
