@@ -68,8 +68,12 @@ const CUMUL_OVERRIDE_FIELDS: ReadonlyArray<keyof QualityMonthlyReportRow> = [
   'cumulConfirmSubtotalOverride', 'cumulExpertConfirmOverride', 'cumulOtherConfirmOverride',
 ]
 
+// 시험 빈도 기준이 따로 없는 시험항목 — 공종 기준(콘크리트 120㎥당 1회 등)을 적용하지 않고 횟수를 사용자가 직접 넣는다
+const NO_AUTO_COUNT_ITEMS = ['슈미트해머']
+
 // 행의 횟수 자동 계산 기준 물량 — 자동 계산 대상이 아니면 null
 const volumePerTestOf = (row: QualityMonthlyReportRow): number | null => {
+  if (NO_AUTO_COUNT_ITEMS.includes(row.testItem.trim())) return null
   if (row.workType === '콘크리트') return CONCRETE_VOLUME_PER_TEST
   if (row.workType === '토공' && EARTHWORK_SYNC_ITEMS.includes(row.testItem.trim())) return EARTHWORK_VOLUME_PER_TEST
   return null
