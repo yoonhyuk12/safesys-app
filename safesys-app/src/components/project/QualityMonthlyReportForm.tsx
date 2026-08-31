@@ -23,8 +23,10 @@ interface QualityMonthlyReportFormProps {
 }
 
 // 공종 퀵입력 프리셋 — 버튼 클릭 시 해당 공종의 시험항목 행들을 일괄 추가, volume은 시공계획 물량 기본값
-const WORK_TYPE_PRESETS: { label: string; items: string[]; volume: string }[] = [
+// workType은 버튼 라벨과 공종명이 다를 때만 지정한다(예: 슈미트해머 버튼 → 공종 콘크리트)
+const WORK_TYPE_PRESETS: { label: string; workType?: string; items: string[]; volume: string }[] = [
   { label: '콘크리트', items: ['슬럼프', '공기량', '염화물', '단위수량', '압축강도'], volume: '㎥' },
+  { label: '슈미트해머', workType: '콘크리트', items: ['슈미트해머'], volume: '㎥' },
   { label: '토공', items: ['현장밀도', '함수비', '다짐'], volume: '㎥' },
   { label: '강관서포트', items: ['평누름하중'], volume: '㎥' },
   { label: '강관비계', items: ['인장하중\n(강관)', '휨하중\n(조인트)', '인장하중\n(조인트)', '압축하중\n(조인트)'], volume: '㎡' },
@@ -225,11 +227,12 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
   const [quickInput, setQuickInput] = useState<{ index: number; top: number; left: number } | null>(null)
 
   // 퀵입력 적용 — 현재 행에 공종+첫 시험항목을 채우고, 나머지 시험항목은 아래에 행으로 추가. 물량 기본값도 함께 채움
-  const applyPreset = (index: number, preset: { label: string; items: string[]; volume: string }) => {
+  const applyPreset = (index: number, preset: (typeof WORK_TYPE_PRESETS)[number]) => {
+    const workType = preset.workType ?? preset.label
     const rows = [...formData.report_rows]
     rows[index] = {
       ...rows[index],
-      workType: preset.label,
+      workType,
       testItem: preset.items[0],
       yearlyPlan: rows[index].yearlyPlan || preset.volume,
       monthVolume: rows[index].monthVolume || preset.volume,
@@ -237,7 +240,7 @@ export default function QualityMonthlyReportForm({ formData, onChange, isEditing
     }
     const extraRows = preset.items.slice(1).map((item) => ({
       ...createEmptyRow(),
-      workType: preset.label,
+      workType,
       testItem: item,
       yearlyPlan: preset.volume,
       monthVolume: preset.volume,
