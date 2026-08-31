@@ -3,6 +3,9 @@ import type { FindingClassificationSummary, FindingCode } from '@/lib/finding-cl
 
 export type AccidentSeverity = 'minor' | 'lost_time' | 'serious' | 'fatal'
 
+/** 산재신청 여부. 값이 없으면(빈 문자열·null) 미확인으로 본다. */
+export type WorkersCompClaim = 'applied' | 'not_applied'
+
 export interface ProjectAccident {
   id: string
   /** 등록 프로젝트 FK. 미등록 현장 사고는 null */
@@ -22,6 +25,8 @@ export interface ProjectAccident {
   injured_count: number
   fatal_count: number
   lost_workdays: number
+  /** 산재신청 여부. 기존 등록분은 null(미확인) */
+  workers_comp_claim: WorkersCompClaim | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -45,6 +50,8 @@ export interface AccidentFormInput {
   injured_count: number
   fatal_count: number
   lost_workdays: number
+  /** 산재신청 여부. 빈 문자열이면 미확인으로 저장한다. */
+  workers_comp_claim: WorkersCompClaim | ''
 }
 
 export type SafetyInspectionSource = 'safety' | 'manager' | 'headquarters'
@@ -168,6 +175,12 @@ export const ACCIDENT_SEVERITY_OPTIONS: ReadonlyArray<{ value: AccidentSeverity;
   { value: 'lost_time', label: '휴업' },
   { value: 'serious', label: '중상' },
   { value: 'fatal', label: '사망' },
+]
+
+export const ACCIDENT_COMP_CLAIM_OPTIONS: ReadonlyArray<{ value: WorkersCompClaim | ''; label: string }> = [
+  { value: '', label: '미확인' },
+  { value: 'applied', label: '신청' },
+  { value: 'not_applied', label: '미신청' },
 ]
 
 export const ACCIDENT_TYPE_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [
