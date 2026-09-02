@@ -34,3 +34,4 @@ safesys-app/temp_read_excel.js
 
 # Local Netlify folder
 .netlify
+.claude/.worklog/
