@@ -1,0 +1,126 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
+  <style>
+    body {
+      margin: 0;
+      font-family: Geist, system-ui, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: oklch(54.6% 0.245 262.881); }
+    a:hover { color: oklch(48.8% 0.243 264.376); }
+  </style>
+</helmet>
+<div style="width: 1160px; box-sizing: border-box; background: oklch(98.5% 0.002 247.839); padding: 44px 48px; display: flex; flex-direction: column; gap: 30px">
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="font-size: 11px; font-weight: 500; color: oklch(55.1% 0.027 264.364); text-transform: uppercase; letter-spacing: 0.05em">SafeSys Design System · 05</div>
+    <h1 style="margin: 0; font-size: 32px; font-weight: 700; color: oklch(21% 0.034 264.665); letter-spacing: -0.02em">쓰지 말 것</h1>
+    <p style="margin: 0; max-width: 840px; font-size: 15px; line-height: 1.6; color: oklch(44.6% 0.03 256.802); text-wrap: pretty">코드에 실제로 남아 있는 이탈들이다. 괄호 안 숫자는 현재 사용 횟수. <strong style="font-weight: 600; color: oklch(21% 0.034 264.665)">기존 코드를 지금 일괄 수정하지는 않는다</strong> — 해당 파일을 다른 이유로 열었을 때 그 자리만 정본으로 바꾼다. 새로 쓰는 코드는 처음부터 오른쪽을 쓴다.</p>
+  </div>
+
+  <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); overflow: hidden; display: flex; flex-direction: column">
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; background: oklch(98.5% 0.002 247.839); border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+      <div style="padding: 11px 18px; font-size: 11px; font-weight: 500; color: oklch(50.5% 0.213 27.518); text-transform: uppercase; letter-spacing: 0.05em">쓰지 말 것</div>
+      <div style="padding: 11px 18px; font-size: 11px; font-weight: 500; color: oklch(44.8% 0.119 151.328); text-transform: uppercase; letter-spacing: 0.05em; border-left: 1px solid oklch(92.8% 0.006 264.531)">대신 이것</div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+      <div style="padding: 15px 18px; display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(50.5% 0.213 27.518)">bg-black bg-opacity-50 <span style="color: oklch(55.1% 0.027 264.364)">(70)</span></div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">Tailwind v3 잔재. v4에서는 슬래시 표기가 정식이다.</div>
+      </div>
+      <div style="padding: 15px 18px; border-left: 1px solid oklch(92.8% 0.006 264.531); display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(44.8% 0.119 151.328)">bg-black/50 <span style="color: oklch(55.1% 0.027 264.364)">(27)</span></div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">모든 <code style="font-family: ui-monospace, monospace; font-size: 11.5px">*-opacity-*</code> 유틸리티에 같은 규칙이 적용된다.</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+      <div style="padding: 15px 18px; display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(50.5% 0.213 27.518); line-height: 1.5">bg-white rounded-xl shadow-sm border border-gray-100 <span style="color: oklch(55.1% 0.027 264.364)">(8)</span></div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">카드 모서리·테두리가 다른 화면과 어긋난다.</div>
+      </div>
+      <div style="padding: 15px 18px; border-left: 1px solid oklch(92.8% 0.006 264.531); display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(44.8% 0.119 151.328); line-height: 1.5">bg-white rounded-lg shadow-sm border border-gray-200 <span style="color: oklch(55.1% 0.027 264.364)">(49)</span></div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">겉 테두리는 <strong style="font-weight: 600">gray-200</strong>, 카드 <em>안쪽</em> 구분선만 <strong style="font-weight: 600">gray-100</strong>이다.</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+      <div style="padding: 15px 18px; display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(50.5% 0.213 27.518); line-height: 1.5">globals.css의 .card / .button / .select-control / .safe-documents-*</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">두 벌이 글자 하나 안 틀리고 복제되어 있다. 한쪽만 고치면 조용히 어긋난다.</div>
+      </div>
+      <div style="padding: 15px 18px; border-left: 1px solid oklch(92.8% 0.006 264.531); display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(44.8% 0.119 151.328); line-height: 1.5">Tailwind 유틸리티 클래스</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">새 코드에서 이 전역 클래스를 쓰지 않는다. globals.css에는 웹폰트·애니메이션·html2canvas 보정만 남긴다.</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+      <div style="padding: 15px 18px; display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(50.5% 0.213 27.518); line-height: 1.5">bg-[#EBF1F5] · text-[#0b1730] 같은 임의 hex <span style="color: oklch(55.1% 0.027 264.364)">(30)</span></div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">팔레트 밖의 값은 다음 화면에서 재현되지 않는다.</div>
+      </div>
+      <div style="padding: 15px 18px; border-left: 1px solid oklch(92.8% 0.006 264.531); display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(44.8% 0.119 151.328); line-height: 1.5">팔레트 단계 (gray-100, blue-950 …)</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">외부 브랜드색(카카오·네이버 버튼 등)은 예외로 허용하되, 그 자리에만 쓴다.</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+      <div style="padding: 15px 18px; display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(50.5% 0.213 27.518); line-height: 1.5">text-[9px] · text-[8px] <span style="color: oklch(55.1% 0.027 264.364)">(24)</span></div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">햇빛 아래 현장에서 읽히지 않는다.</div>
+      </div>
+      <div style="padding: 15px 18px; border-left: 1px solid oklch(92.8% 0.006 264.531); display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(44.8% 0.119 151.328); line-height: 1.5">text-[10px] 이상</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">더 담아야 하면 글자를 줄이지 말고 열을 접거나 화면을 나눈다.</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+      <div style="padding: 15px 18px; display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(50.5% 0.213 27.518); line-height: 1.5">이모지를 UI 아이콘으로 <span style="color: oklch(55.1% 0.027 264.364)">(컴포넌트 34개 파일 199회)</span></div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">OS마다 모양이 달라지고, 크기·색을 맞출 수 없으며, PDF·Excel 출력에서 깨진다.</div>
+      </div>
+      <div style="padding: 15px 18px; border-left: 1px solid oklch(92.8% 0.006 264.531); display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(44.8% 0.119 151.328); line-height: 1.5">lucide-react · h-4 w-4</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">특히 문서로 출력되는 화면에서는 예외 없이. 콘솔 로그의 이모지는 그대로 둬도 된다.</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr">
+      <div style="padding: 15px 18px; display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(50.5% 0.213 27.518); line-height: 1.5">dark: 변형 <span style="color: oklch(55.1% 0.027 264.364)">(현재 0회 — 유지)</span></div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">globals.css가 <code style="font-family: ui-monospace, monospace; font-size: 11.5px">color-scheme: light only</code>로 다크모드를 전역 차단하고 있어, 써도 켜지지 않는다.</div>
+      </div>
+      <div style="padding: 15px 18px; border-left: 1px solid oklch(92.8% 0.006 264.531); display: flex; flex-direction: column; gap: 5px">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(44.8% 0.119 151.328); line-height: 1.5">라이트 모드 단일 팔레트</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">다크모드를 도입하려면 디자인 결정으로 따로 다뤄야 한다. 화면 단위로 끼워 넣지 않는다.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="background: oklch(98.7% 0.022 95.277); border: 1px solid oklch(92.4% 0.12 95.746); border-radius: 8px; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px">
+    <div style="display: flex; align-items: center; gap: 8px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="oklch(47.3% 0.137 46.201)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+      <div style="font-size: 13.5px; font-weight: 600; color: oklch(47.3% 0.137 46.201)">아직 결정되지 않은 것 — 본문 글꼴</div>
+    </div>
+    <div style="font-size: 13px; color: oklch(44.6% 0.03 256.802); line-height: 1.6; max-width: 900px">layout.tsx는 Geist Sans를 Google Fonts에서 불러오고 <code style="font-family: ui-monospace, monospace; font-size: 11.5px">--font-geist-sans</code>까지 연결해 두었지만, 코드 어디에서도 <code style="font-family: ui-monospace, monospace; font-size: 11.5px">font-sans</code>를 쓰지 않는다(0회). 그래서 실제 화면은 globals.css의 <code style="font-family: ui-monospace, monospace; font-size: 11.5px">body { font-family: Arial, Helvetica, sans-serif }</code>로 그려지고, Geist는 매 방문마다 받기만 하고 버려진다. 둘 중 하나로 정해야 한다 — <strong style="font-weight: 600">(가)</strong> body를 <code style="font-family: ui-monospace, monospace; font-size: 11.5px">var(--font-geist-sans)</code>로 바꿔 Geist를 실제로 쓰거나, <strong style="font-weight: 600">(나)</strong> layout.tsx의 Geist 로드를 걷어내 낭비를 없애거나. 이 문서는 결정 전까지 <em>현행(Arial)</em>을 기준으로 적는다.</div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

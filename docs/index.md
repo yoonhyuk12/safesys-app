@@ -14,12 +14,14 @@
 | [database.md](./database.md) | 주요 테이블, `ON DELETE CASCADE` 규칙, 일괄서명 등록 규칙, 마이그레이션 규칙, Supabase MCP | 새 테이블/서류/서명 기능을 추가할 때 |
 | [auth.md](./auth.md) | 역할 체계(발주청·감리단·시공사), 조직 구조, 접근 권한 패턴, 인증 플로우 | 권한/RLS/조직 계층을 다룰 때 |
 | [environment.md](./environment.md) | 개발 명령어, main 푸시=자동 배포, 환경 변수, API 키 위치 | 빌드/배포/env 설정을 만질 때 |
+| [design-system.md](./design-system.md) | UI 정본 — 색·의미색, 표면 계층, 타입 램프, 버튼/입력/배지 클래스 문자열, 표·모달 패턴, 쓰지 말 것 | 새 화면·컴포넌트를 만들거나 기존 UI를 손볼 때 |
 | [위험성평가 실시 가이드.md](./위험성평가%20실시%20가이드.md) | 빈도·강도법 규정 요약(빈도·강도 기준, 등급표 하1~2/중3~4/상6~9, 실시시기, 6단계 절차, 서식) 및 코드 대응 | 위험성평가 판정 로직·화면·엑셀을 만질 때 |
 | [현행시스템_정의서.md](./현행시스템_정의서.md) | 현행 시스템 정의서 — 소프트웨어 구성, 배포/서버/클라우드, 인증, DB 명세·ERD·증가율, 라이브러리, 외부 API, 개발환경, 사용자 규모 | 인수인계·실사·제안서에 시스템 현황을 답할 때 |
 | [troubleshooting.md](./troubleshooting.md) | 빌드 캐시, 프로필 미동기화, 권한/지도 문제, html2canvas PDF 텍스트 버그 | 증상이 재현될 때 |
 
 ## 관련 위치 (리포 내 다른 기록)
 
+- `docs/design-canvas/` — [design-system.md](./design-system.md)의 시각 자료 소스(`*.dc.html` + `canvas.json`). 캔버스를 갱신할 땐 이 파일들을 고쳐 다시 만든다.
 - `plans/` — 계획서(일급 아티팩트). 파일명 `YYYYMMDD_주제.md`. 진행 중·완료·기술부채가 버전 관리된다.
 - `database/*.sql` — SQL 마이그레이션. 파일명 `YYYYMMDD-HHMM_설명.sql`로 적용 순서 정렬.
 - `.claude/rules/` — 이식형 룰셋(공통+언어별). 이 프로젝트의 canonical 규칙은 [conventions.md](./conventions.md)이며 rules는 그 미러다.
