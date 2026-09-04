@@ -1373,11 +1373,11 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
         throw new Error(error.message)
       }
 
-      // 텔레그램 알림 발송 (발주청)
+      // TBM 제출 알림 발송 (발주청 + 시공사)
       // 신규 제출과 임시저장(draft) → 제출 전환일 때 발송한다. 이미 제출된 건의 재수정은 발송하지 않는다
       try {
         if (!editingSubmission || editingSubmission.status === 'draft') {
-          // AI 안전조치 조회 + 텔레그램 ID 조회 병렬 실행
+          // AI 안전조치 조회 + 알림 수신정보 조회 병렬 실행
           const aiAdvicePromise = !formData.noWorkCheck && formData.todayWork
             ? fetch('/api/ai/tbm-safety-advice', {
                 method: 'POST',
@@ -1392,7 +1392,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
 
           const projectDataPromise = supabase
             .from('projects')
-            .select('client_telegram_id, client_app_code')
+            .select('client_telegram_id, contractor_telegram_id, client_app_code, contractor_app_code')
             .eq('id', projectId)
             .single()
 
@@ -1401,7 +1401,19 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
             projectDataPromise
           ])
 
-          if (projectData?.client_telegram_id || projectData?.client_app_code) {
+          const telegramChatIds = Array.from(new Set(
+            [projectData?.client_telegram_id, projectData?.contractor_telegram_id]
+              .flatMap(ids => (ids ?? '').split(','))
+              .map(id => id.trim())
+              .filter(Boolean)
+          )).join(',')
+          const hasAlertRecipient = Boolean(
+            telegramChatIds ||
+            projectData?.client_app_code?.trim() ||
+            projectData?.contractor_app_code?.trim()
+          )
+
+          if (hasAlertRecipient) {
             // 텔레그램 메시지 구성
             let telegramMessage = `📋 <b>TBM 일일안전교육 제출</b>\n\n` +
               `🏗️ <b>현장:</b> ${projectName}\n` +
@@ -1410,6 +1422,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
               `📝 <b>금일작업:</b>\n${formData.todayWork}\n\n` +
               `📖 <b>교육내용:</b>\n${formData.otherRemarks || '(미입력)'}\n\n` +
               `👷 <b>투입인원${formData.personnelTotalCount ? ` (총 ${formData.personnelTotalCount}명)` : ''}:</b>\n${formData.personnelInput || '(미입력)'}\n\n` +
+              `${formData.newWorkerCount ? `🆕 <b>신규근로자:</b> ${formData.newWorkerCount}명\n\n` : ''}` +
               `🚜 <b>투입장비:</b>\n${formData.equipmentInput || '(미입력)'}\n\n` +
               `👤 <b>작성자:</b> ${formData.name}\n` +
               `📞 <b>연락처:</b> ${formData.contact}`
@@ -1417,7 +1430,7 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
             // AI 안전조치 확인사항 추가
             if (aiAdvice) {
               telegramMessage += `\n\n━━━━━━━━━━━━━━━━━━━━\n` +
-                `🤖 <b>AI 안전조치 확인사항 (공사감독용)</b>\n\n` +
+                `🤖 <b>AI 안전조치 확인사항</b>\n\n` +
                 `${aiAdvice}\n` +
                 `━━━━━━━━━━━━━━━━━━━━`
             }
@@ -1430,21 +1443,21 @@ const TBMSubmissionModal: React.FC<TBMSubmissionModalProps> = ({
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 type: 'direct',
-                chatId: projectData.client_telegram_id || undefined,
+                chatId: telegramChatIds || undefined,
                 projectId,
-                recipients: { client: true, contractor: false },
+                recipients: { client: true, contractor: true },
                 message: telegramMessage
               })
             })
 
-            if (educationPhotoUrl && (projectData.client_telegram_id || projectData.client_app_code)) {
+            if (educationPhotoUrl) {
               await fetch('/api/telegram/photo', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  chatId: projectData.client_telegram_id || undefined,
+                  chatId: telegramChatIds || undefined,
                   projectId,
-                  recipients: { client: true, contractor: false },
+                  recipients: { client: true, contractor: true },
                   photoUrl: educationPhotoUrl,
                   caption: `${projectName} - ${formData.educationDate} TBM 교육사진`
                 })
