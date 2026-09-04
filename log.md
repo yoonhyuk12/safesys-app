@@ -1,6 +1,9 @@
 # 작업 로그
 
 <!-- worklog -->
+260904_180333 : .claude/hooks/log_change.py 수정
+260904_180059 : .claude/hooks/worklog.js 삭제
+260904_180044 : .claude/hooks/log_change.py 수정, .claude/hooks/session_brief.py 수정
 260904_175631 : .claude/skills/worklog/SKILL.md 수정
 260904_175615 : .claude/skills/worklog/SKILL.md 수정
 260904_175155 : .claude/skills/worklog/SKILL.md 수정 — "--- name: worklog description: log.md 작업 로그 자동 기록 장치(git sta…"

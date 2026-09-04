@@ -81,8 +81,9 @@ def diff(prev, curr):
         old = prev.get(path)
         if old is None:
             changed.append((path, STATUS_LABEL.get(code, "수정")))
-        elif old[0] != code or old[1] != mt:
+        elif old[1] != mt:
             # 이미 알고 있던 파일이 또 바뀐 것이므로, 미추적 파일이어도 '추가'가 아니라 '수정'이다.
+            # 상태문자만 달라진 것(git add 로 ?? → A 등)은 내용이 바뀐 게 아니므로 수정시각만 본다.
             changed.append((path, "삭제" if code == "D" else "수정"))
     # 스냅샷에서 사라졌는데 파일이 남아 있으면 커밋됐거나 원상복구된 것이다.
     # 둘 다 내용이 바뀐 게 아니므로 기록하지 않는다. 실제로 없어진 것만 삭제로 남긴다.
