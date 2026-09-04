@@ -15,7 +15,6 @@ safesys-app/safesys-app/
 .agents/
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
-.codex/
 .cursor/
 .gemini/
 
