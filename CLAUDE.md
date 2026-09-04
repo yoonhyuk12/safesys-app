@@ -19,6 +19,7 @@ SafeSys — Next.js 15 · React 19 · Supabase로 만든 한국 건설 안전관
 | [docs/auth.md](./docs/auth.md) | 역할 체계, 조직 구조, 접근 권한 패턴, 인증 플로우, 보안 체크리스트 |
 | [docs/environment.md](./docs/environment.md) | 개발 명령어, main 푸시=자동 배포, 환경 변수, API 키 위치 |
 | [docs/위험성평가 실시 가이드.md](./docs/위험성평가%20실시%20가이드.md) | 빈도·강도법 위험성평가 규정 요약과 SafeSys 구현 대응 |
+| [docs/현행시스템_정의서.md](./docs/현행시스템_정의서.md) | 현행 시스템 정의서 — 스택·배포·서버·DB 명세/ERD·라이브러리·외부 API·개발환경·사용자 규모 |
 | [docs/troubleshooting.md](./docs/troubleshooting.md) | 빌드 캐시, 프로필 미동기화, 권한/지도, html2canvas PDF 버그 |
 
 `plans/` — 계획서(일급 아티팩트, `YYYYMMDD_주제.md`). `database/*.sql` — 마이그레이션(`YYYYMMDD-HHMM_설명.sql`). `wiki/검사기준/` — 공종단계별 검사 기준 LLM 위키(구조·규칙은 그 안의 CLAUDE.md 참조).
