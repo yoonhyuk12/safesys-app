@@ -1,6 +1,8 @@
-<!-- 문제 해결: 빌드 캐시·프로필 미동기화·권한·지도·html2canvas PDF 텍스트 버그 -->
+<!-- 문제 해결: 의존성 미설치·빌드 캐시·프로필 미동기화·권한·지도·html2canvas PDF 텍스트 버그 -->
 # 문제 해결
 
+- **`'cross-env' is not recognized` / `'next' is not recognized`**: `npm run dev` 첫 줄에서 바로 실패하면 `safesys-app/node_modules`가 없는 것이다. `cd safesys-app && npm install` 실행 (2026-09-02 확인). 스크립트 이름 문제가 아니므로 package.json을 고치지 않는다.
+  - 설치 후 `npm warn install-scripts`로 `sharp`·`supabase`·`core-js`·`unrs-resolver`의 install 스크립트가 보류될 수 있다. dev 서버 구동에는 지장이 없고, 이미지 최적화나 Supabase CLI에서 오류가 나면 `npm install-scripts approve <패키지>`로 승인한다.
 - **빌드 캐시 문제**: `npm run build:no-cache` 사용
 - **프로필 미동기화**: `refreshProfile()` 호출
 - **중복 요청**: Dashboard.tsx의 ref 기반 캐시 확인

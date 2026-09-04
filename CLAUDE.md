@@ -39,6 +39,7 @@ SafeSys — Next.js 15 · React 19 · Supabase로 만든 한국 건설 안전관
 
 ```bash
 cd safesys-app
+npm install              # 의존성 설치 (node_modules 없으면 dev/build 전부 실패)
 npm run dev              # 개발 서버 (http://localhost:3000)
 npm run lint             # ESLint
 npx tsc --noEmit         # 타입 점검
