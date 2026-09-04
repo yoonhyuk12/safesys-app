@@ -7,6 +7,7 @@ import { X, ChevronRight, Download } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { generateSupervisorDiaryExcel } from '@/lib/excel/supervisor-diary-export'
 import { loadDiaryRecordLogs } from '@/lib/supervisor-diary-records'
+import { SUPERVISOR_INSTRUCTIONS_DEFAULT_GUIDE } from '@/lib/supervisor-diary-prompt'
 
 interface SupervisorDiaryGeneratorProps {
   isOpen: boolean
@@ -38,6 +39,7 @@ export default function SupervisorDiaryGenerator({
   const [reportStartDate, setReportStartDate] = useState('')
   const [reportEndDate, setReportEndDate] = useState('')
   const [useAI, setUseAI] = useState(true)
+  const [aiInstructionsGuide, setAiInstructionsGuide] = useState(SUPERVISOR_INSTRUCTIONS_DEFAULT_GUIDE)
   const [supervisorName, setSupervisorName] = useState('')
   const [supervisorSignature, setSupervisorSignature] = useState('')
   const [isDownloadingReport, setIsDownloadingReport] = useState(false)
@@ -405,6 +407,33 @@ export default function SupervisorDiaryGenerator({
                         <p className="text-sm text-gray-500">AI가 공사기록을 작성합니다. 기록사항에는 지급자재 반입·점검 기록이 들어갑니다. 서명란은 공란입니다.</p>
                       </div>
                     </label>
+                    {useAI && (
+                      <div className="ml-7 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <label htmlFor="supervisor-diary-ai-guide" className="block text-sm font-medium text-gray-700">
+                            AI 작성 지침
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setAiInstructionsGuide(SUPERVISOR_INSTRUCTIONS_DEFAULT_GUIDE)}
+                            disabled={aiInstructionsGuide === SUPERVISOR_INSTRUCTIONS_DEFAULT_GUIDE}
+                            className="text-xs text-blue-600 hover:text-blue-700 disabled:text-gray-400 disabled:cursor-not-allowed"
+                          >
+                            기본값 복원
+                          </button>
+                        </div>
+                        <textarea
+                          id="supervisor-diary-ai-guide"
+                          value={aiInstructionsGuide}
+                          onChange={(e) => setAiInstructionsGuide(e.target.value)}
+                          rows={6}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+                        />
+                        <p className="mt-2 text-xs text-gray-500">
+                          공사기록(2번 항목)을 쓸 때 AI에게 주는 지침입니다. 금일·전일 작업 내용은 자동으로 붙으므로 작성 방식만 적으면 됩니다. 비워두면 기본 지침으로 작성합니다.
+                        </p>
+                      </div>
+                    )}
                     <label className="flex items-start gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
                       <input
                         type="radio"
@@ -654,7 +683,8 @@ export default function SupervisorDiaryGenerator({
                           latitude,
                           longitude,
                           useAI, // AI 사용 여부 전달
-                          recordLogsMap // 기록사항: 지급자재 반입·각 점검 라인
+                          recordLogsMap, // 기록사항: 지급자재 반입·각 점검 라인
+                          aiInstructionsGuide // 공사기록 AI 작성 지침
                         )
                       } catch (error) {
                         console.error('다운로드 오류:', error)
