@@ -133,18 +133,55 @@ function sortWarnings(warnings: WeatherWarning[]): WeatherWarning[] {
   return [...warnings].sort((a, b) => warningSortValue(b) - warningSortValue(a))
 }
 
-/** 기상청의 쉼표 구분 현재 특보 응답을 육상·발효 중 지역 단위로 병합한다. */
+/** JSON 필드를 직접 읽어 쉼표가 포함된 해제 예고 문구도 보존한다. */
+function readKmaWarningFields(text: string): string[][] {
+  const body = text.replace(/^\uFEFF/, '').trim()
+  if (body.startsWith('<')) {
+    throw new Error('기상청 특보 응답 형식이 올바르지 않습니다.')
+  }
+  if (body.startsWith('[') || body.startsWith('{') || body.startsWith('"')) {
+    const rows: unknown = JSON.parse(body)
+    if (!Array.isArray(rows)) {
+      throw new Error('기상청 특보 JSON 응답이 배열이 아닙니다.')
+    }
+    const keys = ['REG_UP', 'REG_UP_KO', 'REG_ID', 'REG_KO', 'TM_FC', 'TM_EF', 'WRN', 'LVL', 'CMD', 'ED_TM']
+    return rows.map((row: unknown) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        throw new Error('기상청 특보 JSON 행 형식이 올바르지 않습니다.')
+      }
+      const record = row as Record<string, unknown>
+      const fields = keys.map((key) => {
+        const value = record[key]
+        if (typeof value !== 'string') {
+          throw new Error(`기상청 특보 JSON 필드 형식이 올바르지 않습니다. (${key})`)
+        }
+        return value.trim()
+      })
+      if (![2, 3, 6, 7, 8].every((index) => fields[index])) {
+        throw new Error('기상청 특보 JSON 행에 필수 값이 없습니다.')
+      }
+      return fields
+    })
+  }
+
+  const rows = body.split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#'))
+    .map((line) => line.split(',').map((field) => field.trim()))
+    .filter((fields) => fields.length >= 10)
+  if (rows.length === 0) {
+    throw new Error('기상청 특보 응답에 유효한 데이터가 없습니다.')
+  }
+  return rows
+}
+
+/** 기상청의 JSON·쉼표 구분 현재 특보 응답을 육상·발효 중 지역 단위로 병합한다. */
 export function parseKmaWarningRows(text: string): ParsedWeatherWarnings {
   const regions = new Map<string, ParsedWeatherWarningRegion>()
   let sourceRows = 0
   let landRows = 0
 
-  for (const rawLine of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (!line || line.startsWith('#')) continue
-
-    const fields = line.split(',').map((field) => field.trim())
-    if (fields.length < 10) continue
+  for (const fields of readKmaWarningFields(text)) {
     sourceRows += 1
 
     const [parentRegionId, parentRegionName, regionId, regionName, announcedAt, effectiveAt, type, level, command, endsAt] = fields
