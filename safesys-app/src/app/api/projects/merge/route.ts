@@ -1,8 +1,54 @@
 // 두 프로젝트를 병합(source→target 이전 후 source 삭제)하는 서버 라우트 (service-role, 발주청 권한 검증)
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import {
+  describeMergeConflicts,
+  isMergeRpcMissingError,
+  parseMergeConflictCounts,
+  parseMergeConflictError,
+  hasMergeConflict,
+  type MergeConflictCounts,
+} from '@/lib/merge-conflicts'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** 새 RPC가 배포되기 전에는 구버전 함수로 대체하지 않고 안전하게 실패한다. */
+const RPC_NOT_READY_MESSAGE = '프로젝트 합치기 기능을 준비 중입니다. 잠시 후 다시 시도해 주세요.'
+
+// 겹치는 보고서 건수를 service-role 읽기 전용 RPC로 조회한다. 실패하면 병합을 막는 응답을 돌려준다.
+async function loadMergeConflicts(
+  sourceId: string,
+  targetId: string,
+): Promise<{ conflicts: MergeConflictCounts } | { response: NextResponse }> {
+  const { data, error } = await supabaseAdmin
+    .rpc('preview_project_merge_v2', { p_source: sourceId, p_target: targetId })
+
+  if (error) {
+    console.error('병합 충돌 미리보기 조회 오류', error)
+    if (isMergeRpcMissingError(error)) {
+      return { response: NextResponse.json({ success: false, error: RPC_NOT_READY_MESSAGE }, { status: 503 }) }
+    }
+    return {
+      response: NextResponse.json(
+        { success: false, error: '겹치는 자료를 확인하지 못했습니다.' },
+        { status: 500 },
+      ),
+    }
+  }
+
+  const conflicts = parseMergeConflictCounts(data)
+  if (!conflicts) {
+    console.error('병합 충돌 미리보기 응답 형식 오류', data)
+    return {
+      response: NextResponse.json(
+        { success: false, error: '겹치는 자료를 확인하지 못했습니다.' },
+        { status: 500 },
+      ),
+    }
+  }
+
+  return { conflicts }
+}
 
 async function verifyMergePermission(request: NextRequest): Promise<NextResponse | null> {
   const authorization = request.headers.get('authorization')
@@ -94,6 +140,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: '사용자 정보를 불러오지 못했습니다.' }, { status: 500 })
   }
 
+  const conflictResult = await loadMergeConflicts(sourceId, targetId)
+  if ('response' in conflictResult) return conflictResult.response
+
   const profilesById = new Map((profiles ?? []).map((profile) => [profile.id, profile]))
   const participants = ids.flatMap((id) => {
     const profile = profilesById.get(id)
@@ -114,6 +163,7 @@ export async function GET(request: NextRequest) {
     success: true,
     targetProjectName: target.project_name,
     participants,
+    conflicts: conflictResult.conflicts,
   })
 }
 
@@ -148,14 +198,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: '프로젝트를 찾을 수 없습니다.' }, { status: 404 })
   }
 
-  // 4. 병합 RPC (단일 트랜잭션: 자식 테이블 24종 이전 + 충돌 폐기 + source 삭제.
-  //    함수가 아는 테이블 수와 실제 FK 수가 다르면 유실 방지를 위해 예외로 중단됨)
-  const { data: dropped, error: rpcError } = await supabaseAdmin
-    .rpc('merge_projects', { p_source: sourceId, p_target: targetId })
+  // 4. 겹치는 보고서나 공사기간이 다른 공정표가 있으면 원본 보존을 위해 병합을 시작하지 않는다
+  const conflictResult = await loadMergeConflicts(sourceId, targetId)
+  if ('response' in conflictResult) return conflictResult.response
+  if (hasMergeConflict(conflictResult.conflicts)) {
+    return NextResponse.json({
+      success: false,
+      error: describeMergeConflicts(conflictResult.conflicts),
+      conflicts: conflictResult.conflicts,
+    }, { status: 409 })
+  }
+
+  // 5. 안전 병합 RPC (단일 트랜잭션: 자식 테이블 이전 + 누락 필드 보충 + source 삭제.
+  //    미리보기 이후 경합으로 보고서가 겹치면 DB가 예외로 전체를 되돌린다)
+  const { error: rpcError } = await supabaseAdmin
+    .rpc('merge_projects_safe_v2', { p_source: sourceId, p_target: targetId })
   if (rpcError) {
-    console.error('프로젝트 병합 오류:', rpcError)
+    console.error('프로젝트 병합 오류', rpcError)
+
+    const dbConflicts = parseMergeConflictError(rpcError)
+    if (dbConflicts) {
+      return NextResponse.json({
+        success: false,
+        error: describeMergeConflicts(dbConflicts),
+        conflicts: dbConflicts,
+      }, { status: 409 })
+    }
+    if (isMergeRpcMissingError(rpcError)) {
+      return NextResponse.json({ success: false, error: RPC_NOT_READY_MESSAGE }, { status: 503 })
+    }
+
     return NextResponse.json({ success: false, error: '프로젝트 병합에 실패했습니다.' }, { status: 500 })
   }
 
-  return NextResponse.json({ success: true, dropped })
+  return NextResponse.json({ success: true })
 }
