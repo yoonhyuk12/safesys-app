@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Calendar, FileText, ChevronLeft, ChevronRight, X, Upload, Camera, ChevronDown, ChevronUp, CheckCircle, Clock, AlertCircle, Edit, Trash2, Download, Printer, Phone, Save, Copy, Check, User, HardHat, PenTool } from 'lucide-react'
+import { ArrowLeft, Plus, Minus, Calendar, FileText, ChevronLeft, ChevronRight, X, Upload, Camera, ChevronDown, ChevronUp, CheckCircle, Clock, AlertCircle, Edit, Trash2, Download, Printer, Phone, Save, Copy, Check, User, HardHat, PenTool } from 'lucide-react'
 import { generateHeadquartersInspectionReport } from '@/lib/reports/headquarters-inspection'
 import { downloadHeadquartersInspectionHwpx } from '@/lib/hwpx/headquarters-inspection-hwpx-export'
 import { Project } from '@/lib/projects'
@@ -3079,6 +3079,33 @@ export default function HeadquartersInspectionPage() {
                                                     className="w-28 p-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-right"
                                                   />
                                                   <span className="text-sm text-gray-700 font-medium">건</span>
+                                                  <button
+                                                    type="button"
+                                                    aria-label="횟수 1 감소"
+                                                    disabled={(typeof item.count === 'number' ? item.count : 0) <= 0}
+                                                    onClick={() => {
+                                                      const current = typeof item.count === 'number' ? item.count : 0
+                                                      const updatedItems = [...newRecord.five_key_items]
+                                                      updatedItems[index] = { ...updatedItems[index], count: Math.max(0, current - 1) }
+                                                      setNewRecord({ ...newRecord, five_key_items: updatedItems })
+                                                    }}
+                                                    className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                                  >
+                                                    <Minus className="h-4 w-4" />
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    aria-label="횟수 1 증가"
+                                                    onClick={() => {
+                                                      const current = typeof item.count === 'number' ? item.count : 0
+                                                      const updatedItems = [...newRecord.five_key_items]
+                                                      updatedItems[index] = { ...updatedItems[index], count: current + 1 }
+                                                      setNewRecord({ ...newRecord, five_key_items: updatedItems })
+                                                    }}
+                                                    className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                                  >
+                                                    <Plus className="h-4 w-4" />
+                                                  </button>
                                                 </div>
                                               </div>
                                             ) : (
