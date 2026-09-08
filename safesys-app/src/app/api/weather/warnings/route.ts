@@ -472,11 +472,7 @@ async function fetchKmaWarnings(): Promise<ReturnType<typeof parseKmaWarningRows
   if (text.includes('\uFFFD')) {
     text = new TextDecoder('euc-kr').decode(bytes)
   }
-  const parsed = parseKmaWarningRows(text)
-  if (parsed.sourceRows === 0) {
-    throw new Error('기상청 특보 응답에 유효한 데이터가 없습니다.')
-  }
-  return parsed
+  return parseKmaWarningRows(text)
 }
 
 function normalizeCoordinate(value: unknown, name: 'lat' | 'lng'): number | null {

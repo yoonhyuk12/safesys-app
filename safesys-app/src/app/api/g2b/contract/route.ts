@@ -20,6 +20,9 @@ const UNTY_OPS = [
   { op: 'getCntrctInfoListFrgcpt', div: '외자' },
 ] as const
 
+// latest=1 조회에서 원계약 뒤로 몇 차수까지 변경계약을 찾아볼지 (연속 부여이므로 실제 호출은 변경차수 수 + 1회)
+const MAX_CHG_ORD_LOOKUP = 10
+
 // 공사는 cnstwkNm/cbgnDate/ttalCcmpltDate, 용역은 cntrctNm/wbgnDate/ttalScmpltDate 필드 사용
 interface G2bRawContract {
   cnstwkNm?: string
@@ -122,6 +125,9 @@ export async function GET(request: NextRequest) {
 
     // 유형 힌트(공사/용역) — 호출측이 계약 유형을 아는 경우(계약현황 일괄 갱신) 해당 구분 오퍼레이션부터
     // 조회해 선행 구분의 헛 호출을 줄인다. 힌트 구분에서 못 찾으면 기존 순서대로 나머지 구분도 시도한다
+    // latest=1 — 원계약 번호로 조회했더라도 최신 변경계약(차수)까지 찾아 결과에 포함한다
+    const wantLatest = request.nextUrl.searchParams.get('latest') === '1'
+
     const divHint = request.nextUrl.searchParams.get('div')
     const preferDiv = divHint === 'cnstwk' ? '공사' : divHint === 'servc' ? '용역' : ''
     const orderByHint = (ops: ReadonlyArray<{ op: string; div: string }>) =>
@@ -230,7 +236,28 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const mapped = result.items.map((it) => ({
+    // 변경계약(차수) 추적 — latest=1일 때만 수행한다.
+    // 조달청은 변경계약을 '확정계약번호+변경차수'가 다른 별도 행으로 제공하고, 이 응답의 ntceNo는 비어 있어
+    // 원계약 번호(…00)나 통합계약번호로는 변경된 총·금차계약금액을 볼 수 없다 (2026-08-26 실호출 확인).
+    // 그래서 조회된 확정계약번호의 차수를 1씩 올려 조회하고, 빈 결과가 나오면(차수는 연속 부여) 중단한다.
+    // 차수 조회는 dcsnCntrctNo를 받는 PPSSrch 오퍼레이션으로만 가능하다 — 기본(통합계약번호) 오퍼레이션에
+    // dcsnCntrctNo를 넘기면 조건이 무시돼 빈 결과가 온다 (2026-08-26 실호출 확인)
+    const extraItems: G2bRawContract[] = []
+    const chgOrdOp = wantLatest ? PPSSRCH_OPS.find((o) => o.div === matchedDiv)?.op : undefined
+    if (chgOrdOp) {
+      // 여러 계약이 걸리는 공고번호 조회까지 전부 추적하면 호출이 급증하므로 대표(첫) 행만 추적한다
+      const chgOrd = (result.items[0]?.dcsnCntrctNo || '').match(/^(R\d{2}TA\d{8})(\d{2})$/)
+      if (chgOrd) {
+        const from = Number(chgOrd[2])
+        for (let ord = from + 1; ord <= Math.min(from + MAX_CHG_ORD_LOOKUP, 99); ord++) {
+          const chg = await fetchContracts(apiKey, chgOrdOp, 'dcsnCntrctNo', `${chgOrd[1]}${String(ord).padStart(2, '0')}`)
+          if (chg.errorMsg || chg.items.length === 0) break
+          extraItems.push(...chg.items)
+        }
+      }
+    }
+
+    const mapped = [...result.items, ...extraItems].map((it) => ({
       cnstwkNm: it.cnstwkNm || it.cntrctNm || '',
       bsnsDivNm: it.bsnsDivNm || matchedDiv,
       cntrctNo: it.dcsnCntrctNo || '',

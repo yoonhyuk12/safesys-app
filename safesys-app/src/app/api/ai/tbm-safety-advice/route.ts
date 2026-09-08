@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModel, supportsSamplingParams, tokenLimitParam } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -30,6 +31,7 @@ ${equipmentInput ? `투입장비: "${equipmentInput}"` : ''}
 
     const model = await getAiModel('ai.tbm-safety-advice')
 
+    const startedAt = Date.now()
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 50000)
 
@@ -62,6 +64,7 @@ ${equipmentInput ? `투입장비: "${equipmentInput}"` : ''}
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       console.error('OpenAI API Error:', response.status, errorData)
+      recordAiUsage({ featureKey: 'ai.tbm-safety-advice', provider: 'OpenAI', model, success: false, errorMessage: `HTTP ${response.status}`, durationMs: Date.now() - startedAt })
       return NextResponse.json(
         { error: 'AI 안전조치 생성 중 오류가 발생했습니다.' },
         { status: 500 }
@@ -69,6 +72,7 @@ ${equipmentInput ? `투입장비: "${equipmentInput}"` : ''}
     }
 
     const data = await response.json()
+    recordAiUsage({ featureKey: 'ai.tbm-safety-advice', provider: 'OpenAI', model, response: data, durationMs: Date.now() - startedAt })
     const advice = data.choices?.[0]?.message?.content
 
     if (!advice) {

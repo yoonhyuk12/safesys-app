@@ -21,6 +21,7 @@ import { isOrganizationInUserScope } from '@/lib/organization-scope'
 import type { Project } from '@/lib/projects'
 import type { UserProfile } from '@/lib/supabase'
 import {
+  ACCIDENT_COMP_CLAIM_OPTIONS,
   ACCIDENT_SEVERITY_OPTIONS,
   ACCIDENT_TYPE_OPTIONS,
   calculateAccidentAnalysis,
@@ -132,6 +133,7 @@ const selectClassName = 'w-full rounded-md border border-gray-300 bg-white px-2.
 const filterLabelClassName = 'mb-1 block text-xs font-medium text-gray-600'
 
 const severityOptions = ACCIDENT_SEVERITY_OPTIONS
+const compClaimOptions = ACCIDENT_COMP_CLAIM_OPTIONS
 const accidentTypeOptions = ACCIDENT_TYPE_OPTIONS
 const SHOW_PROJECT_SUMMARY = false
 
@@ -212,6 +214,15 @@ const severityBadgeClass = (severity: string): string => {
 
 const severityLabel = (severity: string): string =>
   severityOptions.find((option) => option.value === severity)?.label ?? severity
+
+const compClaimLabel = (claim: string | null): string =>
+  compClaimOptions.find((option) => option.value === (claim ?? ''))?.label ?? '미확인'
+
+const compClaimBadgeClass = (claim: string | null): string => {
+  if (claim === 'applied') return 'bg-blue-100 text-blue-800'
+  if (claim === 'not_applied') return 'bg-gray-100 text-gray-700'
+  return 'bg-gray-50 text-gray-400'
+}
 
 export default function AccidentAnalysisView({
   projects,
@@ -1308,12 +1319,13 @@ export default function AccidentAnalysisView({
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1100px] text-sm">
+                <table className="w-full min-w-[1200px] text-sm">
                   <thead className="bg-gray-50 text-xs text-gray-500">
                     <tr>
                       <th className="px-3 py-3 text-center font-medium">프로젝트</th>
                       <th className="px-3 py-3 text-center font-medium">사고일자</th>
                       <th className="px-3 py-3 text-center font-medium">중대도·유형</th>
+                      <th className="px-3 py-3 text-center font-medium">산재신청</th>
                       <th className="px-3 py-3 text-center font-medium">사고 개요</th>
                       <th className="px-3 py-3 text-center font-medium">점검 후 경과일</th>
                       <th className="px-3 py-3 text-center font-medium">최근 점검</th>
@@ -1349,6 +1361,11 @@ export default function AccidentAnalysisView({
                           <td className="px-3 py-3 text-center">
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${severityBadgeClass(accident.severity)}`}>{severityLabel(accident.severity)}</span>
                             <p className="mt-1 text-xs text-gray-600">{accident.accident_type}</p>
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-3 text-center">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${compClaimBadgeClass(accident.workers_comp_claim)}`}>
+                              {compClaimLabel(accident.workers_comp_claim)}
+                            </span>
                           </td>
                           <td className="max-w-sm px-3 py-3 text-gray-700">
                             <p className="line-clamp-3 whitespace-pre-line">{accident.description}</p>

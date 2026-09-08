@@ -239,19 +239,19 @@ export default function QualityTestLedgerPage() {
         {activeTab === null ? (
           <section className="flex min-h-[calc(100vh-7rem)] items-center justify-center px-2 py-6 sm:py-10">
             <div className="w-full max-w-5xl">
-              <div className="mb-8 text-center">
+              <div className="mb-4 text-center md:mb-8">
                 <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-blue-100 backdrop-blur">
                   QUALITY DOCUMENTS
                 </span>
-                <h2 className="mt-4 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                <h2 className="mt-3 text-xl font-bold tracking-tight text-white md:mt-4 md:text-2xl lg:text-3xl">
                   품질시험 서류를 선택하세요
                 </h2>
-                <p className="mt-2 text-sm text-blue-100/80 sm:text-base">
+                <p className="mt-1.5 text-xs text-blue-100/80 md:mt-2 md:text-sm lg:text-base">
                   작성하거나 확인할 서류를 고르면 해당 관리 화면이 열립니다.
                 </p>
               </div>
 
-              <div className="grid gap-5 md:grid-cols-3 lg:gap-6">
+              <div className="grid grid-cols-3 gap-2 md:gap-5 lg:gap-6">
                 {TABS.map((tab, index) => {
                   const Icon = tab.icon
 
@@ -260,44 +260,44 @@ export default function QualityTestLedgerPage() {
                       key={tab.key}
                       type="button"
                       onClick={() => setActiveTab(tab.key)}
-                      className={`group relative min-h-[22rem] overflow-hidden rounded-[1.4rem] border-2 bg-white p-6 text-left shadow-2xl transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-white/50 ${tab.cardClass}`}
+                      className={`group relative overflow-hidden rounded-xl border-2 bg-white p-2.5 text-left shadow-xl transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl focus:outline-none focus:ring-4 focus:ring-white/50 md:min-h-[22rem] md:rounded-[1.4rem] md:p-6 md:shadow-2xl ${tab.cardClass}`}
                     >
                       <span
-                        className={`absolute inset-x-0 top-0 h-1.5 ${tab.accentClass}`}
+                        className={`absolute inset-x-0 top-0 h-1 md:h-1.5 ${tab.accentClass}`}
                         aria-hidden="true"
                       />
                       <span
-                        className="absolute right-0 top-0 h-16 w-16 overflow-hidden"
+                        className="absolute right-0 top-0 hidden h-16 w-16 overflow-hidden md:block"
                         aria-hidden="true"
                       >
                         <span className="absolute -right-8 -top-8 h-16 w-16 rotate-45 border-b border-gray-200 bg-gray-100 shadow-sm" />
                       </span>
 
                       <span className="relative flex h-full flex-col">
-                        <span className="flex items-center justify-between gap-3 pr-6">
+                        <span className="flex items-center justify-between gap-3 md:pr-6">
                           <span
-                            className={`rounded-full px-2.5 py-1 text-[11px] font-bold tracking-wide ${tab.badgeClass}`}
+                            className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold leading-tight tracking-tight md:px-2.5 md:py-1 md:text-[11px] md:tracking-wide ${tab.badgeClass}`}
                           >
                             {tab.formLabel}
                           </span>
-                          <span className="text-xs font-bold tracking-widest text-gray-300">
+                          <span className="hidden text-xs font-bold tracking-widest text-gray-300 md:inline">
                             0{index + 1}
                           </span>
                         </span>
 
                         <span
-                          className={`mt-6 flex h-14 w-14 items-center justify-center rounded-2xl ${tab.iconClass}`}
+                          className={`mt-2.5 flex h-9 w-9 items-center justify-center rounded-xl md:mt-6 md:h-14 md:w-14 md:rounded-2xl ${tab.iconClass}`}
                         >
-                          <Icon className="h-7 w-7" aria-hidden="true" />
+                          <Icon className="h-5 w-5 md:h-7 md:w-7" aria-hidden="true" />
                         </span>
 
-                        <span className="mt-5 text-xl font-bold text-gray-900">{tab.label}</span>
-                        <span className="mt-2 min-h-[3rem] text-sm leading-6 text-gray-500">
+                        <span className="mt-2.5 text-sm font-bold leading-tight text-gray-900 md:mt-5 md:text-xl">{tab.label}</span>
+                        <span className="mt-1 text-[11px] leading-4 text-gray-500 md:mt-2 md:min-h-[3rem] md:text-sm md:leading-6">
                           {tab.description}
                         </span>
 
                         <span
-                          className="mt-5 block rounded-xl border border-gray-100 bg-gray-50 p-3"
+                          className="mt-5 hidden rounded-xl border border-gray-100 bg-gray-50 p-3 md:block"
                           aria-hidden="true"
                         >
                           <span className="block h-1.5 w-2/3 rounded-full bg-gray-300" />
@@ -313,17 +313,17 @@ export default function QualityTestLedgerPage() {
                           </span>
                         </span>
 
-                        <span className="mt-auto flex items-center gap-1.5 pt-5 text-sm font-bold text-gray-700 transition-colors group-hover:text-gray-950">
+                        <span className="mt-auto flex items-center gap-1 pt-2.5 text-[11px] font-bold text-gray-700 transition-colors group-hover:text-gray-950 md:gap-1.5 md:pt-5 md:text-sm">
                           서류 열기
                           <ArrowRight
-                            className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1"
+                            className="h-3 w-3 shrink-0 transition-transform duration-200 group-hover:translate-x-1 md:h-4 md:w-4"
                             aria-hidden="true"
                           />
                         </span>
 
                         {tab.key === 'summary' && summaryUnreadRejectionCount > 0 && (
                           <span
-                            className="absolute bottom-4 right-0 inline-flex min-w-6 items-center justify-center rounded-full bg-blue-600 px-2 py-1 text-[11px] font-bold leading-none text-white shadow-sm"
+                            className="absolute bottom-0 right-0 inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-sm md:bottom-4 md:min-w-6 md:px-2 md:py-1 md:text-[11px]"
                             title={`미확인 반려 ${summaryUnreadRejectionCount}건`}
                             aria-label={`미확인 반려 ${summaryUnreadRejectionCount}건`}
                           >

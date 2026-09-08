@@ -153,6 +153,7 @@ function buildWeatherNote(result: SiteDailyWeatherResponse, item: SiteDailyWeath
  * @param longitude 프로젝트 경도 (날씨 조회용)
  * @param useAI AI 사용 여부 (기본값: true)
  * @param recordLogsMap 일자별 기록사항 라인(지급자재 반입·각 점검) — 전달 시 3. 기록사항을 이 내용으로 채움 (인원/장비 생략)
+ * @param instructionsGuide 공사기록 AI 작성 지침 (미전달 시 서버 기본 지침 사용)
  */
 export async function generateSupervisorDiaryExcel(
   projectName: string,
@@ -165,7 +166,8 @@ export async function generateSupervisorDiaryExcel(
   latitude?: number,
   longitude?: number,
   useAI: boolean = true,
-  recordLogsMap?: Map<string, string[]>
+  recordLogsMap?: Map<string, string[]>,
+  instructionsGuide?: string
 ) {
   const workbook = new ExcelJS.Workbook()
 
@@ -312,7 +314,8 @@ export async function generateSupervisorDiaryExcel(
 
                 return await generateSupervisorInstructions({
                   todayWork: workList.join(', '),
-                  previousWork: previousWorkList.length > 0 ? previousWorkList.join(', ') : undefined
+                  previousWork: previousWorkList.length > 0 ? previousWorkList.join(', ') : undefined,
+                  guide: instructionsGuide
                 })
               } catch (err) {
                 console.error(`AI 감독 지시사항 생성 실패 (${date}):`, err)
@@ -712,7 +715,7 @@ function addSection2(worksheet: ExcelJS.Worksheet, content: string) {
 /**
  * AI를 사용하여 감독 지시사항 생성
  */
-async function generateSupervisorInstructions(data: { todayWork: string; previousWork?: string }): Promise<string> {
+async function generateSupervisorInstructions(data: { todayWork: string; previousWork?: string; guide?: string }): Promise<string> {
   const response = await fetch('/api/ai/supervisor-summary', {
     method: 'POST',
     headers: {

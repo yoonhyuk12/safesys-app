@@ -30,7 +30,7 @@ export default function ProjectAssistantBot({ projectId, projectName }: ProjectA
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const hasBriefedRef = useRef(false)
-  const aiModel = useAiModel('chat.project-assistant', 'GPT-5.6 Luna')
+  const aiModel = useAiModel('chat.project-assistant', 'gpt-5.6-luna')
 
   // 안전서류 점검 화면은 우하단에 "진행상황" 플로팅 버튼이 있어 겹친다 — 그 위로 올려 띄운다
   const pathname = usePathname()

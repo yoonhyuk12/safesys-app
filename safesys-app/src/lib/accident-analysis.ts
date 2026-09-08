@@ -1,6 +1,7 @@
 // 프로젝트 사고 이력과 안전점검을 조회·정규화하는 데이터 모듈
 import { supabase } from '@/lib/supabase'
 import {
+  ACCIDENT_COMP_CLAIM_OPTIONS,
   ACCIDENT_SEVERITY_OPTIONS,
   type AccidentAnalysisDataResponse,
   type AccidentFormInput,
@@ -10,6 +11,7 @@ import {
   type NormalizedFinding,
   type NormalizedSafetyInspection,
   type ProjectAccident,
+  type WorkersCompClaim,
 } from '@/lib/accident-analysis-types'
 import { resolveFindingCode } from '@/lib/finding-classification'
 import {
@@ -31,6 +33,7 @@ export * from '@/lib/accident-analysis-types'
 export { calculateAccidentAnalysis } from '@/lib/accident-analysis-calculation'
 
 const SEVERITIES = new Set<AccidentSeverity>(ACCIDENT_SEVERITY_OPTIONS.map((option) => option.value))
+const COMP_CLAIMS = new Set<WorkersCompClaim | ''>(ACCIDENT_COMP_CLAIM_OPTIONS.map((option) => option.value))
 
 interface RawSafetyInspection extends UnknownRecord {
   id: string
@@ -558,6 +561,9 @@ export function validateAccidentInput(input: AccidentFormInput): AccidentValidat
   if (!SEVERITIES.has(input.severity)) {
     errors.severity = '사고 중대도를 선택해 주세요.'
   }
+  if (!COMP_CLAIMS.has(input.workers_comp_claim)) {
+    errors.workers_comp_claim = '산재신청 여부를 선택해 주세요.'
+  }
 
   const numericFields: ReadonlyArray<{ key: 'injured_count' | 'fatal_count' | 'lost_workdays'; label: string }> = [
     { key: 'injured_count', label: '부상자 수' },
@@ -600,6 +606,7 @@ const normalizeAccidentInput = (input: AccidentFormInput): AccidentFormInput => 
     injured_count: input.injured_count,
     fatal_count: input.fatal_count,
     lost_workdays: input.lost_workdays,
+    workers_comp_claim: input.workers_comp_claim,
   }
 }
 
@@ -623,6 +630,7 @@ const toAccidentDbPayload = (input: AccidentFormInput) => {
     injured_count: normalized.injured_count,
     fatal_count: normalized.fatal_count,
     lost_workdays: normalized.lost_workdays,
+    workers_comp_claim: normalized.workers_comp_claim || null,
   }
 }
 

@@ -6,6 +6,7 @@ import type { KeyboardEvent } from 'react'
 import { Bot, Loader2, Pencil, RefreshCw, TriangleAlert, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { AiProvider } from '@/lib/ai-models'
+import UsageLogPanel from './UsageLogPanel'
 
 const PROVIDERS: readonly AiProvider[] = ['OpenAI', 'Google']
 const EDIT_HINT = '클릭하면 제조사·모델명을 편집합니다.'
@@ -17,6 +18,8 @@ interface AiUsageItem {
   location: string
   feature: string
   remarks: string
+  inputPricePer1m: number | null
+  outputPricePer1m: number | null
   sortOrder: number
 }
 
@@ -36,6 +39,8 @@ interface EditDraft {
   provider: AiProvider
   model: string
   remarks: string
+  inputPricePer1m: string
+  outputPricePer1m: string
 }
 
 type ModelOptions = Partial<Record<AiProvider, string[]>>
@@ -47,6 +52,10 @@ async function requireAccessToken(): Promise<string> {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('로그인이 필요합니다.')
   return session.access_token
+}
+
+function formatPrice(value: number | null): string {
+  return value === null ? '-' : `${value.toLocaleString('ko-KR')}원`
 }
 
 function ProviderBadge({ provider }: { provider: AiProvider }) {
@@ -250,6 +259,29 @@ function EditFields({
         onRefresh={onRefreshModels}
       />
 
+      <div className="grid grid-cols-2 gap-2">
+        <input
+          type="number"
+          min="0"
+          step="any"
+          value={draft.inputPricePer1m}
+          onChange={(event) => onChange({ ...draft, inputPricePer1m: event.target.value })}
+          aria-label="입력 단가"
+          placeholder="입력 단가 (원/100만 토큰)"
+          className={inputClass}
+        />
+        <input
+          type="number"
+          min="0"
+          step="any"
+          value={draft.outputPricePer1m}
+          onChange={(event) => onChange({ ...draft, outputPricePer1m: event.target.value })}
+          aria-label="출력 단가"
+          placeholder="출력 단가 (원/100만 토큰)"
+          className={inputClass}
+        />
+      </div>
+
       <input
         type="text"
         value={draft.remarks}
@@ -321,11 +353,13 @@ function AiUsageTable({ items, loading, handlers }: { items: AiUsageItem[]; load
   return (
     <div className="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1000px] border-collapse text-left text-sm">
+        <table className="w-full min-w-[1300px] border-collapse text-left text-sm">
           <thead className="border-b border-slate-200 bg-slate-50 text-xs">
             <tr>
               <th scope="col" className="px-4 py-2 font-semibold text-slate-600">제조사</th>
               <th scope="col" className="px-3 py-2 font-semibold text-slate-600">모델명</th>
+              <th scope="col" className="px-3 py-2 text-right font-semibold text-slate-600">입력 단가</th>
+              <th scope="col" className="px-3 py-2 text-right font-semibold text-slate-600">출력 단가</th>
               <th scope="col" className="px-3 py-2 font-semibold text-slate-600">위치</th>
               <th scope="col" className="px-3 py-2 font-semibold text-slate-600">기능</th>
               <th scope="col" className="px-3 py-2 font-semibold text-slate-600">비고</th>
@@ -335,7 +369,7 @@ function AiUsageTable({ items, loading, handlers }: { items: AiUsageItem[]; load
           <tbody className="divide-y divide-slate-100 text-slate-700">
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-16 text-center text-sm text-slate-500">
+                <td colSpan={8} className="px-4 py-16 text-center text-sm text-slate-500">
                   <span className="inline-flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                     AI 사용현황을 불러오는 중입니다.
@@ -344,7 +378,7 @@ function AiUsageTable({ items, loading, handlers }: { items: AiUsageItem[]; load
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-16 text-center text-sm text-slate-500">
+                <td colSpan={8} className="px-4 py-16 text-center text-sm text-slate-500">
                   표시할 AI 사용현황이 없습니다.
                 </td>
               </tr>
@@ -356,7 +390,7 @@ function AiUsageTable({ items, loading, handlers }: { items: AiUsageItem[]; load
               return (
                 <tr key={item.featureKey} className="align-top transition hover:bg-slate-50">
                   {editing && handlers.draft ? (
-                    <td colSpan={2} className="px-4 py-2.5">
+                    <td colSpan={4} className="px-4 py-2.5">
                       <EditFields
                         draft={handlers.draft}
                         onChange={handlers.onDraftChange}
@@ -381,6 +415,12 @@ function AiUsageTable({ items, loading, handlers }: { items: AiUsageItem[]; load
                         className={`px-3 py-2.5 font-mono text-xs font-semibold text-slate-900 ${clickable ? 'cursor-pointer' : ''}`}
                       >
                         {item.model}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">
+                        {formatPrice(item.inputPricePer1m)}
+                      </td>
+                      <td className="px-3 py-2.5 text-right text-xs tabular-nums text-slate-600">
+                        {formatPrice(item.outputPricePer1m)}
                       </td>
                     </>
                   )}
@@ -479,6 +519,9 @@ function AiUsageMobileList({ items, loading, handlers }: { items: AiUsageItem[];
               )}
             </div>
 
+            <p className="mt-2 text-xs tabular-nums text-slate-500">
+              입력 {formatPrice(item.inputPricePer1m)} · 출력 {formatPrice(item.outputPricePer1m)}
+            </p>
             <p className="mt-2 break-all font-mono text-[11px] leading-snug text-slate-500">{item.location}</p>
 
             {editing && handlers.draft ? (
@@ -504,6 +547,7 @@ function AiUsageMobileList({ items, loading, handlers }: { items: AiUsageItem[];
 }
 
 export default function AdminAiUsagePage() {
+  const [activeTab, setActiveTab] = useState<'settings' | 'logs'>('settings')
   const [items, setItems] = useState<AiUsageItem[]>([])
   const [source, setSource] = useState<'defaults' | 'database'>('database')
   const [loading, setLoading] = useState(true)
@@ -545,7 +589,13 @@ export default function AdminAiUsagePage() {
 
   const handleEdit = (item: AiUsageItem) => {
     setEditingKey(item.featureKey)
-    setDraft({ provider: item.provider, model: item.model, remarks: item.remarks })
+    setDraft({
+      provider: item.provider,
+      model: item.model,
+      remarks: item.remarks,
+      inputPricePer1m: item.inputPricePer1m?.toString() ?? '',
+      outputPricePer1m: item.outputPricePer1m?.toString() ?? '',
+    })
     setModelsError(null)
     setError(null)
   }
@@ -613,6 +663,8 @@ export default function AdminAiUsagePage() {
           provider: draft.provider,
           model,
           remarks: draft.remarks.trim(),
+          inputPricePer1m: draft.inputPricePer1m.trim() === '' ? null : Number(draft.inputPricePer1m),
+          outputPricePer1m: draft.outputPricePer1m.trim() === '' ? null : Number(draft.outputPricePer1m),
         }),
       })
       const result = (await response.json()) as PatchResponse
@@ -660,18 +712,42 @@ export default function AdminAiUsagePage() {
             기능별 제조사와 모델명을 관리합니다. 저장한 모델은 최대 1분 안에 실제 서비스에 반영됩니다.
           </p>
         </div>
+        {activeTab === 'settings' && (
+          <button
+            type="button"
+            onClick={() => void loadItems()}
+            disabled={loading}
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition hover:border-slate-300 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
+            새로고침
+          </button>
+        )}
+      </div>
+
+      <div role="tablist" aria-label="AI 사용현황 탭" className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
         <button
           type="button"
-          onClick={() => void loadItems()}
-          disabled={loading}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition hover:border-slate-300 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50"
+          role="tab"
+          aria-selected={activeTab === 'settings'}
+          onClick={() => setActiveTab('settings')}
+          className={`min-h-9 rounded-lg px-4 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-blue-500 ${activeTab === 'settings' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-950'}`}
         >
-          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} aria-hidden="true" />
-          새로고침
+          모델 설정
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === 'logs'}
+          onClick={() => setActiveTab('logs')}
+          className={`min-h-9 rounded-lg px-4 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-blue-500 ${activeTab === 'logs' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:text-slate-950'}`}
+        >
+          사용 기록
         </button>
       </div>
 
-      {!loading && source === 'defaults' && (
+      {activeTab === 'settings' ? <>
+        {!loading && source === 'defaults' && (
         <div
           role="status"
           className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800"
@@ -684,9 +760,9 @@ export default function AdminAiUsagePage() {
             </span>
           </span>
         </div>
-      )}
+        )}
 
-      {error && (
+        {error && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" role="alert">
           <span>{error}</span>
           <button
@@ -697,15 +773,16 @@ export default function AdminAiUsagePage() {
             다시 시도
           </button>
         </div>
-      )}
+        )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-600 shadow-sm md:px-4">
-        <span className="tabular-nums">전체 {items.length.toLocaleString('ko-KR')}건</span>
-        <span>{source === 'database' ? 'DB 설정 적용 중' : '코드 기본값 표시 중'}</span>
-      </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-xs text-slate-600 shadow-sm md:px-4">
+          <span className="tabular-nums">전체 {items.length.toLocaleString('ko-KR')}건</span>
+          <span>{source === 'database' ? 'DB 설정 적용 중' : '코드 기본값 표시 중'}</span>
+        </div>
 
-      <AiUsageMobileList items={items} loading={loading} handlers={handlers} />
-      <AiUsageTable items={items} loading={loading} handlers={handlers} />
+        <AiUsageMobileList items={items} loading={loading} handlers={handlers} />
+        <AiUsageTable items={items} loading={loading} handlers={handlers} />
+      </> : <UsageLogPanel />}
     </section>
   )
 }

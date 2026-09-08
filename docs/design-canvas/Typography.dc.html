@@ -1,0 +1,161 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
+  <style>
+    body {
+      margin: 0;
+      font-family: Geist, system-ui, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: oklch(54.6% 0.245 262.881); }
+    a:hover { color: oklch(48.8% 0.243 264.376); }
+  </style>
+</helmet>
+<div style="width: 1160px; box-sizing: border-box; background: oklch(98.5% 0.002 247.839); padding: 44px 48px; display: flex; flex-direction: column; gap: 34px">
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="font-size: 11px; font-weight: 500; color: oklch(55.1% 0.027 264.364); text-transform: uppercase; letter-spacing: 0.05em">SafeSys Design System · 02</div>
+    <h1 style="margin: 0; font-size: 32px; font-weight: 700; color: oklch(21% 0.034 264.665); letter-spacing: -0.02em">타이포그래피와 밀도</h1>
+    <p style="margin: 0; max-width: 800px; font-size: 15px; line-height: 1.6; color: oklch(44.6% 0.03 256.802); text-wrap: pretty">SafeSys는 현장 관리자가 표와 숫자를 훑는 <strong style="font-weight: 600">고밀도 업무 화면</strong>이다. 본문 기본은 14px(text-sm)이고 표·라벨은 12px(text-xs)이다. 16px 이상은 화면 제목에만 쓴다.</p>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px">
+    <div style="font-size: 11px; font-weight: 500; color: oklch(55.1% 0.027 264.364); text-transform: uppercase; letter-spacing: 0.05em">글꼴</div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px">
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 18px; display: flex; flex-direction: column; gap: 10px">
+        <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 26px; font-weight: 700; color: oklch(21% 0.034 264.665)">본문 Aa 한글 0123</div>
+        <div style="font-size: 13.5px; font-weight: 600; color: oklch(21% 0.034 264.665)">UI 본문</div>
+        <div style="font-family: ui-monospace, monospace; font-size: 11.5px; color: oklch(55.1% 0.027 264.364); line-height: 1.5">Arial, Helvetica, sans-serif<br>→ 한글은 OS 기본(맑은 고딕 등)</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">globals.css의 <code style="font-family: ui-monospace, monospace; font-size: 11.5px">body</code>가 지정한다. 컴포넌트에서 글꼴을 다시 지정하지 않는다.</div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 18px; display: flex; flex-direction: column; gap: 10px">
+        <div style="font-family: ui-monospace, 'Geist Mono', monospace; font-size: 26px; font-weight: 700; color: oklch(21% 0.034 264.665)">1,240,500 원</div>
+        <div style="font-size: 13.5px; font-weight: 600; color: oklch(21% 0.034 264.665)">숫자 · 코드</div>
+        <div style="font-family: ui-monospace, monospace; font-size: 11.5px; color: oklch(55.1% 0.027 264.364); line-height: 1.5">font-mono → Geist Mono</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">자릿수가 흔들리면 안 되는 금액·수량·로그에만. 표 전체에 걸지 않는다.</div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 18px; display: flex; flex-direction: column; gap: 10px">
+        <div style="font-family: 'ChosunBg', serif; font-size: 26px; font-weight: 400; color: oklch(21% 0.034 264.665)">서류함 · 명패</div>
+        <div style="font-size: 13.5px; font-weight: 600; color: oklch(21% 0.034 264.665)">서류 은유 전용</div>
+        <div style="font-family: ui-monospace, monospace; font-size: 11.5px; color: oklch(55.1% 0.027 264.364); line-height: 1.5">ChosunBg, serif</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">서류함·폴더·명패 등 실물 서류를 흉내 내는 UI에만. 일반 화면에 번지지 않게 한다.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: baseline; gap: 12px">
+      <div style="font-size: 11px; font-weight: 500; color: oklch(55.1% 0.027 264.364); text-transform: uppercase; letter-spacing: 0.05em">타입 램프</div>
+      <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802)">괄호 안은 현재 코드에서 쓰인 횟수 — 아래 두 줄이 화면의 90%다.</div>
+    </div>
+
+    <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); overflow: hidden; display: flex; flex-direction: column">
+
+      <div style="display: grid; grid-template-columns: 132px 1fr 300px; gap: 16px; align-items: center; padding: 13px 18px; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(55.1% 0.027 264.364)">text-3xl · 30px</div>
+        <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 30px; font-weight: 700; color: oklch(21% 0.034 264.665); line-height: 1.2">현장 안전 현황</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">로그인·랜딩 등 단독 화면의 대제목 (20)</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 132px 1fr 300px; gap: 16px; align-items: center; padding: 13px 18px; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(55.1% 0.027 264.364)">text-xl · 20px</div>
+        <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 20px; font-weight: 700; color: oklch(21% 0.034 264.665); line-height: 1.3">사업 개요</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">화면 제목. font-bold 또는 font-semibold (96)</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 132px 1fr 300px; gap: 16px; align-items: center; padding: 13px 18px; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(55.1% 0.027 264.364)">text-lg · 18px</div>
+        <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 18px; font-weight: 600; color: oklch(21% 0.034 264.665); line-height: 1.35">안전점검 이력</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">섹션 제목. <strong style="font-weight: 600">text-lg font-semibold text-gray-900</strong>가 정본 (188)</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 132px 1fr 300px; gap: 16px; align-items: center; padding: 13px 18px; border-bottom: 1px solid oklch(92.8% 0.006 264.531); background: oklch(97% 0.014 254.604)">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(42.4% 0.199 265.638); font-weight: 600">text-sm · 14px</div>
+        <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 14px; font-weight: 400; color: oklch(44.6% 0.03 256.802); line-height: 1.55">본문 기본값. 버튼 글자, 폼 라벨, 표 본문, 설명 문장이 모두 이 크기다.</div>
+        <div style="font-size: 12.5px; color: oklch(42.4% 0.199 265.638); line-height: 1.5; font-weight: 500">기본 본문 — 최다 사용 (2,629)</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 132px 1fr 300px; gap: 16px; align-items: center; padding: 13px 18px; border-bottom: 1px solid oklch(92.8% 0.006 264.531); background: oklch(97% 0.014 254.604)">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(42.4% 0.199 265.638); font-weight: 600">text-xs · 12px</div>
+        <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 12px; font-weight: 400; color: oklch(44.6% 0.03 256.802); line-height: 1.55">표 헤더, 상태 배지, 보조 캡션, 날짜. 읽을 문장이 아니라 훑을 표지다.</div>
+        <div style="font-size: 12.5px; color: oklch(42.4% 0.199 265.638); line-height: 1.5; font-weight: 500">밀도 담당 — 2순위 (1,969)</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 132px 1fr 300px; gap: 16px; align-items: center; padding: 13px 18px; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(55.1% 0.027 264.364)">text-[11px]<br>text-[10px]</div>
+        <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 11px; font-weight: 400; color: oklch(44.6% 0.03 256.802); line-height: 1.5">지도 라벨, 촘촘한 표의 부가 열, 배지 안 보조 표시. Tailwind에 12px 아래 단계가 없어 임의 값으로 쓴다.</div>
+        <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">실사용 4번째 단계 (399). 임의 값이지만 이 둘은 정식으로 허용한다</div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 132px 1fr 300px; gap: 16px; align-items: center; padding: 13px 18px; background: oklch(97.1% 0.013 17.38)">
+        <div style="font-family: ui-monospace, monospace; font-size: 12px; color: oklch(50.5% 0.213 27.518); font-weight: 600">9px 이하</div>
+        <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 9px; font-weight: 400; color: oklch(70.7% 0.022 261.325); line-height: 1.5">현장에서 읽을 수 없다. 담을 정보가 많으면 글자를 줄이지 말고 열을 접거나 나눈다.</div>
+        <div style="font-size: 12.5px; color: oklch(50.5% 0.213 27.518); line-height: 1.5; font-weight: 500">금지 — 현재 24곳에 남아 있음</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px">
+
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <div style="font-size: 11px; font-weight: 500; color: oklch(55.1% 0.027 264.364); text-transform: uppercase; letter-spacing: 0.05em">굵기 — 셋만 쓴다</div>
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); overflow: hidden; display: flex; flex-direction: column">
+        <div style="display: flex; align-items: baseline; gap: 14px; padding: 13px 18px; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+          <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 15px; font-weight: 500; color: oklch(21% 0.034 264.665); width: 130px">medium · 500</div>
+          <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">라벨, 버튼, 배지, 표 헤더 (1,871)</div>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 14px; padding: 13px 18px; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+          <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 15px; font-weight: 600; color: oklch(21% 0.034 264.665); width: 130px">semibold · 600</div>
+          <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">섹션 제목, 강조된 값 (985)</div>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 14px; padding: 13px 18px">
+          <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 15px; font-weight: 700; color: oklch(21% 0.034 264.665); width: 130px">bold · 700</div>
+          <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802); line-height: 1.5">화면 제목, 핵심 수치 (405). extrabold·black은 쓰지 않는다</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <div style="font-size: 11px; font-weight: 500; color: oklch(55.1% 0.027 264.364); text-transform: uppercase; letter-spacing: 0.05em">글자색 — 역할이 곧 명도다</div>
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); overflow: hidden; display: flex; flex-direction: column">
+        <div style="display: flex; align-items: baseline; gap: 14px; padding: 11px 18px; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+          <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 14px; font-weight: 600; color: oklch(21% 0.034 264.665); width: 130px">gray-900</div>
+          <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802)">제목, 표 안의 핵심 값</div>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 14px; padding: 11px 18px; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+          <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 14px; font-weight: 500; color: oklch(37.3% 0.034 259.733); width: 130px">gray-700</div>
+          <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802)">폼 라벨</div>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 14px; padding: 11px 18px; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+          <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 14px; color: oklch(44.6% 0.03 256.802); width: 130px">gray-600</div>
+          <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802)">본문 문장</div>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 14px; padding: 11px 18px; border-bottom: 1px solid oklch(92.8% 0.006 264.531)">
+          <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 14px; color: oklch(55.1% 0.027 264.364); width: 130px">gray-500</div>
+          <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802)">표 헤더, 캡션, 단위 (1,090 — 최다)</div>
+        </div>
+        <div style="display: flex; align-items: baseline; gap: 14px; padding: 11px 18px">
+          <div style="font-family: Arial, Helvetica, 'Malgun Gothic', sans-serif; font-size: 14px; color: oklch(70.7% 0.022 261.325); width: 130px">gray-400</div>
+          <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802)">placeholder, 비활성. 본문에 쓰지 않는다</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS, PROJECT_CATEGORY_OPTIONS } from '@/lib/constants'
 import { updateProject } from '@/lib/projects'
 import { Project } from '@/lib/projects'
+import { supabase } from '@/lib/supabase'
 import { Building, Save, MapPin, ChevronDown, ChevronUp, Send } from 'lucide-react'
 import VworldAddressSearch from '@/components/ui/VworldAddressSearch'
 import G2bContractLookup, { G2bContractApplyData } from '@/components/project/G2bContractLookup'
@@ -215,6 +216,22 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
     setAlertTestResult(null)
 
     try {
+      // 테스트한 ID를 즉시 저장 — 저장 버튼을 누르지 않고 나가도 알림 수신 설정이 유지되도록
+      const { error: saveError } = await supabase
+        .from('projects')
+        .update({
+          ...(type === 'client'
+            ? { client_telegram_id: telegram, client_app_code: app }
+            : { contractor_telegram_id: telegram, contractor_app_code: app }),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', project.id)
+
+      if (saveError) {
+        console.error('알림 ID 저장 오류:', saveError)
+      }
+      const savedPrefix = saveError ? '저장 실패(다시 시도 필요) · ' : '저장 완료 · '
+
       const telegramPromise = telegram
         ? fetch('/api/telegram', {
             method: 'POST',
@@ -268,15 +285,15 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
       if (failParts.length === 0) {
         setAlertTestResult({
           type,
-          success: true,
-          message: `${successParts.join('·')} 발송 성공!`
+          success: !saveError,
+          message: `${savedPrefix}${successParts.join('·')} 발송 성공!`
         })
       } else {
         const successText = successParts.length > 0 ? `${successParts.join('·')} 발송 성공, ` : ''
         setAlertTestResult({
           type,
           success: false,
-          message: `${successText}${failParts.join('·')} 발송 실패.`
+          message: `${savedPrefix}${successText}${failParts.join('·')} 발송 실패.`
         })
       }
     } catch {

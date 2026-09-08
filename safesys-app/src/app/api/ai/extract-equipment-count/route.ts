@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModel, supportsSamplingParams } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -34,6 +35,7 @@ ${numberedTexts}
 
     const model = await getAiModel('ai.extract-equipment-count')
 
+    const startedAt = Date.now()
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -57,6 +59,7 @@ ${numberedTexts}
     })
 
     const data = await response.json()
+    recordAiUsage({ featureKey: 'ai.extract-equipment-count', provider: 'OpenAI', model, response: data, success: response.ok, errorMessage: response.ok ? undefined : `HTTP ${response.status}`, durationMs: Date.now() - startedAt })
 
     if (data.choices && data.choices[0]) {
       const content = data.choices[0].message.content

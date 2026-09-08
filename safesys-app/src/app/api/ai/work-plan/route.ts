@@ -1,6 +1,7 @@
 // AI 작업계획서 초안 생성 — planTypes별 위험요인·개선대책·작업순서·전기작업단계·사전조사 초안을 Gemini로 생성
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModel } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 import { CONSTRUCTION_SURVEY_ITEMS, PLAN_TYPE_OPTIONS } from '@/lib/work-plan/constants'
 import type {
   ConstructionSurveyType,
@@ -209,6 +210,7 @@ ${selectedInstructions}
     let lastError = ''
     const geminiModels = [await getAiModel('ai.work-plan')]
     for (const model of geminiModels) {
+      const startedAt = Date.now()
       const geminiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
@@ -232,10 +234,12 @@ ${selectedInstructions}
         const errorData = await geminiResponse.json().catch(() => ({}))
         lastError = `${geminiResponse.status} ${JSON.stringify(errorData).slice(0, 200)}`
         console.error(`Gemini API Error (${model}):`, lastError)
+        recordAiUsage({ featureKey: 'ai.work-plan', provider: 'Google', model, success: false, errorMessage: `HTTP ${geminiResponse.status}`, durationMs: Date.now() - startedAt })
         continue // 다음 모델로 폴백
       }
 
       const geminiResult = await geminiResponse.json()
+      recordAiUsage({ featureKey: 'ai.work-plan', provider: 'Google', model, response: geminiResult, durationMs: Date.now() - startedAt })
       const content = geminiResult.candidates?.[0]?.content?.parts
         ?.map((part: { text?: string }) => part.text || '')
         .join('')

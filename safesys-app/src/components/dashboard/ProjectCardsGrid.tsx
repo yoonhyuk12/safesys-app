@@ -20,6 +20,7 @@ interface ProjectCardsGridProps {
   safetyPendingCounts?: Record<string, number>
   managerPendingCounts?: Record<string, number>
   qualityRejectionCounts?: Record<string, number>
+  tbmReportedProjectIds?: Set<string>
 }
 
 const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
@@ -37,6 +38,7 @@ const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
   safetyPendingCounts,
   managerPendingCounts,
   qualityRejectionCounts,
+  tbmReportedProjectIds,
 }) => {
   const [isEditMode, setIsEditMode] = useState(false)
   const [draggedProjectId, setDraggedProjectId] = useState<string | null>(null)
@@ -315,6 +317,7 @@ const ProjectCardsGrid: React.FC<ProjectCardsGridProps> = ({
           hqPendingCount={hqPendingCounts?.[project.id]}
           safetyPendingCount={safetyPendingCounts?.[project.id]} managerPendingCount={managerPendingCounts?.[project.id]}
           qualityRejectionCount={qualityRejectionCounts?.[project.id]}
+          tbmReportedToday={tbmReportedProjectIds?.has(project.id)}
         />
       ))}
     </div>

@@ -8,6 +8,7 @@
     "build:no-cache": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:merge-sql": "node --test tests/merge-projects-sql.test.mjs",
     "deploy": "npm run build:no-cache && npm run start",
     "vercel-build": "npm install && next build"
   },
@@ -40,6 +41,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@eslint/eslintrc": "^3",
     "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4",

@@ -37,6 +37,7 @@ interface ProjectCardProps {
   safetyPendingCount?: number // 안전점검 관리대장 미조치 건수
   managerPendingCount?: number // 관리자점검 미완료(서명/사진) 건수
   qualityRejectionCount?: number // 품질 성과총괄표 미확인 반려 건수
+  tbmReportedToday?: boolean // 금일 TBM 보고 완료 여부 (작업없음 제출은 제외)
   mergeSelectionMode?: 'source' | 'target'
   mergeSelectionState?: 'source' | 'target'
   mergeSelectionDisabled?: boolean
@@ -70,6 +71,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   safetyPendingCount,
   managerPendingCount,
   qualityRejectionCount,
+  tbmReportedToday = false,
   mergeSelectionMode,
   mergeSelectionState,
   mergeSelectionDisabled = false,
@@ -648,6 +650,15 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
             </span>
           )}
         </button>
+      )}
+
+      {/* 금일 TBM 보고 완료 표시 — 공정률(좌→우)과 축이 겹치지 않도록 상단 가로 띠로 둔다 */}
+      {tbmReportedToday && (
+        <div
+          className="tbm-live-bar absolute inset-x-0 top-0 h-1 rounded-t-lg bg-red-500 pointer-events-none z-10"
+          title="금일 TBM 보고 완료"
+          aria-label="금일 TBM 보고 완료"
+        />
       )}
 
       {/* 공정률 색 채움 (좌→우, 100% = 준공) */}

@@ -1,0 +1,253 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap">
+  <style>
+    body {
+      margin: 0;
+      font-family: Geist, system-ui, -apple-system, 'Segoe UI', 'Malgun Gothic', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: oklch(54.6% 0.245 262.881); }
+    a:hover { color: oklch(48.8% 0.243 264.376); }
+  </style>
+</helmet>
+<div style="width: 1160px; box-sizing: border-box; background: oklch(98.5% 0.002 247.839); padding: 44px 48px; display: flex; flex-direction: column; gap: 36px">
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <svg width="26" height="26" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M24 4L6 12V22C6 32.5 12.5 42.26 24 44C35.5 42.26 42 32.5 42 22V12L24 4Z" fill="oklch(54.6% 0.245 262.881)" stroke="oklch(48.8% 0.243 264.376)" stroke-width="2"></path>
+        <path d="M16 24L22 30L32 18" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"></path>
+      </svg>
+      <div style="font-size: 11px; font-weight: 500; color: oklch(55.1% 0.027 264.364); text-transform: uppercase; letter-spacing: 0.05em">SafeSys Design System · 01</div>
+    </div>
+    <h1 style="margin: 0; font-size: 32px; font-weight: 700; color: oklch(21% 0.034 264.665); letter-spacing: -0.02em">기반 — 색과 표면</h1>
+    <p style="margin: 0; max-width: 780px; font-size: 15px; line-height: 1.6; color: oklch(44.6% 0.03 256.802); text-wrap: pretty">SafeSys는 Tailwind v4 기본 팔레트를 그대로 쓴다. 아래 값은 <code style="font-family: ui-monospace, monospace; font-size: 13px; background: oklch(96.7% 0.003 264.542); padding: 1px 5px; border-radius: 4px">node_modules/tailwindcss/theme.css</code>의 실제 oklch 값이다. 다크모드는 <code style="font-family: ui-monospace, monospace; font-size: 13px; background: oklch(96.7% 0.003 264.542); padding: 1px 5px; border-radius: 4px">color-scheme: light only</code>로 전역 차단되어 있으므로 dark: 변형을 쓰지 않는다.</p>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px">
+    <div style="font-size: 11px; font-weight: 500; color: oklch(55.1% 0.027 264.364); text-transform: uppercase; letter-spacing: 0.05em">브랜드 · 주 동작색</div>
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); overflow: hidden">
+        <div style="height: 82px; background: oklch(54.6% 0.245 262.881)"></div>
+        <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 3px">
+          <div style="font-size: 14px; font-weight: 600; color: oklch(21% 0.034 264.665)">blue-600</div>
+          <div style="font-family: ui-monospace, monospace; font-size: 11px; color: oklch(55.1% 0.027 264.364)">#2563eb · themeColor</div>
+          <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802)">주 버튼, 활성 탭, 링크, 방패 아이콘</div>
+        </div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); overflow: hidden">
+        <div style="height: 82px; background: oklch(48.8% 0.243 264.376)"></div>
+        <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 3px">
+          <div style="font-size: 14px; font-weight: 600; color: oklch(21% 0.034 264.665)">blue-700</div>
+          <div style="font-family: ui-monospace, monospace; font-size: 11px; color: oklch(55.1% 0.027 264.364)">hover 전용</div>
+          <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802)">blue-600 요소의 hover 상태에만 쓴다</div>
+        </div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); overflow: hidden">
+        <div style="height: 82px; background: oklch(93.2% 0.032 255.585)"></div>
+        <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 3px">
+          <div style="font-size: 14px; font-weight: 600; color: oklch(21% 0.034 264.665)">blue-100 / 50</div>
+          <div style="font-family: ui-monospace, monospace; font-size: 11px; color: oklch(55.1% 0.027 264.364)">배지 바탕 · 강조 영역</div>
+          <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802)">blue-800 글자와 짝지어 쓴다</div>
+        </div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); overflow: hidden">
+        <div style="height: 82px; background: linear-gradient(to bottom, oklch(28.2% 0.091 267.935), oklch(37.9% 0.146 265.522), oklch(20.8% 0.042 265.755))"></div>
+        <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 3px">
+          <div style="font-size: 14px; font-weight: 600; color: oklch(21% 0.034 264.665)">앱 셸 그라디언트</div>
+          <div style="font-family: ui-monospace, monospace; font-size: 11px; color: oklch(55.1% 0.027 264.364)">blue-950 → blue-900 → slate-900</div>
+          <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802)">전체 화면 배경. 콘텐츠는 그 위 흰 패널</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px">
+    <div style="font-size: 11px; font-weight: 500; color: oklch(55.1% 0.027 264.364); text-transform: uppercase; letter-spacing: 0.05em">중립 스케일 — 역할 고정</div>
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px">
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 52px; border-radius: 6px; background: oklch(98.5% 0.002 247.839); border: 1px solid oklch(92.8% 0.006 264.531)"></div>
+        <div style="font-size: 12px; font-weight: 600; color: oklch(21% 0.034 264.665)">gray-50</div>
+        <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802); line-height: 1.45">페이지 바탕, 표 줄무늬, 비활성 영역</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 52px; border-radius: 6px; background: oklch(92.8% 0.006 264.531)"></div>
+        <div style="font-size: 12px; font-weight: 600; color: oklch(21% 0.034 264.665)">gray-200</div>
+        <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802); line-height: 1.45">카드·구분선 테두리 <strong style="font-weight: 600">(정본)</strong></div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 52px; border-radius: 6px; background: oklch(87.2% 0.01 258.338)"></div>
+        <div style="font-size: 12px; font-weight: 600; color: oklch(21% 0.034 264.665)">gray-300</div>
+        <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802); line-height: 1.45">입력 컨트롤 테두리 전용</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 52px; border-radius: 6px; background: oklch(70.7% 0.022 261.325)"></div>
+        <div style="font-size: 12px; font-weight: 600; color: oklch(21% 0.034 264.665)">gray-400</div>
+        <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802); line-height: 1.45">placeholder, 비활성 글자</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 52px; border-radius: 6px; background: oklch(55.1% 0.027 264.364)"></div>
+        <div style="font-size: 12px; font-weight: 600; color: oklch(21% 0.034 264.665)">gray-500</div>
+        <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802); line-height: 1.45">표 헤더, 캡션, 보조 설명 <strong style="font-weight: 600">(최다)</strong></div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 52px; border-radius: 6px; background: oklch(44.6% 0.03 256.802)"></div>
+        <div style="font-size: 12px; font-weight: 600; color: oklch(21% 0.034 264.665)">gray-600</div>
+        <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802); line-height: 1.45">본문, 비활성 탭 글자</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 52px; border-radius: 6px; background: oklch(37.3% 0.034 259.733)"></div>
+        <div style="font-size: 12px; font-weight: 600; color: oklch(21% 0.034 264.665)">gray-700</div>
+        <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802); line-height: 1.45">폼 라벨</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 52px; border-radius: 6px; background: oklch(27.8% 0.033 256.848)"></div>
+        <div style="font-size: 12px; font-weight: 600; color: oklch(21% 0.034 264.665)">gray-800</div>
+        <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802); line-height: 1.45">툴팁 바탕</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 52px; border-radius: 6px; background: oklch(21% 0.034 264.665)"></div>
+        <div style="font-size: 12px; font-weight: 600; color: oklch(21% 0.034 264.665)">gray-900</div>
+        <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802); line-height: 1.45">제목, 표 안의 핵심 수치</div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <div style="height: 52px; border-radius: 6px; background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531)"></div>
+        <div style="font-size: 12px; font-weight: 600; color: oklch(21% 0.034 264.665)">white</div>
+        <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802); line-height: 1.45">카드·표·모달 표면</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: baseline; gap: 12px">
+      <div style="font-size: 11px; font-weight: 500; color: oklch(55.1% 0.027 264.364); text-transform: uppercase; letter-spacing: 0.05em">의미색 — 안전 도메인</div>
+      <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802)">색은 장식이 아니라 상태다. 아래 짝 이외의 조합을 새로 만들지 않는다.</div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px">
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 16px; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span style="display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; background: oklch(93.6% 0.032 17.717); color: oklch(44.4% 0.177 26.899)">위험 · 미이행</span>
+        </div>
+        <div style="font-size: 13px; color: oklch(44.6% 0.03 256.802); line-height: 1.55">미점검, 부적합, 사고, 기한 초과. 바탕 <strong style="font-weight: 600">red-50/100</strong>, 글자 <strong style="font-weight: 600">red-600~800</strong>, 채운 버튼 <strong style="font-weight: 600">red-600</strong>.</div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 16px; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span style="display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; background: oklch(96.2% 0.059 95.617); color: oklch(47.3% 0.137 46.201)">주의 · 대기</span>
+        </div>
+        <div style="font-size: 13px; color: oklch(44.6% 0.03 256.802); line-height: 1.55">기한 임박, 승인 대기, 자재 원장. 바탕 <strong style="font-weight: 600">amber-50/100</strong>, 글자 <strong style="font-weight: 600">amber-600~800</strong>.</div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 16px; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span style="display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; background: oklch(96.2% 0.044 156.743); color: oklch(44.8% 0.119 151.328)">정상 · 완료</span>
+        </div>
+        <div style="font-size: 13px; color: oklch(44.6% 0.03 256.802); line-height: 1.55">점검 완료, 적합, 서명 완료. 바탕 <strong style="font-weight: 600">green-50/100</strong>, 글자 <strong style="font-weight: 600">green-600~800</strong>. emerald는 같은 뜻의 대체가 아니라 <em>지급자재·계약</em> 계열에만 쓴다.</div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 16px; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span style="display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; background: oklch(93.2% 0.032 255.585); color: oklch(42.4% 0.199 265.638)">진행 · 정보</span>
+        </div>
+        <div style="font-size: 13px; color: oklch(44.6% 0.03 256.802); line-height: 1.55">진행 중, 안내, 선택된 항목. 바탕 <strong style="font-weight: 600">blue-50/100</strong>, 글자 <strong style="font-weight: 600">blue-700~900</strong>.</div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 16px; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span style="display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; background: oklch(95.4% 0.038 75.164); color: oklch(47% 0.157 37.304)">폭염 · 기상</span>
+        </div>
+        <div style="font-size: 13px; color: oklch(44.6% 0.03 256.802); line-height: 1.55">폭염 단계, 기상특보. <strong style="font-weight: 600">orange</strong> 계열은 이 도메인에만 쓰고 일반 경고에 쓰지 않는다.</div>
+      </div>
+
+      <div style="background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 16px; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span style="display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 9999px; font-size: 12px; font-weight: 500; background: oklch(96.7% 0.003 264.542); color: oklch(27.8% 0.033 256.848)">해당 없음</span>
+        </div>
+        <div style="font-size: 13px; color: oklch(44.6% 0.03 256.802); line-height: 1.55">미해당, 종료, 비활성. 바탕 <strong style="font-weight: 600">gray-100</strong>, 글자 <strong style="font-weight: 600">gray-800</strong> 또는 <strong style="font-weight: 600">gray-500</strong>.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 14px">
+    <div style="display: flex; align-items: baseline; gap: 12px">
+      <div style="font-size: 11px; font-weight: 500; color: oklch(55.1% 0.027 264.364); text-transform: uppercase; letter-spacing: 0.05em">표면 계층</div>
+      <div style="font-size: 12px; color: oklch(44.6% 0.03 256.802)">아래로 갈수록 앞에 놓인다. 계층을 건너뛰지 않는다.</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px">
+
+      <div style="display: flex; align-items: stretch; gap: 16px; background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 14px 16px">
+        <div style="width: 132px; flex-shrink: 0; border-radius: 6px; background: linear-gradient(to bottom, oklch(28.2% 0.091 267.935), oklch(37.9% 0.146 265.522), oklch(20.8% 0.042 265.755))"></div>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 4px 0">
+          <div style="font-size: 14px; font-weight: 600; color: oklch(21% 0.034 264.665)">1 · 셸 (앱 바탕)</div>
+          <div style="font-family: ui-monospace, monospace; font-size: 11.5px; color: oklch(55.1% 0.027 264.364); line-height: 1.5">min-h-screen bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900</div>
+          <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802)">대시보드·게시판 등 전체 화면. 단독 폼 페이지는 대신 <code style="font-family: ui-monospace, monospace; font-size: 11.5px">bg-gray-50</code>.</div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: stretch; gap: 16px; background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 14px 16px">
+        <div style="width: 132px; flex-shrink: 0; border-radius: 6px; background: linear-gradient(to bottom, oklch(28.2% 0.091 267.935), oklch(37.9% 0.146 265.522)); display: flex; align-items: center; justify-content: center; padding: 10px">
+          <div style="width: 100%; height: 48px; border-radius: 6px; background: rgba(255,255,255,0.85); border: 1px solid rgba(255,255,255,0.2)"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 4px 0">
+          <div style="font-size: 14px; font-weight: 600; color: oklch(21% 0.034 264.665)">2 · 셸 위 패널</div>
+          <div style="font-family: ui-monospace, monospace; font-size: 11.5px; color: oklch(55.1% 0.027 264.364); line-height: 1.5">bg-white/80 backdrop-blur rounded-lg border border-white/20 shadow-sm</div>
+          <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802)">어두운 셸 위에 얹는 반투명 패널. 그 안의 카드는 <em>불투명 흰색</em>으로 돌아간다.</div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: stretch; gap: 16px; background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 14px 16px">
+        <div style="width: 132px; flex-shrink: 0; border-radius: 6px; background: oklch(98.5% 0.002 247.839); display: flex; align-items: center; justify-content: center; padding: 10px">
+          <div style="width: 100%; height: 48px; border-radius: 6px; background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05)"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 4px 0">
+          <div style="font-size: 14px; font-weight: 600; color: oklch(21% 0.034 264.665)">3 · 카드 <span style="font-weight: 500; color: oklch(54.6% 0.245 262.881)">(정본 · 코드 내 49회)</span></div>
+          <div style="font-family: ui-monospace, monospace; font-size: 11.5px; color: oklch(55.1% 0.027 264.364); line-height: 1.5">bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden</div>
+          <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802)">모든 콘텐츠 블록의 기본 그릇. 표를 담을 때 <code style="font-family: ui-monospace, monospace; font-size: 11.5px">overflow-hidden</code>이 모서리를 잘라준다.</div>
+        </div>
+      </div>
+
+      <div style="display: flex; align-items: stretch; gap: 16px; background: #ffffff; border: 1px solid oklch(92.8% 0.006 264.531); border-radius: 8px; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); padding: 14px 16px">
+        <div style="width: 132px; flex-shrink: 0; border-radius: 6px; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; padding: 10px">
+          <div style="width: 100%; height: 48px; border-radius: 6px; background: #ffffff; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)"></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 4px; padding: 4px 0">
+          <div style="font-size: 14px; font-weight: 600; color: oklch(21% 0.034 264.665)">4 · 모달</div>
+          <div style="font-family: ui-monospace, monospace; font-size: 11.5px; color: oklch(55.1% 0.027 264.364); line-height: 1.5">덮개 fixed inset-0 bg-black/50 … z-50 p-4 · 본체 bg-white rounded-lg shadow-xl</div>
+          <div style="font-size: 12.5px; color: oklch(44.6% 0.03 256.802)">모달만 <code style="font-family: ui-monospace, monospace; font-size: 11.5px">shadow-xl</code>을 쓴다. 그림자로 계층을 표현하는 유일한 지점이다.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+</x-dc>
+</body>
+</html>

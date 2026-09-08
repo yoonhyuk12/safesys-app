@@ -31,9 +31,9 @@ export interface RiskAssessmentRecord {
 /** 사업별 선택에서 "사업 무관(전체)"를 나타내는 센티널 (저장 시 null) */
 export const BUSINESS_TYPE_ALL = '__all__'
 
-/** 개선 후 위험성은 3 이하 관리가 목표라 현재 점수와 3 중 작은 값을 기본으로 둔다. */
+/** 개선 후 위험성은 허용 가능 수준(2 이하)이 목표라 현재 점수와 2 중 작은 값을 기본으로 둔다. */
 function defaultImprovedRisk(frequency: number, intensity: number): number {
-  return Math.min(3, riskGrade(frequency, intensity).score)
+  return Math.min(2, riskGrade(frequency, intensity).score)
 }
 
 /** DB 위험요인 원문 + AI 판정값을 평가서 표의 1행으로 만든다. 텍스트는 원문 그대로 옮긴다. */

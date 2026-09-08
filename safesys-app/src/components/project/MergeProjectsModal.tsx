@@ -5,6 +5,11 @@ import React, { useEffect, useState } from 'react'
 import { X, GitMerge, Loader2, AlertTriangle, Trash2, Save } from 'lucide-react'
 import type { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
+import {
+  hasMergeConflict,
+  parseMergeConflictCounts,
+  type MergeConflictCounts,
+} from '@/lib/merge-conflicts'
 
 interface MergeProjectsModalProps {
   isOpen: boolean
@@ -29,6 +34,7 @@ interface MergePreview {
   targetId: string
   targetProjectName: string
   participants: MergeParticipant[]
+  conflicts: MergeConflictCounts
 }
 
 interface MergePreviewResponse {
@@ -36,22 +42,19 @@ interface MergePreviewResponse {
   error?: string
   targetProjectName?: string
   participants?: MergeParticipant[]
+  conflicts?: unknown
 }
 
 const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source, target, onClose, onMerged }) => {
-  const [overlapCount, setOverlapCount] = useState<number | null>(null)
-  const [checking, setChecking] = useState(false)
   const [preview, setPreview] = useState<MergePreview | null>(null)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // 확인 모달이 열리면 겹치는 작업일보와 공유자로 유지·전환될 계정을 함께 조회한다.
+  // 확인 모달이 열리면 서버 미리보기로 겹치는 보고서 건수와 공유자 전환 계정을 함께 조회한다.
   useEffect(() => {
     if (!isOpen || !source || !target) {
-      setOverlapCount(null)
-      setChecking(false)
       setPreview(null)
       setPreviewLoading(false)
       setPreviewError('')
@@ -62,31 +65,10 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
 
     let cancelled = false
     const controller = new AbortController()
-    setOverlapCount(null)
-    setChecking(true)
     setPreview(null)
     setPreviewLoading(true)
     setPreviewError('')
     setError('')
-
-    const checkOverlap = async () => {
-      try {
-        const [{ data: src }, { data: tgt }] = await Promise.all([
-          supabase.from('work_daily_reports').select('report_date').eq('project_id', source.id),
-          supabase.from('work_daily_reports').select('report_date').eq('project_id', target.id),
-        ])
-        if (cancelled) return
-
-        const targetDates = new Set((tgt ?? []).map((report: { report_date: string }) => report.report_date))
-        const overlap = (src ?? []).filter((report: { report_date: string }) => targetDates.has(report.report_date)).length
-        setOverlapCount(overlap)
-      } catch (err) {
-        console.error('겹치는 작업일보 조회 실패:', err)
-        if (!cancelled) setOverlapCount(null)
-      } finally {
-        if (!cancelled) setChecking(false)
-      }
-    }
 
     const loadPreview = async () => {
       try {
@@ -102,10 +84,11 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
         })
         const json = await response.json() as MergePreviewResponse
         if (!response.ok || !json.success) {
-          throw new Error(json.error || '공유자 안내를 불러오지 못했습니다.')
+          throw new Error(json.error || '병합 미리보기를 불러오지 못했습니다.')
         }
-        if (typeof json.targetProjectName !== 'string' || !Array.isArray(json.participants)) {
-          throw new Error('공유자 안내 응답이 올바르지 않습니다.')
+        const conflicts = parseMergeConflictCounts(json.conflicts)
+        if (typeof json.targetProjectName !== 'string' || !Array.isArray(json.participants) || !conflicts) {
+          throw new Error('병합 미리보기 응답이 올바르지 않습니다.')
         }
         if (cancelled) return
 
@@ -114,18 +97,18 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
           targetId: target.id,
           targetProjectName: json.targetProjectName,
           participants: json.participants,
+          conflicts,
         })
       } catch (err) {
         if (cancelled || (err instanceof DOMException && err.name === 'AbortError')) return
-        console.error('병합 공유자 미리보기 조회 실패', err)
+        console.error('병합 미리보기 조회 실패', err)
         setPreview(null)
-        setPreviewError(err instanceof Error ? err.message : '공유자 안내를 불러오지 못했습니다.')
+        setPreviewError(err instanceof Error ? err.message : '병합 미리보기를 불러오지 못했습니다.')
       } finally {
         if (!cancelled) setPreviewLoading(false)
       }
     }
 
-    void checkOverlap()
     void loadPreview()
     return () => {
       cancelled = true
@@ -136,6 +119,8 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
   const previewReady = Boolean(
     source && target && preview && preview.sourceId === source.id && preview.targetId === target.id,
   )
+  const conflicts = previewReady && preview ? preview.conflicts : null
+  const blockedByConflicts = conflicts ? hasMergeConflict(conflicts) : false
 
   if (!isOpen || !source || !target) return null
 
@@ -150,7 +135,11 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
       return
     }
     if (!previewReady || previewLoading || previewError) {
-      setError('공유자 안내를 확인하지 못해 합칠 수 없습니다.')
+      setError('병합 미리보기를 확인하지 못해 합칠 수 없습니다.')
+      return
+    }
+    if (blockedByConflicts) {
+      setError('겹치는 자료가 있어 합칠 수 없습니다.')
       return
     }
 
@@ -169,15 +158,23 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
         },
         body: JSON.stringify({ sourceId: source.id, targetId: target.id }),
       })
-      const json = await res.json()
+      const json = await res.json() as { success?: boolean; error?: string; conflicts?: unknown }
       if (!res.ok || !json.success) {
+        // 미리보기 이후 자료가 바뀌어 서버가 막은 경우 최신 충돌 건수를 화면에 반영한다.
+        if (res.status === 409) {
+          const latest = parseMergeConflictCounts(json.conflicts)
+          if (latest && source && target) {
+            setPreview((current) => (
+              current && current.sourceId === source.id && current.targetId === target.id
+                ? { ...current, conflicts: latest }
+                : current
+            ))
+          }
+        }
         throw new Error(json.error || '프로젝트 병합에 실패했습니다.')
       }
-      const dropped = json.dropped as { dropped_work_daily_reports?: number; dropped_project_shares?: number } | null
-      const droppedReports = dropped?.dropped_work_daily_reports ?? 0
       await onMerged()
-      const extra = droppedReports > 0 ? `\n(겹치는 작업일보 ${droppedReports}건은 유지될 현장 것만 남기고 폐기됨)` : ''
-      alert(`프로젝트를 병합했습니다.${extra}`)
+      alert('프로젝트를 병합했습니다.')
       onClose()
     } catch (err) {
       console.error('병합 처리 오류:', err)
@@ -234,9 +231,21 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
             </div>
           </div>
 
-          <p className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-            유지될 현장의 선택사항이 비어 있으면 삭제될 현장 값으로 채우며, 이미 입력된 값은 그대로 유지합니다.
-          </p>
+          <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
+            <p className="font-semibold">등록정보는 유지될 현장 값이 우선입니다.</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs leading-5">
+              <li>
+                현장주소·좌표와 대표계약·나라장터 연계값은 서로 다른 현장·계약이 섞이지 않도록 묶음으로 판단합니다.
+                유지될 현장에 하나라도 입력되어 있으면 그 묶음을 그대로 두고, 삭제될 현장의 값은 옮기지 않습니다.
+                단, 기본주소가 같고 상세주소만 비어 있으면 상세주소를 보충합니다.
+              </li>
+              <li>
+                공사기간·공사종류, 감독자와 개인정보 담당자 연락처, CCTV 주소, 알림앱 수신코드 같은 나머지 설정은
+                유지될 현장이 비어 있는 항목만 삭제될 현장 값으로 채웁니다.
+              </li>
+              <li>작업일보·점검·자재 같은 기록은 모두 유지될 현장으로 옮겨집니다.</li>
+            </ul>
+          </div>
 
           <section className="rounded-md border border-gray-200 bg-gray-50 p-3" aria-labelledby="merge-share-preview-title">
             <h4 id="merge-share-preview-title" className="text-sm font-semibold text-gray-900">
@@ -295,15 +304,37 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
             )}
           </section>
 
-          {checking && (
+          {previewLoading && (
             <p className="flex items-center gap-2 text-sm text-gray-500">
               <Loader2 className="h-4 w-4 animate-spin" />
-              겹치는 작업일보를 확인하는 중입니다.
+              겹치는 자료를 확인하는 중입니다.
             </p>
           )}
-          {overlapCount !== null && overlapCount > 0 && (
-            <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
-              겹치는 작업일보 {overlapCount}건은 합쳐지지 않고 유지될 현장 것만 남으며, 삭제될 현장 것은 삭제됩니다.
+          {conflicts && blockedByConflicts && (
+            <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+              <p className="font-semibold">겹치는 자료가 있어 합칠 수 없습니다.</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs leading-5">
+                {conflicts.workDailyReports > 0 && (
+                  <li>같은 날짜의 작업일보 {conflicts.workDailyReports}건</li>
+                )}
+                {conflicts.qualityMonthlyReports > 0 && (
+                  <li>같은 연월의 품질시험 월간보고서 {conflicts.qualityMonthlyReports}건</li>
+                )}
+                {conflicts.scheduleConflict && (
+                  <li>
+                    삭제될 현장의 시공공정표를 그대로 옮길 수 없습니다.
+                    두 현장의 공정표가 서로 다르거나, 합친 뒤 공사기간이 달라져 공정표 구간이 어긋납니다.
+                  </li>
+                )}
+              </ul>
+              <p className="mt-1 text-xs leading-5">
+                원본 자료를 보존하기 위해 병합을 진행하지 않습니다. 겹치는 자료를 정리한 뒤 다시 시도하세요.
+              </p>
+            </div>
+          )}
+          {conflicts && !blockedByConflicts && (
+            <p className="rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+              겹치는 작업일보와 품질시험 월간보고서가 없고, 시공공정표도 그대로 옮길 수 있습니다.
             </p>
           )}
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -321,7 +352,7 @@ const MergeProjectsModal: React.FC<MergeProjectsModalProps> = ({ isOpen, source,
           <button
             type="button"
             onClick={handleMerge}
-            disabled={loading || checking || previewLoading || !previewReady}
+            disabled={loading || previewLoading || !previewReady || blockedByConflicts}
             className="flex items-center gap-2 rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}

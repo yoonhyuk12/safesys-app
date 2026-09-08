@@ -12,6 +12,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignaturePad from '@/components/ui/SignaturePad'
 import ImageEditor from '@/components/ui/ImageEditor'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
+import { useAiModel } from '@/lib/use-ai-model'
 
 interface ExtendedProject extends Project {
   user_profiles?: {
@@ -143,6 +144,7 @@ function normalizeFiveKeyItems(items: any[]): FiveKeyItem[] {
 
 export default function HeadquartersInspectionPage() {
   const { user, userProfile, loading: authLoading } = useAuth()
+  const remarksAiModel = useAiModel('ai.headquarters-remarks', 'gpt-5.6-luna')
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
@@ -3518,7 +3520,7 @@ export default function HeadquartersInspectionPage() {
                       )}
                     </div>
                     <div className="text-xs text-emerald-800/80 mt-1 leading-snug">
-                      카테고리별 4개 배치 병렬 호출로 다양한 표현을 25자 이내로 자동 입력 (GPT-4o mini)
+                      카테고리별 4개 배치 병렬 호출로 다양한 표현을 25자 이내로 자동 입력 ({remarksAiModel})
                     </div>
                     {aiRemarksLoading && aiRemarksProgress.total > 0 && (
                       <div className="mt-2 h-1.5 w-full rounded-full bg-emerald-200 overflow-hidden">

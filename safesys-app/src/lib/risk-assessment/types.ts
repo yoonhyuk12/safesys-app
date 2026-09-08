@@ -48,16 +48,16 @@ export interface RiskAssessmentRow {
   intensity: number         // 강도 1~3 (위험성 = frequency × intensity)
   measures: string[]        // 예방대책 (DB 원문 유지)
   reviewNote: string        // 검토/추록 — 하단 행
-  improvedRisk: number      // 개선후 위험성 (3 이하 관리 목표)
+  improvedRisk: number      // 개선후 위험성 (허용 가능 수준인 2 이하 관리 목표)
   improveDate: string       // 개선예정일(완료일)
   managerSub: string        // 이행담당(하도급사)
   managerMain: string       // 확인담당(원도급사)
 }
 
-/** 위험성 등급 계산 — 상(7~9) / 중(4~6) / 하(1~3) */
+/** 위험성 등급 계산 — 상(6~9) / 중(3~4) / 하(1~2) */
 export function riskGrade(frequency: number, intensity: number): { score: number; grade: '상' | '중' | '하' } {
   const score = frequency * intensity
-  return { score, grade: score >= 7 ? '상' : score >= 4 ? '중' : '하' }
+  return { score, grade: score >= 6 ? '상' : score >= 3 ? '중' : '하' }
 }
 
 /** POST /api/ai/risk-classify 요청 — 작업내용 자유 텍스트에서 분류(공사>단위작업>세부단위작업)를 자동 매칭 */

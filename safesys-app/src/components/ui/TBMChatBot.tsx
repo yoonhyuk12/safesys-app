@@ -55,7 +55,7 @@ export default function TBMChatBot({ userProfile }: TBMChatBotProps) {
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const aiModel = useAiModel('chat.tbm', 'GPT-5.6 Luna')
+  const aiModel = useAiModel('chat.tbm', 'gpt-5.6-luna')
 
   // 메시지 스크롤
   useEffect(() => {

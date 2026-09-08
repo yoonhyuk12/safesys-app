@@ -15,7 +15,6 @@ safesys-app/safesys-app/
 .agents/
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
-.codex/
 .cursor/
 .gemini/
 
@@ -34,3 +33,5 @@ safesys-app/temp_read_excel.js
 
 # Local Netlify folder
 .netlify
+.claude/hooks/.log_state.json
+.claude/hooks/.log.lock

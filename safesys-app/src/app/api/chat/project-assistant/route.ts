@@ -7,6 +7,7 @@ import {
   type UnsignedTargetDetail,
 } from '@/lib/bulk-sign/unsigned-supervisor-details'
 import { getAiModel } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 import { PROJECT_ROUTE_MAP } from '@/lib/project-assistant/route-map'
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions'
@@ -127,9 +128,9 @@ function getBearerToken(request: NextRequest): string | null {
   return request.headers.get('authorization')?.match(/^Bearer\s+(.+)$/i)?.[1] ?? null
 }
 
-async function isValidToken(token: string): Promise<boolean> {
+async function getAuthenticatedUserId(token: string): Promise<string | null> {
   const { data: { user }, error } = await getAuthSupabase().auth.getUser(token)
-  return !error && Boolean(user)
+  return error || !user ? null : user.id
 }
 
 async function getProject(client: SupabaseClient, projectId: string): Promise<ProjectRow> {
@@ -332,20 +333,22 @@ function getOpenAIErrorMessage(status: number): string {
 
 async function requestOpenAI(
   messages: OpenAIMessage[],
-  options?: { tools?: unknown[]; toolChoice?: 'auto' | 'none' }
+  options: { tools?: unknown[]; toolChoice?: 'auto' | 'none'; userId: string; projectId: string }
 ): Promise<OpenAIMessage> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new OpenAIRequestError('OpenAI API 키가 설정되지 않았습니다.')
 
+  const model = await getAiModel('chat.project-assistant')
   const body: Record<string, unknown> = {
-    model: await getAiModel('chat.project-assistant'),
+    model,
     messages,
     reasoning_effort: 'none',
     max_completion_tokens: 8192,
   }
-  if (options?.tools) body.tools = options.tools
-  if (options?.toolChoice) body.tool_choice = options.toolChoice
+  if (options.tools) body.tools = options.tools
+  if (options.toolChoice) body.tool_choice = options.toolChoice
 
+  const startedAt = Date.now()
   const response = await fetch(OPENAI_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
@@ -354,27 +357,30 @@ async function requestOpenAI(
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
     console.error('OpenAI API Error:', response.status, errorData)
+    recordAiUsage({ featureKey: 'chat.project-assistant', provider: 'OpenAI', model, success: false, errorMessage: `HTTP ${response.status}`, durationMs: Date.now() - startedAt, userId: options.userId, projectId: options.projectId })
     throw new OpenAIRequestError(getOpenAIErrorMessage(response.status))
   }
 
   const data = await response.json() as OpenAIResponse
+  recordAiUsage({ featureKey: 'chat.project-assistant', provider: 'OpenAI', model, response: data, durationMs: Date.now() - startedAt, userId: options.userId, projectId: options.projectId })
   const message = data.choices?.[0]?.message
   if (!message) throw new OpenAIRequestError('AI 응답을 생성하지 못했습니다.')
   return message
 }
 
-async function generateBriefing(systemPrompt: string): Promise<string> {
+async function generateBriefing(systemPrompt: string, userId: string, projectId: string): Promise<string> {
   const message = await requestOpenAI([
     { role: 'developer', content: systemPrompt },
     { role: 'user', content: '오늘 현장 브리핑을 해줘' },
-  ])
+  ], { userId, projectId })
   return message.content || '응답을 생성하지 못했습니다.'
 }
 
 async function generateChat(
   client: SupabaseClient,
   projectId: string,
-  initialMessages: OpenAIMessage[]
+  initialMessages: OpenAIMessage[],
+  userId: string
 ): Promise<string> {
   let messages = initialMessages
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
@@ -382,6 +388,8 @@ async function generateChat(
     const assistant = await requestOpenAI(messages, {
       tools: [QUERY_PROJECT_TABLE_TOOL],
       toolChoice: forceFinal ? 'none' : 'auto',
+      userId,
+      projectId,
     })
     if (forceFinal || !assistant.tool_calls?.length) {
       return assistant.content || '응답을 생성하지 못했습니다.'
@@ -426,7 +434,8 @@ export async function POST(request: NextRequest) {
     if (!token) {
       return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 })
     }
-    if (!await isValidToken(token)) {
+    const userId = await getAuthenticatedUserId(token)
+    if (!userId) {
       return NextResponse.json({ error: '인증에 실패했습니다.' }, { status: 401 })
     }
 
@@ -451,12 +460,12 @@ export async function POST(request: NextRequest) {
     const context = await getBriefingContext(client, projectId)
     const systemPrompt = buildSystemPrompt(context, mode)
     const response = mode === 'briefing'
-      ? await generateBriefing(systemPrompt)
+      ? await generateBriefing(systemPrompt, userId, projectId)
       : await generateChat(client, projectId, [
         { role: 'developer', content: systemPrompt },
         ...getConversationMessages(body.conversationHistory),
         { role: 'user', content: message },
-      ])
+      ], userId)
     return NextResponse.json({ response })
   } catch (error) {
     if (error instanceof ProjectNotFoundError) {

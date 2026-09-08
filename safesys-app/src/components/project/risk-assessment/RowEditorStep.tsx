@@ -86,7 +86,7 @@ export default function RowEditorStep({ rows, detailWork, trigger, siteContext, 
         <p className="text-sm text-gray-600">
           총 {rows.length}행
           {highRiskCount > 0 && <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">위험등급 상 {highRiskCount}건</span>}
-          <span className="ml-2 text-xs text-gray-500">위험성 = 빈도 × 강도, 개선 후 3 이하로 관리합니다.</span>
+          <span className="ml-2 text-xs text-gray-500">위험성 = 빈도 × 강도, 개선 후 2 이하로 관리합니다.</span>
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <button

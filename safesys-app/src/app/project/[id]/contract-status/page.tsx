@@ -1131,7 +1131,8 @@ export default function ContractStatusPage() {
     linkSyncTried.add(syncKey)
     const sync = async () => {
       try {
-        const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}`)
+        // latest=1 — 원계약 번호가 연계돼 있어도 최신 변경계약 금액·기간으로 등록한다
+        const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}&latest=1`)
         const json = await res.json()
         if (!res.ok || !json.success) return
         const c: G2bContractResp | undefined = json.data?.contracts?.[0]
@@ -1410,7 +1411,21 @@ export default function ContractStatusPage() {
   // 다른 연차가 나오지 않는다 — 신규 연차 발견은 기간 목록 조회가 유일한 경로다.
   const openRefreshConfirm = () => {
     if (!user || refreshing) return
-    const targets = records.filter((r) => r.cntrct_no || r.unty_cntrct_no)
+    // 재조회는 계약(연차 그룹)별 최신 차수 1건만 한다 — 지난 연차는 값이 확정돼 매번 조회하면 시간만 든다.
+    // 변경계약은 그 최신 차수 쪽에서 잡힌다. 다만 금차 준공일이 빈 구버전 행은 백필이 필요해 예외로 포함
+    const latestIds = new Set(
+      groups
+        .map((g) =>
+          g.members
+            .filter((m) => m.cntrct_no || m.unty_cntrct_no)
+            .reduce<ContractRecord | null>((a, b) => (!a || (b.cntrct_date || '') > (a.cntrct_date || '') ? b : a), null)
+        )
+        .filter((r): r is ContractRecord => !!r)
+        .map((r) => r.id)
+    )
+    const targets = records.filter(
+      (r) => (r.cntrct_no || r.unty_cntrct_no) && (latestIds.has(r.id) || !r.thtm_end_date)
+    )
 
     // 신규 연차 탐색 대상: 미등록 차수가 있는 계약 + 기관명 확보 가능.
     // ① 금차 합 < 총액 → 미등록 차수 존재(과거·미래 불문), ② 차수 번호 1..최대 중 빠진 번호 → 과거 연차 누락
@@ -1539,18 +1554,25 @@ export default function ContractStatusPage() {
       }
     }
 
-    // 기존 등록 건 매칭: cntrctNo(확정계약번호)와 계약명+체결일 기준으로만 매칭 (unty는 변형이 있어 제외)
+    // 기존 등록 건 매칭: cntrctNo(확정계약번호)와 계약명+체결일 기준으로만 매칭 (unty는 변형이 있어 제외).
+    // 변경계약은 확정계약번호의 차수와 체결일이 둘 다 달라 위 두 키로는 원계약 행을 찾지 못하므로,
+    // 차수를 뗀 기본번호(딥링크 ctrtNo·결합형 번호 앞자리)로도 같은 계약임을 판정한다
     const findExistingRecord = (c: G2bContractResp) => {
+      const cUrlNo = ctrtNoFromUrl(c.cntrctDtlInfoUrl || c.cntrctInfoUrl)
+      const cBaseNo = c.cntrctNo.length >= 13 ? c.cntrctNo.slice(0, -2) : ''
       return records.find((r) => {
         if (c.cntrctNo && r.cntrct_no === c.cntrctNo) return true
         if (nameDateKey(r.cntrct_nm, r.cntrct_date || '') === nameDateKey(c.cnstwkNm, c.cntrctCnclsDate)) return true
+        if (cUrlNo && ctrtNoFromUrl(r.cntrct_info_url) === cUrlNo) return true
+        if (cBaseNo && r.cntrct_no && r.cntrct_no.length >= 13 && r.cntrct_no.slice(0, -2) === cBaseNo) return true
         return false
       })
     }
 
     try {
       const CONCURRENCY = 3
-      // ① 등록 건 번호 재조회 갱신 — 같은 차수의 변경계약(금액·기간 변경) 반영.
+      // ① 등록 건 번호 재조회 갱신 — 변경계약(금액·기간 변경) 반영.
+      // 등록된 번호는 계약 당시 차수라 그대로 조회하면 변경분이 안 잡힌다 — latest=1로 최신 차수까지 받는다.
       // 조달청 조회(건당 3~6초)가 시간을 지배하므로 3건 동시 호출하고, 유형(div) 힌트로 서버가 해당 구분
       // 오퍼레이션부터 조회하게 한다. DB 반영·knownKeys 갱신은 중복 등록 경합이 없도록 배치 후 순차 처리
       for (let i = 0; i < targets.length; i += CONCURRENCY) {
@@ -1558,7 +1580,7 @@ export default function ContractStatusPage() {
           try {
             const no = r.unty_cntrct_no || r.cntrct_no || ''
             const div = r.contract_type === '용역' ? 'servc' : 'cnstwk'
-            const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}&div=${div}`)
+            const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}&div=${div}&latest=1`)
             const json = await res.json()
             if (!res.ok || !json.success) throw new Error(json.error || '조회 실패')
             const contracts: G2bContractResp[] = json.data?.contracts || []
@@ -1574,8 +1596,10 @@ export default function ContractStatusPage() {
         for (const result of fetched) {
           if (!result) continue
           try {
-            for (const c of result.contracts) {
-              const item = contractRespToItem(c)
+            // 원계약과 변경계약이 함께 오면 최신 차수만 반영한다 (뒤에 오는 옛 차수가 덮어쓰는 것 방지)
+            const pairs = result.contracts.map((c) => ({ c, item: contractRespToItem(c) }))
+            const latestItems = new Set(latestPerContract(pairs.map((p) => p.item)))
+            for (const { c, item } of pairs.filter((p) => latestItems.has(p.item))) {
               if (isKnown(item)) {
                 const existing = findExistingRecord(c)
                 if (existing) {
@@ -2307,7 +2331,7 @@ export default function ContractStatusPage() {
               </div>
               <div className="p-4 space-y-3 text-sm text-gray-700">
                 <p className="text-xs text-gray-500">
-                  등록 계약을 조달청 최신 정보로 재조회하고, 미등록 연차(차수) 계약을 월 단위 목록 조회로 탐색합니다.
+                  계약별 최신 차수를 조달청 최신 정보로 재조회하고, 미등록 연차(차수) 계약을 월 단위 목록 조회로 탐색합니다.
                   아래 숫자는 계약 건수가 아니라 조달청 조회 횟수입니다.
                 </p>
                 <div className="space-y-2">
@@ -2334,7 +2358,7 @@ export default function ContractStatusPage() {
                           {s.t} <span className="font-normal text-gray-500">— 총 {s.calls}회</span>
                         </span>
                         <span className="block text-xs text-gray-500">
-                          등록 {s.regCnt}건 재조회 {s.regCnt}회
+                          최신 차수 {s.regCnt}건 재조회 {s.regCnt}회
                           {s.scanCalls > 0 ? ` + 연차 탐색 ${s.planCnt}건 월별 조회 ${s.scanCalls}회` : ''}
                         </span>
                       </span>

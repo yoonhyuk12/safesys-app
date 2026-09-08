@@ -1,0 +1,10 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1160, "h": 1480 },
+    { "file": "Typography.dc.html", "x": 1240, "y": 0, "w": 1160, "h": 1500 },
+    { "file": "Controls.dc.html", "x": 2480, "y": 0, "w": 1160, "h": 1440 },
+    { "file": "Patterns.dc.html", "x": 0, "y": 1660, "w": 1160, "h": 1520 },
+    { "file": "Deviations.dc.html", "x": 1240, "y": 1660, "w": 1160, "h": 1260 }
+  ],
+  "launch": { "view": "canvas" }
+}

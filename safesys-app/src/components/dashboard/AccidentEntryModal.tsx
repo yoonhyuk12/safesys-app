@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AlertCircle, Check, ChevronDown, Loader2, Search, X } from 'lucide-react'
 import type { Project } from '@/lib/projects'
 import {
+  ACCIDENT_COMP_CLAIM_OPTIONS,
   ACCIDENT_SEVERITY_OPTIONS,
   ACCIDENT_TYPE_OPTIONS,
   type AccidentFormInput,
@@ -38,6 +39,7 @@ interface AccidentDraft {
   injuredCount: string
   fatalCount: string
   lostWorkdays: string
+  workersCompClaim: AccidentFormInput['workers_comp_claim']
 }
 
 const inputClassName = 'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-100'
@@ -45,9 +47,13 @@ const labelClassName = 'mb-1.5 block text-sm font-medium text-gray-700'
 
 const severityOptions = ACCIDENT_SEVERITY_OPTIONS
 const accidentTypeOptions = ACCIDENT_TYPE_OPTIONS
+const compClaimOptions = ACCIDENT_COMP_CLAIM_OPTIONS
 
 const isAccidentSeverity = (value: string): value is AccidentFormInput['severity'] =>
   severityOptions.some((option) => option.value === value)
+
+const isWorkersCompClaim = (value: string): value is AccidentFormInput['workers_comp_claim'] =>
+  compClaimOptions.some((option) => option.value === value)
 
 const getProjectOptionLabel = (project: Project): string =>
   `${project.project_name} (${project.managing_hq} · ${project.managing_branch})`
@@ -87,6 +93,7 @@ const createDraft = (accident: ProjectAccident | null, defaultProjectId: string)
     injuredCount: String(accident?.injured_count ?? 0),
     fatalCount: String(accident?.fatal_count ?? 0),
     lostWorkdays: String(accident?.lost_workdays ?? 0),
+    workersCompClaim: accident?.workers_comp_claim ?? '',
   }
 }
 
@@ -487,6 +494,7 @@ export default function AccidentEntryModal({
       injured_count: injuredCount,
       fatal_count: fatalCount,
       lost_workdays: lostWorkdays,
+      workers_comp_claim: draft.workersCompClaim,
     }
     await onSubmit(input)
   }
@@ -668,7 +676,7 @@ export default function AccidentEntryModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <label htmlFor="accident-injured-count" className={labelClassName}>부상자 수</label>
                 <input id="accident-injured-count" type="number" min="0" step="1" value={draft.injuredCount} onChange={(event) => updateDraft('injuredCount', event.target.value)} disabled={submitting} className={inputClassName} inputMode="numeric" />
@@ -680,6 +688,20 @@ export default function AccidentEntryModal({
               <div>
                 <label htmlFor="accident-lost-workdays" className={labelClassName}>휴업일수</label>
                 <input id="accident-lost-workdays" type="number" min="0" step="1" value={draft.lostWorkdays} onChange={(event) => updateDraft('lostWorkdays', event.target.value)} disabled={submitting} className={inputClassName} inputMode="numeric" />
+              </div>
+              <div>
+                <label htmlFor="accident-comp-claim" className={labelClassName}>산재신청 여부</label>
+                <select
+                  id="accident-comp-claim"
+                  value={draft.workersCompClaim}
+                  onChange={(event) => {
+                    if (isWorkersCompClaim(event.target.value)) updateDraft('workersCompClaim', event.target.value)
+                  }}
+                  disabled={submitting}
+                  className={inputClassName}
+                >
+                  {compClaimOptions.map((option) => <option key={option.value || 'unknown'} value={option.value}>{option.label}</option>)}
+                </select>
               </div>
             </div>
           </div>

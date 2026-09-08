@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAiModel, supportsSamplingParams, tokenLimitParam } from '@/lib/ai-models'
+import { recordAiUsage } from '@/lib/ai-usage-log'
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
@@ -152,6 +153,7 @@ ${numbered}
 
     const model = await getAiModel('ai.headquarters-remarks')
 
+    const startedAt = Date.now()
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 50000)
 
@@ -188,6 +190,7 @@ ${numbered}
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
       console.error('OpenAI API Error:', response.status, errorData)
+      recordAiUsage({ featureKey: 'ai.headquarters-remarks', provider: 'OpenAI', model, success: false, errorMessage: `HTTP ${response.status}`, durationMs: Date.now() - startedAt })
       return NextResponse.json(
         { error: 'AI 결과 생성 중 오류가 발생했습니다.' },
         { status: 500 }
@@ -195,6 +198,7 @@ ${numbered}
     }
 
     const data = await response.json()
+    recordAiUsage({ featureKey: 'ai.headquarters-remarks', provider: 'OpenAI', model, response: data, durationMs: Date.now() - startedAt })
     const content = data.choices?.[0]?.message?.content
 
     if (!content) {
