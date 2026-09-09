@@ -1,6 +1,67 @@
 # 작업 로그
 
 <!-- worklog -->
+260909_114520 : safesys-app/src/lib/quality/csi-session.ts 수정
+260909_114427 : safesys-app/tests/csi-session.test.mjs 수정
+260909_114407 : safesys-app/tests/csi-session.test.mjs 수정 — "test('alert 문구의 제어문자를 지우고 200자로 자른다', async () => { const no…"
+260909_114400 : safesys-app/tests/csi-sample-seal-scrape.test.mjs 수정 — "assert.equal(fetchCalls[0].params.smpslNo, '0000000624104') …"
+260909_114353 : safesys-app/tests/csi-sample-seal-scrape.test.mjs 수정 — "test('페이지 상한을 넘으면 잘렸다고 표시한다', async () => { fetchCalls.lengt…"
+260909_114342 : safesys-app/tests/csi-sample-seal-scrape.test.mjs 수정 — "test('목록 조회는 쿠키·검색어를 실어 총건수만큼 페이지를 순차 조회한다', async () => { f…"
+260909_114333 : safesys-app/tests/csi-sample-seal-scrape.test.mjs 수정 — "test('총건수는 있는데 행을 못 읽으면 파싱 오류를 던진다', () => { assert.throws((…"
+260909_114328 : safesys-app/tests/csi-sample-seal-scrape.test.mjs 수정 — "// 화면 개편으로 상세 링크의 키 속성이 사라진 상황 const renamedHtml = listHtml.…"
+260909_114257 : safesys-app/src/components/project/quality/QualityTestRecordsTab.tsx 수정 — "detail.catalog.find((item) => { const itemKey = normalizeCsi…"
+260909_114250 : safesys-app/src/components/project/quality/QualityTestRecordsTab.tsx 수정 — "// 시험종목 카탈로그는 시험종별 전체 목록이라 시료봉인명과 이름이 맞는 종목의 방법만 기준으로 쓴다 con…"
+260909_114243 : safesys-app/src/components/project/quality/QualityTestRecordsTab.tsx 수정 — "const samples = detail.samples const singleSample = samples.…"
+260909_114238 : safesys-app/src/components/project/quality/QualityTestRecordsTab.tsx 수정 — "target_material: detail.testKind || detail.sealNm, // 시료마다 제…"
+260909_114233 : safesys-app/src/components/project/quality/QualityTestRecordsTab.tsx 수정 — "// 시료봉인명('들밀도시험')과 시험종목명('들밀도')을 견주기 위해 공백과 끝의 '시험'을 떼어낸다 co…"
+260909_114225 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "onClick={() => handleImport(row)} disabled={loading || Boole…"
+260909_114219 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "id="csi-password" type="password" value={password} autoCompl…"
+260909_114214 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "id="csi-user-id" type="text" value={userId} autoComplete="of…"
+260909_114208 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "const json = await readJson<CsiSampleSealDetailResponse>(res…"
+260909_114202 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "const json = await readJson<CsiSampleSealListResponse>(res) …"
+260909_114155 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "const [importingNo, setImportingNo] = useState('') const [im…"
+260909_114149 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "// SafeSys API 라우트는 Bearer 토큰을 요구한다 — 세션이 없으면 CSI 호출 자체를 시도하…"
+260909_114140 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "import React, { useRef, useState } from 'react'"
+260909_114136 : safesys-app/src/app/api/csi/sample-seals/detail/route.ts 수정 — "if ( !userId || !password || userId.length > MAX_USER_ID_LEN…"
+260909_114130 : safesys-app/src/app/api/csi/sample-seals/detail/route.ts 수정 — "// 로그인 + 상세 1건 조회 + 로그아웃까지 한 요청에서 끝난다 export const maxDurati…"
+260909_114124 : safesys-app/src/app/api/csi/sample-seals/route.ts 수정 — "if ( !userId || !password || userId.length > MAX_USER_ID_LEN…"
+260909_114119 : safesys-app/src/app/api/csi/sample-seals/route.ts 수정 — "// 로그인 + 최대 10페이지 순차 조회 + 로그아웃까지 한 요청에서 끝난다 export const max…"
+260909_114114 : safesys-app/src/lib/quality/csi-session.ts 수정 — "const alertMatch = body.match(ALERT_RE) throw new CsiLoginEr…"
+260909_114105 : safesys-app/src/lib/quality/csi-session.ts 수정
+260909_114019 : safesys-app/src/lib/quality/csi-session.ts 수정
+260909_113958 : safesys-app/src/lib/quality/csi-session.ts 수정 — "// 로그인 실패는 200 + <script>alert('...')</script> 로 돌아온다 const …"
+260909_113949 : safesys-app/src/lib/quality/csi-sample-seal-scrape.ts 수정 — "sealSttsCd: '', }) const detail = parseSampleSealDetail(html…"
+260909_113943 : safesys-app/src/lib/quality/csi-sample-seal-scrape.ts 수정 — "): Promise<CsiSampleSealListResult> => { const startedAt = D…"
+260909_113939 : safesys-app/src/lib/quality/csi-sample-seal-scrape.ts 수정 — "const pagesAvailable = Math.max(Math.ceil(firstPage.totalCou…"
+260909_113927 : safesys-app/src/lib/quality/csi-sample-seal-scrape.ts 수정 — "const totalCount = totalMatch ? Number(totalMatch[1].replace…"
+260909_113922 : safesys-app/src/lib/quality/csi-sample-seal-scrape.ts 수정 — "// 정부 사이트 부하 제한 — 목록은 10행/페이지, 최대 10페이지(100행)까지만 순차로 읽는다 con…"
+260909_113626 : docs/architecture.md 수정
+260909_113616 : plans/20260909_CSI시료봉인_로그인가져오기_context-notes.md 수정
+260909_113559 : safesys-app/src/components/project/quality/CsiReportImportModal.tsx 수정
+260909_112925 : safesys-app/src/lib/quality/csi-sample-seal-scrape.ts 수정 — "$('table.table-striped tbody tr').each((_, tr) => { const ce…"
+260909_112835 : docs/architecture.md 수정 — "- `/api/chat/project-assistant` — 프로젝트 현장 AI 비서(오늘 TBM 브리핑·감…"
+260909_112815 : safesys-app/package.json 수정 — ""test:merge-sql": "node --test tests/merge-projects-sql.test…"
+260909_112811 : safesys-app/src/components/project/quality/QualityTestRecordsTab.tsx 수정 — "onClose={() => setShowCsiImport(false)} onImport={handleCsiI…"
+260909_112807 : safesys-app/src/components/project/quality/QualityTestRecordsTab.tsx 수정 — "title="CSI 로그인 후 시료봉인·성적서 불러오기""
+260909_112803 : safesys-app/src/components/project/quality/QualityTestRecordsTab.tsx 수정 — "const csiDateToIso = (value: string | undefined): string | n…"
+260909_112756 : safesys-app/src/components/project/quality/QualityTestRecordsTab.tsx 수정 — "setShowCsiImport(false) setIsListExpanded(false) setShowForm…"
+260909_112741 : safesys-app/src/components/project/quality/QualityTestRecordsTab.tsx 수정 — "import CsiReportImportModal from '@/components/project/quali…"
+260909_112725 : safesys-app/src/components/project/quality/CsiReportImportModal.tsx 수정 — "))} </div> )} </div> </> )} </div> </div> ) }"
+260909_112718 : safesys-app/src/components/project/quality/CsiReportImportModal.tsx 수정 — "{activeTab === 'report' && ( <> <div className="space-y-3 bo…"
+260909_112711 : safesys-app/src/components/project/quality/CsiReportImportModal.tsx 수정 — "<div className="flex border-b border-gray-200"> <button type…"
+260909_112702 : safesys-app/src/components/project/quality/CsiReportImportModal.tsx 수정 — "export default function CsiReportImportModal({ projectName, …"
+260909_112655 : safesys-app/src/components/project/quality/CsiReportImportModal.tsx 수정 — "// CSI(건설공사 안전관리 종합정보망) 품질검사 성적서 조회·가져오기 모달 — 실시대장 등록 폼 프리필용…"
+260909_112614 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 추가 — "'use client' // CSI 로그인 후 우리 기관이 등록한 시료봉인 목록을 조회해 실시대장 등록 폼으…"
+260909_112522 : safesys-app/src/app/api/csi/sample-seals/detail/route.ts 추가 — "// CSI 로그인 세션으로 시료봉인 1건의 상세를 조회하는 API 라우트 — 자격증명은 요청마다 받아 쓰고…"
+260909_112506 : safesys-app/src/app/api/csi/sample-seals/route.ts 추가 — "// CSI 로그인 세션으로 시료봉인 목록을 조회하는 API 라우트 — 자격증명은 요청마다 받아 쓰고 저장·…"
+260909_112433 : safesys-app/src/lib/quality/csi-sample-seal-scrape.ts 추가 — "// 로그인한 CSI 세션으로 시료봉인 목록·상세 화면을 스크래핑해 정규화 타입으로 바꾸는 모듈 import…"
+260909_112243 : safesys-app/src/lib/quality/csi-session.ts 추가 — "// CSI(gcloud.csi.go.kr) 로그인·로그아웃으로 조회용 세션 쿠키를 얻는 모듈 — 자격증명은…"
+260909_112223 : safesys-app/src/lib/quality/csi-sample-seal-types.ts 추가 — "// CSI 시료봉인(품질검사 의뢰 전 단계) 목록·상세 정규화 타입 — API 라우트·가져오기 모달 공유 …"
+260909_112157 : safesys-app/tests/csi-session.test.mjs 추가 — "// CSI 로그인·로그아웃 요청 형식과 성공/실패 판정을 fetch 모킹으로 검증한다. import ass…"
+260909_112125 : safesys-app/tests/csi-sample-seal-scrape.test.mjs 추가 — "// CSI 시료봉인 목록·상세 HTML 파싱과 페이지 순회를 실측 픽스처로 검증한다. import asse…"
+260909_111933 : safesys-app/tests/fixtures/csi-sample-seal-list.html 수정, safesys-app/tests/fixtures/csi-sample-seal-login-required.html 수정, safesys-app/tests/fixtures/csi-sample-seal-view.html 수정
+260909_111911 : safesys-app/tests/fixtures/csi-sample-seal-list.html 추가, safesys-app/tests/fixtures/csi-sample-seal-login-required.html 추가, safesys-app/tests/fixtures/csi-sample-seal-view.html 추가
+260909_111451 : plans/20260909_CSI시료봉인_로그인가져오기.md 추가, plans/20260909_CSI시료봉인_로그인가져오기_checklist.md 추가, plans/20260909_CSI시료봉인_로그인가져오기_context-notes.md 추가
 260907_155410 : docs/database.md 수정
 260907_155336 : safesys-app/tests/merge-projects-api.test.mjs 수정 — "test('충돌 안내 문구는 0건 항목을 빼고 마지막 낱말에 맞는 조사를 붙인다', () => { asser…"
 260907_155326 : safesys-app/tests/merge-projects-api.test.mjs 수정 — "const mergeConflicts = await transpile('../src/lib/merge-con…"

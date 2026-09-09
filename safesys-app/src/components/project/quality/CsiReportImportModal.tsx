@@ -2,14 +2,17 @@
 
 // CSI(건설공사 안전관리 종합정보망) 품질검사 성적서 조회·가져오기 모달 — 실시대장 등록 폼 프리필용
 import React, { useState } from 'react'
-import { X, Search, FlaskConical, ArrowRight } from 'lucide-react'
+import { X, Search, FlaskConical, ArrowRight, PackageSearch, FileSearch } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { CsiQualityReport, CsiQualityReportsResponse } from '@/lib/quality/csi-report-types'
+import { CsiSampleSealDetail } from '@/lib/quality/csi-sample-seal-types'
+import CsiSampleSealImport from '@/components/project/quality/CsiSampleSealImport'
 
 interface CsiReportImportModalProps {
   projectName: string
   onClose: () => void
   onImport: (report: CsiQualityReport) => void
+  onImportSampleSeal: (detail: CsiSampleSealDetail) => void
 }
 
 const inputCls =
@@ -43,7 +46,10 @@ export default function CsiReportImportModal({
   projectName,
   onClose,
   onImport,
+  onImportSampleSeal,
 }: CsiReportImportModalProps) {
+  // 의뢰 단계의 시료봉인이 실시대장 작성 시점과 맞아 기본 탭으로 둔다
+  const [activeTab, setActiveTab] = useState<'sampleSeal' | 'report'>('sampleSeal')
   // 필수 파라미터가 성적서 발급일자 범위라 기본값은 최근 3개월
   const [startDate, setStartDate] = useState(() => presetStartValue(3))
   const [endDate, setEndDate] = useState(() => toDateInputValue(new Date()))
@@ -96,7 +102,7 @@ export default function CsiReportImportModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-gray-200 bg-amber-600 px-4 py-3 text-white">
-          <h3 className="text-sm font-semibold sm:text-base">CSI 품질검사 성적서 불러오기</h3>
+          <h3 className="text-sm font-semibold sm:text-base">CSI 시료봉인·성적서 불러오기</h3>
           <button
             type="button"
             onClick={onClose}
@@ -107,6 +113,37 @@ export default function CsiReportImportModal({
           </button>
         </div>
 
+        <div className="flex border-b border-gray-200">
+          <button
+            type="button"
+            onClick={() => setActiveTab('sampleSeal')}
+            className={`flex min-h-[44px] flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'sampleSeal'
+                ? 'border-b-2 border-amber-600 bg-amber-50 text-amber-700'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }`}
+          >
+            <PackageSearch className="h-4 w-4" />
+            시료봉인 목록 (CSI 로그인)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('report')}
+            className={`flex min-h-[44px] flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+              activeTab === 'report'
+                ? 'border-b-2 border-amber-600 bg-amber-50 text-amber-700'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+            }`}
+          >
+            <FileSearch className="h-4 w-4" />
+            발급 성적서 검색
+          </button>
+        </div>
+
+        {activeTab === 'sampleSeal' && <CsiSampleSealImport onImport={onImportSampleSeal} />}
+
+        {activeTab === 'report' && (
+        <>
         <div className="space-y-3 border-b border-gray-200 bg-gray-50 px-4 py-3">
           <p className="text-xs text-gray-500">
             건설공사 안전관리 종합정보망(csi.go.kr)의 [발급완료] 품질검사 성적서를 발급일자
@@ -250,6 +287,8 @@ export default function CsiReportImportModal({
             </div>
           )}
         </div>
+        </>
+        )}
       </div>
     </div>
   )

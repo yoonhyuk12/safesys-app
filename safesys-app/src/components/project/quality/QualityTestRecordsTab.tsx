@@ -43,6 +43,7 @@ import {
 } from '@/lib/quality/quality-test-types'
 import CsiReportImportModal from '@/components/project/quality/CsiReportImportModal'
 import { CsiQualityReport } from '@/lib/quality/csi-report-types'
+import { CsiSampleSealDetail } from '@/lib/quality/csi-sample-seal-types'
 
 interface QualityTestRecordsTabProps {
   projectId: string
@@ -134,6 +135,15 @@ const csiDateToIso = (value: string | undefined): string | null => {
   return digits.length === 8
     ? `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`
     : null
+}
+
+// 시료봉인명('들밀도시험')과 시험종목명('들밀도')을 견주기 위해 공백과 끝의 '시험'을 떼어낸다
+const normalizeCsiTestName = (value: string): string => (value || '').replace(/\s+/g, '').replace(/시험$/, '')
+
+// 시료봉인명과 CSI 시험종목명이 같은 시험을 다르게 부르는 경우의 별칭.
+// 들밀도시험은 모래치환법 현장밀도시험(KS F 2311)의 현장 통용 명칭이라 카탈로그의 '현장밀도'와 같은 시험이다.
+const CSI_TEST_NAME_ALIASES: Record<string, string> = {
+  들밀도: '현장밀도',
 }
 
 const getCompressionStrengthTestDate = (
@@ -450,6 +460,65 @@ export default function QualityTestRecordsTab({
         test_result: [it.itmRslt, it.itmUnit].filter(Boolean).join(' '),
       }),
       test_date: csiDateToIso(it.tsiEndDt) || baseDate,
+      _key: newKey(),
+    }))
+    setItems(
+      importedItems.length > 0
+        ? importedItems
+        : [{ ...createEmptyQualityTestItem(), test_date: baseDate, _key: newKey() }]
+    )
+    setShowCsiImport(false)
+    setIsListExpanded(false)
+    setShowForm(true)
+  }
+
+  // CSI 시료봉인 1건(시료 N건)을 등록 폼에 프리필 — 의뢰 단계라 시험 결과는 비워 두고 사용자가 성적서 발급 후 채운다
+  const handleCsiSampleSealImport = (detail: CsiSampleSealDetail) => {
+    const last = records[records.length - 1]
+    const baseDate = csiDateToIso(detail.sealYmd) || getTodayDateString()
+    const samples = detail.samples
+    const singleSample = samples.length === 1 ? samples[0] : null
+    const makerNms = Array.from(new Set(samples.map((sample) => sample.makerNm.trim()).filter(Boolean)))
+    const sameMakerNm = makerNms.length === 1 ? makerNms[0] : ''
+
+    setSelectedSummaryId(summaries.length === 0 ? '' : summaries[summaries.length - 1].id)
+    setEditingSerialNo(null)
+    setShowMaterialPresets(false)
+    setCopySourceSerialNo('')
+    setCommonData(
+      createEmptyQualityTestCommon({
+        test_date: baseDate,
+        test_category: COMMISSIONED_TEST_CATEGORY,
+        target_material: detail.testKind || detail.sealNm,
+        // 시료마다 제조사가 다르면 공급원(공장)을 하나로 적을 수 없다
+        supplier_factory: sameMakerNm,
+        // 시료가 여러 건이면 채취장소가 서로 달라 공통 항목으로 묶을 수 없다
+        test_place: singleSample?.pickPlace || '',
+        quality_engineer_name: last?.quality_engineer_name || '',
+        quality_engineer_signature: last?.quality_engineer_signature || '',
+        supervision_engineer_name: supervisorName || last?.supervision_engineer_name || '',
+        supervision_engineer_signature: '',
+        note: detail.smpslNo
+          ? `CSI 시료봉인 ${detail.smpslNo}${detail.sealSttsNm ? ` (${detail.sealSttsNm})` : ''}`
+          : '',
+      })
+    )
+    // 시험종목 카탈로그는 시험종별 전체 목록이라 시료봉인명과 이름이 맞는 종목의 방법만 기준으로 쓴다
+    const sealNmKey = normalizeCsiTestName(detail.sealNm)
+    const aliasKey = CSI_TEST_NAME_ALIASES[sealNmKey] || ''
+    // 같은 이름의 종목이 카탈로그에 둘 이상이면(예: 현장밀도 KS F 2311 / KS F 2503) 먼저 나온 것을 쓴다
+    const catalogMethod =
+      detail.catalog.find((item) => {
+        const itemKey = normalizeCsiTestName(item.itemNm)
+        if (itemKey === '') return false
+        return itemKey === sealNmKey || itemKey === aliasKey
+      })?.method || ''
+    const importedItems = samples.map((sample) => ({
+      ...createEmptyQualityTestItem({
+        test_item: singleSample ? detail.sealNm : `${detail.sealNm} - ${sample.pickPlace}`,
+        test_standard: catalogMethod,
+      }),
+      test_date: baseDate,
       _key: newKey(),
     }))
     setItems(
@@ -1243,7 +1312,7 @@ export default function QualityTestRecordsTab({
                 <button
                   onClick={() => setShowCsiImport(true)}
                   className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-amber-700 rounded-lg hover:bg-amber-50 text-xs sm:text-sm font-medium"
-                  title="건설공사 안전관리 종합정보망(CSI) 품질검사 성적서 불러오기"
+                  title="CSI 로그인 후 시료봉인·성적서 불러오기"
                 >
                   <CloudDownload className="h-4 w-4" />
                   <span className="hidden sm:inline">CSI 성적서</span>
@@ -2008,6 +2077,7 @@ export default function QualityTestRecordsTab({
           projectName={projectName}
           onClose={() => setShowCsiImport(false)}
           onImport={handleCsiImport}
+          onImportSampleSeal={handleCsiSampleSealImport}
         />
       )}
 
