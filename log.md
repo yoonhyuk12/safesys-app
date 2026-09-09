@@ -1,6 +1,12 @@
 # 작업 로그
 
 <!-- worklog -->
+260909_134223 : docs/troubleshooting.md 수정
+260909_134207 : safesys-app/package.json 수정 — ""test:csi": "node --test tests/csi-sample-seal-scrape.test.m…"
+260909_134203 : safesys-app/src/app/project/[id]/page.tsx 수정 — "import { countUnsignedBySigner } from '@/lib/bulk-sign/bulk-…"
+260909_134153 : safesys-app/src/app/project/[id]/page.tsx 수정 — "setG2bSyncing(true) try { // latest=1 — 원계약 번호로 저장돼 있어도 최신 변…"
+260909_134136 : safesys-app/src/lib/g2b-contract-period.ts 추가 — "// 장기계속 연차 계약은 확정계약번호가 해마다 바뀌어 최신 차수 조회만으로는 최초 착공일을 알 수 없다 —…"
+260909_134126 : safesys-app/tests/g2b-contract-period.test.mjs 추가 — "// 장기계속 계약 목록에서 최초 착공일을 고르는 earliestStartDate 를 검증한다. import…"
 260909_120133 : plans/20260909_CSI시료봉인_로그인가져오기_context-notes.md 수정
 260909_120121 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "<div className="space-y-1"> <label className="flex items-cen…"
 260909_120110 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "setRows(json.data.rows) setTotalCount(json.data.totalCount) …"

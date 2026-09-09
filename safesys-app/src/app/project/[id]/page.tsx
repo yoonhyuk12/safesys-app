@@ -17,6 +17,7 @@ import HeatWaveCheckModal from '@/components/project/HeatWaveCheckModal'
 import BulkSignModal, { BulkSignSigner } from '@/components/project/BulkSignModal'
 import PenHolderButton from '@/components/project/PenHolderButton'
 import { countUnsignedBySigner } from '@/lib/bulk-sign/bulk-sign-counts'
+import { earliestStartDate } from '@/lib/g2b-contract-period'
 import { isRealFinding, isAdditionalFinding, countHqIssues } from '@/lib/issue-ledger'
 import ProjectHandoverModal from '@/components/project/ProjectHandoverModal'
 import ProjectShareModal from '@/components/project/ProjectShareModal'
@@ -550,16 +551,34 @@ export default function ProjectDetailPage() {
     setG2bSyncing(true)
     try {
       // latest=1 — 원계약 번호로 저장돼 있어도 최신 변경계약(차수)의 금액·기간을 가져온다
-      const res = await fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}&latest=1`)
+      // 장기계속(연차) 계약은 해마다 확정계약번호가 새로 부여돼 최신 차수 조회로는 당해년도 시작일만 온다 —
+      // 최초 착공일은 공고번호로 조회해야 나오므로 공고번호가 따로 있으면 함께 조회한다 (best-effort)
+      const noticeNo = project.g2b_ntce_no && project.g2b_ntce_no !== no ? project.g2b_ntce_no : null
+      const [res, noticeContracts] = await Promise.all([
+        fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}&latest=1`),
+        noticeNo
+          ? fetch(`/api/g2b/contract?no=${encodeURIComponent(noticeNo)}`)
+              .then(async (r) => {
+                if (!r.ok) return []
+                const j = await r.json()
+                return j.success && Array.isArray(j.data?.contracts) ? j.data.contracts : []
+              })
+              // 보조 조회 실패는 갱신을 막지 않는다 — 착공일만 최신 차수 기준으로 남는다
+              .catch(() => [])
+          : Promise.resolve([]),
+      ])
       const json = await res.json()
       if (!json.success || !json.data?.contracts?.length) {
         alert(json.error || '나라장터에서 계약 정보를 찾지 못했습니다.')
         return
       }
-      const c = json.data.contracts[0]
+      const latestContracts = json.data.contracts
+      const c = latestContracts[0]
       // 값이 있는 항목만 갱신 후보로 삼는다 (조회값이 비었다고 기존 값을 지우지 않음)
       const next = {
-        construction_start_date: c.startDate || project.construction_start_date || null,
+        // 착공일만 최초 계약 기준 — 준공일·금액·업체는 최신 차수 값이 맞다
+        construction_start_date:
+          earliestStartDate([...latestContracts, ...noticeContracts]) || project.construction_start_date || null,
         construction_end_date: c.endDate || project.construction_end_date || null,
         g2b_corp_nm: (c.corpNms || []).join(', ') || project.g2b_corp_nm || null,
         g2b_tot_amt: c.totCntrctAmt > 0 ? c.totCntrctAmt : (project.g2b_tot_amt || null),
