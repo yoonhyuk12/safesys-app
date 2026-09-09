@@ -1,12 +1,12 @@
 # 체크리스트 — CSI 시료봉인 로그인 가져오기
-- [ ] csi-session.ts 로그인/로그아웃 + 단위 테스트(성공 302, 실패 alert)
-- [ ] csi-sample-seal-types.ts
-- [ ] csi-sample-seal-scrape.ts 목록·상세 파서 + 픽스처 테스트(가명 처리)
-- [ ] API 2개(목록·상세) Bearer 인증·비밀번호 비로그·로그아웃
-- [ ] CsiSampleSealImport.tsx (로그인 → 목록 → 가져오기)
-- [ ] CsiReportImportModal.tsx 탭 2개, 기존 검색 UI 유지
-- [ ] QualityTestRecordsTab.tsx 프리필 핸들러
-- [ ] lint · tsc · node --test 통과
-- [ ] 샘플 계정으로 E2E 실측(로그인→40건→상세→프리필)
-- [ ] docs/architecture.md 라우트 표 갱신, context-notes 갱신
-- [ ] 커밋 (푸시는 사용자 확인)
+- [x] csi-session.ts 로그인/로그아웃 + 단위 테스트(성공 302, 실패 alert)
+- [x] csi-sample-seal-types.ts
+- [x] csi-sample-seal-scrape.ts 목록·상세 파서 + 픽스처 테스트(가명 처리)
+- [x] API 2개(목록·상세) Bearer 인증·비밀번호 비로그·로그아웃
+- [x] CsiSampleSealImport.tsx (로그인 → 목록 → 가져오기)
+- [x] CsiReportImportModal.tsx 탭 2개, 기존 검색 UI 유지
+- [x] QualityTestRecordsTab.tsx 프리필 핸들러
+- [x] lint · tsc · node --test 통과
+- [x] 샘플 계정으로 E2E 실측(로그인→40건→상세) — 화면 프리필은 사용자 확인 필요
+- [x] docs/architecture.md 라우트 표 갱신, context-notes 갱신
+- [x] 커밋 4d2f723·f5e74fe (푸시는 사용자 확인 대기)
