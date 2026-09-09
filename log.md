@@ -1,6 +1,26 @@
 # 작업 로그
 
 <!-- worklog -->
+260909_152449 : plans/20260909_issue-report-a4.md 수정, plans/20260909_issue-report-a4_checklist.md 수정, plans/20260909_issue-report-a4_context-notes.md 수정
+260909_152330 : safesys-app/src/lib/excel/corrective-action-request-export.ts 수정
+260909_152323 : safesys-app/tests/issue-report-a4.test.mjs 수정
+260909_152310 : safesys-app/src/lib/excel/corrective-action-request-export.ts 수정
+260909_152159 : safesys-app/src/lib/excel/corrective-action-request-export.ts 수정
+260909_152139 : plans/20260909_issue-report-a4.md 수정, plans/20260909_issue-report-a4_checklist.md 수정, plans/20260909_issue-report-a4_context-notes.md 수정
+260909_152057 : safesys-app/src/lib/excel/corrective-action-request-export.ts 수정, safesys-app/src/lib/excel/issue-action-report-export.ts 수정
+260909_152047 : safesys-app/tests/issue-report-a4.test.mjs 수정
+260909_152025 : safesys-app/src/lib/excel/corrective-action-request-export.ts 수정, safesys-app/src/lib/excel/issue-action-report-export.ts 수정
+260909_151749 : safesys-app/.probe/probe2.cjs 삭제, safesys-app/.probe/probe3.cjs 삭제, safesys-app/package.json 수정
+260909_151742 : safesys-app/src/lib/excel/issue-action-report-export.ts 수정
+260909_151732 : safesys-app/src/lib/excel/corrective-action-request-export.ts 수정
+260909_151713 : safesys-app/tests/issue-report-a4.test.mjs 추가 — "// 지적사항 관리 별지 6호·7호 Excel 출력의 사진 셀 내부 배치·A4 인쇄영역·행 높이 픽셀 격자를…"
+260909_151442 : safesys-app/.probe/probe3.cjs 추가
+260909_151404 : plans/20260909_issue-report-a4_checklist.md 수정, plans/20260909_issue-report-a4_context-notes.md 수정
+260909_151311 : plans/20260909_issue-report-a4.md 수정
+260909_151114 : safesys-app/.probe/probe2.cjs 추가
+260909_150748 : plans/20260909_issue-report-a4_context-notes.md 추가
+260909_150714 : plans/20260909_issue-report-a4_checklist.md 추가
+260909_150701 : plans/20260909_issue-report-a4.md 추가
 260909_134223 : docs/troubleshooting.md 수정
 260909_134207 : safesys-app/package.json 수정 — ""test:csi": "node --test tests/csi-sample-seal-scrape.test.m…"
 260909_134203 : safesys-app/src/app/project/[id]/page.tsx 수정 — "import { countUnsignedBySigner } from '@/lib/bulk-sign/bulk-…"

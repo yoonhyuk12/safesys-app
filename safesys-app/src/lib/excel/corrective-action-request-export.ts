@@ -16,6 +16,8 @@ export interface CorrectiveActionRequestData {
 export async function downloadCorrectiveActionRequestExcel(data: CorrectiveActionRequestData): Promise<void> {
   const workbook = new ExcelJS.Workbook()
   const ws = workbook.addWorksheet('시정조치요구서', {
+    // sheetViews를 비워 두면 Excel이 저장된 행 높이를 화면 배율로 다시 계산해 사진이 칸 밖으로 넘친다 (ExcelJS #743)
+    views: [{ state: 'normal' }],
     pageSetup: {
       paperSize: 9, // A4
       orientation: 'portrait',
@@ -90,7 +92,8 @@ export async function downloadCorrectiveActionRequestExcel(data: CorrectiveActio
 
   // 점검내용 및 시정조치 요구사항 — 큰 영역 (텍스트 + 바로 아래 지적사진)
   const CONTENT_ROWS = 22
-  const ROW_H = 22
+  // 3의 배수 pt는 100/125/150/175/200% 화면 배율에서 정수 픽셀이 되어 행 높이 반올림 손실을 줄인다
+  const ROW_H = 21
   const contentStart = r
   mergeSet(ws, `A${r}:B${r + CONTENT_ROWS - 1}`, '점검내용\n및\n시정조치\n요구사항', {
     bold: true, size: 10, fill: headerFill, align: { horizontal: 'center' },
@@ -119,6 +122,9 @@ export async function downloadCorrectiveActionRequestExcel(data: CorrectiveActio
       colWidthsPx,
       rowHeightPx,
       rowCount: CONTENT_ROWS,
+      // 여백 32px — 이 서식은 사진 칸이 내용 텍스트와 같은 칸이라 세로 여유가 적다.
+      // PDF 실측에서 16px로는 긴 세로사진이 표 하단을 7.5pt 넘겼다 (별지 7호는 16px로 충분)
+      padding: 32,
       offsetYPx: textPx,
       verticalAlign: 'top',
     })
@@ -129,6 +135,8 @@ export async function downloadCorrectiveActionRequestExcel(data: CorrectiveActio
     size: 9, border: false, align: { horizontal: 'left' },
   })
   ws.getRow(r).height = 18
+
+  ws.pageSetup.printArea = `A1:H${r}`
 
   const dateStr = data.inspectionDate || new Date().toISOString().split('T')[0]
   await downloadWorkbook(workbook, `시정조치요구서_${dateStr}.xlsx`)

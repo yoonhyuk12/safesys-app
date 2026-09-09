@@ -30,6 +30,8 @@ export interface IssueActionReportData {
 export async function downloadIssueActionReportExcel(data: IssueActionReportData): Promise<void> {
   const workbook = new ExcelJS.Workbook()
   const ws = workbook.addWorksheet('조치결과 보고', {
+    // sheetViews를 비워 두면 Excel이 저장된 행 높이를 화면 배율로 다시 계산해 사진이 칸 밖으로 넘친다 (ExcelJS #743)
+    views: [{ state: 'normal' }],
     pageSetup: {
       paperSize: 9, // A4
       orientation: 'portrait',
@@ -105,6 +107,7 @@ export async function downloadIssueActionReportExcel(data: IssueActionReportData
   ws.getRow(r).height = 26
   r++
 
+  // 3의 배수 pt는 100/125/150/175/200% 화면 배율에서 정수 픽셀이 되어 행 높이 반올림 손실을 줄인다
   const ROW_H = 18
   const PHOTO_ROWS = 11
 
@@ -180,6 +183,7 @@ export async function downloadIssueActionReportExcel(data: IssueActionReportData
     colWidthsPx: Array(6).fill(11 * 8) as number[], // C~H 열 폭 (폭 단위당 8px — 한국어 Excel 실측)
     rowHeightPx: ROW_H * (4 / 3),
     rowCount: PHOTO_ROWS,
+    padding: 16, // Excel COM/PDF 실측에서 기본 6px로는 테두리를 몇 px 넘겼다
   }
   if (data.beforePhotoUrl) {
     await addPhotoImageInArea(workbook, ws, data.beforePhotoUrl, { ...photoArea, row: beforePhotoStart })
@@ -187,6 +191,8 @@ export async function downloadIssueActionReportExcel(data: IssueActionReportData
   if (hasAfterPhoto && data.afterPhotoUrl) {
     await addPhotoImageInArea(workbook, ws, data.afterPhotoUrl, { ...photoArea, row: afterPhotoStart })
   }
+
+  ws.pageSetup.printArea = `A1:H${confirmerRow}`
 
   const dateStr = data.inspectionDate || new Date().toISOString().split('T')[0]
   await downloadWorkbook(workbook, `지적사항조치결과보고_${dateStr}.xlsx`)
