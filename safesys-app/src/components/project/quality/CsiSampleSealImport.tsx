@@ -1,10 +1,15 @@
 'use client'
 
 // CSI 로그인 후 우리 기관이 등록한 시료봉인 목록을 조회해 실시대장 등록 폼으로 가져오는 패널
-import React, { useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { ArrowRight, LogIn, RefreshCw, Search, ShieldCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import {
+  clearCsiCredentials,
+  loadCsiCredentials,
+  saveCsiCredentials,
+} from '@/lib/quality/csi-credential-store'
 import {
   CsiSampleSealDetail,
   CsiSampleSealDetailResponse,
@@ -40,9 +45,11 @@ const readJson = async <T,>(res: Response): Promise<T> => {
 }
 
 export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportProps) {
-  // 자격증명은 이 컴포넌트 상태에만 두고 모달을 닫으면 그대로 사라진다 (저장·전송 후 보관 없음)
+  // 자격증명은 이 컴포넌트 상태에만 두고, 사용자가 원할 때만 이 기기의 브라우저에 따로 저장한다 (서버 저장 없음)
   const [userId, setUserId] = useState('')
   const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(false)
+  const [hasSaved, setHasSaved] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [rows, setRows] = useState<CsiSampleSealRow[] | null>(null)
@@ -53,6 +60,24 @@ export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportPro
   const [importError, setImportError] = useState('')
   // CSI는 로그인 5회 실패로 계정을 잠근다 — setState는 비동기라 요청 중복은 ref로 동기 차단한다
   const inFlightRef = useRef(false)
+
+  // 이 기기에 저장해 둔 값이 있으면 채워만 둔다 — 자동 조회는 하지 않는다
+  useEffect(() => {
+    const saved = loadCsiCredentials()
+    if (!saved) return
+    setUserId(saved.userId)
+    setPassword(saved.password)
+    setRemember(true)
+    setHasSaved(true)
+  }, [])
+
+  const handleClearSaved = () => {
+    clearCsiCredentials()
+    setUserId('')
+    setPassword('')
+    setRemember(false)
+    setHasSaved(false)
+  }
 
   const handleLoadList = async () => {
     if (inFlightRef.current) return
@@ -76,6 +101,10 @@ export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportPro
       setRows(json.data.rows)
       setTotalCount(json.data.totalCount)
       setTruncated(json.data.truncated)
+      // 조회가 성공한 뒤에만 저장한다 — 틀린 비밀번호를 기기에 남기지 않기 위해서다
+      if (remember) saveCsiCredentials({ userId: userId.trim(), password })
+      else clearCsiCredentials()
+      setHasSaved(remember)
     } catch (err: unknown) {
       setRows(null)
       setError(err instanceof Error ? err.message : '알 수 없는 오류')
@@ -153,9 +182,33 @@ export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportPro
               className={`${inputCls} disabled:bg-gray-100`}
             />
           </div>
+          <div className="space-y-1">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={remember}
+                disabled={loading}
+                onChange={(e) => setRemember(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              <span className="text-xs text-gray-600">이 기기에 아이디·비밀번호 저장</span>
+            </label>
+            <p className="text-xs text-gray-400">
+              이 기기의 브라우저에만 저장됩니다. 공유 기기에서는 저장하지 마세요.
+            </p>
+            {hasSaved && (
+              <button
+                type="button"
+                onClick={handleClearSaved}
+                className="text-xs text-gray-500 underline hover:text-red-600"
+              >
+                저장된 정보 삭제
+              </button>
+            )}
+          </div>
           <p className="flex items-start gap-1.5 rounded-lg bg-gray-50 p-2 text-xs text-gray-500">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-gray-400" />
-            아이디·비밀번호는 저장되지 않으며 CSI 로그인에만 사용됩니다.
+            아이디·비밀번호는 서버에 저장되지 않으며 CSI 로그인에만 사용됩니다.
           </p>
           {error && <p className="text-xs font-medium text-red-600">{error}</p>}
           <button

@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:merge-sql": "node --test tests/merge-projects-sql.test.mjs",
-    "test:csi": "node --test tests/csi-sample-seal-scrape.test.mjs tests/csi-session.test.mjs",
+    "test:csi": "node --test tests/csi-sample-seal-scrape.test.mjs tests/csi-session.test.mjs tests/csi-credential-store.test.mjs",
     "deploy": "npm run build:no-cache && npm run start",
     "vercel-build": "npm install && next build"
   },

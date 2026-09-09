@@ -1,6 +1,15 @@
 # 작업 로그
 
 <!-- worklog -->
+260909_120133 : plans/20260909_CSI시료봉인_로그인가져오기_context-notes.md 수정
+260909_120121 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "<div className="space-y-1"> <label className="flex items-cen…"
+260909_120110 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "setRows(json.data.rows) setTotalCount(json.data.totalCount) …"
+260909_120104 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "// CSI는 로그인 5회 실패로 계정을 잠근다 — setState는 비동기라 요청 중복은 ref로 동기 차…"
+260909_120057 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "export default function CsiSampleSealImport({ onImport }: Cs…"
+260909_120050 : safesys-app/src/components/project/quality/CsiSampleSealImport.tsx 수정 — "import React, { useEffect, useRef, useState } from 'react' i…"
+260909_120040 : safesys-app/package.json 수정 — ""test:csi": "node --test tests/csi-sample-seal-scrape.test.m…"
+260909_120036 : safesys-app/tests/csi-credential-store.test.mjs 추가 — "// CSI 자격증명의 기기 저장(localStorage) 왕복·삭제와 저장소를 못 쓰는 상황의 처리를 검증…"
+260909_120016 : safesys-app/src/lib/quality/csi-credential-store.ts 추가 — "// CSI 아이디·비밀번호를 이 기기의 브라우저(localStorage)에만 담아 두는 저장소 — base…"
 260909_114520 : safesys-app/src/lib/quality/csi-session.ts 수정
 260909_114427 : safesys-app/tests/csi-session.test.mjs 수정
 260909_114407 : safesys-app/tests/csi-session.test.mjs 수정 — "test('alert 문구의 제어문자를 지우고 200자로 자른다', async () => { const no…"
