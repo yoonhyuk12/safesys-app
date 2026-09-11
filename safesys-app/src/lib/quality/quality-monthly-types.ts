@@ -133,7 +133,8 @@ export function applyQualityTestActuals(
   rows: QualityMonthlyReportRow[],
   records: QualityMonthlyTestActualSource[],
   reportYear: number,
-  reportMonth: number
+  reportMonth: number,
+  options: { appendMissingRows?: boolean } = {}
 ): QualityMonthlyReportRow[] {
   const monthStart = `${reportYear}-${String(reportMonth).padStart(2, '0')}-01`
   const nextMonthYear = reportMonth === 12 ? reportYear + 1 : reportYear
@@ -178,6 +179,9 @@ export function applyQualityTestActuals(
       { ...row }
     )
   }
+
+  // 일반 편집·저장된 보고서 조회에서는 삭제와 빈 행을 포함한 현재 행 구성을 유지한다.
+  if (options.appendMissingRows === false) return rows.map(applyTally)
 
   const existingKeys = new Set(rows.map((row) => actualRowKey(row.workType, row.testItem)))
   const appendedRows = Array.from(sourceLabels.entries())
@@ -337,7 +341,7 @@ export function carryOverRows(prevRows: QualityMonthlyReportRow[]): QualityMonth
   })
 }
 
-// 보고서를 연월 순으로 다시 연결해 나중에 입력된 앞선 월의 계획·누계를 기존 후속 월에도 반영한다.
+// 저장된 행 구성을 유지하면서 연월 순으로 일치하는 행의 앞선 월 계획·누계를 반영한다.
 export function reconcileQualityMonthlyReports(
   records: QualityMonthlyReportRecord[]
 ): QualityMonthlyReportRecord[] {
@@ -357,9 +361,6 @@ export function reconcileQualityMonthlyReports(
         previousRows
           .filter((row) => row.workType.trim() || row.testItem.trim())
           .map((row) => [actualRowKey(row.workType, row.testItem), row])
-      )
-      const currentKeys = new Set(
-        currentRows.map((row) => actualRowKey(row.workType, row.testItem))
       )
 
       reportRows = currentRows.map((row) => {
@@ -385,11 +386,6 @@ export function reconcileQualityMonthlyReports(
             previousDerived.cumulOtherConfirm !== null ? String(previousDerived.cumulOtherConfirm) : '',
         }
       })
-
-      const missingCarriedRows = carryOverRows(previousRows).filter(
-        (row) => !currentKeys.has(actualRowKey(row.workType, row.testItem))
-      )
-      reportRows = [...reportRows, ...missingCarriedRows]
     }
 
     const reconciledRecord = { ...record, report_rows: reportRows }

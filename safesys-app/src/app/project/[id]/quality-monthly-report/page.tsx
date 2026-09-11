@@ -124,7 +124,8 @@ export default function QualityMonthlyReportPage() {
                   record.report_rows,
                   loadedQualityTests,
                   record.report_year,
-                  record.report_month
+                  record.report_month,
+                  { appendMissingRows: false }
                 ),
           }
         })
@@ -183,7 +184,8 @@ export default function QualityMonthlyReportPage() {
             reportRows,
             qualityTestRecords,
             record.report_year,
-            record.report_month
+            record.report_month,
+            { appendMissingRows: false }
           ),
     })
     setEditingRecordId(record.id)
@@ -237,6 +239,10 @@ export default function QualityMonthlyReportPage() {
   }
 
   const handleFormChange = (nextFormData: QualityMonthlyReportFormData) => {
+    const reportMonthChanged = formData !== null && (
+      nextFormData.report_year !== formData.report_year ||
+      nextFormData.report_month !== formData.report_month
+    )
     setFormData(
       qualityTestError
         ? nextFormData
@@ -246,7 +252,8 @@ export default function QualityMonthlyReportPage() {
               nextFormData.report_rows,
               qualityTestRecords,
               nextFormData.report_year,
-              nextFormData.report_month
+              nextFormData.report_month,
+              { appendMissingRows: reportMonthChanged }
             ),
           }
     )

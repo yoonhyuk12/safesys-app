@@ -9,6 +9,13 @@
 - **권한 오류**: RLS 정책 및 `hq_division`/`branch_division` 값 확인
 - **지도 문제**: layout.tsx의 API 키 포함 여부, projects 테이블의 latitude/longitude 확인
 
+## 품질시험 월례보고서에서 삭제한 행이 다시 생길 때
+
+실시대장 자동 집계(`applyQualityTestActuals`)가 편집할 때마다 누락 행을 추가하고, 전월 보고서 연결(`reconcileQualityMonthlyReports`)도 저장된 보고서에 없는 행을 이월하면 삭제한 행이 복구된다.
+
+- 새 보고서 작성과 보고 연월 변경 시에만 실시대장의 누락 행을 자동 추가한다. 일반 편집·저장된 보고서 조회에서는 기존 행의 실적만 갱신한다.
+- 저장된 보고서 사이의 이월은 일치하는 행의 계획·누계만 갱신하고, 없는 행을 추가하지 않는다. 행 삭제 후에는 화면 아래 저장/수정 버튼으로 변경을 저장해야 한다.
+
 ## PDF 표 텍스트가 셀 하단에 붙어 보일 때 (html2canvas + Tailwind)
 
 html2canvas(1.4.1)는 텍스트를 그리기 전 1×1 `<img>`를 문서 body에 붙여 `img.offsetTop`으로 폰트 baseline을 측정하는데, 이 img의 `display`를 지정하지 않는다. Tailwind 4 preflight의 `img{display:block}`이 적용되면 img가 다음 줄로 떨어져 baseline이 과대 측정되고, **모든 텍스트가 셀 하단으로 쏠려 그려진다** (2026-07-02 확정).
