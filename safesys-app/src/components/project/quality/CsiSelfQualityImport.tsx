@@ -2,7 +2,7 @@
 
 // CSI 로그인 후 사업별 자체 품질시험 실적을 실시대장 등록 폼으로 가져오는 패널
 import React, { useEffect, useRef, useState } from 'react'
-import { ArrowRight, LogIn, RefreshCw, Search, ShieldCheck } from 'lucide-react'
+import { ArrowRight, LogIn, RefreshCw, ShieldCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import {
@@ -55,13 +55,11 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [projects, setProjects] = useState<CsiSelfQualityProject[] | null>(null)
-  const [projectSearch, setProjectSearch] = useState('')
   const [projectsTruncated, setProjectsTruncated] = useState(false)
   const [bizMngNo, setBizMngNo] = useState('')
   const [rows, setRows] = useState<CsiSelfQualityRow[] | null>(null)
   const [totalCount, setTotalCount] = useState(0)
   const [truncated, setTruncated] = useState(false)
-  const [filter, setFilter] = useState('')
   const [importingNo, setImportingNo] = useState('')
   const [importError, setImportError] = useState('')
   // CSI는 로그인 5회 실패로 계정을 잠근다 — setState는 비동기라 요청 중복은 ref로 동기 차단한다
@@ -100,7 +98,7 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
       const res = await fetch('/api/csi/self-quality', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ userId: userId.trim(), password, ...(selectedBizMngNo ? { bizMngNo: selectedBizMngNo } : { projectSearch: projectSearch.trim() }) }),
+        body: JSON.stringify({ userId: userId.trim(), password, ...(selectedBizMngNo ? { bizMngNo: selectedBizMngNo } : {}) }),
       })
       const json = await readJson<CsiSelfQualityListResponse>(res)
       if (!json.success || !json.data) throw new Error(json.error || '조회에 실패했습니다.')
@@ -108,7 +106,6 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
         setProjects(json.data.projects)
         setProjectsTruncated(json.data.truncated)
         setBizMngNo('')
-        setFilter('')
       }
       setRows(selectedBizMngNo ? json.data.rows : null)
       setTotalCount(selectedBizMngNo ? json.data.totalCount : 0)
@@ -148,9 +145,6 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
       setImportingNo('')
     }
   }
-
-  const keyword = filter.trim()
-  const visibleRows = (rows || []).filter((row) => !keyword || [row.materialName, row.reportNo, row.testSummary].some((value) => value.includes(keyword)))
 
   if (projects === null) {
     return (
@@ -254,30 +248,7 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
     <>
       <div className="space-y-2 border-b border-gray-200 bg-gray-50 px-4 py-3">
         <p className="text-xs text-gray-600">현재 현장. {projectName}</p>
-        <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <label className={labelCls} htmlFor="csi-self-quality-project-search">CSI 사업명 검색</label>
-            <input
-              id="csi-self-quality-project-search"
-              value={projectSearch}
-              onChange={(event) => setProjectSearch(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') handleLoadList() }}
-              disabled={loading || Boolean(importingNo)}
-              placeholder="사업명 일부를 입력해주세요"
-              className={inputCls}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => handleLoadList()}
-            disabled={loading || Boolean(importingNo)}
-            className="flex min-h-[44px] items-center gap-1 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-          >
-            <Search className="h-4 w-4" />
-            사업 검색
-          </button>
-        </div>
-        {projectsTruncated && <p className="text-xs text-amber-800">CSI 사업 목록의 일부만 조회되었습니다. 사업명을 입력해 검색 범위를 좁혀주세요.</p>}
+        {projectsTruncated && <p className="text-xs text-amber-800">CSI 사업 목록의 일부만 조회되었습니다.</p>}
         <label className={labelCls} htmlFor="csi-self-quality-project">가져올 CSI 사업</label>
         <select
           id="csi-self-quality-project"
@@ -291,7 +262,6 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
             setTruncated(false)
             setError('')
             setImportError('')
-            setFilter('')
           }}
         >
           <option value="">사업을 선택해주세요</option>
@@ -299,22 +269,6 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
         </select>
         {projects.length === 0 && <p className="text-xs text-gray-500">조회 가능한 자체 품질시험 사업이 없습니다.</p>}
         <div className="flex items-end gap-2">
-          <div className="flex-1">
-            <label className={labelCls} htmlFor="csi-self-quality-filter">
-              재료명·시험내용·구분번호 검색
-            </label>
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-              <input
-                id="csi-self-quality-filter"
-                type="text"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="조회한 목록에서 검색"
-                className={`${inputCls} pl-8`}
-              />
-            </div>
-          </div>
           <button
             type="button"
             onClick={() => handleLoadList(bizMngNo)}
@@ -327,11 +281,11 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
           </button>
         </div>
         <p className="text-xs text-gray-500">
-          자체 품질시험 {visibleRows.length}건 / 조회 {rows?.length || 0}건
+          자체 품질시험 조회 {rows?.length || 0}건
           {truncated && ` — 전체 ${totalCount}건 중 일부만 조회되었습니다.`}
         </p>
         <p className="text-xs text-gray-500">가져오기는 등록 폼에 입력합니다. 공종·시험 결과를 확인한 뒤 저장해주세요.</p>
-        <button type="button" disabled={loading || Boolean(importingNo)} onClick={() => { setProjects(null); setRows(null); setBizMngNo(''); setProjectSearch(''); setProjectsTruncated(false); setError(''); setImportError('') }} className="min-h-[44px] text-xs text-gray-600 underline disabled:opacity-50">다른 계정으로 조회</button>
+        <button type="button" disabled={loading || Boolean(importingNo)} onClick={() => { setProjects(null); setRows(null); setBizMngNo(''); setProjectsTruncated(false); setError(''); setImportError('') }} className="min-h-[44px] text-xs text-gray-600 underline disabled:opacity-50">다른 계정으로 조회</button>
         {error && <p className="text-xs font-medium text-red-600">{error}</p>}
         {importError && <p className="text-xs font-medium text-red-600">{importError}</p>}
       </div>
@@ -344,15 +298,13 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
           </div>
         ) : rows === null ? (
           <p className="py-10 text-center text-sm text-gray-500">CSI 사업을 선택하고 실적 조회를 눌러주세요.</p>
-        ) : visibleRows.length === 0 ? (
+        ) : rows.length === 0 ? (
           <p className="py-10 text-center text-sm text-gray-500">
-            {rows.length === 0
-              ? '등록된 자체 품질시험 실적이 없습니다.'
-              : '검색어와 일치하는 자체 품질시험 실적이 없습니다.'}
+            등록된 자체 품질시험 실적이 없습니다.
           </p>
         ) : (
           <div className="space-y-2">
-            {visibleRows.map((row) => (
+            {rows.map((row) => (
               <div
                 key={row.groupNo}
                 className="bg-white rounded-lg shadow-sm border border-gray-200 p-3"
