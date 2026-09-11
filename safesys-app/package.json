@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:merge-sql": "node --test tests/merge-projects-sql.test.mjs",
-    "test:csi": "node --test tests/csi-sample-seal-scrape.test.mjs tests/csi-session.test.mjs tests/csi-credential-store.test.mjs",
+    "test:csi": "node --test tests/csi-self-quality-scrape.test.mjs tests/csi-session.test.mjs tests/csi-credential-store.test.mjs tests/csi-self-quality-route.test.mjs tests/csi-self-quality-prefill.test.mjs",
     "test:g2b": "node --test tests/g2b-contract-period.test.mjs",
     "test:issue-report": "node --test tests/issue-report-a4.test.mjs",
     "deploy": "npm run build:no-cache && npm run start",

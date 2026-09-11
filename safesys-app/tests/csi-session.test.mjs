@@ -42,7 +42,7 @@ const makeResponse = ({ status, location = null, setCookie = [], body = '' }) =>
 
 const SUCCESS = {
   status: 302,
-  location: 'https://gcloud.csi.go.kr/cmq/qtr/sample/sealng/sampleSealngList.do;jsessionid=abc.cmq01',
+  location: 'https://gcloud.csi.go.kr/cmq/qts/sQltRptList.do;jsessionid=abc.cmq01',
   setCookie: [
     'WMONID=RQU2LV2gCgz; Expires=Thu, 09-Sep-2027 11:11:24 GMT; Path=/',
     'JSESSIONID=sgB9xvomXGdIV2T9fvo2Stdi0VUl0A8Y4VAp0hXu.cmq01; path=/cmq',
@@ -57,7 +57,7 @@ const FAIL_BODY = `<html><head><script type="text/javascript">
 const session = await loadTypeScript('../src/lib/quality/csi-session.ts', {}, { fetch: fakeFetch })
 const { loginCsi, logoutCsi, CsiLoginError } = session
 
-test('302 + 시료봉인 목록 Location이면 Set-Cookie를 Cookie 헤더 문자열로 모은다', async () => {
+test('302 + 자체 품질시험 목록 Location이면 Set-Cookie를 Cookie 헤더 문자열로 모은다', async () => {
   calls.length = 0
   respond = () => makeResponse(SUCCESS)
   const { cookie } = await loginCsi('tester', 'secret')
@@ -77,7 +77,7 @@ test('302 + 시료봉인 목록 Location이면 Set-Cookie를 Cookie 헤더 문�
   )
   assert.equal(calls[0].params.userId, 'tester')
   assert.equal(calls[0].params.pswd, 'secret')
-  assert.equal(calls[0].params.nextUrl, '/qtr/sample/sealng/sampleSealngList.do')
+  assert.equal(calls[0].params.nextUrl, '/qts/sQltRptList.do')
   assert.equal(calls[0].params.bbsId, '')
   assert.equal(calls[0].params.reprtSeq, '')
 })
@@ -119,6 +119,13 @@ test('302여도 목록이 아닌 곳으로 보내면 로그인 실패로 본다'
 test('성공 응답인데 쿠키가 없으면 로그인 실패로 본다', async () => {
   respond = () => makeResponse({ ...SUCCESS, setCookie: [] })
   await assert.rejects(loginCsi('tester', 'secret'), CsiLoginError)
+})
+
+test('외부 도메인 또는 경로의 일부만 일치하는 리다이렉트를 거부한다', async () => {
+  for (const location of ['https://example.com/cmq/qts/sQltRptList.do', '/cmq/qts/sQltRptList.do.invalid', '/cmq/com/error.do?next=sQltRptList.do']) {
+    respond = () => makeResponse({ ...SUCCESS, location })
+    await assert.rejects(loginCsi('tester', 'secret'), CsiLoginError)
+  }
 })
 
 test('오류 메시지에 비밀번호가 섞이지 않는다', async () => {

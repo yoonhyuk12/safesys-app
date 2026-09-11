@@ -98,8 +98,8 @@ daily-inspection, edit, headquarters-inspection, heatwave, holiday-work, issue-m
 - `/api/chat/tbm` — TBM AI 챗봇
 - `/api/chat/project-assistant` — 프로젝트 현장 AI 비서(오늘 TBM 브리핑·감독 미서명 안내·tool calling 조회, gpt-5.6-luna)
 - `/api/csi/quality-reports` — CSI 공개 성적서 열람 화면 스크래핑 조회 (GET, 로그인 불필요, `?source=api`면 공식 API)
-- `/api/csi/sample-seals` — CSI 로그인 후 시료봉인 목록 조회 (POST, SafeSys Bearer 필수, 자격증명 미보관)
-- `/api/csi/sample-seals/detail` — CSI 로그인 후 시료봉인 1건 상세 조회 (POST, SafeSys Bearer 필수, 자격증명 미보관)
+- `/api/csi/self-quality` — CSI 로그인 후 사업 목록 또는 선택 사업의 자체 품질시험 실적 조회 (POST, SafeSys Bearer 필수, 자격증명 미보관)
+- `/api/csi/self-quality/detail` — CSI 자체 품질시험 상세의 시험일·기준·결과·판정 조회 (POST, SafeSys Bearer 필수, 자격증명 미보관)
 
 ## 컴포넌트 구조
 

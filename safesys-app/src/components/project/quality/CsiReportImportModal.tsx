@@ -5,14 +5,14 @@ import React, { useState } from 'react'
 import { X, Search, FlaskConical, ArrowRight, PackageSearch, FileSearch } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { CsiQualityReport, CsiQualityReportsResponse } from '@/lib/quality/csi-report-types'
-import { CsiSampleSealDetail } from '@/lib/quality/csi-sample-seal-types'
-import CsiSampleSealImport from '@/components/project/quality/CsiSampleSealImport'
+import { CsiSelfQualityDetail } from '@/lib/quality/csi-self-quality-types'
+import CsiSelfQualityImport from '@/components/project/quality/CsiSelfQualityImport'
 
 interface CsiReportImportModalProps {
   projectName: string
   onClose: () => void
   onImport: (report: CsiQualityReport) => void
-  onImportSampleSeal: (detail: CsiSampleSealDetail) => void
+  onImportSelfQuality: (detail: CsiSelfQualityDetail) => void
 }
 
 const inputCls =
@@ -46,10 +46,10 @@ export default function CsiReportImportModal({
   projectName,
   onClose,
   onImport,
-  onImportSampleSeal,
+  onImportSelfQuality,
 }: CsiReportImportModalProps) {
-  // 의뢰 단계의 시료봉인이 실시대장 작성 시점과 맞아 기본 탭으로 둔다
-  const [activeTab, setActiveTab] = useState<'sampleSeal' | 'report'>('sampleSeal')
+  // 현장에서 수행한 자체 품질시험 실적을 기본 탭으로 둔다.
+  const [activeTab, setActiveTab] = useState<'selfQuality' | 'report'>('selfQuality')
   // 필수 파라미터가 성적서 발급일자 범위라 기본값은 최근 3개월
   const [startDate, setStartDate] = useState(() => presetStartValue(3))
   const [endDate, setEndDate] = useState(() => toDateInputValue(new Date()))
@@ -102,7 +102,7 @@ export default function CsiReportImportModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-gray-200 bg-amber-600 px-4 py-3 text-white">
-          <h3 className="text-sm font-semibold sm:text-base">CSI 시료봉인·성적서 불러오기</h3>
+          <h3 className="text-sm font-semibold sm:text-base">CSI 자체 품질시험·성적서 불러오기</h3>
           <button
             type="button"
             onClick={onClose}
@@ -116,15 +116,15 @@ export default function CsiReportImportModal({
         <div className="flex border-b border-gray-200">
           <button
             type="button"
-            onClick={() => setActiveTab('sampleSeal')}
+            onClick={() => setActiveTab('selfQuality')}
             className={`flex min-h-[44px] flex-1 items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'sampleSeal'
+              activeTab === 'selfQuality'
                 ? 'border-b-2 border-amber-600 bg-amber-50 text-amber-700'
                 : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
             }`}
           >
             <PackageSearch className="h-4 w-4" />
-            시료봉인 목록 (CSI 로그인)
+            자체 품질시험 (CSI 로그인)
           </button>
           <button
             type="button"
@@ -140,7 +140,7 @@ export default function CsiReportImportModal({
           </button>
         </div>
 
-        {activeTab === 'sampleSeal' && <CsiSampleSealImport onImport={onImportSampleSeal} />}
+        {activeTab === 'selfQuality' && <CsiSelfQualityImport projectName={projectName} onImport={onImportSelfQuality} />}
 
         {activeTab === 'report' && (
         <>

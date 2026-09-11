@@ -1,6 +1,6 @@
 'use client'
 
-// CSI 로그인 후 우리 기관이 등록한 시료봉인 목록을 조회해 실시대장 등록 폼으로 가져오는 패널
+// CSI 로그인 후 사업별 자체 품질시험 실적을 실시대장 등록 폼으로 가져오는 패널
 import React, { useEffect, useRef, useState } from 'react'
 import { ArrowRight, LogIn, RefreshCw, Search, ShieldCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -11,18 +11,20 @@ import {
   saveCsiCredentials,
 } from '@/lib/quality/csi-credential-store'
 import {
-  CsiSampleSealDetail,
-  CsiSampleSealDetailResponse,
-  CsiSampleSealListResponse,
-  CsiSampleSealRow,
-} from '@/lib/quality/csi-sample-seal-types'
+  CsiSelfQualityDetail,
+  CsiSelfQualityDetailResponse,
+  CsiSelfQualityListResponse,
+  CsiSelfQualityRow,
+  CsiSelfQualityProject,
+} from '@/lib/quality/csi-self-quality-types'
 
-interface CsiSampleSealImportProps {
-  onImport: (detail: CsiSampleSealDetail) => void
+interface CsiSelfQualityImportProps {
+  projectName: string
+  onImport: (detail: CsiSelfQualityDetail) => void
 }
 
 const inputCls =
-  'w-full border border-gray-300 rounded px-2.5 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500'
+  'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
 
 // SafeSys API 라우트는 Bearer 토큰을 요구한다 — 세션이 없으면 CSI 호출 자체를 시도하지 않는다
@@ -44,7 +46,7 @@ const readJson = async <T,>(res: Response): Promise<T> => {
   }
 }
 
-export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportProps) {
+export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQualityImportProps) {
   // 자격증명은 이 컴포넌트 상태에만 두고, 사용자가 원할 때만 이 기기의 브라우저에 따로 저장한다 (서버 저장 없음)
   const [userId, setUserId] = useState('')
   const [password, setPassword] = useState('')
@@ -52,7 +54,11 @@ export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportPro
   const [hasSaved, setHasSaved] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [rows, setRows] = useState<CsiSampleSealRow[] | null>(null)
+  const [projects, setProjects] = useState<CsiSelfQualityProject[] | null>(null)
+  const [projectSearch, setProjectSearch] = useState('')
+  const [projectsTruncated, setProjectsTruncated] = useState(false)
+  const [bizMngNo, setBizMngNo] = useState('')
+  const [rows, setRows] = useState<CsiSelfQualityRow[] | null>(null)
   const [totalCount, setTotalCount] = useState(0)
   const [truncated, setTruncated] = useState(false)
   const [filter, setFilter] = useState('')
@@ -79,7 +85,7 @@ export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportPro
     setHasSaved(false)
   }
 
-  const handleLoadList = async () => {
+  const handleLoadList = async (selectedBizMngNo = '') => {
     if (inFlightRef.current) return
     if (!userId.trim() || !password) {
       setError('CSI 아이디와 비밀번호를 입력해주세요.')
@@ -91,16 +97,22 @@ export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportPro
     setImportError('')
     try {
       const accessToken = await getAccessToken()
-      const res = await fetch('/api/csi/sample-seals', {
+      const res = await fetch('/api/csi/self-quality', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ userId: userId.trim(), password }),
+        body: JSON.stringify({ userId: userId.trim(), password, ...(selectedBizMngNo ? { bizMngNo: selectedBizMngNo } : { projectSearch: projectSearch.trim() }) }),
       })
-      const json = await readJson<CsiSampleSealListResponse>(res)
+      const json = await readJson<CsiSelfQualityListResponse>(res)
       if (!json.success || !json.data) throw new Error(json.error || '조회에 실패했습니다.')
-      setRows(json.data.rows)
-      setTotalCount(json.data.totalCount)
-      setTruncated(json.data.truncated)
+      if (!selectedBizMngNo) {
+        setProjects(json.data.projects)
+        setProjectsTruncated(json.data.truncated)
+        setBizMngNo('')
+        setFilter('')
+      }
+      setRows(selectedBizMngNo ? json.data.rows : null)
+      setTotalCount(selectedBizMngNo ? json.data.totalCount : 0)
+      setTruncated(selectedBizMngNo ? json.data.truncated : false)
       // 조회가 성공한 뒤에만 저장한다 — 틀린 비밀번호를 기기에 남기지 않기 위해서다
       if (remember) saveCsiCredentials({ userId: userId.trim(), password })
       else clearCsiCredentials()
@@ -114,19 +126,19 @@ export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportPro
     }
   }
 
-  const handleImport = async (row: CsiSampleSealRow) => {
+  const handleImport = async (row: CsiSelfQualityRow) => {
     if (inFlightRef.current) return
     inFlightRef.current = true
-    setImportingNo(row.smpslNo)
+    setImportingNo(row.groupNo)
     setImportError('')
     try {
       const accessToken = await getAccessToken()
-      const res = await fetch('/api/csi/sample-seals/detail', {
+      const res = await fetch('/api/csi/self-quality/detail', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ userId: userId.trim(), password, smpslNo: row.smpslNo }),
+        body: JSON.stringify({ userId: userId.trim(), password, groupNo: row.groupNo, bizMngNo: row.bizMngNo }),
       })
-      const json = await readJson<CsiSampleSealDetailResponse>(res)
+      const json = await readJson<CsiSelfQualityDetailResponse>(res)
       if (!json.success || !json.data) throw new Error(json.error || '상세 조회에 실패했습니다.')
       onImport(json.data)
     } catch (err: unknown) {
@@ -138,15 +150,15 @@ export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportPro
   }
 
   const keyword = filter.trim()
-  const visibleRows = (rows || []).filter((row) => !keyword || row.constNm.includes(keyword))
+  const visibleRows = (rows || []).filter((row) => !keyword || [row.materialName, row.reportNo, row.testSummary].some((value) => value.includes(keyword)))
 
-  if (rows === null) {
+  if (projects === null) {
     return (
       <div className="flex-1 overflow-y-auto p-4">
         <div className="mx-auto max-w-sm space-y-3">
           <p className="text-xs text-gray-500">
-            CSI에 로그인해 우리 기관이 등록한 시료봉인(품질검사 의뢰) 목록을 불러옵니다. 가져오면
-            실시대장 등록 폼에 자동 입력됩니다.
+            CSI에 로그인해 사업별 자체 품질시험 실적을 불러옵니다. 가져온 실적은
+            실시대장 등록 폼에 입력되며, 공종과 내용을 확인한 뒤 저장해주세요.
           </p>
           <div>
             <label className={labelCls} htmlFor="csi-user-id">
@@ -200,6 +212,7 @@ export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportPro
               <button
                 type="button"
                 onClick={handleClearSaved}
+                disabled={loading}
                 className="text-xs text-gray-500 underline hover:text-red-600"
               >
                 저장된 정보 삭제
@@ -213,16 +226,16 @@ export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportPro
           {error && <p className="text-xs font-medium text-red-600">{error}</p>}
           <button
             type="button"
-            onClick={handleLoadList}
+            onClick={() => handleLoadList()}
             disabled={loading}
-            className="flex w-full items-center justify-center gap-1 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700 disabled:opacity-50"
+            className="flex min-h-[44px] w-full items-center justify-center gap-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
               '조회 중...'
             ) : (
               <>
                 <LogIn className="h-4 w-4" />
-                로그인하고 목록 조회
+                로그인하고 사업 조회
               </>
             )}
           </button>
@@ -240,38 +253,85 @@ export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportPro
   return (
     <>
       <div className="space-y-2 border-b border-gray-200 bg-gray-50 px-4 py-3">
+        <p className="text-xs text-gray-600">현재 현장. {projectName}</p>
         <div className="flex items-end gap-2">
           <div className="flex-1">
-            <label className={labelCls} htmlFor="csi-seal-filter">
-              공사명 검색
+            <label className={labelCls} htmlFor="csi-self-quality-project-search">CSI 사업명 검색</label>
+            <input
+              id="csi-self-quality-project-search"
+              value={projectSearch}
+              onChange={(event) => setProjectSearch(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') handleLoadList() }}
+              disabled={loading || Boolean(importingNo)}
+              placeholder="사업명 일부를 입력해주세요"
+              className={inputCls}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => handleLoadList()}
+            disabled={loading || Boolean(importingNo)}
+            className="flex min-h-[44px] items-center gap-1 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+          >
+            <Search className="h-4 w-4" />
+            사업 검색
+          </button>
+        </div>
+        {projectsTruncated && <p className="text-xs text-amber-800">CSI 사업 목록의 일부만 조회되었습니다. 사업명을 입력해 검색 범위를 좁혀주세요.</p>}
+        <label className={labelCls} htmlFor="csi-self-quality-project">가져올 CSI 사업</label>
+        <select
+          id="csi-self-quality-project"
+          value={bizMngNo}
+          disabled={loading || Boolean(importingNo)}
+          className={inputCls}
+          onChange={(event) => {
+            setBizMngNo(event.target.value)
+            setRows(null)
+            setTotalCount(0)
+            setTruncated(false)
+            setError('')
+            setImportError('')
+            setFilter('')
+          }}
+        >
+          <option value="">사업을 선택해주세요</option>
+          {projects.map((project) => <option key={project.bizMngNo} value={project.bizMngNo}>{project.projectName} ({project.totalCount}건)</option>)}
+        </select>
+        {projects.length === 0 && <p className="text-xs text-gray-500">조회 가능한 자체 품질시험 사업이 없습니다.</p>}
+        <div className="flex items-end gap-2">
+          <div className="flex-1">
+            <label className={labelCls} htmlFor="csi-self-quality-filter">
+              재료명·시험내용·구분번호 검색
             </label>
             <div className="relative">
               <Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
-                id="csi-seal-filter"
+                id="csi-self-quality-filter"
                 type="text"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                placeholder="공사명 일부를 입력해 목록을 좁힙니다"
+                placeholder="조회한 목록에서 검색"
                 className={`${inputCls} pl-8`}
               />
             </div>
           </div>
           <button
             type="button"
-            onClick={handleLoadList}
-            disabled={loading}
-            className="flex min-h-[34px] items-center gap-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:border-amber-400 hover:text-amber-700 disabled:opacity-50"
+            onClick={() => handleLoadList(bizMngNo)}
+            disabled={loading || Boolean(importingNo) || !bizMngNo}
+            className="flex min-h-[44px] items-center gap-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="목록 다시 조회"
           >
             <RefreshCw className="h-4 w-4" />
-            새로고침
+            {rows === null ? '실적 조회' : '새로고침'}
           </button>
         </div>
         <p className="text-xs text-gray-500">
-          시료봉인 {visibleRows.length}건 / 조회 {rows.length}건
-          {truncated && ` — 전체 ${totalCount}건 중 ${rows.length}건만 표시됩니다.`}
+          자체 품질시험 {visibleRows.length}건 / 조회 {rows?.length || 0}건
+          {truncated && ` — 전체 ${totalCount}건 중 일부만 조회되었습니다.`}
         </p>
+        <p className="text-xs text-gray-500">가져오기는 등록 폼에 입력합니다. 공종·시험 결과를 확인한 뒤 저장해주세요.</p>
+        <button type="button" disabled={loading || Boolean(importingNo)} onClick={() => { setProjects(null); setRows(null); setBizMngNo(''); setProjectSearch(''); setProjectsTruncated(false); setError(''); setImportError('') }} className="min-h-[44px] text-xs text-gray-600 underline disabled:opacity-50">다른 계정으로 조회</button>
         {error && <p className="text-xs font-medium text-red-600">{error}</p>}
         {importError && <p className="text-xs font-medium text-red-600">{importError}</p>}
       </div>
@@ -282,42 +342,45 @@ export default function CsiSampleSealImport({ onImport }: CsiSampleSealImportPro
             <LoadingSpinner />
             <p className="text-xs text-gray-400">CSI 응답에 20초가량 걸릴 수 있습니다.</p>
           </div>
+        ) : rows === null ? (
+          <p className="py-10 text-center text-sm text-gray-500">CSI 사업을 선택하고 실적 조회를 눌러주세요.</p>
         ) : visibleRows.length === 0 ? (
           <p className="py-10 text-center text-sm text-gray-500">
             {rows.length === 0
-              ? '등록된 시료봉인이 없습니다.'
-              : '공사명 검색어와 일치하는 시료봉인이 없습니다.'}
+              ? '등록된 자체 품질시험 실적이 없습니다.'
+              : '검색어와 일치하는 자체 품질시험 실적이 없습니다.'}
           </p>
         ) : (
           <div className="space-y-2">
             {visibleRows.map((row) => (
               <div
-                key={row.smpslNo}
-                className="rounded-lg border border-gray-200 p-3 hover:border-amber-300 hover:bg-amber-50/40"
+                key={row.groupNo}
+                className="bg-white rounded-lg shadow-sm border border-gray-200 p-3"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="truncate text-sm font-medium text-gray-900">
-                        {row.sealNm || '시료봉인명 없음'}
+                        {row.materialName || '재료명 없음'}
                       </span>
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                        {row.sealSttsNm || '상태 없음'}
+                        {row.status || '상태 없음'}
                       </span>
                     </div>
-                    {row.constNm && <p className="truncate text-xs text-gray-500">{row.constNm}</p>}
+                    <p className="text-xs text-gray-500">{row.reportNo} · {row.projectName}</p>
+                    <p className="text-xs text-gray-600">{row.testSummary}</p>
                     <p className="mt-1 text-xs text-gray-600">
-                      봉인일 {row.sealYmd || '-'}
-                      {row.observerNm && ` · 참관자 ${row.observerNm}`}
+                      등록일 {row.registeredDate || '-'} · {row.testPlace || '-'}
+                      {row.testerName && ` · 시험자 ${row.testerName}`}
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => handleImport(row)}
                     disabled={loading || Boolean(importingNo)}
-                    className="flex min-h-[34px] shrink-0 items-center gap-1 rounded-lg bg-amber-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+                    className="flex min-h-[44px] shrink-0 items-center gap-1 px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
                   >
-                    {importingNo === row.smpslNo ? (
+                    {importingNo === row.groupNo ? (
                       '불러오는 중...'
                     ) : (
                       <>

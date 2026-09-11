@@ -3,7 +3,7 @@ const LOGIN_URL = 'https://gcloud.csi.go.kr/cmq/com/loginProc.do'
 const LOGOUT_URL = 'https://gcloud.csi.go.kr/cmq/com/logoutProc.do'
 
 // 로그인 성공 시 리다이렉트되는 화면 — 이 경로로 보내야만 성공으로 본다
-const NEXT_URL = '/qtr/sample/sealng/sampleSealngList.do'
+const NEXT_URL = '/qts/sQltRptList.do'
 
 // 공개 화면과 마찬가지로 <meta charset="euc-kr"> 선언과 달리 요청·응답 본문은 모두 UTF-8이다
 const FORM_CONTENT_TYPE = 'application/x-www-form-urlencoded; charset=UTF-8'
@@ -59,7 +59,14 @@ export const loginCsi = async (userId: string, password: string): Promise<CsiSes
 
   const location = res.headers.get('location') || ''
   // 실패도 쿠키를 내려주므로 쿠키 유무가 아니라 302 + 목록 화면 Location으로 판정한다
-  if (res.status !== 302 || !location.includes('sampleSealngList.do')) {
+  let validLocation = false
+  try {
+    const target = new URL(location, LOGIN_URL)
+    validLocation = target.origin === 'https://gcloud.csi.go.kr' && target.pathname.replace(/;jsessionid=[^/;]*/i, '') === `/cmq${NEXT_URL}`
+  } catch {
+    // 올바른 URL이 아닌 리다이렉트는 로그인 성공으로 취급하지 않는다.
+  }
+  if (res.status !== 302 || !validLocation) {
     const body = await res.text().catch(() => '')
     const alertMatch = body.match(ALERT_RE)
     throw new CsiLoginError(
@@ -85,7 +92,7 @@ export const logoutCsi = async (cookie: string): Promise<void> => {
       headers: { 'Content-Type': FORM_CONTENT_TYPE, Cookie: cookie },
       redirect: 'manual',
       cache: 'no-store',
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      signal: AbortSignal.timeout(5000),
     })
   } catch {
     // 세션은 CSI 쪽 타임아웃으로도 닫힌다 — 실패해도 사용자에게 알릴 것이 없다
