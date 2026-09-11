@@ -131,7 +131,7 @@ async function collectPages<T>(fetchPage: (page: number, timeoutMs: number) => P
 
 export const fetchSelfQualityProjects = (cookie: string, projectSearch = '') => collectPages(async (page, timeoutMs) => parseSelfQualityProjects(await postForm(PROJECT_URL, cookie, { pageCount: String(page), searchKey: 'cstrnNm', searchVal: projectSearch }, timeoutMs)), (row) => row.bizMngNo)
 
-export const fetchSelfQualityRows = (cookie: string, bizMngNo: string) => collectPages(async (page, timeoutMs) => parseSelfQualityList(await postForm(LIST_URL, cookie, { bizMngNo, pageCount: String(page), searchKey: 'bizNm', searchVal: '', startYmd: '', endYmd: '', searchProcStatus: '' }, timeoutMs), bizMngNo), (row) => row.groupNo)
+export const fetchSelfQualityRows = (cookie: string, bizMngNo: string, range?: { startDate: string; endDate: string }) => collectPages(async (page, timeoutMs) => parseSelfQualityList(await postForm(LIST_URL, cookie, { bizMngNo, pageCount: String(page), searchKey: 'bizNm', searchVal: '', startYmd: range?.startDate.replace(/-/g, '') || '', endYmd: range?.endDate.replace(/-/g, '') || '', searchProcStatus: '' }, timeoutMs), bizMngNo), (row) => row.groupNo)
 
 export async function fetchSelfQualityDetail(cookie: string, groupNo: string, bizMngNo: string): Promise<CsiSelfQualityDetail> {
   const detail = parseSelfQualityDetail(await postForm(DETAIL_URL, cookie, { groupNo, bizMngNo, pageCount: '1' }))

@@ -77,6 +77,16 @@ test('130건의 실적은 13페이지까지 모두 가져온다', async () => {
   assert.equal(result.rows.length, 130)
   assert.equal(result.truncated, false)
 })
+test('조회 기간은 모든 페이지에 CSI 날짜 형식으로 전달한다', async () => {
+  calls.length = 0
+  queue = [list(['10'], 20), list(['11'], 20)]
+  await api.fetchSelfQualityRows('cookie', '0001', { startDate: '2026-07-01', endDate: '2026-07-31' })
+  assert.equal(calls.length, 2)
+  for (const call of calls) {
+    assert.equal(call.params.startYmd, '20260701')
+    assert.equal(call.params.endYmd, '20260731')
+  }
+})
 test('추가 페이지 시간 초과는 받은 실적과 잘림 경고를 반환한다', async () => {
   const timeout = new Error('시간 초과')
   timeout.name = 'TimeoutError'

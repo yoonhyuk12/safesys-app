@@ -5,6 +5,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { ArrowRight, LogIn, RefreshCw, ShieldCheck } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import { getCsiDateRange, isCsiDateRange, type CsiDateRange } from '@/lib/quality/csi-date-range'
 import {
   clearCsiCredentials,
   loadCsiCredentials,
@@ -26,6 +27,10 @@ interface CsiSelfQualityImportProps {
 const inputCls =
   'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
 const labelCls = 'block text-xs font-medium text-gray-600 mb-1'
+const RANGE_PRESETS = [
+  { label: '1달', months: 1 }, { label: '2달', months: 2 }, { label: '3달', months: 3 },
+  { label: '6달', months: 6 }, { label: '1년', months: 12 }, { label: '2년', months: 24 },
+]
 
 // SafeSys API 라우트는 Bearer 토큰을 요구한다 — 세션이 없으면 CSI 호출 자체를 시도하지 않는다
 const getAccessToken = async (): Promise<string> => {
@@ -60,6 +65,7 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
   const [rows, setRows] = useState<CsiSelfQualityRow[] | null>(null)
   const [totalCount, setTotalCount] = useState(0)
   const [truncated, setTruncated] = useState(false)
+  const [dateRange, setDateRange] = useState(() => getCsiDateRange(1))
   const [importingNo, setImportingNo] = useState('')
   const [importError, setImportError] = useState('')
   // CSI는 로그인 5회 실패로 계정을 잠근다 — setState는 비동기라 요청 중복은 ref로 동기 차단한다
@@ -85,6 +91,10 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
 
   const handleLoadList = async (selectedBizMngNo = '') => {
     if (inFlightRef.current) return
+    if (selectedBizMngNo && !isCsiDateRange(dateRange.startDate, dateRange.endDate)) {
+      setError('조회 시작일과 종료일을 올바른 순서의 날짜로 입력해주세요.')
+      return
+    }
     if (!userId.trim() || !password) {
       setError('CSI 아이디와 비밀번호를 입력해주세요.')
       return
@@ -98,7 +108,7 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
       const res = await fetch('/api/csi/self-quality', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ userId: userId.trim(), password, ...(selectedBizMngNo ? { bizMngNo: selectedBizMngNo } : {}) }),
+        body: JSON.stringify({ userId: userId.trim(), password, ...(selectedBizMngNo ? { bizMngNo: selectedBizMngNo, ...dateRange } : {}) }),
       })
       const json = await readJson<CsiSelfQualityListResponse>(res)
       if (!json.success || !json.data) throw new Error(json.error || '조회에 실패했습니다.')
@@ -121,6 +131,16 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
       inFlightRef.current = false
       setLoading(false)
     }
+  }
+
+  const handleDateRangeChange = (nextRange: CsiDateRange) => {
+    if (inFlightRef.current) return
+    setDateRange(nextRange)
+    setRows(null)
+    setTotalCount(0)
+    setTruncated(false)
+    setError('')
+    setImportError('')
   }
 
   const handleImport = async (row: CsiSelfQualityRow) => {
@@ -268,6 +288,36 @@ export default function CsiSelfQualityImport({ projectName, onImport }: CsiSelfQ
           {projects.map((project) => <option key={project.bizMngNo} value={project.bizMngNo}>{project.projectName} ({project.totalCount}건)</option>)}
         </select>
         {projects.length === 0 && <p className="text-xs text-gray-500">조회 가능한 자체 품질시험 사업이 없습니다.</p>}
+        <fieldset disabled={loading || Boolean(importingNo)} className="space-y-2">
+          <legend className={labelCls}>조회 기간 (CSI 등록일 기준)</legend>
+          <div className="flex flex-wrap gap-1.5">
+            {RANGE_PRESETS.map(({ label, months }) => {
+              const preset = getCsiDateRange(months)
+              const active = dateRange.startDate === preset.startDate && dateRange.endDate === preset.endDate
+              return (
+                <button
+                  key={months}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => handleDateRangeChange(getCsiDateRange(months))}
+                  className={`min-h-[44px] px-3 py-2 text-sm font-medium rounded-lg border transition-colors disabled:opacity-50 ${active ? 'border-blue-600 bg-blue-50 text-blue-800' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label htmlFor="csi-self-quality-start-date" className={labelCls}>시작일</label>
+              <input id="csi-self-quality-start-date" type="date" value={dateRange.startDate} onChange={(event) => handleDateRangeChange({ ...dateRange, startDate: event.target.value })} className={inputCls} />
+            </div>
+            <div>
+              <label htmlFor="csi-self-quality-end-date" className={labelCls}>종료일</label>
+              <input id="csi-self-quality-end-date" type="date" value={dateRange.endDate} onChange={(event) => handleDateRangeChange({ ...dateRange, endDate: event.target.value })} className={inputCls} />
+            </div>
+          </div>
+        </fieldset>
         <div className="flex items-end gap-2">
           <button
             type="button"

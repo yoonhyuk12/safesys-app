@@ -8,6 +8,7 @@ let logins = 0
 let logouts = 0
 let failure = false
 let projectSearch = ''
+let dateRange
 class CsiLoginError extends Error {}
 class CsiParseError extends Error {}
 class CsiSessionError extends Error {}
@@ -17,10 +18,14 @@ const dependencies = {
   '@/lib/quality/csi-session': { CsiLoginError, loginCsi: async () => { logins++; return { cookie: 'example' } }, logoutCsi: async () => { logouts++ } },
   '@/lib/quality/csi-self-quality-scrape': { CsiParseError, CsiSessionError,
     fetchSelfQualityProjects: async (_cookie, search) => { projectSearch = search; if (failure) throw new CsiParseError('화면 오류'); return { rows: [], totalCount: 0, truncated: false } },
-    fetchSelfQualityRows: async () => ({ rows: [], totalCount: 0, truncated: false }),
+    fetchSelfQualityRows: async (_cookie, _bizMngNo, range) => { dateRange = range; return { rows: [], totalCount: 0, truncated: false } },
     fetchSelfQualityDetail: async () => { if (failure) throw new CsiParseError('화면 오류'); return { groupNo: '1' } },
   },
 }
+const rangeSource = await readFile(new URL('../src/lib/quality/csi-date-range.ts', import.meta.url), 'utf8')
+const rangeModule = { exports: {} }
+new Function('module', 'exports', ts.transpileModule(rangeSource, { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText)(rangeModule, rangeModule.exports)
+dependencies['@/lib/quality/csi-date-range'] = rangeModule.exports
 async function load(path) {
   const source = await readFile(new URL(path, import.meta.url), 'utf8')
   const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } })
@@ -62,4 +67,24 @@ test('사업 검색어의 타입·길이를 검증하고 정리한 검색어를 
   assert.equal(logins, 0)
   assert.equal((await routes[0](request({ userId: 'example', password: 'example', projectSearch: ' 예시공사 ' }))).status, 200)
   assert.equal(projectSearch, '예시공사')
+})
+test('기간의 형식·달력·누락·역순 오류는 CSI 로그인 전에 거부한다', async () => {
+  failure = false
+  logins = 0
+  for (const range of [
+    { startDate: '2026-09-01' }, { endDate: '2026-09-11' },
+    { startDate: '2026-02-30', endDate: '2026-09-11' },
+    { startDate: '2026-09-12', endDate: '2026-09-11' },
+    { startDate: '20260901', endDate: '2026-09-11' },
+    { startDate: null, endDate: '2026-09-11' },
+  ]) assert.equal((await routes[0](request({ userId: 'example', password: 'example', bizMngNo: '1', ...range }))).status, 400)
+  assert.equal(logins, 0)
+})
+test('유효한 기간은 실적 조회에 전달하고 기간 없는 기존 요청도 허용한다', async () => {
+  failure = false
+  const range = { startDate: '2026-08-11', endDate: '2026-09-11' }
+  assert.equal((await routes[0](request({ userId: 'example', password: 'example', bizMngNo: '1', ...range }))).status, 200)
+  assert.deepEqual(dateRange, range)
+  assert.equal((await routes[0](request({ userId: 'example', password: 'example', bizMngNo: '1' }))).status, 200)
+  assert.equal(dateRange, undefined)
 })
