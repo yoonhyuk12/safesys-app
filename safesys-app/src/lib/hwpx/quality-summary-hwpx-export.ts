@@ -194,6 +194,7 @@ const PAGE_CONTENT_TOP = 7200
 // 서명 이미지 표준 크기(HWPUNIT)
 const SIG_W = 3500
 const SIG_H = 1400
+const SIGNER_COLS = [6500, 19500, 11500, 9524, 4000]
 
 // 9열 그리드(합=51024) — 엑셀 A~I 비율 근사
 const COLS_9 = [7059, 9627, 7059, 4171, 4171, 4171, 4171, 4171, 6424]
@@ -311,6 +312,7 @@ interface Cell {
   cp?: number
   center?: boolean
   top?: boolean
+  borderless?: boolean
 }
 
 interface Row {
@@ -340,7 +342,7 @@ function buildCellBody(cell: Cell, cellW: number): string {
 
 function buildCellXml(cell: Cell, colAddr: number, rowAddr: number, width: number, height: number): string {
   const span = cell.span ?? 1
-  const bf = cell.header ? 3 : 2
+  const bf = cell.borderless ? 1 : cell.header ? 3 : 2
   const valign = cell.top ? 'TOP' : 'CENTER'
   const subList = `<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="${valign}" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${buildCellBody(cell, width)}</hp:subList>`
   return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="${bf}">${subList}<hp:cellAddr colAddr="${colAddr}" rowAddr="${rowAddr}"/><hp:cellSpan colSpan="${span}" rowSpan="1"/><hp:cellSz width="${width}" height="${height}"/><hp:cellMargin left="141" right="141" top="141" bottom="141"/></hp:tc>`
@@ -351,7 +353,8 @@ function buildTableParagraph(
   rows: Row[],
   tblId: number,
   zOrder: number,
-  floats: string[] = []
+  floats: string[] = [],
+  paperTop?: number
 ): string {
   const colCnt = colWidths.length
   const trs = rows
@@ -370,7 +373,10 @@ function buildTableParagraph(
     })
     .join('')
   const totalW = colWidths.reduce((a, b) => a + b, 0)
-  const tbl = `<hp:tbl id="${tblId}" zOrder="${zOrder}" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${rows.length}" colCnt="${colCnt}" cellSpacing="0" borderFillIDRef="2" noAdjust="0"><hp:sz width="${totalW}" widthRelTo="ABSOLUTE" height="0" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/>${trs}</hp:tbl>`
+  const position = paperTop === undefined
+    ? '<hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/>'
+    : `<hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="0" allowOverlap="1" holdAnchorAndSO="0" vertRelTo="PAPER" horzRelTo="PAPER" vertAlign="TOP" horzAlign="LEFT" vertOffset="${paperTop}" horzOffset="${PAGE_LEFT}"/>`
+  const tbl = `<hp:tbl id="${tblId}" zOrder="${zOrder}" numberingType="TABLE" textWrap="${paperTop === undefined ? 'TOP_AND_BOTTOM' : 'IN_FRONT_OF_TEXT'}" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${rows.length}" colCnt="${colCnt}" cellSpacing="0" borderFillIDRef="${paperTop === undefined ? 2 : 1}" noAdjust="0"><hp:sz width="${totalW}" widthRelTo="ABSOLUTE" height="0" heightRelTo="ABSOLUTE" protect="0"/>${position}<hp:outMargin left="0" right="0" top="0" bottom="0"/>${trs}</hp:tbl>`
   return `<hp:p id="${nextId()}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="0">${floats.join('')}${tbl}<hp:t/></hp:run>${lineseg(CONTENT_WIDTH, 1000)}</hp:p>`
 }
 
@@ -426,7 +432,7 @@ function estRenderRowH(row: Row): number {
 
 // 표 밖 고정 문단 높이 합(조립 순서와 동일). 표 행 배분 예산 계산에 사용.
 // 빈 간격 문단은 두지 않는다 — 페이지 넘김 원인이 되기 쉽다.
-function fixedNonTableHeight(): number {
+function fixedNonTableHeight(footerHeight: number): number {
   return (
     paraLineH(3) + // [별지 2호]
     paraLineH(2) + // 제목
@@ -436,9 +442,7 @@ function fixedNonTableHeight(): number {
     paraLineH(1) + // 3. 기성…
     paraLineH(1) + // 4. 품질검사…
     paraLineH(1) + // 5. 확인시험…
-    paraLineH(0) + // 작성일시
-    3 * paraLineH(0) + // 작성·검토·확인자
-    4 * paraLineH(8) + // 기입요령
+    footerHeight + // 작성일시·서명·기입요령 무테 표
     // 표 래퍼 문단·줄간격 실측 오차 버퍼(표 3개)
     3 * 800
   )
@@ -451,7 +455,8 @@ function fixedNonTableHeight(): number {
 function fitTablesToOnePage(
   settlementRows: Row[],
   qualityRows: Row[],
-  verificationRows: Row[]
+  verificationRows: Row[],
+  footerHeight: number
 ): [Row[], Row[], Row[]] {
   const tables = [settlementRows, qualityRows, verificationRows]
   const estTables = tables.map((rows) => rows.map(estRenderRowH))
@@ -459,7 +464,7 @@ function fitTablesToOnePage(
   const tableTotal = flat.reduce((a, b) => a + b, 0)
   // 한글이 행 선언값을 최소로만 쓰고 내용을 키우거나, 문단 간격이 더 클 수 있어 여유를 둔다.
   const SAFETY = 2400
-  const capacity = Math.max(10000, CONTENT_HEIGHT - fixedNonTableHeight() - SAFETY)
+  const capacity = Math.max(10000, CONTENT_HEIGHT - fixedNonTableHeight(footerHeight) - SAFETY)
   if (tableTotal <= 0) return [settlementRows, qualityRows, verificationRows]
 
   const scale = capacity / tableTotal
@@ -634,48 +639,58 @@ async function buildQualitySummaryHwpxBlob(
     sigIds.push(s.signature ? await collector.collect(s.signature, true) : null)
   }
 
+  // 고정 열을 명시적으로 줄바꿈해 한글의 최소 행 높이 자동 확장을 예방한다.
+  const signerRows: Row[] = signers.map((signer) => {
+    const texts = [signer.label.replace(/ /g, ''), `소속 : ${signer.affiliation || ''}`, `직위 : ${signer.position || ''}`, `성명 : ${signer.name || ''}`, '(인)']
+    const cells = texts.map((text, index) => {
+      const charsPerLine = Math.max(1, Math.floor((SIGNER_COLS[index] - CELL_PAD) / 900) - 1)
+      const wrapped = text.split('\n').flatMap((line) => {
+        const chars = Array.from(line)
+        return Array.from({ length: Math.max(1, Math.ceil(chars.length / charsPerLine)) }, (_, i) =>
+          chars.slice(i * charsPerLine, (i + 1) * charsPerLine).join(''))
+      }).join('\n')
+      return { text: wrapped, cp: 7, borderless: true, center: index === 4 }
+    })
+    const height = Math.max(2200, ...cells.map((cell) => cell.text.split('\n').length * paraLineH(7) + CELL_PAD))
+    return { cells, height }
+  })
+  const notes = [
+    '(기입요령)',
+    ' ① 시험검사종류는 기성 또는 정산물량에 대하여 실시한 시험종목 전부를 기입한다.',
+    ' ② 확인시험의 구분은 제16조의 구분에 따라 기입한다.',
+    ' ③ 작성자 : 건설업자    ④ 검토자 : 품질시험업무담당자    ⑤ 확인자 : 감독소장',
+  ]
+  const footerRows: Row[] = [
+    { height: 1800, cells: [{ text: `작성일시 :        ${formatReportDate(report.report_date)}`, span: 5, center: true, borderless: true }] },
+    ...signerRows,
+    ...notes.map((text) => ({ height: paraLineH(8) + CELL_PAD, cells: [{ text, cp: 8, span: 5, borderless: true }] })),
+  ]
+  const footerHeight = tableHeight(footerRows)
+  const footerTop = PAGE_CONTENT_TOP + CONTENT_HEIGHT - footerHeight - 800
   const [settlementRows, qualityRows, verificationRows] = fitTablesToOnePage(
     buildSettlementRows(report),
     buildQualityRows(report),
-    buildVerificationRows(report)
+    buildVerificationRows(report),
+    footerHeight
   )
 
-  // 본문 높이 누적 → 서명 줄 Y 추정 (1페이지 맞춤 반영 후)
-  let yCursor = PAGE_CONTENT_TOP
-  yCursor += paraLineH(3) // [별지 2호]
-  yCursor += paraLineH(2) // 제목
-  yCursor += paraLineH(3) // 부제
-  yCursor += paraLineH(0) // 1. 공사명
-  yCursor += paraLineH(0) // 2. 공사기간
-  yCursor += paraLineH(1) // 3. 기성…
-  yCursor += tableHeight(settlementRows)
-  yCursor += paraLineH(1) // 4. 품질검사…
-  yCursor += tableHeight(qualityRows)
-  yCursor += paraLineH(1) // 5. 확인시험…
-  yCursor += tableHeight(verificationRows)
-  yCursor += paraLineH(0) // 작성일시
-
-  // 서명 줄 Y (각 줄 시작 기준, 세로 가운데 근처 보정)
-  const signerLineH = paraLineH(0)
-  const signerYs: number[] = []
-  for (let i = 0; i < signers.length; i++) {
-    signerYs.push(yCursor + Math.round((signerLineH - SIG_H) / 2))
-    yCursor += signerLineH
-  }
-
-  // (인) 근처 = 페이지 오른쪽
-  const sigX = PAGE_LEFT + CONTENT_WIDTH - SIG_W - 400
-
-  // 서명 floating pic — 마지막 표(또는 서명부 근처 문단)에 앵커. 작성일시 다음 첫 서명 줄 표 없이
-  // 문단 래퍼로 앵커: 서명 줄들을 텍스트 문단으로 두고 floats는 마지막 확인시험 표에 붙이지 않고
-  // 빈 표 없이 첫 서명 문단 run에 넣는 방식. 표가 아니면 buildTableParagraph floats를 쓸 수 없으므로
-  // 서명 블록을 한 문단 묶음으로 만들고 floats를 별도 문단 run에 삽입.
+  // 표와 그림이 같은 PAPER 좌표를 공유한다. 앞 본문 높이는 서명 위치에 영향을 주지 않는다.
+  const signColumnX = PAGE_LEFT + sumRange(SIGNER_COLS, 0, 4)
+  let signerTop = footerTop + footerRows[0].height
   const floats: string[] = []
-  sigIds.forEach((id, i) => {
-    if (!id) return
-    floats.push(buildFloatingPicXml(id, SIG_W, SIG_H, sigX, signerYs[i]))
+  sigIds.forEach((id, index) => {
+    const rowHeight = signerRows[index].height
+    if (id) {
+      const image = collector.images.find((entry) => entry.id === id)
+      const scale = image?.wPx && image.hPx ? Math.min(SIG_W / image.wPx, SIG_H / image.hPx) : null
+      const width = scale && image?.wPx ? Math.round(image.wPx * scale) : SIG_W
+      const height = scale && image?.hPx ? Math.round(image.hPx * scale) : SIG_H
+      floats.push(buildFloatingPicXml(id, width, height,
+        signColumnX + Math.round((SIGNER_COLS[4] - width) / 2),
+        signerTop + Math.round((rowHeight - height) / 2)))
+    }
+    signerTop += rowHeight
   })
-
   const period =
     report.construction_period || '    .    .    . ~    .    .    .'
   const progress = report.progress_rate || '     '
@@ -693,27 +708,8 @@ async function buildQualitySummaryHwpxBlob(
   parts.push(buildTextParagraph('4. 품질검사 종류 및 실적', 1, false, false))
   parts.push(buildTableParagraph(COLS_9, qualityRows, 1000000002, 2))
   parts.push(buildTextParagraph('5. 확인시험 종류 및 실적', 1, false, false))
-  // 서명 floats를 확인시험 표 앵커에 부착 (PAPER 절대좌표라 표 위치에 무관)
-  parts.push(buildTableParagraph(COLS_9, verificationRows, 1000000003, 3, floats))
-  parts.push(
-    buildTextParagraph(`작성일시 :        ${formatReportDate(report.report_date)}`, 0, true, false)
-  )
-
-  for (const s of signers) {
-    const line = `${s.label}   소속 : ${s.affiliation || ''}   직위 : ${s.position || ''}   성명 : ${s.name || ''}      (인)`
-    parts.push(buildTextParagraph(line, 0, false, false))
-  }
-
-  const notes = [
-    '(기입요령)',
-    ' ① 시험검사종류는 기성 또는 정산물량에 대하여 실시한 시험종목 전부를 기입한다.',
-    ' ② 확인시험의 구분은 제16조의 구분에 따라 기입한다.',
-    ' ③ 작성자 : 건설업자    ④ 검토자 : 품질시험업무담당자    ⑤ 확인자 : 감독소장',
-  ]
-  for (const note of notes) {
-    parts.push(buildTextParagraph(note, 8, false, false))
-  }
-
+  parts.push(buildTableParagraph(COLS_9, verificationRows, 1000000003, 3))
+  parts.push(buildTableParagraph(SIGNER_COLS, footerRows, 1000000004, 4, floats, footerTop))
   const sectionXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hs:sec ${SEC_XMLNS}>${parts.join('')}</hs:sec>`
 
   const imageItems = collector.images
