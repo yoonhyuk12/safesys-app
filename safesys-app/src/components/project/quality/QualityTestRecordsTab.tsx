@@ -49,6 +49,7 @@ import { prefillCsiSelfQuality } from '@/lib/quality/csi-self-quality-prefill'
 interface QualityTestRecordsTabProps {
   projectId: string
   userId: string
+  currentUserRole?: '발주청' | '감리단' | '시공사'
   canDeleteQualityRecords: boolean
   canSignQualityRecords: boolean
   projectName: string
@@ -163,6 +164,7 @@ const CONCRETE_PRESETS: ConcretePreset[] = [
 export default function QualityTestRecordsTab({
   projectId,
   userId,
+  currentUserRole,
   canDeleteQualityRecords,
   canSignQualityRecords,
   projectName,
@@ -577,11 +579,11 @@ export default function QualityTestRecordsTab({
       }
     }
 
-    // RLS상 수정은 작성자 본인만 가능 — 사전에 명확히 안내
+    // 작성자와 발주청은 수정할 수 있다.
     if (editingSerialNo !== null) {
       const group = records.filter((r) => r.serial_no === editingSerialNo)
-      if (group.some((r) => r.created_by !== userId)) {
-        alert('작성자 본인만 수정할 수 있습니다.')
+      if (currentUserRole !== '발주청' && group.some((r) => r.created_by !== userId)) {
+        alert('작성자 본인 또는 발주청만 수정할 수 있습니다.')
         return
       }
     }
@@ -592,6 +594,9 @@ export default function QualityTestRecordsTab({
       const original = editingSerialNo !== null ? records.filter((r) => r.serial_no === editingSerialNo) : []
       const keptIds = new Set(items.filter((it) => it._id).map((it) => it._id as string))
       const toDelete = original.filter((r) => !keptIds.has(r.id))
+      if (toDelete.some((r) => r.created_by !== userId)) {
+        throw new Error('다른 작성자의 시험 항목은 편집 화면에서 삭제할 수 없습니다. 항목을 복원한 뒤 저장해주세요.')
+      }
 
       const summaryId: string | null = selectedSummaryId === '' ? null : selectedSummaryId
 
@@ -617,7 +622,12 @@ export default function QualityTestRecordsTab({
           updated_at: new Date().toISOString(),
         }
         if (it._id) {
-          const { error } = await (supabase as any).from('quality_test_records').update(rowData).eq('id', it._id)
+          const { error } = await (supabase as any)
+            .from('quality_test_records')
+            .update(rowData)
+            .eq('id', it._id)
+            .select('id')
+            .single()
           if (error) throw error
         } else {
           const { error } = await (supabase as any)

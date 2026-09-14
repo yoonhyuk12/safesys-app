@@ -393,6 +393,7 @@ export default function QualityTestLedgerPage() {
           <QualityTestRecordsTab
             projectId={projectId}
             userId={user.id}
+            currentUserRole={userProfile?.role}
             canDeleteQualityRecords={canDeleteQualityRecords}
             canSignQualityRecords={userProfile?.role === '발주청'}
             projectName={project?.project_name || ''}
@@ -420,6 +421,7 @@ export default function QualityTestLedgerPage() {
           <QualityVerificationRequestsTab
             projectId={projectId}
             userId={user.id}
+            currentUserRole={userProfile?.role}
             canSignQualityRecords={userProfile?.role === '발주청'}
             projectName={project?.project_name || ''}
             managingBranch={project?.managing_branch || ''}

@@ -19,6 +19,13 @@ const canSeeAllHq = userProfile?.role === '발주청' &&
   (userProfile.hq_division == null || userProfile.branch_division?.endsWith('본부'))
 ```
 
+## 품질시험 관리대장 수정 권한
+
+- 성과총괄표·품질검사 실시대장·확인시험 의뢰서는 원래 작성자와 모든 발주청 계정이 수정할 수 있다. 발주청의 본부·지사 소속은 수정 권한에 영향을 주지 않는다.
+- 화면 저장 검사와 세 테이블의 UPDATE RLS에 같은 기준을 적용한다. 기존 문서 수정 시 `created_by`는 원래 작성자로 유지한다.
+- `prevent_quality_created_by_change` 트리거는 로그인 사용자의 직접 작성자 변경을 차단한다. 관리 작업과 회원 삭제 시 FK의 `SET NULL` 처리는 유지한다.
+- 서명란별 소속 기준과 삭제 권한은 수정 권한과 별도로 유지한다.
+
 ## 인증 플로우
 
 - **AuthContext** (`src/contexts/AuthContext.tsx`): 전역 인증 상태 (user, userProfile, refreshProfile, signOut)

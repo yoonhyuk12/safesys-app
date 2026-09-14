@@ -271,11 +271,11 @@ export default function QualitySummaryTab({
   const handleSave = async () => {
     if (!formData) return
 
-    // RLS상 수정은 작성자 본인만 가능 — 사전에 명확히 안내
+    // 작성자와 발주청은 수정할 수 있으며, 서명란별 소속 기준은 별도로 적용한다.
     if (editingReportId) {
       const editingReport = reports.find((r) => r.id === editingReportId)
-      if (editingReport && editingReport.created_by !== userId) {
-        alert('작성자 본인만 수정할 수 있습니다.')
+      if (editingReport && editingReport.created_by !== userId && currentUserRole !== '발주청') {
+        alert('작성자 본인 또는 발주청만 수정할 수 있습니다.')
         return
       }
     }
@@ -285,7 +285,6 @@ export default function QualitySummaryTab({
       const dataToSave = {
         ...formData,
         project_id: projectId,
-        created_by: userId,
         updated_at: new Date().toISOString(),
       }
       if (editingReportId) {
@@ -293,9 +292,11 @@ export default function QualitySummaryTab({
           .from('quality_summary_reports')
           .update(dataToSave)
           .eq('id', editingReportId)
+          .select('id')
+          .single()
         if (error) throw error
       } else {
-        const { error } = await (supabase as any).from('quality_summary_reports').insert([dataToSave])
+        const { error } = await (supabase as any).from('quality_summary_reports').insert([{ ...dataToSave, created_by: userId }])
         if (error) throw error
       }
       resetForm()
