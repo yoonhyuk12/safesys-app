@@ -61,6 +61,7 @@ const [selectedSafetyBranch, setSelectedSafetyBranch] = useState<string | null>(
 /safe/heatwave                 # 폭염점검 전체 현황
 /safe/manager                  # 관리자점검 전체 현황
 /safe/headquarters             # 본부불시점검 전체 현황
+/safe/new-district-consulting  # 대표 계약 착공연도별 신규지구 안전컨설팅 (기본 3개월, 본부→지사→프로젝트 소계)
 /safe/tbm                      # TBM 점검 현황
 /safe/safeDocument             # 안전서류 현황
 /safe/safetyInspection         # 안전점검 현황
@@ -114,6 +115,7 @@ src/components/
 │   ├── ContractorDashboard # 시공사 뷰
 │   ├── AccidentAnalysisView # 사고 이력·안전점검 관계 분석 및 사고 관리
 │   ├── AccidentEntryModal  # 본부급 이상 사용자의 사고 입력·수정 폼
+│   ├── NewDistrictConsultingView # 신규지구 안전컨설팅 본부→지사→지구 3단 현황
 │   ├── Safety*View         # 안전현황 카테고리별 뷰 (7개)
 │   ├── *Status             # 점검 현황 요약 컴포넌트
 │   └── BusinessMaterialView # 자재 관리
@@ -139,6 +141,8 @@ src/components/
 | `accident-analysis-types.ts` | 사고 입력·조회 DTO, 점검 정규화 타입, 분석 결과 타입과 선택 옵션 |
 | `accident-analysis-utils.ts` | 서울 달력일 계산과 점검 JSON 정규화 공통 유틸리티 |
 | `accident-analysis-calculation.ts` | 프로젝트-월 단위 KPI, 월별 추이, 사고 전 30일·90일 점검 관계 계산 |
+| `new-district-consulting.ts` | 신규지구 안전컨설팅용 계약·본부 점검 페이지네이션 조회와 집계 진입점 |
+| `new-district-consulting-utils.ts` | 대표 계약 시작일 해석, 달력 개월 인정 기한, 본부/지사 소계 재계산 순수 로직 |
 
 **사고 통계 분석 데이터 흐름:**
 
