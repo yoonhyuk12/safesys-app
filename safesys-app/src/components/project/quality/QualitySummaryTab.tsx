@@ -269,7 +269,7 @@ export default function QualitySummaryTab({
   }
 
   const handleSave = async () => {
-    if (!formData) return
+    if (!formData || saving || rejectionSaving) return
 
     // 작성자와 발주청은 수정할 수 있으며, 서명란별 소속 기준은 별도로 적용한다.
     if (editingReportId) {
@@ -383,7 +383,7 @@ export default function QualitySummaryTab({
   }
 
   const handleReject = async () => {
-    if (!editingReportId || !canReject || rejectionSaving) return
+    if (!editingReportId || !canReject || saving || rejectionSaving) return
 
     const reason = window.prompt('반려 사유를 입력해주세요.')
     if (reason === null) return
@@ -416,6 +416,37 @@ export default function QualitySummaryTab({
       alert('작성자에게 반려 통보했습니다.')
     } catch (err: unknown) {
       alert('반려 통보 실패: ' + getErrorMessage(err))
+    } finally {
+      setRejectionSaving(false)
+    }
+  }
+
+  const handleCancelRejection = async () => {
+    if (!editingReportId || !activeReport?.rejected_at || !canReject || saving || rejectionSaving) return
+
+    setRejectionSaving(true)
+    try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      if (!session?.access_token) throw new Error('로그인이 필요합니다.')
+
+      const response = await fetch('/api/quality-summary/reject', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ report_id: editingReportId }),
+      })
+      const result = await response.json().catch(() => ({})) as { success?: boolean; error?: string }
+      if (!response.ok || result.success !== true) {
+        throw new Error(result.error || '반려 통보 취소에 실패했습니다.')
+      }
+
+      await loadReports()
+      alert('반려 통보를 취소했습니다.')
+    } catch (err: unknown) {
+      alert('반려 통보 취소 실패: ' + getErrorMessage(err))
     } finally {
       setRejectionSaving(false)
     }
@@ -1018,7 +1049,7 @@ export default function QualitySummaryTab({
                           <button
                             type="button"
                             onClick={handleReject}
-                            disabled={!canReject || rejectionSaving}
+                            disabled={!canReject || saving || rejectionSaving}
                             title={
                               !canReject
                                 ? '반려 통보는 발주청 소속만 처리할 수 있습니다.'
@@ -1029,6 +1060,17 @@ export default function QualitySummaryTab({
                             className="rounded border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {rejectionSaving ? '처리 중...' : activeReport?.rejected_at ? '반려 통보됨' : '반려 통보'}
+                          </button>
+                        )}
+                        {signer.sig === 'reviewer_signature' && editingReportId && activeReport?.rejected_at && (
+                          <button
+                            type="button"
+                            onClick={handleCancelRejection}
+                            disabled={!canReject || saving || rejectionSaving}
+                            title={!canReject ? '반려 통보 취소는 발주청 소속만 처리할 수 있습니다.' : undefined}
+                            className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            반려 통보 취소
                           </button>
                         )}
                       </div>
@@ -1069,7 +1111,7 @@ export default function QualitySummaryTab({
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || rejectionSaving}
                 className="px-6 py-2 text-sm text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50"
               >
                 {saving ? '저장 중...' : editingReportId ? '수정' : '저장'}

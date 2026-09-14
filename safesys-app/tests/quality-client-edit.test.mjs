@@ -56,6 +56,7 @@ async function save(tab, { role = '발주청', author = 'other', creating = fals
     editingRecordId: creating ? null : 'record', editingSerialNo: creating ? null : 1,
     selectedSummaryId: '', projectId: 'project', userId: 'user', currentUserRole: role,
     canSignQualityRecords: role === '발주청', supabase, alert: (value) => alerts.push(value),
+    saving: false, rejectionSaving: false,
     setSaving() {}, resetForm() { resets++ }, loadReports() {}, loadRecords() {}, loadSummaries() {}, computeNextSerialNo: () => 2,
   }
   const run = new Function(...Object.keys(context), `${await readHandler(tab)}; return handleSave()`)
