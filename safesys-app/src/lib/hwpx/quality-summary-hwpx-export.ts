@@ -442,7 +442,7 @@ function fixedNonTableHeight(footerHeight: number): number {
     paraLineH(1) + // 3. 기성…
     paraLineH(1) + // 4. 품질검사…
     paraLineH(1) + // 5. 확인시험…
-    footerHeight + // 작성일시·서명·기입요령 무테 표
+    footerHeight + // 작성일시·서명 무테 표
     // 표 래퍼 문단·줄간격 실측 오차 버퍼(표 3개)
     3 * 800
   )
@@ -571,8 +571,8 @@ function buildVerificationRows(report: QualitySummaryFormData): Row[] {
     height: ROW_H_HEADER,
     cells: [
       { text: '공 종', header: true, cp: 4, center: true },
-      { text: '시험ㆍ검사 종류(재료)①', header: true, cp: 4, center: true },
-      { text: '확인시험 구분②', header: true, cp: 4, center: true },
+      { text: '시험ㆍ검사 종류(재료)', header: true, cp: 4, center: true },
+      { text: '확인시험 구분', header: true, cp: 4, center: true },
       { text: '계획', header: true, cp: 4, center: true },
       { text: '실시', header: true, cp: 4, center: true },
       { text: '합격', header: true, cp: 4, center: true },
@@ -612,21 +612,21 @@ async function buildQualitySummaryHwpxBlob(
 
   const signers = [
     {
-      label: '작 성 자③',
+      label: '작 성 자',
       affiliation: report.writer_affiliation,
       position: report.writer_position,
       name: report.writer_name,
       signature: report.writer_signature,
     },
     {
-      label: '검 토 자④',
+      label: '검 토 자',
       affiliation: report.reviewer_affiliation,
       position: report.reviewer_position,
       name: report.reviewer_name,
       signature: report.reviewer_signature,
     },
     {
-      label: '확 인 자⑤',
+      label: '확 인 자',
       affiliation: report.confirmer_affiliation,
       position: report.confirmer_position,
       name: report.confirmer_name,
@@ -654,16 +654,9 @@ async function buildQualitySummaryHwpxBlob(
     const height = Math.max(2200, ...cells.map((cell) => cell.text.split('\n').length * paraLineH(7) + CELL_PAD))
     return { cells, height }
   })
-  const notes = [
-    '(기입요령)',
-    ' ① 시험검사종류는 기성 또는 정산물량에 대하여 실시한 시험종목 전부를 기입한다.',
-    ' ② 확인시험의 구분은 제16조의 구분에 따라 기입한다.',
-    ' ③ 작성자 : 건설업자    ④ 검토자 : 품질시험업무담당자    ⑤ 확인자 : 감독소장',
-  ]
   const footerRows: Row[] = [
     { height: 1800, cells: [{ text: `작성일시 :        ${formatReportDate(report.report_date)}`, span: 5, center: true, borderless: true }] },
     ...signerRows,
-    ...notes.map((text) => ({ height: paraLineH(8) + CELL_PAD, cells: [{ text, cp: 8, span: 5, borderless: true }] })),
   ]
   const footerHeight = tableHeight(footerRows)
   const footerTop = PAGE_CONTENT_TOP + CONTENT_HEIGHT - footerHeight - 800
