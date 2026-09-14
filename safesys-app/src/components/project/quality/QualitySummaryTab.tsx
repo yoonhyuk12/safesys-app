@@ -943,6 +943,8 @@ export default function QualitySummaryTab({
                   const posKey = signer.pos
                   const nameKey = signer.name
                   const canSign = canSignBy(signer.signAllowedBy)
+                  const canClearSignature = currentUserRole === '발주청' ||
+                    (canSign && (!editingReportId || activeReport?.created_by === userId))
                   const signDeniedHint = canSign
                     ? undefined
                     : `${signer.label} 서명은 ${SIGN_ALLOWED_LABEL[signer.signAllowedBy]}만 할 수 있습니다.`
@@ -998,6 +1000,18 @@ export default function QualitySummaryTab({
                             className="px-3 py-1.5 text-sm rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-white"
                           >
                             서명
+                          </button>
+                        )}
+                        {formData[signer.sig] && (
+                          <button
+                            type="button"
+                            onClick={() => set(signer.sig, '')}
+                            disabled={!canClearSignature || saving || rejectionSaving}
+                            title={canClearSignature ? '서명 삭제 후 수정 버튼을 눌러 저장해주세요.' : '서명을 삭제할 권한이 없습니다.'}
+                            aria-label={`${signer.label} 서명 삭제`}
+                            className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            서명 삭제
                           </button>
                         )}
                         {signer.sig === 'reviewer_signature' && editingReportId && (
