@@ -12,6 +12,7 @@ const { outputText } = ts.transpileModule(source, {
 
 async function request(method = 'DELETE', options = {}) {
   const { body = { report_id: REPORT_ID }, role = '발주청', token = 'token', invalidToken = false, malformed = false, reportExists = true, rejected = true, updateError = null, profileError = null } = options
+  const rejectedBy = options.rejectedBy === undefined ? 'client' : options.rejectedBy
   const updates = [], filters = [], logs = []
   let authCalls = 0
   const admin = {
@@ -25,7 +26,8 @@ async function request(method = 'DELETE', options = {}) {
         async maybeSingle() {
           if (table === 'user_profiles') return { data: role ? { role } : null, error: profileError }
           const needsRejected = filters.some(([column, operator, value]) => column === 'rejected_at' && operator === 'is' && value === null)
-          return { data: reportExists && (!needsRejected || rejected) && updatePayload ? { id: REPORT_ID } : null, error: updateError }
+          const matchesRejector = filters.filter(([column]) => column === 'rejected_by').every(([, value]) => value === rejectedBy)
+          return { data: reportExists && (!needsRejected || rejected) && matchesRejector && updatePayload ? { id: REPORT_ID } : null, error: updateError }
         },
       }
       return query
@@ -55,6 +57,15 @@ test('발주청 취소는 반려 정보 5개만 초기화하고 현재 서명과
   assert.deepEqual(payload, { rejection_reason: null, rejected_at: null, rejected_by: null, rejection_read_at: null, rejection_read_by: null })
   assert.ok(result.filters.some(([column, value]) => column === 'id' && value === REPORT_ID))
   assert.ok(result.filters.some(([column, operator, value]) => column === 'rejected_at' && operator === 'is' && value === null))
+  assert.ok(result.filters.some(([column, value]) => column === 'rejected_by' && value === 'client'))
+})
+
+test('다른 발주청 사용자 또는 통보자가 없는 반려는 취소할 수 없다', async () => {
+  for (const rejectedBy of ['another-client', null]) {
+    const result = await request('DELETE', { rejectedBy })
+    assert.equal(result.status, 404)
+    assert.equal(result.body.success, false)
+  }
 })
 
 for (const method of ['POST', 'DELETE']) {
@@ -83,7 +94,7 @@ test('취소 대상이 없거나 이미 취소된 보고서는 실패하고 DB �
     const result = await request('DELETE', options)
     assert.equal(result.status, 404)
     assert.equal(result.body.success, false)
-    assert.match(result.body.error, /반려 통보된 성과총괄표/)
+    assert.match(result.body.error, /본인이 반려 통보한 성과총괄표/)
   }
   const result = await request('DELETE', { updateError: new Error('private database error') })
   assert.equal(result.status, 500)
@@ -105,9 +116,11 @@ test('기존 반려 POST는 사유 검증과 검토자 서명 초기화를 유�
 
 const componentSource = await readFile(new URL('../src/components/project/quality/QualitySummaryTab.tsx', import.meta.url), 'utf8')
 const ast = ts.createSourceFile('QualitySummaryTab.tsx', componentSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
-let cancelHandler
+let cancelHandler, cancelPermission, cancelButton
 function visit(node) {
   if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'handleCancelRejection') cancelHandler = node.initializer.getText(ast)
+  if (ts.isVariableDeclaration(node) && node.name.getText(ast) === 'canCancelRejection') cancelPermission = node.initializer.getText(ast)
+  if (ts.isJsxElement(node) && node.openingElement.tagName.getText(ast) === 'button' && node.getText(ast).includes('onClick={handleCancelRejection}')) cancelButton = node.parent.getText(ast)
   ts.forEachChild(node, visit)
 }
 visit(ast)
@@ -118,7 +131,7 @@ async function cancelFromForm(overrides = {}, success = true) {
   let reloads = 0
   const formData = { writer_name: '편집 중 이름', reviewer_signature: 'current-signature', writer_signature: 'writer-signature' }
   const context = {
-    editingReportId: REPORT_ID, activeReport: { rejected_at: '2026-09-14' }, canReject: true,
+    editingReportId: REPORT_ID, activeReport: { rejected_at: '2026-09-14', rejected_by: 'client' }, canReject: true, userId: 'client',
     saving: false, rejectionSaving: false, formData,
     setRejectionSaving: (value) => savingStates.push(value),
     supabase: { auth: { getSession: async () => ({ data: { session: { access_token: 'token' } }, error: null }) } },
@@ -129,7 +142,8 @@ async function cancelFromForm(overrides = {}, success = true) {
     resetForm: () => assert.fail('취소는 편집 폼을 닫지 않아야 한다'),
     ...overrides,
   }
-  const { outputText } = ts.transpileModule(`const cancel = ${cancelHandler}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } })
+  assert.ok(cancelPermission)
+  const { outputText } = ts.transpileModule(`const canCancelRejection = ${cancelPermission}; const cancel = ${cancelHandler}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } })
   await new Function(...Object.keys(context), `${outputText}; return cancel()`)(...Object.values(context))
   assert.deepEqual(formData, { writer_name: '편집 중 이름', reviewer_signature: 'current-signature', writer_signature: 'writer-signature' })
   return { calls, alerts, savingStates, reloads }
@@ -151,9 +165,24 @@ test('화면 취소 실패는 편집 값을 유지하고 진행 상태를 해제
 })
 
 test('권한·반려 대상이 없거나 저장·반려 처리 중이면 취소 요청을 보내지 않는다', async () => {
-  for (const overrides of [{ canReject: false }, { activeReport: null }, { editingReportId: null }, { saving: true }, { rejectionSaving: true }]) {
+  for (const overrides of [{ canReject: false }, { activeReport: null }, { activeReport: { rejected_at: '2026-09-14', rejected_by: 'another-client' } }, { activeReport: { rejected_at: '2026-09-14', rejected_by: null } }, { editingReportId: null }, { saving: true }, { rejectionSaving: true }]) {
     const result = await cancelFromForm(overrides)
     assert.equal(result.calls.length, 0)
     assert.deepEqual(result.savingStates, [])
+  }
+})
+
+test('다른 사용자도 취소 버튼을 볼 수 있지만 비활성화되고 이유가 표시된다', () => {
+  assert.ok(cancelButton)
+  const { outputText } = ts.transpileModule(`const canCancelRejection = ${cancelPermission}; const button = ${cancelButton}`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },
+  })
+  for (const rejectedBy of ['client', 'another-client', null]) {
+    const button = new Function('React', 'canReject', 'userId', 'activeReport', 'signer', 'editingReportId', 'saving', 'rejectionSaving', 'handleCancelRejection', `${outputText}; return button`)(
+      { createElement: (tag, props) => ({ tag, props }) }, true, 'client', { rejected_at: '2026-09-14', rejected_by: rejectedBy }, { sig: 'reviewer_signature' }, REPORT_ID, false, false, () => {},
+    )
+    assert.equal(button.tag, 'button')
+    assert.equal(button.props.disabled, rejectedBy !== 'client')
+    if (rejectedBy !== 'client') assert.match(button.props.title, /본인만/)
   }
 })

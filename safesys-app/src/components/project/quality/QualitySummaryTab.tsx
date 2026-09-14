@@ -157,6 +157,7 @@ export default function QualitySummaryTab({
     ? reports.find((report) => report.id === editingReportId)
     : undefined
   const canReject = currentUserRole === '발주청'
+  const canCancelRejection = canReject && activeReport?.rejected_by === userId
 
   // 서명란은 지정된 소속만 누를 수 있다 (작성자=시공사, 검토자=발주청 본부, 확인자=발주청)
   const canSignBy = (allowed: SignAllowedBy): boolean => {
@@ -422,7 +423,7 @@ export default function QualitySummaryTab({
   }
 
   const handleCancelRejection = async () => {
-    if (!editingReportId || !activeReport?.rejected_at || !canReject || saving || rejectionSaving) return
+    if (!editingReportId || !activeReport?.rejected_at || !canCancelRejection || saving || rejectionSaving) return
 
     setRejectionSaving(true)
     try {
@@ -1066,8 +1067,8 @@ export default function QualitySummaryTab({
                           <button
                             type="button"
                             onClick={handleCancelRejection}
-                            disabled={!canReject || saving || rejectionSaving}
-                            title={!canReject ? '반려 통보 취소는 발주청 소속만 처리할 수 있습니다.' : undefined}
+                            disabled={!canCancelRejection || saving || rejectionSaving}
+                            title={!canCancelRejection ? '반려 통보한 본인만 취소할 수 있습니다.' : undefined}
                             className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             반려 통보 취소

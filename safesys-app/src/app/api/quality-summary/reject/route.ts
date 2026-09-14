@@ -77,7 +77,7 @@ async function handleRejection(request: NextRequest, cancel: boolean) {
       updated_at: now,
     })
     .eq('id', reportId)
-  if (cancel) query.not('rejected_at', 'is', null)
+  if (cancel) query.not('rejected_at', 'is', null).eq('rejected_by', user.id)
   const { data: updatedReport, error: updateError } = await query
     .select('id')
     .maybeSingle()
@@ -87,7 +87,7 @@ async function handleRejection(request: NextRequest, cancel: boolean) {
     return NextResponse.json({ success: false, error: cancel ? '반려 통보 취소에 실패했습니다.' : '성과총괄표 반려 처리에 실패했습니다.' }, { status: 500 })
   }
   if (!updatedReport) {
-    return NextResponse.json({ success: false, error: cancel ? '반려 통보된 성과총괄표를 찾을 수 없습니다.' : '성과총괄표를 찾을 수 없습니다.' }, { status: 404 })
+    return NextResponse.json({ success: false, error: cancel ? '본인이 반려 통보한 성과총괄표를 찾을 수 없습니다.' : '성과총괄표를 찾을 수 없습니다.' }, { status: 404 })
   }
 
   return NextResponse.json({ success: true })
