@@ -258,7 +258,6 @@ interface Cell {
     header?: boolean       // 회색 머리셀 여부
     cp?: number            // charPrIDRef (기본 0)
     center?: boolean       // 가로 가운데 정렬
-    top?: boolean          // 세로 위 정렬(기본 가운데)
     picId?: string | null  // 인라인 그림(사진·서명)
     picW?: number          // 인라인 그림 너비(HWPUNIT, 생략 시 셀 폭 맞춤)
     picH?: number          // 인라인 그림 높이(HWPUNIT)
@@ -267,6 +266,8 @@ interface Cell {
 interface Row {
     height: number
     cells: Cell[]
+    /** 쪽 하단 빈 공간을 나눠 받을 가변 행(점검 본문·비고). 제목·서명·기본사항·표머리는 늘리지 않는다. */
+    flexible?: boolean
 }
 
 function sumRange(widths: number[], start: number, count: number): number {
@@ -304,8 +305,7 @@ function buildCellBody(cell: Cell, cellW: number): string {
 function buildCellXml(cell: Cell, colAddr: number, rowAddr: number, width: number, height: number): string {
     const span = cell.span ?? 1
     const bf = cell.header ? 3 : 2
-    const valign = cell.top ? 'TOP' : 'CENTER'
-    const subList = `<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="${valign}" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${buildCellBody(cell, width)}</hp:subList>`
+    const subList = `<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${buildCellBody(cell, width)}</hp:subList>`
     return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="${bf}">${subList}<hp:cellAddr colAddr="${colAddr}" rowAddr="${rowAddr}"/><hp:cellSpan colSpan="${span}" rowSpan="1"/><hp:cellSz width="${width}" height="${height}"/><hp:cellMargin left="141" right="141" top="141" bottom="141"/></hp:tc>`
 }
 
@@ -330,7 +330,9 @@ function buildTableParagraph(colWidths: number[], rows: Row[], tblId: number, zO
 }
 
 const COLS = [6500, 36000, 8524]
-const PAGE_BUDGET = 63000 // 69788 본문에서 표 문단과 한글 렌더 오차를 여유로 남긴다.
+// A4 세로 84188에서 위(여백 3600 + 머리말 3600)와 아래(꼬리말 3600 + 여백 3600)를 뺀 본문 높이.
+// 쪽 분할과 하단 채움이 이 값을 함께 쓴다. 한글 2022 실측에서 이 높이를 다 쓰는 표도 한 쪽에 들어갔다.
+const PAGE_CAPACITY = 69788
 const LINE_HEIGHT = 1300
 
 // 한글 9pt 기준으로 보수적으로 미리 줄바꿈한다. 긴 한 셀도 여러 행·쪽으로 나눈다.
@@ -354,7 +356,7 @@ function wrapText(text: string, width: number): string[] {
     return lines
 }
 
-function textRows(cells: Cell[]): Row[] {
+function textRows(cells: Cell[], flexible = false): Row[] {
     let column = 0
     const wrapped = cells.map(cell => {
         const width = sumRange(COLS, column, cell.span ?? 1)
@@ -367,10 +369,28 @@ function textRows(cells: Cell[]): Row[] {
         const chunks = wrapped.map(lines => lines.slice(start, start + 8))
         rows.push({
             height: Math.max(...chunks.map(lines => lines.length), 1) * LINE_HEIGHT + 400,
-            cells: cells.map((cell, i) => ({ ...cell, cp: 7, top: true, text: chunks[i].join('\n') })),
+            flexible,
+            cells: cells.map((cell, i) => ({ ...cell, cp: 7, text: chunks[i].join('\n') })),
         })
     }
     return rows
+}
+
+// 쪽 하단에 빈 공간이 남지 않도록 남는 높이를 가변 행(점검 본문·비고)에 비례 배분한다.
+// 제목·서명·기본사항·표머리는 필요 이상으로 늘리지 않는다. 원본 행은 바꾸지 않고 새 배열을 돌려준다.
+function stretchRowsToFillPage(rows: Row[]): Row[] {
+    const remaining = PAGE_CAPACITY - rows.reduce((sum, row) => sum + row.height, 0)
+    if (remaining <= 0) return rows
+    const flexibleTotal = rows.reduce((sum, row) => sum + (row.flexible ? row.height : 0), 0)
+    if (flexibleTotal <= 0) return rows
+    const lastFlexible = rows.reduce((last, row, index) => (row.flexible ? index : last), -1)
+    let given = 0
+    return rows.map((row, index) => {
+        if (!row.flexible) return row
+        const add = index === lastFlexible ? remaining - given : Math.floor((row.height / flexibleTotal) * remaining)
+        given += add
+        return { ...row, height: row.height + add }
+    })
 }
 
 function titleRow(continuation = false): Row {
@@ -433,29 +453,43 @@ export async function buildEquipmentInspectionHwpxBlob(record: EquipmentInspecti
     record.answers.forEach((answer, index) => {
         detailRows.push(...textRows([
             { text: answer.category }, { text: `${index + 1}. ${answer.text}` }, { text: results[answer.result], center: true },
-        ]))
-        if (answer.note) detailRows.push(...textRows([{ text: `${index + 1}번 비고  ${answer.note}`, span: 3 }]))
+        ], true))
+        if (answer.note) detailRows.push(...textRows([{ text: `${index + 1}번 비고  ${answer.note}`, span: 3 }], true))
     })
-    detailRows.push(...textRows([{ text: `종합 비고  ${record.remarks || '-'}`, span: 3 }]))
-    const pages: Row[][] = [firstRows]
-    let pageHeight = firstRows.reduce((sum, row) => sum + row.height, 0)
-    for (const row of detailRows) {
-        if (pageHeight + row.height > PAGE_BUDGET) {
-            const continuationRows = [titleRow(true), ...textRows([{ text: `${record.equipment_name} / ${record.inspection_date}`, span: 3 }]), columnHeader]
-            pages.push(continuationRows)
-            pageHeight = continuationRows.reduce((sum, item) => sum + item.height, 0)
+    detailRows.push(...textRows([{ text: `종합 비고  ${record.remarks || '-'}`, span: 3 }], true))
+    // 쪽 분할 뒤 마지막 쪽만 헐거워지면 늘어난 행이 과하게 커지므로, 쪽 수가 늘지 않는 가장 작은 예산으로 고르게 나눈다.
+    const paginate = (budget: number): Row[][] => {
+        const result: Row[][] = [[...firstRows]]
+        let pageHeight = firstRows.reduce((sum, row) => sum + row.height, 0)
+        for (const row of detailRows) {
+            if (pageHeight + row.height > budget) {
+                const continuationRows = [titleRow(true), ...textRows([{ text: `${record.equipment_name} / ${record.inspection_date}`, span: 3 }]), columnHeader]
+                result.push(continuationRows)
+                pageHeight = continuationRows.reduce((sum, item) => sum + item.height, 0)
+            }
+            result[result.length - 1].push(row)
+            pageHeight += row.height
         }
-        pages[pages.length - 1].push(row)
-        pageHeight += row.height
+        return result
     }
+    const pageCount = paginate(PAGE_CAPACITY).length
+    let low = 1
+    let high = PAGE_CAPACITY
+    while (low < high) {
+        const mid = Math.floor((low + high) / 2)
+        if (paginate(mid).length <= pageCount) high = mid
+        else low = mid + 1
+    }
+    const filledPages = paginate(low).map(stretchRowsToFillPage)
     const signatureImage = collector.find(signatureId)
     const ratio = signatureImage?.wPx && signatureImage.hPx ? signatureImage.wPx / signatureImage.hPx : 3
     const signatureWidth = Math.round(Math.min(COLS[2] - 600, 2400 * ratio))
     const signaturePicHeight = Math.round(signatureWidth / ratio)
+    const [finalTitleRow, finalSignatureRow] = filledPages[0]
     const signature = signatureId ? buildFloatingPicXml(signatureId, signatureWidth, signaturePicHeight,
         4252 + COLS[0] + COLS[1] + Math.round((COLS[2] - signatureWidth) / 2),
-        7200 + 4000 + Math.round((signatureHeight - signaturePicHeight) / 2)) : ''
-    const parts = pages.map((rows, index) => {
+        7200 + finalTitleRow.height + Math.round((finalSignatureRow.height - signaturePicHeight) / 2)) : ''
+    const parts = filledPages.map((rows, index) => {
         const xml = buildTableParagraph(COLS, rows, 1000000000 + index, index, index === 0 && signature ? [signature] : [], index > 0)
         if (index > 0) return xml
         const section = `${SECPR}<hp:ctrl><hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/></hp:ctrl>`

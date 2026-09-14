@@ -39,9 +39,38 @@ const record = {
   remarks: '안전핀과 후방카메라 확인 후 작업 개시', created_by: null, created_at: '2026-09-14T00:00:00Z',
 }
 
+const longRecord = {
+  ...record,
+  answers: record.answers.map((a, i) => ({ ...a, note: i === 0 ? '긴 비고 점검내용 및 시정조치 기록 '.repeat(300) + '비고끝표식' : a.note })),
+  remarks: '추가 전달 사항 '.repeat(500) + '종합끝표식',
+}
+
+// 출력 XML의 용지·여백에서 본문 높이를 직접 계산한다 — exporter 상수를 빌려 쓰지 않는다.
+function bodyHeightOf($) {
+  const pagePr = $('hp\\:pagePr')
+  const margin = pagePr.find('hp\\:margin')
+  const at = name => Number(margin.attr(name))
+  const height = Number(pagePr.attr('height')) - at('top') - at('header') - at('bottom') - at('footer')
+  assert.ok(height > 0, '본문 높이를 읽지 못함')
+  return height
+}
+
+// 쪽마다 표 행 높이 합이 본문 높이를 넘지 않으면서 하단 빈 공간을 남기지 않는지 본다.
+function assertPagesFillBody($) {
+  const capacity = bodyHeightOf($)
+  const tables = $('hp\\:tbl')
+  assert.ok(tables.length > 0, '표가 없다')
+  tables.each((_, tbl) => {
+    let height = 0
+    $(tbl).children('hp\\:tr').each((_, row) => { height += Number($(row).find('hp\\:cellSz').first().attr('height')) })
+    assert.ok(height <= capacity, `표 높이 ${height}이 본문 높이 ${capacity}을 넘음`)
+    assert.ok(height >= capacity - 200, `쪽 하단에 ${capacity - height} 빈 공간이 남음`)
+  })
+}
+
 test('서명 PNG 원본·완전한 이미지 XML·명시적 장문 분할', async () => {
   const { buildEquipmentInspectionHwpxBlob } = await transpile('../src/lib/hwpx/equipment-inspection-hwpx-export.ts')
-  const cases = { normal: record, long: { ...record, answers: record.answers.map((a, i) => ({ ...a, note: i === 0 ? '긴 비고 점검내용 및 시정조치 기록 '.repeat(300) + '비고끝표식' : a.note })), remarks: '추가 전달 사항 '.repeat(500) + '종합끝표식' } }
+  const cases = { normal: record, long: longRecord }
   const pageCounts = {}
   for (const [name, data] of Object.entries(cases)) {
     const blob = await buildEquipmentInspectionHwpxBlob(data, '장비점검 테스트 현장')
@@ -68,11 +97,7 @@ test('서명 PNG 원본·완전한 이미지 XML·명시적 장문 분할', asyn
     assert.match(await zip.file('Contents/content.hpf').async('string'), /id="image1"/)
     for (const answer of data.answers) assert.ok($('hp\\:t').text().replace(/\s/g, '').includes(answer.text.replace(/\s/g, '')))
     pageCounts[name] = $('hp\\:tbl').length
-    $('hp\\:tbl').each((_, tbl) => {
-      let height = 0
-      $(tbl).children('hp\\:tr').each((_, row) => { height += Number($(row).find('hp\\:cellSz').first().attr('height')) })
-      assert.ok(height <= 63000, `표 높이 ${height}`)
-    })
+    assertPagesFillBody($)
     if (name === 'long') {
       assert.ok(xml.includes('비고끝표식') && xml.includes('종합끝표식'))
       assert.ok($('hp\\:p[pageBreak="1"]').length >= 2)
@@ -81,7 +106,7 @@ test('서명 PNG 원본·완전한 이미지 XML·명시적 장문 분할', asyn
       assert.ok(plain.includes(data.answers[0].note.replace(/\s/g, '')), '쪽 경계에서도 비고 전체 내용 보존')
       assert.ok(plain.includes(data.remarks.replace(/\s/g, '')), '쪽 경계에서도 종합 비고 전체 내용 보존')
     }
-    const out = new URL('../scratch/equipment-inspection/', import.meta.url)
+    const out = new URL('../scratch/equipment-inspection/filled-samples/', import.meta.url)
     if (generateSamples) {
       await mkdir(out, { recursive: true })
       await writeFile(new URL(`${name}-visible-signed.hwpx`, out), bytes)
@@ -91,9 +116,22 @@ test('서명 PNG 원본·완전한 이미지 XML·명시적 장문 분할', asyn
   assert.equal(pageCounts.normal, 1, '굴착기 18항목과 짧은 비고는 한 쪽')
 })
 
+test('모든 셀은 세로 가운데 정렬이고 본문 예산은 A4 본문 높이 기준이다', async () => {
+  const { buildEquipmentInspectionHwpxBlob } = await transpile('../src/lib/hwpx/equipment-inspection-hwpx-export.ts')
+  for (const data of [record, longRecord]) {
+    const zip = await JSZip.loadAsync(await (await buildEquipmentInspectionHwpxBlob(data, '장비점검 테스트 현장')).arrayBuffer())
+    const $ = load(await zip.file('Contents/section0.xml').async('string'), { xmlMode: true })
+    const cells = $('hp\\:subList')
+    assert.ok(cells.length > 0, '셀이 없다')
+    cells.each((_, cell) => assert.equal($(cell).attr('vertAlign'), 'CENTER'))
+    assert.equal(bodyHeightOf($), 69788, 'A4 여백 제외 본문 높이')
+    assertPagesFillBody($)
+  }
+})
+
 test('23종 전 항목 스냅샷의 출력 보존과 서명 포함 검증 표본', async () => {
   const { buildEquipmentInspectionHwpxBlob } = await transpile('../src/lib/hwpx/equipment-inspection-hwpx-export.ts')
-  const out = new URL('../scratch/equipment-inspection/', import.meta.url)
+  const out = new URL('../scratch/equipment-inspection/filled-samples/', import.meta.url)
   if (generateSamples) await mkdir(out, { recursive: true })
   const summary = []
   for (const checklist of fixture) {
@@ -103,6 +141,7 @@ test('23종 전 항목 스냅샷의 출력 보존과 서명 포함 검증 표본
     const $ = load(await zip.file('Contents/section0.xml').async('string'), { xmlMode: true })
     const body = $('hp\\:t').text().replace(/\s/g, '')
     for (const item of checklist.items) assert.ok(body.includes(item.text.replace(/\s/g, '')), `${checklist.name}: ${item.id}`)
+    assertPagesFillBody($)
     const filename = `${checklist.id}-signed.hwpx`
     if (generateSamples) await writeFile(new URL(filename, out), bytes)
     summary.push({ name: checklist.name, sourcePage: checklist.sourcePage, items: checklist.items.length, pages: $('hp\\:tbl').length, filename })
