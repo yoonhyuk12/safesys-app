@@ -192,9 +192,9 @@ const PAGE_LEFT = 4252
 const PAGE_CONTENT_TOP = 7200
 
 // 서명 이미지 표준 크기(HWPUNIT)
-const SIG_W = 3500
-const SIG_H = 1400
-const SIGNER_COLS = [6500, 19500, 11500, 9524, 4000]
+const SIG_W = 7000
+const SIG_H = 2800
+const SIGNER_COLS = [6500, 16000, 11500, 9524, 7500]
 
 // 9열 그리드(합=51024) — 엑셀 A~I 비율 근사
 const COLS_9 = [7059, 9627, 7059, 4171, 4171, 4171, 4171, 4171, 6424]
@@ -651,7 +651,7 @@ async function buildQualitySummaryHwpxBlob(
       }).join('\n')
       return { text: wrapped, cp: 7, borderless: true, center: index === 4 }
     })
-    const height = Math.max(2200, ...cells.map((cell) => cell.text.split('\n').length * paraLineH(7) + CELL_PAD))
+    const height = Math.max(SIG_H + 600, ...cells.map((cell) => cell.text.split('\n').length * paraLineH(7) + CELL_PAD))
     return { cells, height }
   })
   const footerRows: Row[] = [
