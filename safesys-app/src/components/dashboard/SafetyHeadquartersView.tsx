@@ -335,6 +335,8 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
                         <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto whitespace-nowrap">점검일자</th>
                         <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto whitespace-nowrap">지사명</th>
                         <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto whitespace-nowrap">프로젝트명</th>
+                        <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">지적사항1</th>
+                        <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 whitespace-nowrap">지적사항2</th>
                         <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 w-auto whitespace-nowrap">점검자</th>
                         <th className="px-2 py-2 sm:px-6 sm:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-auto whitespace-nowrap">비고</th>
                       </tr>
@@ -342,7 +344,7 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
                     <tbody className="bg-white divide-y divide-gray-200">
                       {filtered.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="px-2 py-6 sm:px-6 sm:py-8 text-center text-xs sm:text-sm text-gray-500">해당 조건의 점검 데이터가 없습니다.</td>
+                          <td colSpan={7} className="px-2 py-6 sm:px-6 sm:py-8 text-center text-xs sm:text-sm text-gray-500">해당 조건의 점검 데이터가 없습니다.</td>
                         </tr>
                       ) : (
                         <>
@@ -350,6 +352,8 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
                             <td className="px-2 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">소계</td>
                             <td className="px-2 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">-</td>
                             <td className="px-2 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">{filtered.length}건</td>
+                            <td className="px-2 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">-</td>
+                            <td className="px-2 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">-</td>
                             <td className="px-2 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-blue-900 border-r border-blue-200 text-center whitespace-nowrap">-</td>
                             <td className="px-2 py-3 sm:px-6 sm:py-4 text-xs sm:text-sm font-bold text-blue-900 text-center whitespace-nowrap">-</td>
                           </tr>
@@ -370,6 +374,8 @@ const SafetyHeadquartersView: React.FC<SafetyHeadquartersViewProps> = ({
                                   <span className="sm:hidden whitespace-nowrap">{(ins.project_name || '').length > 5 ? `${(ins.project_name || '').substring(0, 5)}...` : ins.project_name || '-'}</span>
                                   <span className="hidden sm:inline break-words">{ins.project_name || '-'}</span>
                                 </td>
+                                <td className="px-2 py-2 sm:px-6 sm:py-4 min-w-48 max-w-sm whitespace-pre-wrap break-words text-xs sm:text-sm text-gray-700 border-r border-gray-200 text-left">{ins.issue_content1?.trim() || '-'}</td>
+                                <td className="px-2 py-2 sm:px-6 sm:py-4 min-w-48 max-w-sm whitespace-pre-wrap break-words text-xs sm:text-sm text-gray-700 border-r border-gray-200 text-left">{ins.issue_content2?.trim() || '-'}</td>
                                 <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-700 border-r border-gray-200 text-center">{ins.inspector_name || '-'}</td>
                                 <td className="px-2 py-2 sm:px-6 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-400 text-center">-</td>
                               </tr>
