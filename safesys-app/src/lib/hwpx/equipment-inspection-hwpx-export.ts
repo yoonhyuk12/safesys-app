@@ -276,6 +276,7 @@ const CELL_PADDING = CELL_MARGIN * 2
 const ROW_SLACK = 200                          // 줄 수 추정 오차를 흡수하는 여유
 const TITLE_ROW_HEIGHT = 3400
 const INFO_ROW_HEIGHT = 2000
+const SUMMARY_ROW_HEIGHT = 3000 // 종합 의견이 비어 있어도 약 11mm의 작성 공간을 확보한다.
 const SIGNATURE_ROW_HEIGHT = 3400
 const SIGNATURE_MAX_HEIGHT = 2400
 const MIN_SPLIT_LINES = 3                      // 이보다 적게 남은 쪽엔 비고를 쪼개 넣지 않는다
@@ -573,8 +574,8 @@ function signatureRow(inspectorName: string): Block {
     return { ...block, signature: true }
 }
 
-const noteRow = (label: string, note: string): Block =>
-    makeBlock('note', 0, [
+const noteRow = (label: string, note: string, minHeight = 0): Block =>
+    makeBlock('note', minHeight, [
         { text: label, span: LABEL_SPAN, cp: BODY_CP, center: true, header: true },
         { text: note, span: GRID.length - LABEL_SPAN, cp: BODY_CP },
     ])
@@ -650,7 +651,7 @@ export async function buildEquipmentInspectionHwpxBlob(record: EquipmentInspecti
         blocks.push(answerRow(answer.category, index, answer.text, answer.result))
         if (answer.note) blocks.push(noteRow(`${index + 1}번 비고`, answer.note))
     })
-    blocks.push(noteRow('종합 비고', record.remarks || '-'))
+    blocks.push(noteRow('종합 비고', record.remarks, SUMMARY_ROW_HEIGHT))
 
     // 쪽 분할 뒤 마지막 쪽만 헐거워지면 늘어난 행이 과하게 커지므로, 쪽 수가 늘지 않는 가장 작은 예산으로 고르게 나눈다.
     const pageCount = paginate(prefixRows, blocks, PAGE_CAPACITY).length
