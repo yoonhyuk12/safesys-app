@@ -1,6 +1,19 @@
 # 작업 로그
 
 <!-- worklog -->
+260914_112026 : plans/20260914_hq_patrol_finding_type/checklist.md 수정
+260914_111915 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "<div className="text-gray-600"> ({inspection.inspector_name}…"
+260914_111910 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "<Trash2 className="h-4 w-4" /> </button> </div> </div> </div…"
+260914_111848 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "inspector_name: newRecord.inspector_name, patrol_car_used: n…"
+260914_111845 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "inspector_name: inspection.inspector_name, patrol_car_used: …"
+260914_111842 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "inspector_name: userProfile ? `${userProfile.position || ''}…"
+260914_111837 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "setNewRecord({ inspection_date: new Date().toISOString().spl…"
+260914_111832 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "inspector_name: userProfile ? `${userProfile.position || ''}…"
+260914_111824 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "import { downloadHeadquartersInspectionHwpx } from '@/lib/hw…"
+260914_111810 : safesys-app/package.json 수정 — ""test:issue-report": "node --test tests/issue-report-a4.test…"
+260914_111803 : safesys-app/src/lib/inspection/headquarters-finding-type.ts 추가 — "// 본부불시점검 지적유형 코드·라벨과 정규화 로직을 모아둔다. export type Headquarters…"
+260914_111753 : safesys-app/tests/headquarters-finding-type.test.mjs 추가 — "// 본부불시점검 지적유형 정규화·라벨 매핑 순수 로직을 검증한다. import assert from 'no…"
+260914_111642 : database/20260914-1116_add_patrol_car_finding_type_to_headquarters_inspections.sql 추가, plans/20260914_hq_patrol_finding_type/20260914_hq_patrol_finding_type.md 추가, plans/20260914_hq_patrol_finding_type/checklist.md 추가, plans/20260914_hq_patrol_finding_type/context-notes.md 추가
 260909_152449 : plans/20260909_issue-report-a4.md 수정, plans/20260909_issue-report-a4_checklist.md 수정, plans/20260909_issue-report-a4_context-notes.md 수정
 260909_152330 : safesys-app/src/lib/excel/corrective-action-request-export.ts 수정
 260909_152323 : safesys-app/tests/issue-report-a4.test.mjs 수정

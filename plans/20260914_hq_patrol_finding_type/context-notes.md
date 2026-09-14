@@ -1,0 +1,3 @@
+- 지적유형은 한글 라벨이 아닌 코드(work_stop/corrective_action/not_applicable)로 저장한다. 기존 `issue1_status: 'pending'`, `finding_category_code` 패턴과 일관되고 라벨 변경에 안전하다.
+- 기존 행은 DEFAULT로 `patrol_car_used=false`, `finding_type='corrective_action'`이 채워지므로 백필 불필요.
+- 페이지 조회는 `select('*')`라 새 컬럼이 자동으로 로드된다.

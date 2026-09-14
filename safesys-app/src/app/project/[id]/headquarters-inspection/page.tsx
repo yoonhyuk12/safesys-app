@@ -6,6 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Plus, Minus, Calendar, FileText, ChevronLeft, ChevronRight, X, Upload, Camera, ChevronDown, ChevronUp, CheckCircle, Clock, AlertCircle, Edit, Trash2, Download, Printer, Phone, Save, Copy, Check, User, HardHat, PenTool } from 'lucide-react'
 import { generateHeadquartersInspectionReport } from '@/lib/reports/headquarters-inspection'
 import { downloadHeadquartersInspectionHwpx } from '@/lib/hwpx/headquarters-inspection-hwpx-export'
+import { DEFAULT_HEADQUARTERS_FINDING_TYPE, HEADQUARTERS_FINDING_TYPE_OPTIONS, headquartersFindingTypeLabel, normalizeHeadquartersFindingType, type HeadquartersFindingType } from '@/lib/inspection/headquarters-finding-type'
 import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -195,6 +196,8 @@ export default function HeadquartersInspectionPage() {
   const [newRecord, setNewRecord] = useState({
     inspection_date: new Date().toISOString().split('T')[0],
     inspector_name: userProfile ? `${userProfile.position || ''} ${userProfile.full_name}`.trim() : '',
+    patrol_car_used: false,
+    finding_type: DEFAULT_HEADQUARTERS_FINDING_TYPE as HeadquartersFindingType,
     site_photo_overview: null as File | null, // 점검 전경사진
     site_photo_issue1: null as File | null,   // 지적사항 사진1
     site_photo_issue2: null as File | null,   // 지적사항 사진2
@@ -784,6 +787,8 @@ export default function HeadquartersInspectionPage() {
       setNewRecord({
         inspection_date: inspection.inspection_date,
         inspector_name: inspection.inspector_name,
+        patrol_car_used: Boolean(inspection.patrol_car_used),
+        finding_type: normalizeHeadquartersFindingType(inspection.finding_type),
         site_photo_overview: null,
         site_photo_issue1: null,
         site_photo_issue2: null,
@@ -872,6 +877,8 @@ export default function HeadquartersInspectionPage() {
           .update({
             inspection_date: newRecord.inspection_date,
             inspector_name: newRecord.inspector_name,
+            patrol_car_used: newRecord.patrol_car_used,
+            finding_type: newRecord.finding_type,
             site_photo_overview: sitePhotoOverviewUrl,
             site_photo_issue1: sitePhotoIssue1Url,
             site_photo_issue2: sitePhotoIssue2Url,
@@ -902,6 +909,8 @@ export default function HeadquartersInspectionPage() {
       setNewRecord({
         inspection_date: new Date().toISOString().split('T')[0],
         inspector_name: userProfile ? `${userProfile.position || ''} ${userProfile.full_name}`.trim() : '',
+        patrol_car_used: false,
+        finding_type: DEFAULT_HEADQUARTERS_FINDING_TYPE as HeadquartersFindingType,
         site_photo_overview: null,
         site_photo_issue1: null,
         site_photo_issue2: null,
@@ -974,6 +983,8 @@ export default function HeadquartersInspectionPage() {
           .update({
             inspection_date: newRecord.inspection_date,
             inspector_name: newRecord.inspector_name,
+            patrol_car_used: newRecord.patrol_car_used,
+            finding_type: newRecord.finding_type,
             site_photo_overview: sitePhotoOverviewUrl,
             site_photo_issue1: sitePhotoIssue1Url,
             site_photo_issue2: sitePhotoIssue2Url,
@@ -1003,6 +1014,8 @@ export default function HeadquartersInspectionPage() {
             project_id: projectId,
             inspection_date: newRecord.inspection_date,
             inspector_name: newRecord.inspector_name,
+            patrol_car_used: newRecord.patrol_car_used,
+            finding_type: newRecord.finding_type,
             site_photo_overview: sitePhotoOverviewUrl,
             site_photo_issue1: sitePhotoIssue1Url,
             site_photo_issue2: sitePhotoIssue2Url,
@@ -1074,6 +1087,8 @@ export default function HeadquartersInspectionPage() {
       setNewRecord({
         inspection_date: new Date().toISOString().split('T')[0],
         inspector_name: userProfile ? `${userProfile.position || ''} ${userProfile.full_name}`.trim() : '',
+        patrol_car_used: false,
+        finding_type: DEFAULT_HEADQUARTERS_FINDING_TYPE as HeadquartersFindingType,
         site_photo_overview: null,
         site_photo_issue1: null,
         site_photo_issue2: null,
@@ -1252,6 +1267,8 @@ export default function HeadquartersInspectionPage() {
     return {
       inspection_date: new Date().toISOString().split('T')[0],
       inspector_name: userProfile ? `${userProfile.position || ''} ${userProfile.full_name}`.trim() : '',
+      patrol_car_used: false,
+      finding_type: DEFAULT_HEADQUARTERS_FINDING_TYPE as HeadquartersFindingType,
       site_photo_overview: null as File | null,
       site_photo_issue1: null as File | null,
       site_photo_issue2: null as File | null,
@@ -1677,6 +1694,14 @@ export default function HeadquartersInspectionPage() {
                                     </div>
                                     <div className="text-gray-600">
                                       ({inspection.inspector_name})
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap justify-center gap-1">
+                                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${inspection.finding_type === 'work_stop' ? 'bg-red-100 text-red-800' : inspection.finding_type === 'not_applicable' ? 'bg-gray-100 text-gray-800' : 'bg-amber-100 text-amber-800'}`}>
+                                        {headquartersFindingTypeLabel(inspection.finding_type)}
+                                      </span>
+                                      {inspection.patrol_car_used && (
+                                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">패트롤카</span>
+                                      )}
                                     </div>
                                   </div>
                                 </td>
@@ -2192,6 +2217,33 @@ export default function HeadquartersInspectionPage() {
                                       </div>
                                     </div>
                                   )}
+                                  {/* 패트롤카 이용여부 · 지적유형 */}
+                                  <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">패트롤카 이용여부</label>
+                                      <label className="flex items-center gap-2 min-h-[44px] px-3 border border-gray-300 rounded-lg cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={newRecord.patrol_car_used}
+                                          onChange={(e) => setNewRecord({ ...newRecord, patrol_car_used: e.target.checked })}
+                                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-gray-700">패트롤카 이용</span>
+                                      </label>
+                                    </div>
+                                    <div>
+                                      <label className="block text-sm font-medium text-gray-700 mb-2">지적유형</label>
+                                      <select
+                                        value={newRecord.finding_type}
+                                        onChange={(e) => setNewRecord({ ...newRecord, finding_type: normalizeHeadquartersFindingType(e.target.value) })}
+                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                                      >
+                                        {HEADQUARTERS_FINDING_TYPE_OPTIONS.map((opt) => (
+                                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
 

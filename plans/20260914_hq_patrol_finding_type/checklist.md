@@ -1,0 +1,7 @@
+- [x] SQL 마이그레이션 파일 작성
+- [x] finding-type lib + 테스트
+- [x] page.tsx 상태 초기값 4곳·로드 1곳·저장 3곳
+- [x] 전경사진 아래 UI(체크박스 + 셀렉트)
+- [x] 목록 카드 배지
+- [x] lint / tsc / node --test 통과
+- [x] 커밋
