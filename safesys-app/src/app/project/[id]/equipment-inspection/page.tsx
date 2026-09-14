@@ -165,9 +165,9 @@ export default function EquipmentInspectionPage() {
     if (!draft || saving) return
     setSaving(true)
     try {
-      const created = await createEquipmentInspection(projectId, draft, checklist, sessionUserId ?? '')
+      await createEquipmentInspection(projectId, draft, checklist, sessionUserId ?? '')
       closeForm()
-      setSelectedRecord(created)
+      setSelectedRecord(null)
       await loadRecords()
     } catch (error: unknown) {
       alert(errorMessage(error, '장비 일일점검 제출에 실패했습니다.'))
@@ -243,7 +243,8 @@ export default function EquipmentInspectionPage() {
           </div>
         )}
         <div className="flex flex-col lg:flex-row gap-4 lg:items-start">
-          {/* 제출 목록 */}
+          {/* 점검 작성 중에는 목록을 숨겨 장비 선택과 점검표가 전체 너비를 쓴다. */}
+          {!draft && (
           <div className="w-full lg:flex-1 lg:min-w-0 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between gap-2">
               <h2 className="font-semibold text-sm sm:text-base truncate">제출 목록</h2>
@@ -291,7 +292,9 @@ export default function EquipmentInspectionPage() {
             )}
           </div>
 
-          {/* 작성 또는 상세 — 초안이나 선택한 기록이 있을 때만 연다. 첫 진입은 목록이 전체 너비를 쓴다. */}
+          )}
+
+          {/* 작성 중에는 점검 화면만, 기록 선택 시에는 목록과 상세를 표시한다. */}
           {(draft || selectedRecord) && (
             <div className="w-full lg:flex-1 lg:min-w-0">
               {draft ? (
