@@ -32,6 +32,19 @@ Playwright가 설치되어 있으나(`safesys-app/tests/*.spec.ts` 2건, 2026-02
 
 - `vercel deploy --prod` — 사용자 명시적 요청 시에만 실행.
 
+### Netlify 병행 배포 (수동)
+
+운영 병행 주소 `https://safesys.netlify.app`(사이트 ID `3961b51c-682d-470e-a5c0-ab2d20a2b653`, 팀 KRC)은 GitHub과 연결되어 있지 않아 main 푸시로는 배포되지 않는다. 사용자가 요청할 때만 `safesys-app`에서 CLI로 수동 배포한다 (2026-09-14 확인).
+
+```bash
+npx netlify-cli login                       # 브라우저 승인 필요 — 사용자가 직접 실행
+npx netlify-cli link --id 3961b51c-682d-470e-a5c0-ab2d20a2b653   # .netlify/state.json 생성 (gitignore됨)
+npx netlify-cli deploy --prod --message "<커밋 요약>"            # 로컬에서 next build 후 업로드, 약 3분
+```
+
+- 빌드가 로컬 `.next`를 덮어쓰므로 실행 중인 `npm run dev`는 500을 내며 깨진다. 배포 후 개발 서버를 재시작한다.
+- Netlify 배포 스킬은 `netlify-skills@claude-plugins-official` 플러그인(`netlify-deploy`)에 있다.
+
 ## 환경 변수 (`.env.local`)
 
 아래는 2026-09-02에 `src/`의 `process.env` 사용처와 Vercel Production 등록 목록을 대조해 정리한 실측값이다. 레포에 `.env.example`은 없으므로 새 환경을 꾸릴 땐 이 표를 기준으로 `safesys-app/.env.local`을 직접 작성한다.
