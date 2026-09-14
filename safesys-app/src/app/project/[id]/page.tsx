@@ -223,7 +223,7 @@ export default function ProjectDetailPage() {
       return countError ? null : (count ?? 0)
     }
     const loadCardCounts = async () => {
-      const [workDaily, materials, safeDocs, workPlans, tbmDirect, newWorker, workers, heatWave, tbmSafety, riskAssessments] = await Promise.all([
+      const [workDaily, materials, safeDocs, workPlans, tbmDirect, newWorker, workers, heatWave, tbmSafety, riskAssessments, equipmentInspection] = await Promise.all([
         countOf('work_daily_reports'),
         countOf('materials'),
         countOf('safe_document_inspections'),
@@ -234,6 +234,7 @@ export default function ProjectDetailPage() {
         countOf('heat_wave_checks'),
         countOf('tbm_safety_inspections'),
         countOf('risk_assessments'),
+        countOf('equipment_daily_inspections'),
       ])
       // 레거시 TBM 제출분(project_id NULL)은 이름·본부·지사 매칭으로 합산
       let tbmLegacy = 0
@@ -261,6 +262,7 @@ export default function ProjectDetailPage() {
       put('heatWave', heatWave)
       put('tbmSafetyInspection', tbmSafety)
       put('riskAssessments', riskAssessments)
+      put('equipmentInspection', equipmentInspection)
       setCardCounts(counts)
     }
     loadCardCounts()
@@ -1384,12 +1386,11 @@ export default function ProjectDetailPage() {
                   bottomLabel="시공"
                 />
                 <DocumentFolder
-                  title="︵AI︶
-장비 일일점검
-대장"
+                  title={'︵AI︶\n장비 일일점검대장'}
                   year={new Date().getFullYear().toString()}
                   isActive={false}
                   projectId={projectId}
+                  docCount={cardCounts.equipmentInspection}
                   onClick={() => router.push(`/project/${projectId}/equipment-inspection`)}
                   pdcaCategory="C"
                   bottomLabel="시공"
