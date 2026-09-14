@@ -165,7 +165,7 @@ export default function EquipmentInspectionForm({
             onChange={(event) => edit({ companyName: event.target.value })}
             disabled={saving}
             className={INPUT_CLASS}
-            placeholder="장비 보유 업체"
+            placeholder="출력후 작성해도 무방"
           />
         </label>
         <label className="block">
@@ -173,6 +173,7 @@ export default function EquipmentInspectionForm({
           <input
             type="text"
             value={draft.vehicleNumber}
+            placeholder="출력후 작성해도 무방"
             onChange={(event) => edit({ vehicleNumber: event.target.value })}
             disabled={saving}
             className={INPUT_CLASS}
@@ -183,6 +184,7 @@ export default function EquipmentInspectionForm({
           <input
             type="text"
             value={draft.machineNumber}
+            placeholder="출력후 작성해도 무방"
             onChange={(event) => edit({ machineNumber: event.target.value })}
             disabled={saving}
             className={INPUT_CLASS}
