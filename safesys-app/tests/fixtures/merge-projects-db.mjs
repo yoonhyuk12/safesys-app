@@ -7,7 +7,11 @@ import { PGlite } from '@electric-sql/pglite'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '../../..')
 
-export const MIGRATION_PATH = path.join(repoRoot, 'database', '20260907-1525_merge_projects_preserve_data.sql')
+// 적용 순서대로 나열한다. 새 자식 테이블을 더하는 마이그레이션은 병합 함수 갱신과 짝을 이룬다.
+export const MIGRATION_PATHS = [
+  path.join(repoRoot, 'database', '20260907-1525_merge_projects_preserve_data.sql'),
+  path.join(repoRoot, 'database', '20260914-2246_merge_projects_equipment_daily_inspections.sql'),
+]
 const SCHEMA_PATH = path.join(here, 'merge-projects-schema.sql')
 
 export const IDS = {
@@ -25,10 +29,11 @@ export const IDS = {
   sourceTbm: '77777777-7777-7777-7777-777777777777',
 }
 
-// 실제 FK 자식 27개. 병합 후 source 잔여 행이 없어야 한다.
+// 실제 FK 자식 28개. 병합 후 source 잔여 행이 없어야 한다.
 export const CHILD_TABLES = [
   'ai_usage_logs',
   'corrective_action_issues',
+  'equipment_daily_inspections',
   'headquarters_inspections',
   'heat_wave_checks',
   'inspection_requests',
@@ -77,7 +82,7 @@ const MEMO_TABLES = [
 const schemaSql = readFileSync(SCHEMA_PATH, 'utf8')
 
 function readMigrationSql() {
-  return readFileSync(MIGRATION_PATH, 'utf8')
+  return MIGRATION_PATHS.map((migrationPath) => readFileSync(migrationPath, 'utf8')).join('\n')
 }
 
 /** 스키마와 병합 마이그레이션을 적용한 새 PGlite DB를 만든다. 준비 중 실패하면 인스턴스를 닫고 예외를 올린다. */
@@ -134,7 +139,7 @@ export async function seedProjects(db, { source = {}, target = {} } = {}) {
   await db.query(targetInsert.text, targetInsert.values)
 }
 
-/** 27개 자식 테이블과 간접 자식(서명·첨부 URL 포함)에 source 행을 만든다. */
+/** 28개 자식 테이블과 간접 자식(서명·첨부 URL 포함)에 source 행을 만든다. */
 export async function seedChildren(db) {
   const memoInserts = MEMO_TABLES
     .map((table) => `INSERT INTO ${table} (project_id, memo) VALUES ('${IDS.source}', 'source-${table}');`)
@@ -144,6 +149,11 @@ export async function seedChildren(db) {
     ${memoInserts}
 
     INSERT INTO ai_usage_logs (project_id, feature) VALUES ('${IDS.source}', 'tbm-analysis');
+    INSERT INTO equipment_daily_inspections
+      (project_id, equipment_type, equipment_name, inspection_date, inspector_name, signature, answers)
+      VALUES ('${IDS.source}', 'equipment-01', '타워크레인', DATE '2026-03-02', '홍길동',
+              'data:image/png;base64,EQUIPMENT',
+              '[{"id":"equipment-01-01","category":"기본사항","text":"운전원의 자격여부는 적정한가?","result":"pass","note":""}]'::jsonb);
     INSERT INTO ptw_permits (project_id, signatures)
       VALUES ('${IDS.source}', '{"permitter":"data:image/png;base64,PERMITTER"}'::jsonb);
     INSERT INTO quality_verification_requests (project_id, supervisor_signature)

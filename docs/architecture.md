@@ -75,7 +75,7 @@ const [selectedSafetyBranch, setSelectedSafetyBranch] = useState<string | null>(
 모든 `/safe` 페이지 컴포넌트는 동일 구조 — `<Dashboard />`를 렌더링하고 URL pathname으로 상태를 결정한다.
 
 **프로젝트 상세 라우트 (`/project/[id]/`):**
-daily-inspection, edit, headquarters-inspection, heatwave, holiday-work, issue-management, manager-inspection, material-ledger, new-worker-orientation, ptw, risk-assessment, safe-documents, safety-inspection-ledger, supervisor-diary, tbm-safety-inspection, tbm-submission, worker-management, work-plan
+daily-inspection, edit, equipment-inspection, headquarters-inspection, heatwave, holiday-work, issue-management, manager-inspection, material-ledger, new-worker-orientation, ptw, risk-assessment, safe-documents, safety-inspection-ledger, supervisor-diary, tbm-safety-inspection, tbm-submission, worker-management, work-plan
 
 ## API 라우트 (`src/app/api/`)
 
@@ -143,6 +143,7 @@ src/components/
 | `accident-analysis-calculation.ts` | 프로젝트-월 단위 KPI, 월별 추이, 사고 전 30일·90일 점검 관계 계산 |
 | `new-district-consulting.ts` | 신규지구 안전컨설팅용 계약·본부 점검 페이지네이션 조회와 집계 진입점 |
 | `new-district-consulting-utils.ts` | 대표 계약 시작일 해석, 달력 개월 인정 기한, 본부/지사 소계 재계산 순수 로직 |
+| `equipment-inspections.ts` | 장비 일일점검 작성 초안 상태·제출 전 검증(미점검·빈 서명 차단)·조회/제출/삭제 |
 
 **사고 통계 분석 데이터 흐름:**
 
@@ -152,11 +153,13 @@ src/components/
 
 **KRC 패트롤 점검:** `/safe/patrol` 또는 `/safe/branch/[branch]/patrol` → `Dashboard` → `PatrolInspectionView`에서 본부·지사·프로젝트별 점검을 조회한다. `headquarters_inspections.patrol_car_used = true`인 관할 점검만 분기별로 모으며, 준공 프로젝트의 과거 기록도 포함한다. 웹은 핵심 6열을 보여주고 `lib/excel/patrol-inspection-export.ts`는 전체 18열을 내보낸다. 엑셀은 빈 셀을 포함해 모두 가로·세로 가운데 정렬하고 확인자는 공란으로 둔다. 다운로드할 때만 서버 `OPENAI_API_KEY`로 재발방지대책과 재해유형을 작성한다. 조치완료일은 조치사진 파일명의 실제 업로드 시각을 서울 날짜로 바꾸며, 점검일로부터 7일 초과한 지연 건은 음영 처리한다. 날짜 근거가 없는 완료 건은 일자 미기록으로 표시한다.
 
+**(AI) 장비 일일점검 대장:** `/project/[id]/equipment-inspection` → `EquipmentPicker`(장비 23종) → `EquipmentInspectionForm`(원문 항목별 적합·부적합·해당없음 + 점검자 직접 서명) → `equipment-inspections.ts` → `equipment_daily_inspections`. 원본은 `docs/일일안전점검 체크리스트 양식.pdf`이며 항목은 `lib/equipment-inspection-catalog.ts`의 고정 원문 카탈로그다 — AI라는 명칭은 대장 이름일 뿐 점검 항목을 생성하지 않는다. 장비를 바꾸면 항목이 통째로 달라지므로 이전 응답과 서명을 초기화한다. 미점검 항목이 남았거나 서명이 비면 화면과 DB CHECK가 함께 제출을 막는다. 점검자 서명은 개인 지정 서명이라 일괄서명 대상이 아니다.
+
 **문서 생성:**
 
 - `lib/reports/` — PDF 보고서 12개 (jsPDF + html2canvas)
 - `lib/excel/` — Excel 내보내기 10개 (exceljs)
-- `lib/hwpx/` — HWPX 내보내기 3개
+- `lib/hwpx/` — HWPX 내보내기 9개 (장비 일일점검 포함)
 
 ## 주요 타입 (`src/lib/projects.ts`)
 

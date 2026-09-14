@@ -1,4 +1,4 @@
--- 프로젝트 병합 SQL 회귀 테스트용 최소 스키마. 운영 DB 구조(projects + FK 자식 27개 + 간접 자식)를 PGlite에 재현한다.
+-- 프로젝트 병합 SQL 회귀 테스트용 최소 스키마. 운영 DB 구조(projects + FK 자식 28개 + 간접 자식)를 PGlite에 재현한다.
 
 -- 마이그레이션의 GRANT/REVOKE 대상이 되는 Supabase 기본 역할.
 CREATE ROLE anon;
@@ -67,7 +67,19 @@ CREATE TABLE ai_usage_logs (
   feature TEXT
 );
 
--- FK 자식 2~11: 단순 CASCADE 자식.
+-- FK 자식 2: 장비 일일점검 대장. 점검자 서명과 원문 답변이 병합 후에도 남아야 한다.
+CREATE TABLE equipment_daily_inspections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  equipment_type TEXT NOT NULL,
+  equipment_name TEXT NOT NULL,
+  inspection_date DATE NOT NULL,
+  inspector_name TEXT NOT NULL,
+  signature TEXT NOT NULL,
+  answers JSONB NOT NULL DEFAULT '[]'::JSONB
+);
+
+-- FK 자식 3~12: 단순 CASCADE 자식.
 CREATE TABLE corrective_action_issues (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
@@ -119,7 +131,7 @@ CREATE TABLE ptw_permits (
   signatures JSONB
 );
 
--- FK 자식 12: 자재와 간접 자식(자재수불부).
+-- FK 자식 13: 자재와 간접 자식(자재수불부).
 CREATE TABLE materials (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
@@ -132,7 +144,7 @@ CREATE TABLE material_ledger_entries (
   inspection_photos JSONB
 );
 
--- FK 자식 13: 계약(대표계약 참조 대상).
+-- FK 자식 14: 계약(대표계약 참조 대상).
 CREATE TABLE project_contracts (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
@@ -143,7 +155,7 @@ ALTER TABLE projects
   ADD CONSTRAINT projects_representative_contract_id_fkey
   FOREIGN KEY (representative_contract_id) REFERENCES project_contracts(id) ON DELETE SET NULL;
 
--- FK 자식 14: 공유자.
+-- FK 자식 15: 공유자.
 CREATE TABLE project_shares (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
@@ -153,7 +165,7 @@ CREATE TABLE project_shares (
   UNIQUE (project_id, shared_with)
 );
 
--- FK 자식 15: 품질 월간보고서(연·월 유니크).
+-- FK 자식 16: 품질 월간보고서(연·월 유니크).
 CREATE TABLE quality_monthly_reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
@@ -164,7 +176,7 @@ CREATE TABLE quality_monthly_reports (
   UNIQUE (project_id, report_year, report_month)
 );
 
--- FK 자식 16~20.
+-- FK 자식 17~21.
 CREATE TABLE quality_summary_reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
@@ -191,7 +203,7 @@ CREATE TABLE safe_document_inspections (
   memo TEXT
 );
 
--- FK 자식 21: 정기점검과 간접 자식(결과·사진).
+-- FK 자식 22: 정기점검과 간접 자식(결과·사진).
 CREATE TABLE safety_inspections (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
@@ -211,7 +223,7 @@ CREATE TABLE safety_inspection_photos (
   photo_url TEXT
 );
 
--- FK 자식 22~23: TBM(프로젝트명·본부·지사 비정규화 컬럼 포함).
+-- FK 자식 23~24: TBM(프로젝트명·본부·지사 비정규화 컬럼 포함).
 CREATE TABLE tbm_safety_inspections (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
@@ -234,7 +246,7 @@ CREATE TABLE tbm_worker_signatures (
   signature TEXT
 );
 
--- FK 자식 24: 작업일보(날짜 유니크).
+-- FK 자식 25: 작업일보(날짜 유니크).
 CREATE TABLE work_daily_reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
@@ -243,7 +255,7 @@ CREATE TABLE work_daily_reports (
   UNIQUE (project_id, report_date)
 );
 
--- FK 자식 25~27.
+-- FK 자식 26~28.
 CREATE TABLE work_plans (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,

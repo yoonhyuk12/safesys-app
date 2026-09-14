@@ -1399,6 +1399,17 @@ export default function ProjectDetailPage() {
                   pdcaCategory="C"
                   bottomLabel="시공"
                 />
+                <DocumentFolder
+                  title="︵AI︶
+장비 일일점검
+대장"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/equipment-inspection`)}
+                  pdcaCategory="C"
+                  bottomLabel="시공"
+                />
               </div>
             </div>
           </div>

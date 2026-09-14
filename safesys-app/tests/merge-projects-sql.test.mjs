@@ -44,7 +44,7 @@ async function expectError(promise) {
   throw new Error('예외가 발생하지 않았습니다.')
 }
 
-test('27개 자식과 간접 자식이 target으로 이전되고 source 프로젝트만 삭제된다', async (t) => {
+test('28개 자식과 간접 자식이 target으로 이전되고 source 프로젝트만 삭제된다', async (t) => {
   const db = await openDb(t)
   await seedProjects(db)
   await seedChildren(db)
@@ -116,6 +116,28 @@ test('간접 자식의 서명과 첨부 URL이 병합 후에도 유지된다', a
 
   const inspectionSignatures = await scalar(db, 'SELECT signatures FROM safety_inspections LIMIT 1')
   assert.equal(inspectionSignatures[0].signature, 'data:image/png;base64,SUP')
+
+  // 장비 일일점검은 점검자 개인 서명과 원문 답변이 한 행에 함께 들어 있다.
+  const equipment = await db.query(
+    'SELECT equipment_type, equipment_name, inspector_name, signature, answers FROM equipment_daily_inspections WHERE project_id = $1::uuid',
+    [IDS.target])
+  assert.equal(equipment.rows.length, 1)
+  assert.equal(equipment.rows[0].equipment_type, 'equipment-01')
+  assert.equal(equipment.rows[0].equipment_name, '타워크레인')
+  assert.equal(equipment.rows[0].inspector_name, '홍길동')
+  assert.equal(equipment.rows[0].signature, 'data:image/png;base64,EQUIPMENT')
+  assert.equal(equipment.rows[0].answers[0].result, 'pass')
+  assert.equal(equipment.rows[0].answers[0].text, '운전원의 자격여부는 적정한가?')
+})
+
+test('프로젝트를 지우면 장비 일일점검도 함께 사라진다', async (t) => {
+  const db = await openDb(t)
+  await seedProjects(db)
+  await seedChildren(db)
+
+  await db.query('DELETE FROM projects WHERE id = $1::uuid', [IDS.source])
+
+  assert.equal(Number(await scalar(db, 'SELECT COUNT(*) FROM equipment_daily_inspections')), 0)
 })
 
 test('target의 기존 입력값은 유지되고 비어 있는 선택값만 source로 보충된다', async (t) => {
@@ -569,7 +591,7 @@ test('같은 연월 품질 월간보고서가 있으면 MERGE_REPORT_CONFLICT로
   assert.deepEqual(sourceMonthly.rows[0].report_rows, [{ item: '압축강도' }])
 })
 
-test('FK 자식 테이블 수가 27과 다르면 병합을 중단한다', async (t) => {
+test('FK 자식 테이블 수가 28과 다르면 병합을 중단한다', async (t) => {
   const db = await openDb(t)
   await seedProjects(db)
   await seedChildren(db)
@@ -581,7 +603,7 @@ test('FK 자식 테이블 수가 27과 다르면 병합을 중단한다', async 
   `)
 
   const error = await expectError(callMerge(db))
-  assert.match(error.message, /28/)
+  assert.match(error.message, /29/)
   assert.notEqual(await projectRow(db, IDS.source), null)
 })
 
