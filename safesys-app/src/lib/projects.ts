@@ -218,8 +218,19 @@ export async function getProjectById(id: string): Promise<{ success: boolean; pr
   }
 }
 
+/** PostgREST가 한 번에 돌려주는 최대 행 수. 그보다 많으면 range로 나눠 받아야 한다. */
+const PROJECTS_PAGE_SIZE = 1000
+
+export interface GetProjectsByUserBranchOptions {
+  /** true면 1000행 상한을 넘겨 관할 전체를 나눠 받는다. 전 건수가 필요한 실적 화면에서만 쓴다. */
+  fetchAll?: boolean
+}
+
 // 발주청 사용자의 관할 지사에 해당하는 프로젝트 조회
-export async function getProjectsByUserBranch(userProfile: UserProfile): Promise<{ success: boolean; projects?: ProjectWithCoords[]; error?: string }> {
+export async function getProjectsByUserBranch(
+  userProfile: UserProfile,
+  options?: GetProjectsByUserBranchOptions
+): Promise<{ success: boolean; projects?: ProjectWithCoords[]; error?: string }> {
   try {
     if (DEBUG_LOGS) console.log('=== 프로젝트 권한 조회 시작 ===')
     if (DEBUG_LOGS) console.log('사용자 프로필:', {
@@ -228,16 +239,18 @@ export async function getProjectsByUserBranch(userProfile: UserProfile): Promise
       branch_division: userProfile.branch_division
     })
 
-    let query = supabase
-      .from('projects')
-      .select(`*, user_profiles ( company_name, role, full_name, phone_number )`)
+    // 관할 필터를 먼저 정하고 쿼리는 페이지마다 새로 만든다. 실행한 쿼리 빌더는 재사용할 수 없다.
+    type ScopeFilter = { column: 'managing_hq' | 'managing_branch'; value: string }
+    let scopeFilters: ScopeFilter[] = []
+    // 기존 호출자 동작을 바꾸지 않기 위해 fetchAll 경로에서만 더하는 필터
+    let fetchAllScopeFilters: ScopeFilter[] = []
 
     // 발주청 사용자의 관할 범위에 따른 필터링
     if (userProfile.role === '발주청') {
       // 본사 조직은 전사 데이터 조회 가능
       if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
         if (DEBUG_LOGS) console.log('✅ 본사 조직 사용자: 전사 프로젝트 조회')
-        // query에 추가 필터링 없음 (모든 프로젝트 조회)
+        // 추가 필터링 없음 (모든 프로젝트 조회)
       } else if (userProfile.hq_division) {
         // 본부가 지정된 경우
         if (DEBUG_LOGS) console.log('본부가 지정됨:', userProfile.hq_division)
@@ -257,21 +270,23 @@ export async function getProjectsByUserBranch(userProfile: UserProfile): Promise
           if (isHeadquarterBranch) {
             // 본부 대표 지사인 경우: 해당 본부의 모든 지사 프로젝트 조회
             if (DEBUG_LOGS) console.log(`✅ 본부 대표 지사 사용자 권한: ${userProfile.hq_division} 산하 모든 지사 프로젝트 조회`)
-            query = query.eq('managing_hq', userProfile.hq_division)
+            scopeFilters = [{ column: 'managing_hq', value: userProfile.hq_division }]
           } else {
             // 일반 지사인 경우: 해당 지사 프로젝트만 조회
             if (DEBUG_LOGS) console.log(`⚠️  일반 지사 사용자 권한: ${userProfile.branch_division} 지사만 조회`)
-            query = query.eq('managing_branch', userProfile.branch_division)
+            scopeFilters = [{ column: 'managing_branch', value: userProfile.branch_division }]
+            // 같은 지사명이 다른 본부에도 있어 본부까지 함께 걸어야 관할이 정확하다
+            fetchAllScopeFilters = [{ column: 'managing_hq', value: userProfile.hq_division }]
           }
         } else {
           // 본부만 지정되고 지사가 지정되지 않은 경우: 해당 본부의 모든 지사 프로젝트
           if (DEBUG_LOGS) console.log(`✅ 본부만 지정된 사용자 권한: ${userProfile.hq_division} 산하 모든 지사 프로젝트 조회`)
-          query = query.eq('managing_hq', userProfile.hq_division)
+          scopeFilters = [{ column: 'managing_hq', value: userProfile.hq_division }]
         }
       } else {
         // 본부도 지정되지 않은 경우: 모든 프로젝트 조회 (관리자급)
         if (DEBUG_LOGS) console.log('✅ 본부 미지정 발주청 사용자: 모든 프로젝트 조회')
-        // query에 추가 필터링 없음 (모든 프로젝트 조회)
+        // 추가 필터링 없음 (모든 프로젝트 조회)
       }
     } else {
       // 발주청이 아닌 경우 빈 배열 반환
@@ -279,17 +294,55 @@ export async function getProjectsByUserBranch(userProfile: UserProfile): Promise
       return { success: true, projects: [] }
     }
 
-    if (DEBUG_LOGS) console.log('=== 데이터베이스 쿼리 실행 ===')
-    const { data: projects, error } = await query.order('project_name', { ascending: true })
+    // fetchAll 경로는 본부까지 함께 제한하고, 페이지 경계에서 동명 사업이 겹치거나 빠지지 않도록 id를 보조 정렬키로 더한다.
+    const buildQuery = (fetchAll: boolean) => {
+      let query = supabase
+        .from('projects')
+        .select(`*, user_profiles ( company_name, role, full_name, phone_number )`)
 
-    if (error) {
-      console.error('Get projects by user branch error:', error)
-      return { success: false, error: '프로젝트 조회에 실패했습니다.' }
+      const filters = fetchAll ? [...scopeFilters, ...fetchAllScopeFilters] : scopeFilters
+      for (const filter of filters) {
+        query = query.eq(filter.column, filter.value)
+      }
+
+      query = query.order('project_name', { ascending: true })
+      return fetchAll ? query.order('id', { ascending: true }) : query
+    }
+
+    if (DEBUG_LOGS) console.log('=== 데이터베이스 쿼리 실행 ===')
+
+    let projects: ProjectWithCoords[]
+
+    if (options?.fetchAll) {
+      // 1000행 상한을 넘는 관할은 나눠 받는다. 한 페이지라도 실패하면 부분 목록을 돌려주지 않는다.
+      const collected: ProjectWithCoords[] = []
+      for (let from = 0; ; from += PROJECTS_PAGE_SIZE) {
+        const { data, error } = await buildQuery(true).range(from, from + PROJECTS_PAGE_SIZE - 1)
+
+        if (error) {
+          console.error('Get projects by user branch error:', error)
+          return { success: false, error: '프로젝트 조회에 실패했습니다.' }
+        }
+
+        const page = (data || []) as ProjectWithCoords[]
+        collected.push(...page)
+        if (page.length < PROJECTS_PAGE_SIZE) break
+      }
+      projects = collected
+    } else {
+      const { data, error } = await buildQuery(false)
+
+      if (error) {
+        console.error('Get projects by user branch error:', error)
+        return { success: false, error: '프로젝트 조회에 실패했습니다.' }
+      }
+
+      projects = (data || []) as ProjectWithCoords[]
     }
 
     if (DEBUG_LOGS) {
-      console.log(`📊 조회된 프로젝트 수: ${projects?.length || 0}`)
-      if (projects && projects.length > 0) {
+      console.log(`📊 조회된 프로젝트 수: ${projects.length}`)
+      if (projects.length > 0) {
         console.log('조회된 프로젝트 목록:')
         projects.forEach((project, index) => {
           console.log(`  ${index + 1}. ${project.project_name} (${project.managing_hq} - ${project.managing_branch})`)
@@ -298,7 +351,7 @@ export async function getProjectsByUserBranch(userProfile: UserProfile): Promise
       console.log('=== 프로젝트 권한 조회 완료 ===')
     }
 
-    return { success: true, projects: projects || [] }
+    return { success: true, projects }
   } catch (error) {
     console.error('Get projects by user branch error:', error)
     return { success: false, error: '프로젝트 조회 중 오류가 발생했습니다.' }

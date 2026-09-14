@@ -78,7 +78,7 @@ daily-inspection, edit, headquarters-inspection, heatwave, holiday-work, issue-m
 
 ## API 라우트 (`src/app/api/`)
 
-**AI 엔드포인트 (8개):**
+**AI 엔드포인트 (9개):**
 
 - `/api/ai/daily-inspection` — AI 일일점검 생성
 - `/api/ai/extract-equipment-count` — OCR 장비 수량 추출
@@ -88,6 +88,7 @@ daily-inspection, edit, headquarters-inspection, heatwave, holiday-work, issue-m
 - `/api/ai/translate` — 번역
 - `/api/ai/tts` — 텍스트 음성 변환
 - `/api/ai/write-risk-analysis` — AI 위험분석 작성
+- `/api/ai/patrol-inspection` — KRC 패트롤 점검 엑셀용 재발방지대책·재해유형 작성 (Bearer 인증·관할 검증, gpt-5.6-luna)
 
 **외부 서비스 연동:**
 
@@ -144,6 +145,8 @@ src/components/
 `/safe/accident-analysis` 또는 `/safe/branch/[branch]/accident-analysis` → `Dashboard` → `AccidentAnalysisView` → `accident-analysis.ts` → Supabase 순서로 연결된다. `AccidentEntryModal`은 본부급 이상 사용자에게 사고 입력·수정 폼을 제공하며, 저장·수정·삭제 권한은 데이터베이스 RLS에서도 다시 제한한다.
 
 `project_accidents.project_id`는 `projects.id`를 참조하고 프로젝트 삭제 시 함께 삭제된다. 시스템에 없는 현장은 `project_id`를 비우고 `external_project_name`·`external_managing_hq`·`external_managing_branch`로 직접 입력할 수 있다. 발주청 사용자는 조직 관할 사고를 조회하고, 본사·본부급 사용자는 관할 프로젝트·미등록 현장 사고를 등록·수정·삭제한다. 조회 모듈은 이 사고 이력과 정기안전점검·관리자점검·본부불시점검을 공통 점검 타입으로 정규화하며, 계산 모듈이 프로젝트-월 및 사고 전 30일·90일 관계를 산출한다.
+
+**KRC 패트롤 점검:** `/safe/patrol` 또는 `/safe/branch/[branch]/patrol` → `Dashboard` → `PatrolInspectionView`에서 본부·지사·프로젝트별 점검을 조회한다. `headquarters_inspections.patrol_car_used = true`인 관할 점검만 분기별로 모으며, 준공 프로젝트의 과거 기록도 포함한다. 웹은 핵심 6열을 보여주고 `lib/excel/patrol-inspection-export.ts`는 전체 18열을 내보낸다. 엑셀은 빈 셀을 포함해 모두 가로·세로 가운데 정렬하고 확인자는 공란으로 둔다. 다운로드할 때만 서버 `OPENAI_API_KEY`로 재발방지대책과 재해유형을 작성한다. 조치완료일은 조치사진 파일명의 실제 업로드 시각을 서울 날짜로 바꾸며, 점검일로부터 7일 초과한 지연 건은 음영 처리한다. 날짜 근거가 없는 완료 건은 일자 미기록으로 표시한다.
 
 **문서 생성:**
 

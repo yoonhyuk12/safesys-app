@@ -1,0 +1,23 @@
+# KRC 패트롤 점검 컨텍스트
+- 초기 git status는 log.md 수정만 있었다. 이 파일은 기존 사용자 변경으로 커밋에서 제외한다.
+- 사용자 지정 Orca orchestration을 사용한다. 실제 Run run_7ac6678c90af, Coordinator term_bc75cfcc-760c-4487-a787-e41d711a2f98.
+- 프로젝트 지침의 worker-opus 구현 역할을 Orca Claude Opus Worker로 적용한다.
+- 패트롤은 headquarters_inspections.patrol_car_used=true. 기존 getHeadquartersInspectionsByUserBranch 변환은 patrol 필드를 누락한다.
+- 웹은 핵심 열, Excel은 전체 18열. 2개 지적은 한 셀 줄바꿈. 사용자 추가 요청으로 확인자는 점검자 이름을 사용하지 않고 공란, 비고는 원본에 없으면 빈값. 모든 셀은 빈 셀까지 가로 가운데·세로 중앙 정렬한다.
+- 조치 후 사진 등록일의 실제 기존 스키마를 Worker가 확인한다. 데이터가 없으면 완료일을 추정하지 않는다.
+- 서버 OPENAI_API_KEY 사용. 키 원문은 로그나 브라우저로 노출하지 않는다.
+- 조치사진 파일명은 원본 업로드 함수가 Date.now()를 넣은 실제 등록 시각이다. 해당 경로의 epoch ms를 서울 날짜로 변환한다. 새 DB 컬럼·마이그레이션·원본 업로드 흐름 수정 없이 구현한다.
+- 최초 npm run lint(exit 0, 기존 경고 존재), npx tsc --noEmit(exit 0)로 기준선을 확인했다.
+- Orca snapshot 첫 호출은 runtime_unavailable로 실패했으나 뒤이은 eval은 정상 작동했다. 기존 탭은 /safe/headquarters에서 로그인 상태였다.
+- 독립 리뷰에서 프로젝트 전체 1034건 중 공용 조회의 1000건 상한으로 전사 패트롤 기록이 누락될 가능성을 확인했다. getProjectsByUserBranch에 선택적인 fetchAll 페이지네이션을 추가하고 이 화면에서만 켠다.
+- 지하수지질부 같은 동명 지사가 여러 본부에 있으므로 상수의 첫 본부를 추정하지 않는다. 실제 관할 프로젝트에서 단일 본부일 때만 자동 지정한다.
+- 실제 브라우저 /safe 카드→지사→프로젝트 6열 조회 성공. 2026Q3 경기본부 계정에서 패트롤 1건 표시.
+- 실제 AI 버튼으로 7550byte XLSX 생성 성공. ExcelJS로 재로딩해 18열, 숫자 사업비, 한국어 재발방지대책·재해유형 값 확인. 샘플은 시스템 TEMP/krc-patrol-20260914-live.xlsx에 보관(커밋 제외).
+- 비로그인 POST /api/ai/patrol-inspection은 HTTP 401 확인. 조치판정 19개 테스트 직접 실행·통과.
+- API·Excel 후속 보완은 UUID·발주청·원본 누락 검사, 구조화 응답/출력 길이, 요청 제한, 실패 시 파일생성 중단과 XLSX/API 회귀 테스트를 포함한다.
+- 후속 strict JSON schema·low 추론 설정으로 실제 AI 다운로드를 다시 검증했다. 당시 범위 2건, 7886byte XLSX의 18열과 한국어 AI 결과를 확인했다.
+- 최종 사용자 요청을 반영한 실제 workbook 재로딩 테스트에서 헤더·값·빈 셀까지 54셀의 가로 가운데·세로 중앙 정렬과 확인자 공란을 검증했다.
+- Advisor 최종 직접 검증은 test:patrol 65/65, 인접 지적유형·G2B·기존 출력 회귀 21/21 통과. npm run lint는 기존 경고만으로 exit 0, npx tsc --noEmit exit 0.
+- 최종 브라우저에서 /safe 카드 진입·지사별 집계·프로젝트 6열·새로고침을 확인했다. 4분기 빈 목록은 요약 0건과 다운로드 비활성화를 확인하고 3분기로 복원했다.
+- 동명 지사의 다른 본부가 섞이지 않도록 fetchAll 관할 필터에 본부까지 추가하고 View에서 공용 organization-scope 판정을 다시 적용했다. 기존 공용 함수 호출 동작은 유지한다.
+- 최종 독립 API·Excel 리뷰에서 CRITICAL/HIGH는 없었다. 제안된 응답 여유를 반영해 배치 출력 상한을 4000+건수×600으로 늘리고, 120자 초과 AI 문장을 조용히 자르지 않도록 원문을 보존한다. 프롬프트의 간결한 작성 지시는 유지한다.
