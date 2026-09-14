@@ -96,7 +96,6 @@ export default function QualityTestLedgerPage() {
   const [activeTab, setActiveTab] = useState<TabKey | null>(
     TABS.some(tab => tab.key === requestedTab) ? (requestedTab as TabKey) : null
   )
-  const [summaryUnreadRejectionCount, setSummaryUnreadRejectionCount] = useState(0)
 
   const handleBack = () => {
     // 진입 경로를 returnUrl 쿼리로 받은 경우 그 위치로 정확히 복귀.
@@ -143,28 +142,6 @@ export default function QualityTestLedgerPage() {
       }
     }
     loadProject()
-  }, [user, projectId])
-
-  // 성과총괄표 탭이 열리기 전에도 미확인 반려 건수를 표시한다.
-  useEffect(() => {
-    if (!user || !projectId) return
-
-    let cancelled = false
-    const loadSummaryUnreadRejectionCount = async () => {
-      const { count, error } = await (supabase as any)
-        .from('quality_summary_reports')
-        .select('id', { count: 'exact', head: true })
-        .eq('project_id', projectId)
-        .not('rejected_at', 'is', null)
-        .is('rejection_read_at', null)
-
-      if (!cancelled && !error) setSummaryUnreadRejectionCount(count ?? 0)
-    }
-
-    loadSummaryUnreadRejectionCount()
-    return () => {
-      cancelled = true
-    }
   }, [user, projectId])
 
   // 작업일보의 수동 입력 공정률 기준점 로드 — 성과총괄표 "공정(%)" 기본값 계산용
@@ -321,15 +298,6 @@ export default function QualityTestLedgerPage() {
                           />
                         </span>
 
-                        {tab.key === 'summary' && summaryUnreadRejectionCount > 0 && (
-                          <span
-                            className="absolute bottom-0 right-0 inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-sm md:bottom-4 md:min-w-6 md:px-2 md:py-1 md:text-[11px]"
-                            title={`미확인 반려 ${summaryUnreadRejectionCount}건`}
-                            aria-label={`미확인 반려 ${summaryUnreadRejectionCount}건`}
-                          >
-                            {summaryUnreadRejectionCount}
-                          </span>
-                        )}
                       </span>
                     </button>
                   )
@@ -368,15 +336,6 @@ export default function QualityTestLedgerPage() {
                     <Icon className="h-4 w-4" aria-hidden="true" />
                   </span>
                   <span className="text-center leading-tight sm:truncate">{tab.label}</span>
-                  {tab.key === 'summary' && summaryUnreadRejectionCount > 0 && (
-                    <span
-                      className="inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white"
-                      title={`미확인 반려 ${summaryUnreadRejectionCount}건`}
-                      aria-label={`미확인 반려 ${summaryUnreadRejectionCount}건`}
-                    >
-                      {summaryUnreadRejectionCount}
-                    </span>
-                  )}
                   {isActive && (
                     <span
                       className={`absolute inset-x-3 bottom-0 h-0.5 rounded-full ${tab.accentClass}`}
@@ -414,7 +373,6 @@ export default function QualityTestLedgerPage() {
             supervisorPosition={project?.supervisor_position || ''}
             supervisorName={project?.supervisor_name || ''}
             ownerCompanyName={projectOwner?.company_name || ''}
-            onUnreadRejectionCountChange={setSummaryUnreadRejectionCount}
           />
         )}
         {activeTab === 'verification' && (

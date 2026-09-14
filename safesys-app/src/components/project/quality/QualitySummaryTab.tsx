@@ -39,7 +39,6 @@ interface QualitySummaryTabProps {
   ownerCompanyName?: string // 프로젝트 소유자 회사명 — 작성자 소속 기본값
   openReportId?: string | null // 실시대장 탭에서 열도록 요청된 총괄표 id
   onOpenReportConsumed?: () => void // 요청 소비 후 호출 — 상위에서 openReportId 초기화
-  onUnreadRejectionCountChange?: (count: number) => void // 미확인 반려 건수 변경 알림
 }
 
 const inputCls =
@@ -133,7 +132,6 @@ export default function QualitySummaryTab({
   ownerCompanyName = '',
   openReportId = null,
   onOpenReportConsumed,
-  onUnreadRejectionCountChange,
 }: QualitySummaryTabProps) {
   const [reports, setReports] = useState<QualitySummaryReport[]>([])
   const [loading, setLoading] = useState(true)
@@ -151,13 +149,10 @@ export default function QualitySummaryTab({
     y: number
   } | null>(null)
   const [activeSignKey, setActiveSignKey] = useState<SignKey | null>(null)
-  const [rejectionSaving, setRejectionSaving] = useState(false)
 
   const activeReport = editingReportId
     ? reports.find((report) => report.id === editingReportId)
     : undefined
-  const canReject = currentUserRole === '발주청'
-  const canCancelRejection = canReject && activeReport?.rejected_by === userId
 
   // 서명란은 지정된 소속만 누를 수 있다 (작성자=시공사, 검토자=발주청 본부, 확인자=발주청)
   const canSignBy = (allowed: SignAllowedBy): boolean => {
@@ -175,14 +170,10 @@ export default function QualitySummaryTab({
       .order('report_date', { ascending: false })
       .order('created_at', { ascending: false })
     if (!error && data) {
-      const loadedReports = data as QualitySummaryReport[]
-      setReports(loadedReports)
-      onUnreadRejectionCountChange?.(
-        loadedReports.filter((report) => report.rejected_at && !report.rejection_read_at).length
-      )
+      setReports(data as QualitySummaryReport[])
     }
     setLoading(false)
-  }, [onUnreadRejectionCountChange, projectId])
+  }, [projectId])
 
   useEffect(() => {
     loadReports()
@@ -231,6 +222,7 @@ export default function QualitySummaryTab({
   }
 
   const handleSelectReport = (report: QualitySummaryReport) => {
+    // 반려 이력 컬럼은 기능 제거 후에도 DB에 남아 있으므로 폼 데이터에서 계속 배제한다.
     const {
       id,
       project_id,
@@ -270,7 +262,7 @@ export default function QualitySummaryTab({
   }
 
   const handleSave = async () => {
-    if (!formData || saving || rejectionSaving) return
+    if (!formData || saving) return
 
     // 작성자와 발주청은 수정할 수 있으며, 서명란별 소속 기준은 별도로 적용한다.
     if (editingReportId) {
@@ -380,93 +372,6 @@ export default function QualitySummaryTab({
           verification_rows.length > 0 ? verification_rows : [createEmptyVerificationPerformanceRow()],
       },
       notice: `실시대장 전체 ${submissionCount}개 제출건을 누계에 반영했습니다.`,
-    }
-  }
-
-  const handleReject = async () => {
-    if (!editingReportId || !canReject || saving || rejectionSaving) return
-
-    const reason = window.prompt('반려 사유를 입력해주세요.')
-    if (reason === null) return
-    if (!reason.trim()) {
-      alert('반려 사유를 입력해주세요.')
-      return
-    }
-
-    setRejectionSaving(true)
-    try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError) throw sessionError
-      if (!session?.access_token) throw new Error('로그인이 필요합니다.')
-
-      const response = await fetch('/api/quality-summary/reject', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ report_id: editingReportId, reason: reason.trim() }),
-      })
-      const result = await response.json().catch(() => ({})) as { success?: boolean; error?: string }
-      if (!response.ok || result.success !== true) {
-        throw new Error(result.error || '성과총괄표 반려 처리에 실패했습니다.')
-      }
-
-      set('reviewer_signature', '')
-      await loadReports()
-      alert('작성자에게 반려 통보했습니다.')
-    } catch (err: unknown) {
-      alert('반려 통보 실패: ' + getErrorMessage(err))
-    } finally {
-      setRejectionSaving(false)
-    }
-  }
-
-  const handleCancelRejection = async () => {
-    if (!editingReportId || !activeReport?.rejected_at || !canCancelRejection || saving || rejectionSaving) return
-
-    setRejectionSaving(true)
-    try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError) throw sessionError
-      if (!session?.access_token) throw new Error('로그인이 필요합니다.')
-
-      const response = await fetch('/api/quality-summary/reject', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ report_id: editingReportId }),
-      })
-      const result = await response.json().catch(() => ({})) as { success?: boolean; error?: string }
-      if (!response.ok || result.success !== true) {
-        throw new Error(result.error || '반려 통보 취소에 실패했습니다.')
-      }
-
-      await loadReports()
-      alert('반려 통보를 취소했습니다.')
-    } catch (err: unknown) {
-      alert('반려 통보 취소 실패: ' + getErrorMessage(err))
-    } finally {
-      setRejectionSaving(false)
-    }
-  }
-
-  const handleReadRejection = async () => {
-    if (!editingReportId || rejectionSaving) return
-
-    setRejectionSaving(true)
-    try {
-      const { error } = await (supabase as any).rpc('read_quality_summary_rejection', {
-        p_report_id: editingReportId,
-      })
-      if (error) throw error
-      await loadReports()
-    } catch (err: unknown) {
-      alert('반려 통보 확인 실패: ' + getErrorMessage(err))
-    } finally {
-      setRejectionSaving(false)
     }
   }
 
@@ -592,20 +497,7 @@ export default function QualitySummaryTab({
                   >
                     <td className="px-2 py-2 text-center whitespace-nowrap">{report.report_date || '-'}</td>
                     <td className="px-2 py-2 text-center whitespace-nowrap">{report.progress_rate || '-'}</td>
-                    <td className="px-2 py-2 text-center whitespace-nowrap">
-                      <span className="inline-flex items-center justify-center gap-1.5">
-                        <span>{report.writer_name || '-'}</span>
-                        {report.rejected_at && !report.rejection_read_at && (
-                          <span
-                            className="inline-flex min-w-5 items-center justify-center rounded-full bg-blue-600 px-1.5 py-0.5 text-[11px] font-bold leading-none text-white"
-                            title="미확인 반려 1건"
-                            aria-label="미확인 반려 1건"
-                          >
-                            1
-                          </span>
-                        )}
-                      </span>
-                    </td>
+                    <td className="px-2 py-2 text-center whitespace-nowrap">{report.writer_name || '-'}</td>
                     <td className="px-2 py-2 text-center">
                       <button
                         onClick={(e) => {
@@ -953,22 +845,6 @@ export default function QualitySummaryTab({
             {/* 작성자·검토자·확인자 */}
             <div>
               <h3 className="text-sm font-semibold text-gray-700 mb-1.5">작성자·검토자·확인자</h3>
-              {activeReport?.rejected_at && !activeReport.rejection_read_at && activeReport.created_by === userId && (
-                <div className="mb-3 flex flex-col gap-2 rounded-lg border border-blue-300 bg-blue-50 p-3 text-sm text-blue-900 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="font-semibold">반려 통보가 도착했습니다.</p>
-                    <p className="mt-0.5 whitespace-pre-wrap text-xs text-blue-800">{activeReport.rejection_reason}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleReadRejection}
-                    disabled={rejectionSaving}
-                    className="shrink-0 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    확인
-                  </button>
-                </div>
-              )}
               <div className="space-y-2">
                 {SIGNERS.map((signer) => {
                   const affKey = signer.aff
@@ -1038,40 +914,12 @@ export default function QualitySummaryTab({
                           <button
                             type="button"
                             onClick={() => set(signer.sig, '')}
-                            disabled={!canClearSignature || saving || rejectionSaving}
+                            disabled={!canClearSignature || saving}
                             title={canClearSignature ? '서명 삭제 후 수정 버튼을 눌러 저장해주세요.' : '서명을 삭제할 권한이 없습니다.'}
                             aria-label={`${signer.label} 서명 삭제`}
                             className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             서명 삭제
-                          </button>
-                        )}
-                        {signer.sig === 'reviewer_signature' && editingReportId && (
-                          <button
-                            type="button"
-                            onClick={handleReject}
-                            disabled={!canReject || saving || rejectionSaving}
-                            title={
-                              !canReject
-                                ? '반려 통보는 발주청 소속만 처리할 수 있습니다.'
-                                : activeReport?.rejected_at
-                                  ? '반려 사유를 변경해 다시 통보할 수 있습니다.'
-                                  : undefined
-                            }
-                            className="rounded border border-blue-300 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {rejectionSaving ? '처리 중...' : activeReport?.rejected_at ? '반려 통보됨' : '반려 통보'}
-                          </button>
-                        )}
-                        {signer.sig === 'reviewer_signature' && editingReportId && activeReport?.rejected_at && (
-                          <button
-                            type="button"
-                            onClick={handleCancelRejection}
-                            disabled={!canCancelRejection || saving || rejectionSaving}
-                            title={!canCancelRejection ? '반려 통보한 본인만 취소할 수 있습니다.' : undefined}
-                            className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            반려 통보 취소
                           </button>
                         )}
                       </div>
@@ -1112,7 +960,7 @@ export default function QualitySummaryTab({
               </button>
               <button
                 onClick={handleSave}
-                disabled={saving || rejectionSaving}
+                disabled={saving}
                 className="px-6 py-2 text-sm text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50"
               >
                 {saving ? '저장 중...' : editingReportId ? '수정' : '저장'}

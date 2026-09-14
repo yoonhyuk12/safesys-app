@@ -27,7 +27,6 @@ interface ContractorDashboardProps {
   hqPendingCounts?: Record<string, number>
   safetyPendingCounts?: Record<string, number>
   managerPendingCounts?: Record<string, number>
-  qualityRejectionCounts?: Record<string, number>
   tbmReportedProjectIds?: Set<string>
 }
 
@@ -51,7 +50,6 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
   hqPendingCounts,
   safetyPendingCounts,
   managerPendingCounts,
-  qualityRejectionCounts,
   tbmReportedProjectIds,
 }) => {
   if (loading) {
@@ -138,7 +136,6 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
                 onIsActiveChange={onProjectIsActiveJsonChange}
                 hqPendingCount={hqPendingCounts?.[project.id]}
                 safetyPendingCount={safetyPendingCounts?.[project.id]} managerPendingCount={managerPendingCounts?.[project.id]}
-                qualityRejectionCount={qualityRejectionCounts?.[project.id]}
                 tbmReportedToday={tbmReportedProjectIds?.has(project.id)}
               />
             ))}
@@ -176,7 +173,6 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
                 onStatusChange={onProjectStatusChange}
                 hqPendingCount={hqPendingCounts?.[project.id]}
                 safetyPendingCount={safetyPendingCounts?.[project.id]} managerPendingCount={managerPendingCounts?.[project.id]}
-                qualityRejectionCount={qualityRejectionCounts?.[project.id]}
                 tbmReportedToday={tbmReportedProjectIds?.has(project.id)}
               />
             ))}
