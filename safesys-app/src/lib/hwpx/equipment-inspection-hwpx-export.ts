@@ -1,4 +1,4 @@
-// 장비 일일점검 기록을 서명과 명시적 페이지 분할을 포함한 HWPX로 조립한다.
+// 장비 일일점검 기록을 안내 그림·서명과 함께 A4 한 장에 담은 HWPX로 조립한다.
 import JSZip from 'jszip'
 import type { EquipmentInspection } from '../equipment-inspection-types'
 import { equipmentGuideImages } from '../equipment-inspection-guides'
@@ -118,24 +118,30 @@ class ImageCollector {
     }
 }
 
-// 그림 개체 일련번호. id/instid는 문서 내 유일해야 하며, 필수 자식 요소가 빠지면 한글 2020이 열다 죽는다.
-let _picSeq = 0
-function resetPicSeq(): void { _picSeq = 0 }
+// 문단·그림 개체 번호표. id/instid는 문서 안에서만 유일하면 되므로 출력 한 건에 하나씩 새로 만든다.
+// 모듈 전역 카운터를 쓰면 동시에 두 건을 내려받을 때 서로의 번호를 밀어 버린다.
+class DocumentIds {
+    private para = 2147483648
+    private pic = 0
+    nextParaId(): string { return String(this.para++) }
+    nextPicSeq(): number { return ++this.pic }
+}
 
 // 한글이 직접 저장한 hwpx의 hp:pic 구조를 그대로 답습한 공통 골격 (요소 순서 포함)
-function buildPicXml(binItemId: string, imgW: number, imgH: number, textWrap: string, pos: string): string {
-    _picSeq++
-    const id = 1149648000 + _picSeq
-    const instid = 75906000 + _picSeq
+// 필수 자식 요소가 빠지면 한글 2020이 파일을 열다 죽는다.
+function buildPicXml(ids: DocumentIds, binItemId: string, imgW: number, imgH: number, textWrap: string, pos: string): string {
+    const seq = ids.nextPicSeq()
+    const id = 1149648000 + seq
+    const instid = 75906000 + seq
     const identity = `<hc:transMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/><hc:scaMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/><hc:rotMatrix e1="1" e2="0" e3="0" e4="0" e5="1" e6="0"/>`
-    return `<hp:pic id="${id}" zOrder="${10 + _picSeq}" numberingType="PICTURE" textWrap="${textWrap}" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" href="" groupLevel="0" instid="${instid}" reverse="0"><hp:offset x="0" y="0"/><hp:orgSz width="${imgW}" height="${imgH}"/><hp:curSz width="0" height="0"/><hp:flip horizontal="0" vertical="0"/><hp:rotationInfo angle="0" centerX="0" centerY="0" rotateimage="1"/><hp:renderingInfo>${identity}</hp:renderingInfo><hp:imgRect><hc:pt0 x="0" y="0"/><hc:pt1 x="${imgW}" y="0"/><hc:pt2 x="${imgW}" y="${imgH}"/><hc:pt3 x="0" y="${imgH}"/></hp:imgRect><hp:imgClip left="0" right="0" top="0" bottom="0"/><hp:inMargin left="0" right="0" top="0" bottom="0"/><hp:imgDim dimwidth="0" dimheight="0"/><hc:img binaryItemIDRef="${binItemId}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/><hp:effects/><hp:sz width="${imgW}" widthRelTo="ABSOLUTE" height="${imgH}" heightRelTo="ABSOLUTE" protect="0"/>${pos}<hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:shapeComment>${binItemId}</hp:shapeComment></hp:pic>`
+    return `<hp:pic id="${id}" zOrder="${10 + seq}" numberingType="PICTURE" textWrap="${textWrap}" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" href="" groupLevel="0" instid="${instid}" reverse="0"><hp:offset x="0" y="0"/><hp:orgSz width="${imgW}" height="${imgH}"/><hp:curSz width="0" height="0"/><hp:flip horizontal="0" vertical="0"/><hp:rotationInfo angle="0" centerX="0" centerY="0" rotateimage="1"/><hp:renderingInfo>${identity}</hp:renderingInfo><hp:imgRect><hc:pt0 x="0" y="0"/><hc:pt1 x="${imgW}" y="0"/><hc:pt2 x="${imgW}" y="${imgH}"/><hc:pt3 x="0" y="${imgH}"/></hp:imgRect><hp:imgClip left="0" right="0" top="0" bottom="0"/><hp:inMargin left="0" right="0" top="0" bottom="0"/><hp:imgDim dimwidth="0" dimheight="0"/><hc:img binaryItemIDRef="${binItemId}" bright="0" contrast="0" effect="REAL_PIC" alpha="0"/><hp:effects/><hp:sz width="${imgW}" widthRelTo="ABSOLUTE" height="${imgH}" heightRelTo="ABSOLUTE" protect="0"/>${pos}<hp:outMargin left="0" right="0" top="0" bottom="0"/><hp:shapeComment>${binItemId}</hp:shapeComment></hp:pic>`
 }
 
 // "(서명)" 문구 위에 겹치는 떠 있는 그림(서명용). 쪽(PAPER) 기준 절대 좌표라 표 밖 돌출도 허용된다.
 // textWrap은 반드시 IN_FRONT_OF_TEXT(글 앞으로) — THROUGH는 한글 2020이 자리차지로 처리해 표를 밀어낸다.
-function buildFloatingPicXml(binItemId: string, imgW: number, imgH: number, xPaper: number, yPaper: number): string {
+function buildFloatingPicXml(ids: DocumentIds, binItemId: string, imgW: number, imgH: number, xPaper: number, yPaper: number): string {
     const pos = `<hp:pos treatAsChar="0" affectLSpacing="0" flowWithText="0" allowOverlap="1" holdAnchorAndSO="0" vertRelTo="PAPER" horzRelTo="PAPER" vertAlign="TOP" horzAlign="LEFT" vertOffset="${yPaper}" horzOffset="${xPaper}"/>`
-    return buildPicXml(binItemId, imgW, imgH, 'IN_FRONT_OF_TEXT', pos)
+    return buildPicXml(ids, binItemId, imgW, imgH, 'IN_FRONT_OF_TEXT', pos)
 }
 
 // ── OWPML 부속 파일(고정 보일러플레이트) ──
@@ -161,11 +167,13 @@ const PAGE_WIDTH = 59528
 const PAGE_HEIGHT = 84188
 const MARGIN_LEFT = 4252
 const MARGIN_RIGHT = 4252
-const MARGIN_TOP = 3600
-const MARGIN_BOTTOM = 3600
-const HEADER_HEIGHT = 3600
-const FOOTER_HEIGHT = 3600
-// 본문 폭 51024, 본문 시작 7200, 본문 높이 69788.
+// 세로 여백은 위·아래 각각 12mm(여백 8.5mm + 머리말/꼬리말 3.5mm)다. 한글 기본 25.4mm로는 안내 그림과
+// 점검 행이 한 장에 들어가지 않아 줄였다. 가로 여백 15mm는 본문 폭 180mm를 지키려고 그대로 둔다.
+const MARGIN_TOP = 2400
+const MARGIN_BOTTOM = 2400
+const HEADER_HEIGHT = 1000
+const FOOTER_HEIGHT = 1000
+// 본문 폭 51024, 본문 시작 3400, 본문 높이 77388.
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT
 const BODY_TOP = MARGIN_TOP + HEADER_HEIGHT
 const PAGE_CAPACITY = PAGE_HEIGHT - (MARGIN_TOP + HEADER_HEIGHT) - (MARGIN_BOTTOM + FOOTER_HEIGHT)
@@ -173,12 +181,43 @@ const PAGE_CAPACITY = PAGE_HEIGHT - (MARGIN_TOP + HEADER_HEIGHT) - (MARGIN_BOTTO
 // 첫 문단에 들어가는 구역 속성(A4 세로)
 const SECPR = `<hp:secPr id="" textDirection="HORIZONTAL" spaceColumns="1134" tabStop="8000" tabStopVal="4000" tabStopUnit="HWPUNIT" outlineShapeIDRef="1" memoShapeIDRef="1" textVerticalWidthHead="0" masterPageCnt="0"><hp:grid lineGrid="0" charGrid="0" wonggojiFormat="0"/><hp:startNum pageStartsOn="BOTH" page="0" pic="0" tbl="0" equation="0"/><hp:visibility hideFirstHeader="0" hideFirstFooter="0" hideFirstMasterPage="0" border="SHOW_ALL" fill="SHOW_ALL" hideFirstPageNum="0" hideFirstEmptyLine="0" showLineNumber="0"/><hp:lineNumberShape restartType="0" countBy="0" distance="0" startNumber="0"/><hp:pagePr landscape="WIDELY" width="${PAGE_WIDTH}" height="${PAGE_HEIGHT}" gutterType="LEFT_ONLY"><hp:margin header="${HEADER_HEIGHT}" footer="${FOOTER_HEIGHT}" gutter="0" left="${MARGIN_LEFT}" right="${MARGIN_RIGHT}" top="${MARGIN_TOP}" bottom="${MARGIN_BOTTOM}"/></hp:pagePr><hp:footNotePr><hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="-1" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="283" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="EACH_COLUMN" beneathText="0"/></hp:footNotePr><hp:endNotePr><hp:autoNumFormat type="DIGIT" userChar="" prefixChar="" suffixChar=")" supscript="0"/><hp:noteLine length="14692344" type="SOLID" width="0.12 mm" color="#000000"/><hp:noteSpacing betweenNotes="0" belowLine="567" aboveLine="850"/><hp:numbering type="CONTINUOUS" newNum="1"/><hp:placement place="END_OF_DOCUMENT" beneathText="0"/></hp:endNotePr><hp:pageBorderFill type="BOTH" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill><hp:pageBorderFill type="EVEN" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill><hp:pageBorderFill type="ODD" borderFillIDRef="1" textBorder="PAPER" headerInside="0" footerInside="0" fillArea="PAPER"><hp:offset left="1417" right="1417" top="1417" bottom="1417"/></hp:pageBorderFill></hp:secPr>`
 
+// ── 한 장 맞춤 조판 단계 ──
+
+/**
+ * 한 장에 담으려고 차례로 시도하는 조판 단계. 읽기 좋은 9pt·줄 간격 130%를 먼저 쓰고,
+ * 그것으로 넘칠 때만 더 촘촘한 단계로 내려간다. 마지막 단계(8pt)가 읽기 하한이며
+ * 그래도 못 담으면 글자를 잘라 내지 않고 출력을 거부한다.
+ */
+interface FitProfile {
+    name: string
+    bodyHeight: number          // 본문 글자 크기(HWPUNIT, 100 = 1pt)
+    titleHeight: number         // 제목 글자 크기
+    lineSpacing: number         // 줄 간격 백분율
+    cellMargin: number          // 셀 안쪽 여백(상·하·좌·우)
+    rowSlack: number            // 줄 수 추정 오차를 흡수하는 행 여유
+    titleRowHeight: number
+    infoRowHeight: number
+    signatureRowHeight: number
+}
+
+const FIT_PROFILES: readonly FitProfile[] = [
+    { name: '9pt', bodyHeight: 900, titleHeight: 1600, lineSpacing: 130, cellMargin: 141, rowSlack: 200, titleRowHeight: 3400, infoRowHeight: 2000, signatureRowHeight: 3400 },
+    { name: '9pt 좁게', bodyHeight: 900, titleHeight: 1500, lineSpacing: 120, cellMargin: 120, rowSlack: 140, titleRowHeight: 3100, infoRowHeight: 1850, signatureRowHeight: 3200 },
+    { name: '8.5pt', bodyHeight: 850, titleHeight: 1400, lineSpacing: 120, cellMargin: 110, rowSlack: 120, titleRowHeight: 2900, infoRowHeight: 1750, signatureRowHeight: 3100 },
+    { name: '8pt', bodyHeight: 800, titleHeight: 1400, lineSpacing: 115, cellMargin: 100, rowSlack: 100, titleRowHeight: 2700, infoRowHeight: 1650, signatureRowHeight: 3000 },
+]
+
+const CP_BODY = 0
+const CP_TITLE = 1
+
+const charHeightOf = (profile: FitProfile, cp: number): number => (cp === CP_TITLE ? profile.titleHeight : profile.bodyHeight)
+const cellPadding = (profile: FitProfile): number => profile.cellMargin * 2
+const lineAdvance = (profile: FitProfile, charHeight: number): number => Math.round((charHeight * profile.lineSpacing) / 100)
+
 // ── header.xml 조립 ──
 // borderFill: 1=테두리없음, 2=실선 사방테두리(셀), 3=실선+회색채움(머리셀)
-// charPr: 0=본문10, 1=굵게10, 2=제목16굵게, 3=작게7, 4=굵게9, 5=굵게11, 6=굵게12, 7=본문9
+// charPr: 0=본문, 1=제목(굵게) — 두 크기 모두 조판 단계에서 온다.
 // paraPr: 0=왼쪽정렬, 1=가운데정렬
-
-const CP_HEIGHT: Record<number, number> = { 0: 1000, 1: 1000, 2: 1600, 3: 700, 4: 900, 5: 1100, 6: 1200, 7: 900 }
 
 // 사용자 지정 글꼴. 모든 언어 항목이 같은 얼굴을 참조해야 한글이 본문 일부를 다른 글꼴로 대체하지 않는다.
 const DOCUMENT_FONT = '휴먼명조'
@@ -201,28 +240,23 @@ function buildCharPr(id: number, height: number, bold: boolean): string {
     return `<hh:charPr id="${id}" height="${height}" textColor="#000000" shadeColor="none" useFontSpace="0" useKerning="0" symMark="NONE" borderFillIDRef="1"><hh:fontRef hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:ratio hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:spacing hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/><hh:relSz hangul="100" latin="100" hanja="100" japanese="100" other="100" symbol="100" user="100"/><hh:offset hangul="0" latin="0" hanja="0" japanese="0" other="0" symbol="0" user="0"/>${bold ? '<hh:bold/>' : ''}<hh:underline type="NONE" shape="SOLID" color="#000000"/><hh:strikeout shape="NONE" color="#000000"/><hh:outline type="NONE"/><hh:shadow type="NONE" color="#B2B2B2" offsetX="10" offsetY="10"/></hh:charPr>`
 }
 
-function buildCharProperties(): string {
+function buildCharProperties(profile: FitProfile): string {
     const items = [
-        buildCharPr(0, 1000, false),
-        buildCharPr(1, 1000, true),
-        buildCharPr(2, 1600, true),
-        buildCharPr(3, 700, false),
-        buildCharPr(4, 900, true),
-        buildCharPr(5, 1100, true),
-        buildCharPr(6, 1200, true),
-        buildCharPr(7, 900, false),
+        buildCharPr(CP_BODY, profile.bodyHeight, false),
+        buildCharPr(CP_TITLE, profile.titleHeight, true),
     ].join('')
-    return `<hh:charProperties itemCnt="8">${items}</hh:charProperties>`
+    return `<hh:charProperties itemCnt="2">${items}</hh:charProperties>`
 }
 
-function buildParaPr(id: number, align: string): string {
+function buildParaPr(id: number, align: string, lineSpacing: number): string {
     const margin = `<hh:margin><hc:intent value="0" unit="HWPUNIT"/><hc:left value="0" unit="HWPUNIT"/><hc:right value="0" unit="HWPUNIT"/><hc:prev value="0" unit="HWPUNIT"/><hc:next value="0" unit="HWPUNIT"/></hh:margin>`
-    const sw = `<hp:switch><hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">${margin}<hh:lineSpacing type="PERCENT" value="130" unit="HWPUNIT"/></hp:case><hp:default>${margin}<hh:lineSpacing type="PERCENT" value="130" unit="HWPUNIT"/></hp:default></hp:switch>`
+    const spacing = `<hh:lineSpacing type="PERCENT" value="${lineSpacing}" unit="HWPUNIT"/>`
+    const sw = `<hp:switch><hp:case hp:required-namespace="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar">${margin}${spacing}</hp:case><hp:default>${margin}${spacing}</hp:default></hp:switch>`
     return `<hh:paraPr id="${id}" tabPrIDRef="0" condense="0" fontLineHeight="0" snapToGrid="1" suppressLineNumbers="0" checked="0"><hh:align horizontal="${align}" vertical="BASELINE"/><hh:heading type="NONE" idRef="0" level="0"/><hh:breakSetting breakLatinWord="KEEP_WORD" breakNonLatinWord="KEEP_WORD" widowOrphan="0" keepWithNext="0" keepLines="0" pageBreakBefore="0" lineWrap="BREAK"/><hh:autoSpacing eAsianEng="0" eAsianNum="0"/>${sw}<hh:border borderFillIDRef="1" offsetLeft="0" offsetRight="0" offsetTop="0" offsetBottom="0" connect="0" ignoreMargin="0"/></hh:paraPr>`
 }
 
-function buildParaProperties(): string {
-    return `<hh:paraProperties itemCnt="2">${buildParaPr(0, 'LEFT')}${buildParaPr(1, 'CENTER')}</hh:paraProperties>`
+function buildParaProperties(profile: FitProfile): string {
+    return `<hh:paraProperties itemCnt="2">${buildParaPr(0, 'LEFT', profile.lineSpacing)}${buildParaPr(1, 'CENTER', profile.lineSpacing)}</hh:paraProperties>`
 }
 
 function buildNumberings(): string {
@@ -233,13 +267,13 @@ function buildNumberings(): string {
     return `<hh:numberings itemCnt="1"><hh:numbering id="1" start="0">${heads}</hh:numbering></hh:numberings>`
 }
 
-function buildHeaderXml(): string {
+function buildHeaderXml(profile: FitProfile): string {
     const open = `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hh:head xmlns:ha="http://www.hancom.co.kr/hwpml/2011/app" xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph" xmlns:hp10="http://www.hancom.co.kr/hwpml/2016/paragraph" xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" xmlns:hc="http://www.hancom.co.kr/hwpml/2011/core" xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" xmlns:hhs="http://www.hancom.co.kr/hwpml/2011/history" xmlns:hm="http://www.hancom.co.kr/hwpml/2011/master-page" xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf/" xmlns:ooxmlchart="http://www.hancom.co.kr/hwpml/2016/ooxmlchart" xmlns:hwpunitchar="http://www.hancom.co.kr/hwpml/2016/HwpUnitChar" xmlns:epub="http://www.idpf.org/2007/ops" xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0" version="1.4" secCnt="1">`
     const begin = `<hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>`
     const tabProps = `<hh:tabProperties itemCnt="1"><hh:tabPr id="0" autoTabLeft="0" autoTabRight="0"/></hh:tabProperties>`
     const styles = `<hh:styles itemCnt="1"><hh:style id="0" type="PARA" name="바탕글" engName="Normal" paraPrIDRef="0" charPrIDRef="0" nextStyleIDRef="0" langID="1042" lockForm="0"/></hh:styles>`
     const memo = `<hh:memoProperties itemCnt="1"><hh:memoPr id="1" width="15591" lineWidth="1" lineType="SOLID" lineColor="#000000" fillColor="#CCFF99" activeColor="#FFFF99" memoType="NOMAL"/></hh:memoProperties>`
-    const refList = `<hh:refList>${buildFontfaces()}${buildBorderFills()}${buildCharProperties()}${tabProps}${buildNumberings()}${buildParaProperties()}${styles}${memo}</hh:refList>`
+    const refList = `<hh:refList>${buildFontfaces()}${buildBorderFills()}${buildCharProperties(profile)}${tabProps}${buildNumberings()}${buildParaProperties(profile)}${styles}${memo}</hh:refList>`
     const tail = `<hh:compatibleDocument targetProgram="HWP201X"><hh:layoutCompatibility/></hh:compatibleDocument><hh:docOption><hh:linkinfo path="" pageInherit="0" footnoteInherit="0"/></hh:docOption><hh:trackchageConfig flags="56"/></hh:head>`
     return `${open}${begin}${refList}${tail}`
 }
@@ -253,9 +287,6 @@ function buildContentHpf(imageItems: string): string {
 }
 
 // ── 문단·표 조립 ──
-
-let _idSeq = 2147483648
-function nextId(): string { return String(_idSeq++) }
 
 function lineseg(width: number, height: number): string {
     return `<hp:linesegarray><hp:lineseg textpos="0" vertpos="0" vertsize="${height}" textheight="${height}" baseline="${Math.round(height * 0.85)}" spacing="${Math.round(height * 0.35)}" horzpos="0" horzsize="${width}" flags="393216"/></hp:linesegarray>`
@@ -271,21 +302,18 @@ const WIDE_VALUE_SPAN = 2     // 짝 배치의 오른쪽 값 셀(왼쪽 값과 �
 const SUBJECT_SPAN = 3        // 검사 내용·점검자 이름
 const GUIDE_COLUMN = GRID.length - 1  // 서명 안내문구 열
 
-// 글자 크기에서 유도하는 배치 상수.
-const CELL_MARGIN = 141                        // 셀 안쪽 여백(상·하·좌·우)
-const CELL_PADDING = CELL_MARGIN * 2
-const ROW_SLACK = 200                          // 줄 수 추정 오차를 흡수하는 여유
-const TITLE_ROW_HEIGHT = 3400
-const INFO_ROW_HEIGHT = 2000
+// 조판 단계와 무관하게 고정인 배치 상수.
 const SUMMARY_ROW_HEIGHT = 3000 // 종합 의견이 비어 있어도 약 11mm의 작성 공간을 확보한다.
-const SIGNATURE_ROW_HEIGHT = 3400
 const SIGNATURE_MAX_HEIGHT = 2400
-const MIN_SPLIT_LINES = 3                      // 이보다 적게 남은 쪽엔 비고를 쪼개 넣지 않는다
-// 안내 그림 묶음의 최대 높이(약 67mm). 이보다 커지면 첫 쪽 점검 행이 지나치게 밀린다.
+// 안내 그림 묶음의 최대 높이(약 67mm). 원본 비율로 키우더라도 여기서 멈춘다.
 const GUIDE_MAX_HEIGHT = 19000
+// 안내 그림을 줄일 수 있는 하한(약 32mm). 이보다 작아져야 한 장에 들어간다면 그림을 더 줄이는 대신
+// 다음 조판 단계로 내려가 본문을 촘촘하게 만든다 — 도해가 알아볼 수 없게 되는 쪽이 더 나쁘다.
+const GUIDE_MIN_HEIGHT = 9000
+// 마지막 조판 단계에서만 쓰는 절대 하한(약 14mm). 더 내려갈 단계가 없을 때는 그림을 여기까지 줄여서라도
+// 담는다 — 그림이 작아지는 것이 출력을 거부당하는 것보다 낫다.
+const GUIDE_FLOOR_HEIGHT = 4000
 const GUIDE_GAP = 600                          // 그림을 나란히 둘 때의 간격
-
-const lineAdvance = (charHeight: number): number => Math.round(charHeight * 1.3)
 
 function sumRange(widths: number[], start: number, count: number): number {
     let s = 0
@@ -313,9 +341,9 @@ interface TextSegment {
 
 // 한글의 어절 단위 자동 줄바꿈(KEEP_WORD)을 흉내 내어 높이 추정용 표시 줄을 만든다.
 // 출력 문자열에는 이 분할을 넣지 않는다 — 행 높이 계산과 매우 긴 셀의 쪽 분할에만 쓴다.
-function splitDisplayLines(text: string, cellWidth: number, charHeight: number): TextSegment[] {
+function splitDisplayLines(text: string, cellWidth: number, charHeight: number, padding: number): TextSegment[] {
     // 한 글자만큼 좁게 잡아, 한글이 실제로 접는 줄 수가 추정을 넘지 않게 한다.
-    const usable = Math.max(charHeight, cellWidth - CELL_PADDING - charHeight)
+    const usable = Math.max(charHeight, cellWidth - padding - charHeight)
     const widthOf = (chunk: string): number => {
         let total = 0
         for (const char of chunk) {
@@ -387,104 +415,44 @@ interface Block {
     cells: { spec: Cell; segments: TextSegment[] }[]
 }
 
-function makeBlock(kind: RowKind, minHeight: number, cells: Cell[]): Block {
+function makeBlock(profile: FitProfile, kind: RowKind, minHeight: number, cells: Cell[]): Block {
     let column = 0
+    const padding = cellPadding(profile)
     const measured = cells.map(spec => {
         const span = spec.span ?? 1
         const width = sumRange(GRID, column, span)
         column += span
-        return { spec, segments: splitDisplayLines(trimCellText(spec.text ?? ''), width, CP_HEIGHT[spec.cp ?? 0] ?? 1000) }
+        return { spec, segments: splitDisplayLines(trimCellText(spec.text ?? ''), width, charHeightOf(profile, spec.cp ?? CP_BODY), padding) }
     })
     return { kind, minHeight, cells: measured }
 }
 
 const blockLines = (block: Block): number => Math.max(1, ...block.cells.map(cell => cell.segments.length))
 
-function blockRowHeight(block: Block, lines: number): number {
-    const advance = Math.max(...block.cells.map(cell => lineAdvance(CP_HEIGHT[cell.spec.cp ?? 0] ?? 1000)))
-    return Math.max(block.minHeight, lines * advance + CELL_PADDING + ROW_SLACK)
+function blockRowHeight(profile: FitProfile, block: Block): number {
+    const advance = Math.max(...block.cells.map(cell => lineAdvance(profile, charHeightOf(profile, cell.spec.cp ?? CP_BODY))))
+    return Math.max(block.minHeight, blockLines(block) * advance + cellPadding(profile) + profile.rowSlack)
 }
 
-// 블록 앞쪽 `lines`줄만 행으로 떼어내고 남은 줄은 다음 쪽으로 넘길 블록으로 돌려준다.
-// 잘린 조각을 이어 붙이면 원문이 그대로라 쪽 경계에서 글자가 사라지지 않는다.
-function sliceBlock(block: Block, lines: number): { row: Row; rest: Block | null } {
-    const used = Math.min(Math.max(1, lines), blockLines(block))
-    const taken = block.cells.map(cell => cell.segments.slice(0, used))
-    const remain = block.cells.map(cell => cell.segments.slice(used))
-    const row: Row = {
+// 블록을 통째로 한 행으로 만든다. 조각내지 않으므로 원문이 한 글자도 줄지 않는다.
+function blockToRow(profile: FitProfile, block: Block): Row {
+    return {
         kind: block.kind,
         signature: block.signature,
         guide: block.guide,
-        height: blockRowHeight(block, Math.max(1, ...taken.map(segments => segments.length))),
-        cells: block.cells.map((cell, index) => ({ ...cell.spec, text: joinSegments(taken[index]) })),
+        height: blockRowHeight(profile, block),
+        cells: block.cells.map(cell => ({ ...cell.spec, text: joinSegments(cell.segments) })),
     }
-    const rest = remain.some(segments => segments.length > 0)
-        ? { ...block, cells: block.cells.map((cell, index) => ({ spec: cell.spec, segments: remain[index] })) }
-        : null
-    return { row, rest }
 }
 
-// 쪽이 실제로 차지하는 높이. 점검 항목 행은 같은 쪽에서 모두 같은 높이가 되므로 가장 높은 행 기준으로 센다.
-function pageHeight(rows: Row[]): number {
-    const items = rows.filter(row => row.kind === 'item')
-    const others = rows.reduce((sum, row) => sum + (row.kind === 'item' ? 0 : row.height), 0)
-    return others + (items.length ? items.length * Math.max(...items.map(row => row.height)) : 0)
-}
-
-// 이 쪽에 블록을 몇 줄까지 넣을 수 있는지. 0이면 한 줄도 들어가지 않는다.
-function maxLinesThatFit(rows: Row[], block: Block, budget: number): number {
-    let low = 0
-    let high = blockLines(block)
-    while (low < high) {
-        const mid = Math.ceil((low + high) / 2)
-        if (pageHeight([...rows, sliceBlock(block, mid).row]) <= budget) low = mid
-        else high = mid - 1
-    }
-    return low
-}
-
-function paginate(prefixRows: (first: boolean) => Row[], blocks: Block[], budget: number): Row[][] {
-    const pages: Row[][] = []
-    let current = prefixRows(true)
-    let prefixLength = current.length
-    const startNewPage = (): void => {
-        pages.push(current)
-        current = prefixRows(false)
-        prefixLength = current.length
-    }
-    for (const block of blocks) {
-        let pending: Block | null = block
-        while (pending) {
-            const total = blockLines(pending)
-            const fit = maxLinesThatFit(current, pending, budget)
-            if (fit >= total) {
-                current.push(sliceBlock(pending, total).row)
-                break
-            }
-            // 표머리만 있는 빈 쪽에서도 안 들어가면 더 미룰 곳이 없으니 여기서 쪼갠다.
-            const isFresh = current.length === prefixLength
-            if (isFresh || (pending.kind === 'note' && fit >= MIN_SPLIT_LINES)) {
-                const { row, rest } = sliceBlock(pending, Math.max(1, fit))
-                current.push(row)
-                pending = rest
-                if (pending) startNewPage()
-                continue
-            }
-            startNewPage()
-        }
-    }
-    pages.push(current)
-    return pages
-}
-
-// 점검 항목 행에 남는 높이를 균등하게 나눠 준다 — 같은 쪽 행 높이 차이는 최대 1 HWPUNIT이다.
-// 비고 행은 최소 높이를 지키고, 점검 행이 없는 쪽에서만 남는 높이를 비례로 받는다.
+// 점검 항목 행에 남는 높이를 균등하게 나눠 준다 — 행 높이 차이는 최대 1 HWPUNIT이다.
+// 비고 행은 최소 높이를 지키고, 점검 행이 하나도 없을 때만 남는 높이를 비례로 받는다.
 function fillPage(rows: Row[]): Row[] {
     const items = rows.filter(row => row.kind === 'item')
     if (items.length === 0) return stretchNoteRows(rows)
     const others = rows.reduce((sum, row) => sum + (row.kind === 'item' ? 0 : row.height), 0)
     const free = PAGE_CAPACITY - others
-    if (free < items.reduce((sum, row) => sum + row.height, 0)) return rows
+    if (free < items.length * Math.max(...items.map(row => row.height))) return rows
     const base = Math.floor(free / items.length)
     let extra = free - base * items.length
     return rows.map(row => {
@@ -511,72 +479,70 @@ function stretchNoteRows(rows: Row[]): Row[] {
 }
 
 // 셀 내부 본문(원문 개행마다 문단 분리) 조립
-function buildCellBody(cell: Cell, cellW: number): string {
-    const cp = cell.cp ?? 0
+function buildCellBody(ids: DocumentIds, profile: FitProfile, cell: Cell, cellW: number): string {
+    const cp = cell.cp ?? CP_BODY
     const pp = cell.center ? 1 : 0
-    const h = CP_HEIGHT[cp] ?? 1000
-    const innerW = Math.max(1, cellW - CELL_PADDING)
+    const h = charHeightOf(profile, cp)
+    const innerW = Math.max(1, cellW - cellPadding(profile))
     return (cell.text ?? '').split('\n').map(line =>
-        `<hp:p id="${nextId()}" paraPrIDRef="${pp}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="${cp}"><hp:t>${esc(line)}</hp:t></hp:run>${lineseg(innerW, h)}</hp:p>`
+        `<hp:p id="${ids.nextParaId()}" paraPrIDRef="${pp}" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="${cp}"><hp:t>${esc(line)}</hp:t></hp:run>${lineseg(innerW, h)}</hp:p>`
     ).join('')
 }
 
-function buildCellXml(cell: Cell, colAddr: number, rowAddr: number, width: number, height: number): string {
+function buildCellXml(ids: DocumentIds, profile: FitProfile, cell: Cell, colAddr: number, rowAddr: number, width: number, height: number): string {
     const span = cell.span ?? 1
     const bf = cell.header ? 3 : 2
-    const subList = `<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${buildCellBody(cell, width)}</hp:subList>`
-    return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="${bf}">${subList}<hp:cellAddr colAddr="${colAddr}" rowAddr="${rowAddr}"/><hp:cellSpan colSpan="${span}" rowSpan="1"/><hp:cellSz width="${width}" height="${height}"/><hp:cellMargin left="${CELL_MARGIN}" right="${CELL_MARGIN}" top="${CELL_MARGIN}" bottom="${CELL_MARGIN}"/></hp:tc>`
+    const m = profile.cellMargin
+    const subList = `<hp:subList id="" textDirection="HORIZONTAL" lineWrap="BREAK" vertAlign="CENTER" linkListIDRef="0" linkListNextIDRef="0" textWidth="0" textHeight="0" hasTextRef="0" hasNumRef="0">${buildCellBody(ids, profile, cell, width)}</hp:subList>`
+    return `<hp:tc name="" header="0" hasMargin="0" protect="0" editable="0" dirty="0" borderFillIDRef="${bf}">${subList}<hp:cellAddr colAddr="${colAddr}" rowAddr="${rowAddr}"/><hp:cellSpan colSpan="${span}" rowSpan="1"/><hp:cellSz width="${width}" height="${height}"/><hp:cellMargin left="${m}" right="${m}" top="${m}" bottom="${m}"/></hp:tc>`
 }
 
-// 표를 감싼 문단 XML 반환. floats는 이 표가 놓인 쪽에 겹칠 떠 있는 그림 XML 목록.
-// pageBreak=true면 이 표가 새 쪽에서 시작한다.
-function buildTableParagraph(colWidths: number[], rows: Row[], tblId: number, zOrder: number, floats: string[] = [], pageBreak = false): string {
+// 표를 감싼 문단 XML 반환. floats는 이 표 위에 겹칠 떠 있는 그림 XML 목록이다.
+function buildTableParagraph(ids: DocumentIds, profile: FitProfile, colWidths: number[], rows: Row[], floats: string[]): string {
     const colCnt = colWidths.length
     const trs = rows.map((row, r) => {
         let colAddr = 0
         const tcs = row.cells.map(cell => {
             const span = cell.span ?? 1
             const width = sumRange(colWidths, colAddr, span)
-            const tc = buildCellXml(cell, colAddr, r, width, row.height)
+            const tc = buildCellXml(ids, profile, cell, colAddr, r, width, row.height)
             colAddr += span
             return tc
         }).join('')
         return `<hp:tr>${tcs}</hp:tr>`
     }).join('')
     const totalW = colWidths.reduce((a, b) => a + b, 0)
-    const tbl = `<hp:tbl id="${tblId}" zOrder="${zOrder}" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${rows.length}" colCnt="${colCnt}" cellSpacing="0" borderFillIDRef="2" noAdjust="0"><hp:sz width="${totalW}" widthRelTo="ABSOLUTE" height="0" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/>${trs}</hp:tbl>`
-    return `<hp:p id="${nextId()}" paraPrIDRef="0" styleIDRef="0" pageBreak="${pageBreak ? '1' : '0'}" columnBreak="0" merged="0"><hp:run charPrIDRef="0">${floats.join('')}${tbl}<hp:t/></hp:run>${lineseg(CONTENT_WIDTH, 1000)}</hp:p>`
+    const tbl = `<hp:tbl id="1000000000" zOrder="0" numberingType="TABLE" textWrap="TOP_AND_BOTTOM" textFlow="BOTH_SIDES" lock="0" dropcapstyle="None" pageBreak="CELL" repeatHeader="0" rowCnt="${rows.length}" colCnt="${colCnt}" cellSpacing="0" borderFillIDRef="2" noAdjust="0"><hp:sz width="${totalW}" widthRelTo="ABSOLUTE" height="0" heightRelTo="ABSOLUTE" protect="0"/><hp:pos treatAsChar="1" affectLSpacing="0" flowWithText="1" allowOverlap="0" holdAnchorAndSO="0" vertRelTo="PARA" horzRelTo="COLUMN" vertAlign="TOP" horzAlign="LEFT" vertOffset="0" horzOffset="0"/><hp:outMargin left="0" right="0" top="0" bottom="0"/>${trs}</hp:tbl>`
+    return `<hp:p id="${ids.nextParaId()}" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0"><hp:run charPrIDRef="${CP_BODY}">${floats.join('')}${tbl}<hp:t/></hp:run>${lineseg(CONTENT_WIDTH, profile.bodyHeight)}</hp:p>`
 }
 
 // ── 행 구성 ──
 
-const BODY_CP = 7
-
-const titleBlock = (continuation: boolean): Block =>
-    makeBlock('fixed', TITLE_ROW_HEIGHT, [{ text: `장비 일일점검표${continuation ? ' (계속)' : ''}`, span: GRID.length, cp: 2, center: true, header: true }])
+const titleBlock = (profile: FitProfile): Block =>
+    makeBlock(profile, 'fixed', profile.titleRowHeight, [{ text: '장비 일일점검표', span: GRID.length, cp: CP_TITLE, center: true, header: true }])
 
 /** 항목명 셀과 값 셀을 두 쌍 배치한다. 두 값 셀의 폭은 그리드에서 같게 잡혀 있다. */
-const infoPairRow = (label: string, value: string, rightLabel: string, rightValue: string): Block =>
-    makeBlock('fixed', INFO_ROW_HEIGHT, [
-        { text: label, span: LABEL_SPAN, cp: BODY_CP, center: true, header: true },
-        { text: value, span: VALUE_SPAN, cp: BODY_CP },
-        { text: rightLabel, span: LABEL_SPAN, cp: BODY_CP, center: true, header: true },
-        { text: rightValue, span: WIDE_VALUE_SPAN, cp: BODY_CP },
+const infoPairRow = (profile: FitProfile, label: string, value: string, rightLabel: string, rightValue: string): Block =>
+    makeBlock(profile, 'fixed', profile.infoRowHeight, [
+        { text: label, span: LABEL_SPAN, center: true, header: true },
+        { text: value, span: VALUE_SPAN },
+        { text: rightLabel, span: LABEL_SPAN, center: true, header: true },
+        { text: rightValue, span: WIDE_VALUE_SPAN },
     ])
 
-const columnHeaderRow = (): Block =>
-    makeBlock('fixed', INFO_ROW_HEIGHT, [
-        { text: '구분', cp: BODY_CP, center: true, header: true },
-        { text: '검사 내용', span: SUBJECT_SPAN, cp: BODY_CP, center: true, header: true },
-        { text: '점검 결과', cp: BODY_CP, center: true, header: true },
+const columnHeaderRow = (profile: FitProfile): Block =>
+    makeBlock(profile, 'fixed', profile.infoRowHeight, [
+        { text: '구분', center: true, header: true },
+        { text: '검사 내용', span: SUBJECT_SPAN, center: true, header: true },
+        { text: '점검 결과', center: true, header: true },
     ])
 
 // 서명 이미지는 안내문구 셀 위에 겹치고 이름 셀은 가리지 않는다.
-function signatureRow(inspectorName: string): Block {
-    const block = makeBlock('fixed', SIGNATURE_ROW_HEIGHT, [
-        { text: '점검자', span: LABEL_SPAN, cp: BODY_CP, center: true, header: true },
-        { text: inspectorName, span: SUBJECT_SPAN, cp: BODY_CP },
-        { text: '(서명 또는 인)', cp: BODY_CP, center: true },
+function signatureRow(profile: FitProfile, inspectorName: string): Block {
+    const block = makeBlock(profile, 'fixed', profile.signatureRowHeight, [
+        { text: '점검자', span: LABEL_SPAN, center: true, header: true },
+        { text: inspectorName, span: SUBJECT_SPAN },
+        { text: '(서명 또는 인)', center: true },
     ])
     return { ...block, signature: true }
 }
@@ -597,52 +563,54 @@ interface GuidePlacement {
 
 /**
  * 안내 그림을 본문 폭 안에 나란히 눕힌다. 원본 픽셀 크기만으로 계산하므로 DOM 없이도 결과가 같다.
- * 두 장이면 폭을 반씩 나눠 가지며, 높이는 묶음 전체가 GUIDE_MAX_HEIGHT를 넘지 않는다.
+ * 두 장이면 폭을 반씩 나눠 가지며, 높이는 어느 장도 `maxHeight`를 넘지 않는다.
+ * `maxHeight`는 한 장에 남은 자리에서 나오므로 점검 항목이 많을수록 그림이 비율 그대로 작아진다.
  */
-function layoutGuideImages(images: GuideSource[]): { rowHeight: number; placed: GuidePlacement[] } {
-    const slot = Math.floor((CONTENT_WIDTH - CELL_PADDING - GUIDE_GAP * (images.length - 1)) / images.length)
+function layoutGuideImages(profile: FitProfile, images: GuideSource[], maxHeight: number): { rowHeight: number; placed: GuidePlacement[] } {
+    const padding = cellPadding(profile)
+    const slot = Math.floor((CONTENT_WIDTH - padding - GUIDE_GAP * (images.length - 1)) / images.length)
     const placed = images.map(image => {
-        const scale = Math.min(slot / image.width, GUIDE_MAX_HEIGHT / image.height)
+        const scale = Math.min(slot / image.width, maxHeight / image.height)
         return {
             imageId: image.imageId,
             width: Math.max(1, Math.round(image.width * scale)),
             height: Math.max(1, Math.round(image.height * scale)),
         }
     })
-    return { rowHeight: Math.max(...placed.map(item => item.height)) + CELL_PADDING, placed }
+    return { rowHeight: Math.max(...placed.map(item => item.height)) + padding, placed }
 }
 
 /** 안내 그림을 겹칠 빈 행. 글자를 넣지 않아 그림이 문구를 가리지 않는다. */
-function guideRow(height: number): Block {
-    const block = makeBlock('fixed', height, [{ text: '', span: GRID.length, cp: BODY_CP, center: true }])
+function guideRow(profile: FitProfile, height: number): Block {
+    const block = makeBlock(profile, 'fixed', height, [{ text: '', span: GRID.length, center: true }])
     return { ...block, guide: true }
 }
 
 /** 안내 그림들을 행 안에서 가로 가운데·세로 가운데로 늘어놓는다. */
-function buildGuideFloats(placed: GuidePlacement[], rowTop: number, rowHeight: number): string[] {
+function buildGuideFloats(ids: DocumentIds, placed: GuidePlacement[], rowTop: number, rowHeight: number): string[] {
     const total = placed.reduce((sum, item) => sum + item.width, 0) + GUIDE_GAP * (placed.length - 1)
     let x = MARGIN_LEFT + Math.round((CONTENT_WIDTH - total) / 2)
     return placed.map(item => {
-        const xml = buildFloatingPicXml(item.imageId, item.width, item.height, x,
+        const xml = buildFloatingPicXml(ids, item.imageId, item.width, item.height, x,
             rowTop + Math.round((rowHeight - item.height) / 2))
         x += item.width + GUIDE_GAP
         return xml
     })
 }
 
-const noteRow = (label: string, note: string, minHeight = 0): Block =>
-    makeBlock('note', minHeight, [
-        { text: label, span: LABEL_SPAN, cp: BODY_CP, center: true, header: true },
-        { text: note, span: GRID.length - LABEL_SPAN, cp: BODY_CP },
+const noteRow = (profile: FitProfile, label: string, note: string, minHeight = 0): Block =>
+    makeBlock(profile, 'note', minHeight, [
+        { text: label, span: LABEL_SPAN, center: true, header: true },
+        { text: note, span: GRID.length - LABEL_SPAN },
     ])
 
 const RESULT_LABELS: Record<string, string> = { pass: '적합', fail: '부적합', na: '해당없음' }
 
-const answerRow = (category: string, index: number, text: string, result: string): Block =>
-    makeBlock('item', 0, [
-        { text: category, cp: BODY_CP, center: true },
-        { text: `${index + 1}. ${flattenSourceBreaks(text)}`, span: SUBJECT_SPAN, cp: BODY_CP },
-        { text: RESULT_LABELS[result], cp: BODY_CP, center: true },
+const answerRow = (profile: FitProfile, category: string, index: number, text: string, result: string): Block =>
+    makeBlock(profile, 'item', 0, [
+        { text: category, center: true },
+        { text: `${index + 1}. ${flattenSourceBreaks(text)}`, span: SUBJECT_SPAN },
+        { text: RESULT_LABELS[result], center: true },
     ])
 
 // 서명된 원문을 임의 치환하지 않고 XML 1.0에서 표현할 수 없는 입력을 거부한다.
@@ -656,6 +624,73 @@ function validateExportText(text: string): void {
             (code >= 0x10000 && code <= 0x10FFFF)) continue
         throw new Error('출력할 수 없는 문자가 있습니다. 입력 내용을 확인해 주세요.')
     }
+}
+
+/** 한 장에 담은 결과. `placed`가 비어 있으면 안내 그림이 없는 장비다. */
+interface SinglePageLayout {
+    profile: FitProfile
+    rows: Row[]
+    placed: GuidePlacement[]
+}
+
+/** 표에 들어갈 내용을 조판 단계와 무관하게 서술한 값. 단계마다 이 서술로 블록을 다시 잰다. */
+interface PageContent {
+    projectName: string
+    record: EquipmentInspection
+}
+
+/** 점검 행·비고를 뺀 고정 골격(제목·기본정보·서명·표머리·종합 비고). 안내 그림 행은 뒤에 따로 끼운다. */
+function chromeBlocks({ projectName, record }: PageContent, profile: FitProfile): { head: Block[]; tail: Block[] } {
+    return {
+        head: [
+            titleBlock(profile),
+            infoPairRow(profile, '현장명', projectName, '협력업체명', record.company_name),
+            infoPairRow(profile, '장비종류', record.equipment_name, '점검일', record.inspection_date),
+            infoPairRow(profile, '차량번호', record.vehicle_number, '기계번호', record.machine_number),
+            signatureRow(profile, record.inspector_name),
+        ],
+        tail: [columnHeaderRow(profile)],
+    }
+}
+
+/**
+ * 한 조판 단계로 A4 한 장에 담아 본다. 담기면 행 목록을, 넘치면 null을 돌려준다.
+ *
+ * 점검 항목 행은 모두 같은 높이가 되므로 자리도 "가장 높은 점검 행 × 항목 수"로 잡는다. 자연 높이 합으로
+ * 재면 두 줄짜리 문장이 한 줄 높이로 눌려 한글이 스스로 행을 늘리고 쪽이 넘어간다.
+ * 그러고도 남는 높이는 먼저 안내 그림이 비율 그대로 받고(GUIDE_MAX_HEIGHT까지), 마지막에 점검 행이
+ * 고르게 나눠 가져 표가 쪽 아래까지 닿는다. 어떤 글자도 잘라 내지 않으므로 "담긴다"는 판단은 원문이 전부 실린다는 뜻이다.
+ *
+ * `lastResort`면 안내 그림을 GUIDE_MIN_HEIGHT 밑으로도 줄인다 — 더 내려갈 조판 단계가 없을 때,
+ * 그림을 조금 더 줄이면 담을 수 있는 기록까지 거부하지 않기 위해서다.
+ */
+function layoutSinglePage(content: PageContent, profile: FitProfile, guideSources: GuideSource[], lastResort: boolean): SinglePageLayout | null {
+    const { record } = content
+    const { head, tail } = chromeBlocks(content, profile)
+    const body: Block[] = []
+    record.answers.forEach((answer, index) => {
+        body.push(answerRow(profile, answer.category, index, answer.text, answer.result))
+        if (answer.note) body.push(noteRow(profile, `${index + 1}번 비고`, answer.note))
+    })
+    body.push(noteRow(profile, '종합 비고', record.remarks, SUMMARY_ROW_HEIGHT))
+
+    const headRows = head.map(block => blockToRow(profile, block))
+    const restRows = [...tail, ...body].map(block => blockToRow(profile, block))
+    const itemRows = restRows.filter(row => row.kind === 'item')
+    const used = [...headRows, ...restRows].reduce((sum, row) => sum + (row.kind === 'item' ? 0 : row.height), 0)
+        + itemRows.length * Math.max(0, ...itemRows.map(row => row.height))
+    const available = PAGE_CAPACITY - used
+    if (available < 0) return null
+
+    if (guideSources.length === 0) {
+        return { profile, rows: fillPage([...headRows, ...restRows]), placed: [] }
+    }
+    // 그림이 쓸 수 있는 높이는 "남은 자리에서 셀 여백을 뺀 만큼"이다. 하한을 밑돌면 이 단계로는 담지 않는다.
+    const imageBudget = Math.min(GUIDE_MAX_HEIGHT, available - cellPadding(profile))
+    if (imageBudget < (lastResort ? GUIDE_FLOOR_HEIGHT : GUIDE_MIN_HEIGHT)) return null
+    const guide = layoutGuideImages(profile, guideSources, imageBudget)
+    const rows = [...headRows, blockToRow(profile, guideRow(profile, guide.rowHeight)), ...restRows]
+    return { profile, rows: fillPage(rows), placed: guide.placed }
 }
 
 /** 저장된 항목 스냅샷을 그대로 출력한다. 카탈로그 변경은 과거 제출에 영향을 주지 않는다. */
@@ -682,70 +717,33 @@ export async function buildEquipmentInspectionHwpxBlob(record: EquipmentInspecti
         if (!imageId) throw new Error('장비 안내 그림을 불러오지 못했습니다.')
         guideSources.push({ imageId, width: asset.width, height: asset.height })
     }
-    // 비동기 이미지 수집 뒤부터 XML 조립까지는 동기 구간이므로 동시 다운로드 간 ID가 섞이지 않는다.
-    resetPicSeq()
-    _idSeq = 2147483648
-    const guideLayout = guideSources.length > 0 ? layoutGuideImages(guideSources) : null
+    const content: PageContent = { projectName, record }
 
-    const equipmentPair = (): Block => infoPairRow('장비종류', record.equipment_name, '점검일', record.inspection_date)
-    const firstPageBlocks = (): Block[] => [
-        titleBlock(false),
-        infoPairRow('현장명', projectName, '협력업체명', record.company_name),
-        equipmentPair(),
-        infoPairRow('차량번호', record.vehicle_number, '기계번호', record.machine_number),
-        signatureRow(record.inspector_name),
-        // 안내 그림은 첫 쪽 점검 항목 바로 위에 한 번만 넣는다. 계속 쪽에는 반복하지 않는다.
-        ...(guideLayout ? [guideRow(guideLayout.rowHeight)] : []),
-        columnHeaderRow(),
-    ]
-    const continuationBlocks = (): Block[] => [titleBlock(true), equipmentPair(), columnHeaderRow()]
-    const prefixRows = (first: boolean): Row[] =>
-        (first ? firstPageBlocks() : continuationBlocks()).map(block => sliceBlock(block, blockLines(block)).row)
-
-    // 제목·기본정보·서명·표머리는 쪽마다 통째로 들어가야 한다. 현장명 등이 지나치게 길어 점검 행 한 줄도
-    // 남지 않으면 조용히 넘치게 두지 않고 입력을 고치도록 알린다.
-    const minimumBodyRow = lineAdvance(CP_HEIGHT[BODY_CP]) + CELL_PADDING + ROW_SLACK
-    for (const first of [true, false]) {
-        const used = prefixRows(first).reduce((sum, row) => sum + row.height, 0)
-        if (used + minimumBodyRow > PAGE_CAPACITY) {
-            throw new Error('현장명·업체명 등 기본정보가 너무 길어 한 쪽에 들어가지 않습니다. 내용을 줄여 주세요.')
-        }
+    // 제목·기본정보·서명·표머리·종합 비고는 통째로 들어가야 한다. 현장명 등이 지나치게 길어 가장 촘촘한
+    // 단계에서도 점검 행 한 줄이 남지 않으면, 조용히 넘치게 두지 않고 어느 입력을 고쳐야 하는지 알린다.
+    const tightest = FIT_PROFILES[FIT_PROFILES.length - 1]
+    const { head, tail } = chromeBlocks(content, tightest)
+    const chromeHeight = [...head, ...tail, noteRow(tightest, '종합 비고', '', SUMMARY_ROW_HEIGHT)]
+        .reduce((sum, block) => sum + blockRowHeight(tightest, block), 0)
+    const minimumBodyRow = lineAdvance(tightest, tightest.bodyHeight) + cellPadding(tightest) + tightest.rowSlack
+    if (chromeHeight + minimumBodyRow > PAGE_CAPACITY) {
+        throw new Error('현장명·업체명 등 기본정보가 너무 길어 한 쪽에 들어가지 않습니다. 내용을 줄여 주세요.')
     }
 
-    const blocks: Block[] = []
-    record.answers.forEach((answer, index) => {
-        blocks.push(answerRow(answer.category, index, answer.text, answer.result))
-        if (answer.note) blocks.push(noteRow(`${index + 1}번 비고`, answer.note))
-    })
-    blocks.push(noteRow('종합 비고', record.remarks, SUMMARY_ROW_HEIGHT))
-
-    // 쪽 예산을 줄이면 앞 쪽이 덜 담고 뒤 쪽이 더 담는다. 쪽 수가 늘지 않는 배치들 가운데 가장 고르게
-    // 나뉜 것을 고른다 — 첫 쪽에만 있는 안내 그림 때문에 행 높이가 한쪽으로 쏠리지 않게 하려는 것이다.
-    // 비용은 "쪽을 채우려고 점검 행 하나가 늘어나야 하는 높이"의 최댓값이다. 한 쪽에 점검 행이 몰리면
-    // 나머지 쪽의 비고 한 칸이 남는 높이를 통째로 받으므로 그 쪽도 같은 잣대로 비싸게 매겨진다.
-    // 같은 배치를 내는 예산은 구간으로 뭉치므로, 배치마다 그 배치가 성립하는 가장 작은 예산 바로 아래로 건너뛴다.
-    const worstStretch = (pages: Row[][]): number => Math.max(...pages.map(rows => {
-        const free = Math.max(0, PAGE_CAPACITY - pageHeight(rows))
-        return free / Math.max(1, rows.filter(row => row.kind === 'item').length)
-    }))
-    let best = paginate(prefixRows, blocks, PAGE_CAPACITY)
-    const pageCount = best.length
-    let bestCost = worstStretch(best)
-    let pages = best
-    let budget = PAGE_CAPACITY
-    for (;;) {
-        const next = Math.min(budget, Math.max(...pages.map(pageHeight))) - 1
-        if (next <= 0) break
-        budget = next
-        pages = paginate(prefixRows, blocks, budget)
-        if (pages.length > pageCount) break
-        const cost = worstStretch(pages)
-        if (cost < bestCost) {
-            best = pages
-            bestCost = cost
-        }
+    // 읽기 좋은 단계부터 시도해 처음으로 한 장에 담기는 조판을 쓴다. 마지막 단계로도 담기지 않으면
+    // 글자를 잘라 내거나 조용히 두 쪽으로 늘리지 않고 내용을 줄이도록 알린다.
+    let layout: SinglePageLayout | null = null
+    for (const [index, profile] of FIT_PROFILES.entries()) {
+        layout = layoutSinglePage(content, profile, guideSources, index === FIT_PROFILES.length - 1)
+        if (layout) break
     }
-    const filledPages = best.map(fillPage)
+    if (!layout) {
+        throw new Error('점검 항목과 비고가 많아 A4 한 장에 담을 수 없습니다. 비고 등 입력 내용을 줄여 주세요.')
+    }
+    const { profile, rows, placed } = layout
+
+    // 출력 한 건에서만 쓰는 번호표라 동시에 여러 건을 내려받아도 서로의 개체 번호를 건드리지 않는다.
+    const ids = new DocumentIds()
 
     // 서명 좌표는 최종 그리드에서 도출한다 — 안내문구 열의 가로 중앙, 서명 행의 세로 중앙.
     const signatureImage = collector.find(signatureId)
@@ -753,34 +751,30 @@ export async function buildEquipmentInspectionHwpxBlob(record: EquipmentInspecti
     const noticeWidth = GRID[GUIDE_COLUMN]
     const signatureWidth = Math.round(Math.min(noticeWidth - 600, SIGNATURE_MAX_HEIGHT * ratio))
     const signatureHeight = Math.round(signatureWidth / ratio)
-    const signatureIndex = filledPages[0].findIndex(row => row.signature)
-    const heightAbove = filledPages[0].slice(0, signatureIndex).reduce((sum, row) => sum + row.height, 0)
-    const signatureRowHeight = filledPages[0][signatureIndex].height
-    const signature = signatureId ? buildFloatingPicXml(signatureId, signatureWidth, signatureHeight,
+    const signatureIndex = rows.findIndex(row => row.signature)
+    const heightAbove = rows.slice(0, signatureIndex).reduce((sum, row) => sum + row.height, 0)
+    const signatureRowHeight = rows[signatureIndex].height
+    const signature = signatureId ? buildFloatingPicXml(ids, signatureId, signatureWidth, signatureHeight,
         MARGIN_LEFT + sumRange(GRID, 0, GUIDE_COLUMN) + Math.round((noticeWidth - signatureWidth) / 2),
         BODY_TOP + heightAbove + Math.round((signatureRowHeight - signatureHeight) / 2)) : ''
 
-    // 안내 그림도 같은 방식으로 최종 그리드에서 좌표를 도출한다 — 첫 쪽의 안내 행 한가운데다.
-    const guideIndex = guideLayout ? filledPages[0].findIndex(row => row.guide) : -1
-    const guideFloats = guideLayout && guideIndex >= 0
-        ? buildGuideFloats(guideLayout.placed,
-            BODY_TOP + filledPages[0].slice(0, guideIndex).reduce((sum, row) => sum + row.height, 0),
-            filledPages[0][guideIndex].height)
+    // 안내 그림도 같은 방식으로 최종 그리드에서 좌표를 도출한다 — 안내 행 한가운데다.
+    const guideIndex = placed.length > 0 ? rows.findIndex(row => row.guide) : -1
+    const guideFloats = guideIndex >= 0
+        ? buildGuideFloats(ids, placed,
+            BODY_TOP + rows.slice(0, guideIndex).reduce((sum, row) => sum + row.height, 0),
+            rows[guideIndex].height)
         : []
-    const firstPageFloats = [...guideFloats, ...(signature ? [signature] : [])]
 
-    const parts = filledPages.map((rows, index) => {
-        const xml = buildTableParagraph(GRID, rows, 1000000000 + index, index, index === 0 ? firstPageFloats : [], index > 0)
-        if (index > 0) return xml
-        const section = `${SECPR}<hp:ctrl><hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/></hp:ctrl>`
-        return xml.replace('<hp:run charPrIDRef="0">', `<hp:run charPrIDRef="0">${section}`)
-    })
+    const section = `${SECPR}<hp:ctrl><hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/></hp:ctrl>`
+    const table = buildTableParagraph(ids, profile, GRID, rows, [...guideFloats, ...(signature ? [signature] : [])])
+    const body = table.replace(`<hp:run charPrIDRef="${CP_BODY}">`, `<hp:run charPrIDRef="${CP_BODY}">${section}`)
     const zip = new JSZip()
     zip.file('mimetype', MIMETYPE, { compression: 'STORE' })
     zip.file('version.xml', VERSION_XML)
     zip.file('settings.xml', SETTINGS_XML)
-    zip.file('Contents/header.xml', buildHeaderXml())
-    zip.file('Contents/section0.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hs:sec ${SEC_XMLNS}>${parts.join('')}</hs:sec>`)
+    zip.file('Contents/header.xml', buildHeaderXml(profile))
+    zip.file('Contents/section0.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes" ?><hs:sec ${SEC_XMLNS}>${body}</hs:sec>`)
     zip.file('Contents/content.hpf', buildContentHpf(collector.images.map(img =>
         `<opf:item id="${img.id}" href="BinData/${img.filename}" media-type="image/${img.ext === 'jpg' ? 'jpeg' : img.ext}" isEmbeded="1"/>`
     ).join('')))
