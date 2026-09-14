@@ -5,3 +5,5 @@
 - [x] 목록 카드 배지
 - [x] lint / tsc / node --test 통과
 - [x] 커밋
+- [x] 지적유형 입력을 세그먼트 버튼(작업중지·시정조치)으로 교체
+- [x] 조치사진 "해당 사항 없음" 처리·취소와 finding_type 연동 (resolveFindingTypeAfterAction + 테스트)

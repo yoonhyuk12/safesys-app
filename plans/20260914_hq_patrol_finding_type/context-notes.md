@@ -1,3 +1,6 @@
 - 지적유형은 한글 라벨이 아닌 코드(work_stop/corrective_action/not_applicable)로 저장한다. 기존 `issue1_status: 'pending'`, `finding_category_code` 패턴과 일관되고 라벨 변경에 안전하다.
 - 기존 행은 DEFAULT로 `patrol_car_used=false`, `finding_type='corrective_action'`이 채워지므로 백필 불필요.
 - 페이지 조회는 `select('*')`라 새 컬럼이 자동으로 로드된다.
+- 지적유형은 셀렉트 대신 세그먼트 버튼으로 선택한다. 색은 상태를 따라 작업중지=red, 시정조치=amber다.
+- 폼에서는 작업중지·시정조치만 선택하고 해당없음은 조치사진 해당 사항 없음 처리로만 자동 설정된다.
+- 조치사진을 "해당 사항 없음"으로 처리했을 때 존재하는 모든 지적의 조치가 해당 사항 없음이면 `finding_type`을 `not_applicable`로 함께 저장하고, 취소하면 `not_applicable`인 경우만 기본값 `corrective_action`으로 되돌린다.

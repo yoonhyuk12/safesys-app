@@ -1,6 +1,15 @@
 # 작업 로그
 
 <!-- worklog -->
+260914_112455 : plans/20260914_hq_patrol_finding_type/checklist.md 수정, plans/20260914_hq_patrol_finding_type/context-notes.md 수정
+260914_112446 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정
+260914_112442 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "const handleCancelNoActionRequired = async (inspection: any,…"
+260914_112435 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "const handleNoActionRequired = async (inspection: any, issue…"
+260914_112424 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "import { DEFAULT_HEADQUARTERS_FINDING_TYPE, HEADQUARTERS_FIN…"
+260914_112413 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "<div className="grid grid-cols-2 gap-2"> {HEADQUARTERS_FINDI…"
+260914_112402 : safesys-app/src/lib/inspection/headquarters-finding-type.ts 수정
+260914_112350 : safesys-app/tests/headquarters-finding-type.test.mjs 수정
+260914_112343 : safesys-app/tests/headquarters-finding-type.test.mjs 수정
 260914_112026 : plans/20260914_hq_patrol_finding_type/checklist.md 수정
 260914_111915 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "<div className="text-gray-600"> ({inspection.inspector_name}…"
 260914_111910 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "<Trash2 className="h-4 w-4" /> </button> </div> </div> </div…"

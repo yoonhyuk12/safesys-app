@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Plus, Minus, Calendar, FileText, ChevronLeft, ChevronRight, X, Upload, Camera, ChevronDown, ChevronUp, CheckCircle, Clock, AlertCircle, Edit, Trash2, Download, Printer, Phone, Save, Copy, Check, User, HardHat, PenTool } from 'lucide-react'
 import { generateHeadquartersInspectionReport } from '@/lib/reports/headquarters-inspection'
 import { downloadHeadquartersInspectionHwpx } from '@/lib/hwpx/headquarters-inspection-hwpx-export'
-import { DEFAULT_HEADQUARTERS_FINDING_TYPE, HEADQUARTERS_FINDING_TYPE_OPTIONS, headquartersFindingTypeLabel, normalizeHeadquartersFindingType, type HeadquartersFindingType } from '@/lib/inspection/headquarters-finding-type'
+import { DEFAULT_HEADQUARTERS_FINDING_TYPE, HEADQUARTERS_FINDING_TYPE_SELECTABLE_OPTIONS, NO_ACTION_REQUIRED_TEXT, headquartersFindingTypeLabel, normalizeHeadquartersFindingType, resolveFindingTypeAfterAction, type HeadquartersFindingType } from '@/lib/inspection/headquarters-finding-type'
 import { Project } from '@/lib/projects'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -657,17 +657,25 @@ export default function HeadquartersInspectionPage() {
   }
 
   // 해당 사항 없음 처리 핸들러
-  const handleNoActionRequired = async (inspectionId: string, issueNumber: 1 | 2) => {
+  const handleNoActionRequired = async (inspection: any, issueNumber: 1 | 2) => {
     try {
       // 데이터베이스 업데이트 - "해당 사항 없음" 텍스트를 저장
       const updateData = issueNumber === 1
-        ? { action_photo_issue1: '해당 사항 없음', issue1_status: 'completed' }
-        : { action_photo_issue2: '해당 사항 없음', issue2_status: 'completed' }
+        ? { action_photo_issue1: NO_ACTION_REQUIRED_TEXT, issue1_status: 'completed' }
+        : { action_photo_issue2: NO_ACTION_REQUIRED_TEXT, issue2_status: 'completed' }
+
+      // 이번 처리를 반영한 상태로 지적유형을 다시 계산한다
+      const findingType = resolveFindingTypeAfterAction({
+        currentFindingType: inspection.finding_type,
+        issue1Action: issueNumber === 1 ? NO_ACTION_REQUIRED_TEXT : inspection.action_photo_issue1,
+        issue2Action: issueNumber === 2 ? NO_ACTION_REQUIRED_TEXT : inspection.action_photo_issue2,
+        hasIssue2: Boolean((inspection.issue_content2 && inspection.issue_content2.trim()) || inspection.site_photo_issue2),
+      })
 
       const { error } = await supabase
         .from('headquarters_inspections')
-        .update(updateData)
-        .eq('id', inspectionId)
+        .update({ ...updateData, finding_type: findingType })
+        .eq('id', inspection.id)
 
       if (error) {
         throw new Error(error.message)
@@ -684,17 +692,25 @@ export default function HeadquartersInspectionPage() {
   }
 
   // 해당 사항 없음 취소 핸들러
-  const handleCancelNoActionRequired = async (inspectionId: string, issueNumber: 1 | 2) => {
+  const handleCancelNoActionRequired = async (inspection: any, issueNumber: 1 | 2) => {
     try {
       // 데이터베이스 업데이트 - null로 초기화
       const updateData = issueNumber === 1
         ? { action_photo_issue1: null, issue1_status: 'pending' }
         : { action_photo_issue2: null, issue2_status: 'pending' }
 
+      // 취소를 반영한 상태로 지적유형을 다시 계산한다
+      const findingType = resolveFindingTypeAfterAction({
+        currentFindingType: inspection.finding_type,
+        issue1Action: issueNumber === 1 ? null : inspection.action_photo_issue1,
+        issue2Action: issueNumber === 2 ? null : inspection.action_photo_issue2,
+        hasIssue2: Boolean((inspection.issue_content2 && inspection.issue_content2.trim()) || inspection.site_photo_issue2),
+      })
+
       const { error } = await supabase
         .from('headquarters_inspections')
-        .update(updateData)
-        .eq('id', inspectionId)
+        .update({ ...updateData, finding_type: findingType })
+        .eq('id', inspection.id)
 
       if (error) {
         throw new Error(error.message)
@@ -1734,7 +1750,7 @@ export default function HeadquartersInspectionPage() {
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation()
-                                            handleCancelNoActionRequired(inspection.id, 1)
+                                            handleCancelNoActionRequired(inspection, 1)
                                           }}
                                           className="mt-2 px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
                                           title="해당 사항 없음 취소"
@@ -1821,7 +1837,7 @@ export default function HeadquartersInspectionPage() {
                                               <button
                                                 onClick={(e) => {
                                                   e.stopPropagation()
-                                                  handleNoActionRequired(inspection.id, 1)
+                                                  handleNoActionRequired(inspection, 1)
                                                 }}
                                                 className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-medium transition-colors"
                                                 title="해당 사항 없음으로 처리"
@@ -1924,7 +1940,7 @@ export default function HeadquartersInspectionPage() {
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation()
-                                              handleCancelNoActionRequired(inspection.id, 2)
+                                              handleCancelNoActionRequired(inspection, 2)
                                             }}
                                             className="mt-2 px-3 py-1 text-xs bg-red-500 hover:bg-red-600 text-white rounded"
                                             title="해당 사항 없음 취소"
@@ -2011,7 +2027,7 @@ export default function HeadquartersInspectionPage() {
                                                 <button
                                                   onClick={(e) => {
                                                     e.stopPropagation()
-                                                    handleNoActionRequired(inspection.id, 2)
+                                                    handleNoActionRequired(inspection, 2)
                                                   }}
                                                   className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-medium transition-colors"
                                                   title="해당 사항 없음으로 처리"
@@ -2233,15 +2249,28 @@ export default function HeadquartersInspectionPage() {
                                     </div>
                                     <div>
                                       <label className="block text-sm font-medium text-gray-700 mb-2">지적유형</label>
-                                      <select
-                                        value={newRecord.finding_type}
-                                        onChange={(e) => setNewRecord({ ...newRecord, finding_type: normalizeHeadquartersFindingType(e.target.value) })}
-                                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                                      >
-                                        {HEADQUARTERS_FINDING_TYPE_OPTIONS.map((opt) => (
-                                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                                        ))}
-                                      </select>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        {HEADQUARTERS_FINDING_TYPE_SELECTABLE_OPTIONS.map((opt) => {
+                                          const selected = newRecord.finding_type === opt.value
+                                          const selectedClass = opt.value === 'work_stop'
+                                            ? 'bg-red-600 border-red-600 text-white'
+                                            : 'bg-amber-500 border-amber-500 text-white'
+                                          return (
+                                            <button
+                                              key={opt.value}
+                                              type="button"
+                                              onClick={() => setNewRecord({ ...newRecord, finding_type: opt.value })}
+                                              className={`min-h-[44px] px-3 py-2 text-sm font-medium rounded-lg border transition-colors ${selected ? selectedClass : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'}`}
+                                              aria-pressed={selected}
+                                            >
+                                              {opt.label}
+                                            </button>
+                                          )
+                                        })}
+                                      </div>
+                                      {newRecord.finding_type === 'not_applicable' && (
+                                        <p className="mt-1 text-xs text-gray-500">조치사항 &quot;해당 사항 없음&quot; 처리로 해당없음이 자동 설정된 기록입니다. 버튼을 누르면 변경됩니다.</p>
+                                      )}
                                     </div>
                                   </div>
                                 </div>
