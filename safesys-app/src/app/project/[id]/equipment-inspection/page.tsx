@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, ClipboardCheck, FileText, Plus, X } from 'lucide-react'
+import { ArrowLeft, Plus, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -247,13 +247,16 @@ export default function EquipmentInspectionPage() {
           <div className="w-full lg:flex-1 lg:min-w-0 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between gap-2">
               <h2 className="font-semibold text-sm sm:text-base truncate">제출 목록</h2>
-              <button
-                onClick={startInspection}
-                className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-blue-700 rounded-lg hover:bg-blue-50 text-xs sm:text-sm font-medium shrink-0"
-              >
-                <Plus className="h-4 w-4" />
-                점검하기
-              </button>
+              {/* 기록이 있을 때만 헤더에 둔다. 빈 목록의 진입점은 표 가운데 버튼 하나뿐이다. */}
+              {records.length > 0 && (
+                <button
+                  onClick={startInspection}
+                  className="flex items-center gap-1 px-2.5 py-1.5 bg-white text-blue-700 rounded-lg hover:bg-blue-50 text-xs sm:text-sm font-medium shrink-0"
+                >
+                  <Plus className="h-4 w-4" />
+                  점검하기
+                </button>
+              )}
             </div>
             {loading ? (
               <div className="flex justify-center py-12">
@@ -276,6 +279,7 @@ export default function EquipmentInspectionPage() {
                 currentUserId={sessionUserId}
                 downloadingId={downloadingId}
                 downloadDisabled={!projectName}
+                onStartInspection={startInspection}
                 onSelect={(record) => {
                   if (saving) return
                   closeForm()
@@ -287,86 +291,70 @@ export default function EquipmentInspectionPage() {
             )}
           </div>
 
-          {/* 작성 또는 상세 */}
-          <div className="w-full lg:flex-1 lg:min-w-0">
-            {draft ? (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between">
-                  <h2 className="font-semibold text-sm sm:text-base truncate">
-                    장비 일일점검{checklist ? ` — ${checklist.name}` : ''}
-                  </h2>
-                  <button
-                    onClick={closeFormByUser}
-                    disabled={saving}
-                    aria-label="작성 닫기"
-                    className="text-white hover:text-blue-200 shrink-0 disabled:opacity-50"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
+          {/* 작성 또는 상세 — 초안이나 선택한 기록이 있을 때만 연다. 첫 진입은 목록이 전체 너비를 쓴다. */}
+          {(draft || selectedRecord) && (
+            <div className="w-full lg:flex-1 lg:min-w-0">
+              {draft ? (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between">
+                    <h2 className="font-semibold text-sm sm:text-base truncate">
+                      장비 일일점검{checklist ? ` — ${checklist.name}` : ''}
+                    </h2>
+                    <button
+                      onClick={closeFormByUser}
+                      disabled={saving}
+                      aria-label="작성 닫기"
+                      className="text-white hover:text-blue-200 shrink-0 disabled:opacity-50"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="p-3 sm:p-4 space-y-4">
+                    {/* 장비를 고르면 선택 그리드를 감추고 그 점검표만 남긴다. 닫았다가 다시 시작하면 장비 선택부터다. */}
+                    {checklist ? (
+                      <EquipmentInspectionForm
+                        draft={draft}
+                        checklist={checklist}
+                        saving={saving}
+                        onChange={setDraft}
+                        onSubmit={handleSubmit}
+                        onCancel={closeFormByUser}
+                      />
+                    ) : (
+                      <EquipmentPicker
+                        checklists={EQUIPMENT_CHECKLISTS}
+                        selectedId={draft.checklistId}
+                        onSelect={handleSelectEquipment}
+                      />
+                    )}
+                  </div>
                 </div>
-                <div className="p-3 sm:p-4 space-y-4">
-                  <EquipmentPicker
-                    checklists={EQUIPMENT_CHECKLISTS}
-                    selectedId={draft.checklistId}
-                    onSelect={handleSelectEquipment}
-                  />
-                  {checklist && (
-                    <EquipmentInspectionForm
-                      draft={draft}
-                      checklist={checklist}
-                      saving={saving}
-                      onChange={setDraft}
-                      onSubmit={handleSubmit}
-                      onCancel={closeFormByUser}
+              ) : selectedRecord ? (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between">
+                    <h2 className="font-semibold text-sm sm:text-base truncate">
+                      {selectedRecord.inspection_date} {selectedRecord.equipment_name}
+                    </h2>
+                    <button
+                      onClick={() => setSelectedRecord(null)}
+                      aria-label="상세 닫기"
+                      className="text-white hover:text-blue-200 shrink-0"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+                  <div className="p-3 sm:p-4">
+                    <EquipmentInspectionDetail
+                      record={selectedRecord}
+                      downloading={downloadingId === selectedRecord.id}
+                      downloadDisabled={!projectName}
+                      onDownload={() => handleDownload(selectedRecord)}
                     />
-                  )}
+                  </div>
                 </div>
-              </div>
-            ) : selectedRecord ? (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between">
-                  <h2 className="font-semibold text-sm sm:text-base truncate">
-                    {selectedRecord.inspection_date} {selectedRecord.equipment_name}
-                  </h2>
-                  <button
-                    onClick={() => setSelectedRecord(null)}
-                    aria-label="상세 닫기"
-                    className="text-white hover:text-blue-200 shrink-0"
-                  >
-                    <X className="h-5 w-5" />
-                  </button>
-                </div>
-                <div className="p-3 sm:p-4">
-                  <EquipmentInspectionDetail
-                    record={selectedRecord}
-                    downloading={downloadingId === selectedRecord.id}
-                    downloadDisabled={!projectName}
-                    onDownload={() => handleDownload(selectedRecord)}
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-                {records.length > 0 ? (
-                  <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                ) : (
-                  <ClipboardCheck className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                )}
-                <p className="text-gray-500 mb-4">
-                  목록에서 점검을 선택하면 내용을 볼 수 있고,
-                  <br />
-                  점검하기로 새 장비 일일점검을 제출합니다.
-                </p>
-                <button
-                  onClick={startInspection}
-                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center gap-1 mx-auto"
-                >
-                  <Plus className="h-4 w-4" />
-                  점검하기
-                </button>
-              </div>
-            )}
-          </div>
+              ) : null}
+            </div>
+          )}
         </div>
       </main>
     </div>

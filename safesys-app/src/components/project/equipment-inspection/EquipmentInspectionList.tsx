@@ -2,7 +2,7 @@
 
 // 제출된 장비 일일점검 목록 표 — 선택·삭제·HWPX 다운로드 진입점이다.
 
-import { Download, Loader2, Trash2 } from 'lucide-react'
+import { Download, Loader2, Plus, Trash2 } from 'lucide-react'
 import type { EquipmentInspection } from '@/lib/equipment-inspection-types'
 
 interface EquipmentInspectionListProps {
@@ -12,6 +12,8 @@ interface EquipmentInspectionListProps {
   downloadingId: string | null
   /** 현장 정보를 아직 못 읽었으면 이름 없는 문서가 나가므로 내려받기를 잠근다. */
   downloadDisabled: boolean
+  /** 빈 목록일 때만 목록 가운데에 놓이는 점검 시작 진입점이다. 조회 중이거나 실패했을 땐 이 표 자체를 그리지 않는다. */
+  onStartInspection: () => void
   onSelect: (record: EquipmentInspection) => void
   onDownload: (record: EquipmentInspection) => void
   onDelete: (record: EquipmentInspection) => void
@@ -28,6 +30,7 @@ export default function EquipmentInspectionList({
   currentUserId,
   downloadingId,
   downloadDisabled,
+  onStartInspection,
   onSelect,
   onDownload,
   onDelete,
@@ -47,8 +50,16 @@ export default function EquipmentInspectionList({
         <tbody className="bg-white divide-y divide-gray-200">
           {records.length === 0 ? (
             <tr>
-              <td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500">
-                제출된 장비 일일점검이 없습니다.
+              <td colSpan={5} className="px-4 py-12 text-center">
+                <p className="text-sm text-gray-500 mb-4">제출된 장비 일일점검이 없습니다.</p>
+                <button
+                  type="button"
+                  onClick={onStartInspection}
+                  className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center gap-1 mx-auto"
+                >
+                  <Plus className="h-4 w-4" />
+                  점검하기
+                </button>
               </td>
             </tr>
           ) : (
