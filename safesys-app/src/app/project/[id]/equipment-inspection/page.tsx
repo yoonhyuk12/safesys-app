@@ -90,8 +90,13 @@ export default function EquipmentInspectionPage() {
 
   const projectName = project?.project_name?.trim() ?? ''
 
-  // 복귀 경로는 이 리포 안에서 알고 있는 프로젝트 상세뿐이다. 외부 URL을 쿼리로 받지 않는다.
+  // 점검 상세에서는 제출 목록으로, 목록에서는 프로젝트로 돌아간다.
   const handleBack = () => {
+    if (selectedRecord) {
+      setSelectedRecord(null)
+      window.scrollTo({ top: 0 })
+      return
+    }
     router.push(`/project/${projectId}`)
   }
 
@@ -221,9 +226,10 @@ export default function EquipmentInspectionPage() {
             <button
               onClick={handleBack}
               aria-label="뒤로 가기"
-              className="mr-3 p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100"
+              className="mr-3 p-2 min-h-[44px] inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100 shrink-0"
             >
               <ArrowLeft className="h-5 w-5" />
+              {selectedRecord && <span>뒤로 가기</span>}
             </button>
             <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate flex-1">(AI) 장비 일일점검 대장</h1>
           </div>
@@ -243,8 +249,8 @@ export default function EquipmentInspectionPage() {
           </div>
         )}
         <div className="flex flex-col lg:flex-row gap-4 lg:items-start">
-          {/* 점검 작성 중에는 목록을 숨겨 장비 선택과 점검표가 전체 너비를 쓴다. */}
-          {!draft && (
+          {/* 작성 또는 상세 확인 중에는 제출 목록을 숨긴다. */}
+          {!draft && !selectedRecord && (
           <div className="w-full lg:flex-1 lg:min-w-0 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between gap-2">
               <h2 className="font-semibold text-sm sm:text-base truncate">제출 목록</h2>
@@ -276,7 +282,7 @@ export default function EquipmentInspectionPage() {
             ) : (
               <EquipmentInspectionList
                 records={records}
-                selectedId={selectedRecord?.id ?? null}
+                selectedId={null}
                 currentUserId={sessionUserId}
                 downloadingId={downloadingId}
                 downloadDisabled={!projectName}
@@ -285,6 +291,7 @@ export default function EquipmentInspectionPage() {
                   if (saving) return
                   closeForm()
                   setSelectedRecord(record)
+                  window.scrollTo({ top: 0 })
                 }}
                 onDownload={handleDownload}
                 onDelete={handleDelete}
@@ -294,9 +301,9 @@ export default function EquipmentInspectionPage() {
 
           )}
 
-          {/* 작성 중에는 점검 화면만, 기록 선택 시에는 목록과 상세를 표시한다. */}
+          {/* 기록 선택 시 점검표 하나만 화면 가운데에 표시한다. */}
           {(draft || selectedRecord) && (
-            <div className="w-full lg:flex-1 lg:min-w-0">
+            <div className={draft ? 'w-full lg:flex-1 lg:min-w-0' : 'w-full max-w-4xl mx-auto min-w-0'}>
               {draft ? (
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                   {/* 스크롤 중에도 저장할 수 있도록 제목 바를 고정한다. 상위 카드에는 overflow를 두지 않는다. */}
@@ -348,13 +355,6 @@ export default function EquipmentInspectionPage() {
                     <h2 className="font-semibold text-sm sm:text-base truncate">
                       {selectedRecord.inspection_date} {selectedRecord.equipment_name}
                     </h2>
-                    <button
-                      onClick={() => setSelectedRecord(null)}
-                      aria-label="상세 닫기"
-                      className="text-white hover:text-blue-200 shrink-0"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
                   </div>
                   <div className="p-3 sm:p-4">
                     <EquipmentInspectionDetail
