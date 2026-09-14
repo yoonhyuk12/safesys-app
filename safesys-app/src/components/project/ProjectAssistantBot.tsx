@@ -35,6 +35,7 @@ export default function ProjectAssistantBot({ projectId, projectName }: ProjectA
   // 안전서류 점검 화면은 우하단에 "진행상황" 플로팅 버튼이 있어 겹친다 — 그 위로 올려 띄운다
   const pathname = usePathname()
   const isSafeDocuments = (pathname || '').endsWith('/safe-documents')
+  const isQualityTestLedger = (pathname || '').endsWith('/quality-test-ledger')
 
   // 메시지 스크롤
   useEffect(() => {
@@ -223,7 +224,7 @@ export default function ProjectAssistantBot({ projectId, projectName }: ProjectA
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className={`fixed ${isSafeDocuments ? 'bottom-20 sm:bottom-24' : 'bottom-4 sm:bottom-6'} right-4 sm:right-6 z-50 w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-full shadow-lg hover:from-emerald-700 hover:to-emerald-800 transition-all duration-300 flex items-center justify-center group hover:scale-110`}
+          className={`fixed ${isSafeDocuments ? 'bottom-20 sm:bottom-24' : 'bottom-4 sm:bottom-6'} ${isQualityTestLedger ? 'left-4 sm:left-6' : 'right-4 sm:right-6'} z-50 w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-full shadow-lg hover:from-emerald-700 hover:to-emerald-800 transition-all duration-300 flex items-center justify-center group hover:scale-110`}
           title="현장 AI 비서"
         >
           <MessageCircle className="h-6 w-6 sm:h-7 sm:w-7 group-hover:scale-110 transition-transform" />
@@ -236,8 +237,8 @@ export default function ProjectAssistantBot({ projectId, projectName }: ProjectA
         <div
           className={`fixed z-50 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col transition-all duration-300 ${
             isMinimized
-              ? 'bottom-4 right-4 w-64 sm:w-72 h-14'
-              : 'bottom-4 right-4 left-4 sm:left-auto sm:w-96 h-[500px] sm:h-[600px] max-h-[85vh]'
+              ? `bottom-4 ${isQualityTestLedger ? 'left-4' : 'right-4'} w-64 sm:w-72 h-14`
+              : `bottom-4 right-4 left-4 ${isQualityTestLedger ? 'sm:right-auto' : 'sm:left-auto'} sm:w-96 h-[500px] sm:h-[600px] max-h-[85vh]`
           }`}
         >
           {/* 헤더 */}
