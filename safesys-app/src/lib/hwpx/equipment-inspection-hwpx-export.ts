@@ -1,6 +1,7 @@
 // 장비 일일점검 기록을 서명과 명시적 페이지 분할을 포함한 HWPX로 조립한다.
 import JSZip from 'jszip'
 import type { EquipmentInspection } from '../equipment-inspection-types'
+import { equipmentGuideImages } from '../equipment-inspection-guides'
 
 // TBM 정본의 패키지·표·완전한 그림 XML 헬퍼를 재사용한다.
 
@@ -280,6 +281,9 @@ const SUMMARY_ROW_HEIGHT = 3000 // 종합 의견이 비어 있어도 약 11mm의
 const SIGNATURE_ROW_HEIGHT = 3400
 const SIGNATURE_MAX_HEIGHT = 2400
 const MIN_SPLIT_LINES = 3                      // 이보다 적게 남은 쪽엔 비고를 쪼개 넣지 않는다
+// 안내 그림 묶음의 최대 높이(약 67mm). 이보다 커지면 첫 쪽 점검 행이 지나치게 밀린다.
+const GUIDE_MAX_HEIGHT = 19000
+const GUIDE_GAP = 600                          // 그림을 나란히 둘 때의 간격
 
 const lineAdvance = (charHeight: number): number => Math.round(charHeight * 1.3)
 
@@ -371,6 +375,7 @@ interface Row {
     /** item = 같은 쪽에서 높이를 균등하게 나눠 받는 점검 항목 행, note = 남는 높이를 받는 비고 행. */
     kind: RowKind
     signature?: boolean    // 서명 이미지를 겹칠 행
+    guide?: boolean        // 장비 안내 그림을 겹칠 행
 }
 
 /** 아직 쪽에 배치하지 않은 표 행. 셀마다 표시 줄을 들고 있어 남은 공간만큼 잘라 넣을 수 있다. */
@@ -378,6 +383,7 @@ interface Block {
     kind: RowKind
     minHeight: number
     signature?: boolean
+    guide?: boolean
     cells: { spec: Cell; segments: TextSegment[] }[]
 }
 
@@ -408,6 +414,7 @@ function sliceBlock(block: Block, lines: number): { row: Row; rest: Block | null
     const row: Row = {
         kind: block.kind,
         signature: block.signature,
+        guide: block.guide,
         height: blockRowHeight(block, Math.max(1, ...taken.map(segments => segments.length))),
         cells: block.cells.map((cell, index) => ({ ...cell.spec, text: joinSegments(taken[index]) })),
     }
@@ -574,6 +581,55 @@ function signatureRow(inspectorName: string): Block {
     return { ...block, signature: true }
 }
 
+/** 묶음에 넣을 안내 그림 한 장 — 수집한 이미지 id와 알려진 원본 픽셀 크기. */
+interface GuideSource {
+    imageId: string
+    width: number
+    height: number
+}
+
+/** 안내 그림 한 장을 실제로 놓을 크기(HWPUNIT). 원본 픽셀 비율을 그대로 유지한다. */
+interface GuidePlacement {
+    imageId: string
+    width: number
+    height: number
+}
+
+/**
+ * 안내 그림을 본문 폭 안에 나란히 눕힌다. 원본 픽셀 크기만으로 계산하므로 DOM 없이도 결과가 같다.
+ * 두 장이면 폭을 반씩 나눠 가지며, 높이는 묶음 전체가 GUIDE_MAX_HEIGHT를 넘지 않는다.
+ */
+function layoutGuideImages(images: GuideSource[]): { rowHeight: number; placed: GuidePlacement[] } {
+    const slot = Math.floor((CONTENT_WIDTH - CELL_PADDING - GUIDE_GAP * (images.length - 1)) / images.length)
+    const placed = images.map(image => {
+        const scale = Math.min(slot / image.width, GUIDE_MAX_HEIGHT / image.height)
+        return {
+            imageId: image.imageId,
+            width: Math.max(1, Math.round(image.width * scale)),
+            height: Math.max(1, Math.round(image.height * scale)),
+        }
+    })
+    return { rowHeight: Math.max(...placed.map(item => item.height)) + CELL_PADDING, placed }
+}
+
+/** 안내 그림을 겹칠 빈 행. 글자를 넣지 않아 그림이 문구를 가리지 않는다. */
+function guideRow(height: number): Block {
+    const block = makeBlock('fixed', height, [{ text: '', span: GRID.length, cp: BODY_CP, center: true }])
+    return { ...block, guide: true }
+}
+
+/** 안내 그림들을 행 안에서 가로 가운데·세로 가운데로 늘어놓는다. */
+function buildGuideFloats(placed: GuidePlacement[], rowTop: number, rowHeight: number): string[] {
+    const total = placed.reduce((sum, item) => sum + item.width, 0) + GUIDE_GAP * (placed.length - 1)
+    let x = MARGIN_LEFT + Math.round((CONTENT_WIDTH - total) / 2)
+    return placed.map(item => {
+        const xml = buildFloatingPicXml(item.imageId, item.width, item.height, x,
+            rowTop + Math.round((rowHeight - item.height) / 2))
+        x += item.width + GUIDE_GAP
+        return xml
+    })
+}
+
 const noteRow = (label: string, note: string, minHeight = 0): Block =>
     makeBlock('note', minHeight, [
         { text: label, span: LABEL_SPAN, cp: BODY_CP, center: true, header: true },
@@ -619,9 +675,17 @@ export async function buildEquipmentInspectionHwpxBlob(record: EquipmentInspecti
     const collector = new ImageCollector()
     const signatureId = await collector.collect(record.signature, true)
     if (record.signature && !signatureId) throw new Error('점검자 서명 이미지를 불러오지 못했습니다.')
+    // 안내 그림은 원본 바이트 그대로 싣고(raw) 비율은 알려진 픽셀 크기로 계산한다 — 브라우저 밖에서도 결과가 같다.
+    const guideSources: GuideSource[] = []
+    for (const asset of equipmentGuideImages(record.equipment_type)) {
+        const imageId = await collector.collect(asset.src, true)
+        if (!imageId) throw new Error('장비 안내 그림을 불러오지 못했습니다.')
+        guideSources.push({ imageId, width: asset.width, height: asset.height })
+    }
     // 비동기 이미지 수집 뒤부터 XML 조립까지는 동기 구간이므로 동시 다운로드 간 ID가 섞이지 않는다.
     resetPicSeq()
     _idSeq = 2147483648
+    const guideLayout = guideSources.length > 0 ? layoutGuideImages(guideSources) : null
 
     const equipmentPair = (): Block => infoPairRow('장비종류', record.equipment_name, '점검일', record.inspection_date)
     const firstPageBlocks = (): Block[] => [
@@ -630,6 +694,8 @@ export async function buildEquipmentInspectionHwpxBlob(record: EquipmentInspecti
         equipmentPair(),
         infoPairRow('차량번호', record.vehicle_number, '기계번호', record.machine_number),
         signatureRow(record.inspector_name),
+        // 안내 그림은 첫 쪽 점검 항목 바로 위에 한 번만 넣는다. 계속 쪽에는 반복하지 않는다.
+        ...(guideLayout ? [guideRow(guideLayout.rowHeight)] : []),
         columnHeaderRow(),
     ]
     const continuationBlocks = (): Block[] => [titleBlock(true), equipmentPair(), columnHeaderRow()]
@@ -653,32 +719,58 @@ export async function buildEquipmentInspectionHwpxBlob(record: EquipmentInspecti
     })
     blocks.push(noteRow('종합 비고', record.remarks, SUMMARY_ROW_HEIGHT))
 
-    // 쪽 분할 뒤 마지막 쪽만 헐거워지면 늘어난 행이 과하게 커지므로, 쪽 수가 늘지 않는 가장 작은 예산으로 고르게 나눈다.
-    const pageCount = paginate(prefixRows, blocks, PAGE_CAPACITY).length
-    let low = 1
-    let high = PAGE_CAPACITY
-    while (low < high) {
-        const mid = Math.floor((low + high) / 2)
-        if (paginate(prefixRows, blocks, mid).length <= pageCount) high = mid
-        else low = mid + 1
+    // 쪽 예산을 줄이면 앞 쪽이 덜 담고 뒤 쪽이 더 담는다. 쪽 수가 늘지 않는 배치들 가운데 가장 고르게
+    // 나뉜 것을 고른다 — 첫 쪽에만 있는 안내 그림 때문에 행 높이가 한쪽으로 쏠리지 않게 하려는 것이다.
+    // 비용은 "쪽을 채우려고 점검 행 하나가 늘어나야 하는 높이"의 최댓값이다. 한 쪽에 점검 행이 몰리면
+    // 나머지 쪽의 비고 한 칸이 남는 높이를 통째로 받으므로 그 쪽도 같은 잣대로 비싸게 매겨진다.
+    // 같은 배치를 내는 예산은 구간으로 뭉치므로, 배치마다 그 배치가 성립하는 가장 작은 예산 바로 아래로 건너뛴다.
+    const worstStretch = (pages: Row[][]): number => Math.max(...pages.map(rows => {
+        const free = Math.max(0, PAGE_CAPACITY - pageHeight(rows))
+        return free / Math.max(1, rows.filter(row => row.kind === 'item').length)
+    }))
+    let best = paginate(prefixRows, blocks, PAGE_CAPACITY)
+    const pageCount = best.length
+    let bestCost = worstStretch(best)
+    let pages = best
+    let budget = PAGE_CAPACITY
+    for (;;) {
+        const next = Math.min(budget, Math.max(...pages.map(pageHeight))) - 1
+        if (next <= 0) break
+        budget = next
+        pages = paginate(prefixRows, blocks, budget)
+        if (pages.length > pageCount) break
+        const cost = worstStretch(pages)
+        if (cost < bestCost) {
+            best = pages
+            bestCost = cost
+        }
     }
-    const filledPages = paginate(prefixRows, blocks, low).map(fillPage)
+    const filledPages = best.map(fillPage)
 
     // 서명 좌표는 최종 그리드에서 도출한다 — 안내문구 열의 가로 중앙, 서명 행의 세로 중앙.
     const signatureImage = collector.find(signatureId)
     const ratio = signatureImage?.wPx && signatureImage.hPx ? signatureImage.wPx / signatureImage.hPx : 3
-    const guideWidth = GRID[GUIDE_COLUMN]
-    const signatureWidth = Math.round(Math.min(guideWidth - 600, SIGNATURE_MAX_HEIGHT * ratio))
+    const noticeWidth = GRID[GUIDE_COLUMN]
+    const signatureWidth = Math.round(Math.min(noticeWidth - 600, SIGNATURE_MAX_HEIGHT * ratio))
     const signatureHeight = Math.round(signatureWidth / ratio)
     const signatureIndex = filledPages[0].findIndex(row => row.signature)
     const heightAbove = filledPages[0].slice(0, signatureIndex).reduce((sum, row) => sum + row.height, 0)
     const signatureRowHeight = filledPages[0][signatureIndex].height
     const signature = signatureId ? buildFloatingPicXml(signatureId, signatureWidth, signatureHeight,
-        MARGIN_LEFT + sumRange(GRID, 0, GUIDE_COLUMN) + Math.round((guideWidth - signatureWidth) / 2),
+        MARGIN_LEFT + sumRange(GRID, 0, GUIDE_COLUMN) + Math.round((noticeWidth - signatureWidth) / 2),
         BODY_TOP + heightAbove + Math.round((signatureRowHeight - signatureHeight) / 2)) : ''
 
+    // 안내 그림도 같은 방식으로 최종 그리드에서 좌표를 도출한다 — 첫 쪽의 안내 행 한가운데다.
+    const guideIndex = guideLayout ? filledPages[0].findIndex(row => row.guide) : -1
+    const guideFloats = guideLayout && guideIndex >= 0
+        ? buildGuideFloats(guideLayout.placed,
+            BODY_TOP + filledPages[0].slice(0, guideIndex).reduce((sum, row) => sum + row.height, 0),
+            filledPages[0][guideIndex].height)
+        : []
+    const firstPageFloats = [...guideFloats, ...(signature ? [signature] : [])]
+
     const parts = filledPages.map((rows, index) => {
-        const xml = buildTableParagraph(GRID, rows, 1000000000 + index, index, index === 0 && signature ? [signature] : [], index > 0)
+        const xml = buildTableParagraph(GRID, rows, 1000000000 + index, index, index === 0 ? firstPageFloats : [], index > 0)
         if (index > 0) return xml
         const section = `${SECPR}<hp:ctrl><hp:colPr id="" type="NEWSPAPER" layout="LEFT" colCount="1" sameSz="1" sameGap="0"/></hp:ctrl>`
         return xml.replace('<hp:run charPrIDRef="0">', `<hp:run charPrIDRef="0">${section}`)

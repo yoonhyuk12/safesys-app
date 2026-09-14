@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { PenTool } from 'lucide-react'
 import SignaturePad from '@/components/ui/SignaturePad'
+import EquipmentGuideImages from '@/components/project/equipment-inspection/EquipmentGuideImages'
 import type {
   EquipmentChecklist,
   EquipmentChecklistItem,
@@ -191,6 +192,9 @@ export default function EquipmentInspectionForm({
           />
         </label>
       </div>
+
+      {/* 장비 안내 그림 */}
+      <EquipmentGuideImages equipmentId={checklist.id} equipmentName={checklist.name} />
 
       {/* 점검 항목 */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

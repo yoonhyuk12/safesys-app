@@ -144,6 +144,7 @@ src/components/
 | `new-district-consulting.ts` | 신규지구 안전컨설팅용 계약·본부 점검 페이지네이션 조회와 집계 진입점 |
 | `new-district-consulting-utils.ts` | 대표 계약 시작일 해석, 달력 개월 인정 기한, 본부/지사 소계 재계산 순수 로직 |
 | `equipment-inspections.ts` | 장비 일일점검 작성 초안 상태·항목 문구 수정·제출 전 검증(미점검·빈 문구·빈 서명 차단)·조회/제출/수정/삭제 |
+| `equipment-inspection-guides.ts` | 장비 ID → 안내 그림 정적 자산 경로·원본 픽셀 크기 매핑(22개). 화면과 HWPX가 함께 쓴다 |
 
 **사고 통계 분석 데이터 흐름:**
 
@@ -153,7 +154,7 @@ src/components/
 
 **KRC 패트롤 점검:** `/safe/patrol` 또는 `/safe/branch/[branch]/patrol` → `Dashboard` → `PatrolInspectionView`에서 본부·지사·프로젝트별 점검을 조회한다. `headquarters_inspections.patrol_car_used = true`인 관할 점검만 분기별로 모으며, 준공 프로젝트의 과거 기록도 포함한다. 웹은 핵심 6열을 보여주고 `lib/excel/patrol-inspection-export.ts`는 전체 18열을 내보낸다. 엑셀은 빈 셀을 포함해 모두 가로·세로 가운데 정렬하고 확인자는 공란으로 둔다. 다운로드할 때만 서버 `OPENAI_API_KEY`로 재발방지대책과 재해유형을 작성한다. 조치완료일은 조치사진 파일명의 실제 업로드 시각을 서울 날짜로 바꾸며, 점검일로부터 7일 초과한 지연 건은 음영 처리한다. 날짜 근거가 없는 완료 건은 일자 미기록으로 표시한다.
 
-**(AI) 장비 일일점검 대장:** `/project/[id]/equipment-inspection` → `EquipmentPicker`(장비 23종) → `EquipmentInspectionForm`(원문 항목별 적합·부적합·해당없음 + 점검자 직접 서명) → `equipment-inspections.ts` → `equipment_daily_inspections`. 원본은 `docs/일일안전점검 체크리스트 양식.pdf`이며 항목은 `lib/equipment-inspection-catalog.ts`의 고정 원문 카탈로그다 — AI라는 명칭은 대장 이름일 뿐 점검 항목을 생성하지 않는다. 장비를 바꾸면 항목이 통째로 달라지므로 이전 응답과 서명을 초기화한다. 점검항목 문구는 현장 실정에 맞게 고쳐 쓸 수 있으며, 고친 문구는 그 점검의 `answers`에만 담기고 카탈로그는 바뀌지 않는다(항목 ID·분류·순서는 유지). 제출한 점검은 작성자 본인이 상세의 `수정`으로 고칠 수 있고, 이때 점검표는 지금의 카탈로그가 아니라 저장 당시 `answers` 스냅샷으로 되살린다. 미점검 항목이 남았거나 문구가 비었거나 서명이 비면 화면과 DB CHECK가 함께 제출을 막고, 내용이 바뀌면 서명이 무효가 되어 다시 서명해야 한다. 점검자 서명은 개인 지정 서명이라 일괄서명 대상이 아니다.
+**(AI) 장비 일일점검 대장:** `/project/[id]/equipment-inspection` → `EquipmentPicker`(장비 23종) → `EquipmentInspectionForm`(원문 항목별 적합·부적합·해당없음 + 점검자 직접 서명) → `equipment-inspections.ts` → `equipment_daily_inspections`. 원본은 `docs/일일안전점검 체크리스트 양식.pdf`이며 항목은 `lib/equipment-inspection-catalog.ts`의 고정 원문 카탈로그다 — AI라는 명칭은 대장 이름일 뿐 점검 항목을 생성하지 않는다. 장비를 바꾸면 항목이 통째로 달라지므로 이전 응답과 서명을 초기화한다. 점검항목 문구는 현장 실정에 맞게 고쳐 쓸 수 있으며, 고친 문구는 그 점검의 `answers`에만 담기고 카탈로그는 바뀌지 않는다(항목 ID·분류·순서는 유지). 제출한 점검은 작성자 본인이 상세의 `수정`으로 고칠 수 있고, 이때 점검표는 지금의 카탈로그가 아니라 저장 당시 `answers` 스냅샷으로 되살린다. 미점검 항목이 남았거나 문구가 비었거나 서명이 비면 화면과 DB CHECK가 함께 제출을 막고, 내용이 바뀌면 서명이 무효가 되어 다시 서명해야 한다. 점검자 서명은 개인 지정 서명이라 일괄서명 대상이 아니다. 원본 점검표의 장비 도해는 `public/equipment-inspection/guides/{장비ID}/guide-0N.jpeg`에 원본 바이트 그대로 두고 `lib/equipment-inspection-guides.ts`가 장비 ID·원본 픽셀 크기와 함께 들고 있다. `EquipmentGuideImages`가 작성 폼과 상세의 기본사항 아래·점검 항목 위에 원본 비율로 표시하며 원본 픽셀 폭을 넘겨 확대하지 않는다. HWPX는 첫 쪽 서명 행과 표머리 사이에 안내 행을 하나 두고 그 위에 그림을 겹치며, 그 높이를 쪽 예산에 반영한다 — 계속 쪽에는 싣지 않는다. 준설선·쇄석기는 원본에 도해가 없어 빈 자리를 만들지 않고, 덤프트럭만 두 장을 나란히 둔다.
 
 **문서 생성:**
 

@@ -1,0 +1,303 @@
+[
+  {
+    "id": "equipment-01",
+    "name": "타워크레인",
+    "sourcePage": 6,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-01/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 31282,
+        "sha256": "f215660f24e5ad068730929464baf99ffb6752feaed1fb6d9c3754cead323ba4"
+      }
+    ]
+  },
+  {
+    "id": "equipment-02",
+    "name": "이동식 크레인",
+    "sourcePage": 7,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-02/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 42417,
+        "sha256": "c42d5c7cdac05688e5807ea4a68c2fbe8f20d69fa68daab7077e46c26ccc9aa9"
+      }
+    ]
+  },
+  {
+    "id": "equipment-03",
+    "name": "클램셀",
+    "sourcePage": 8,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-03/guide-01.jpeg",
+        "width": 627,
+        "height": 468,
+        "bytes": 22076,
+        "sha256": "2074ae00f57495cf2d7c673055032a99f4d4d18b189b06b5dfd270e5245dfa75"
+      }
+    ]
+  },
+  {
+    "id": "equipment-04",
+    "name": "항타항발기",
+    "sourcePage": 9,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-04/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 33973,
+        "sha256": "d00dbe5fb02a666af3ff66c69c6b96e03f9365ed30b8d59c904694af1eb59808"
+      }
+    ]
+  },
+  {
+    "id": "equipment-05",
+    "name": "천공기",
+    "sourcePage": 10,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-05/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 29276,
+        "sha256": "a576ddc8f24dec5ffd5dd76eee1dcda9608da30ef3590461f5b51ef80b5e5bd4"
+      }
+    ]
+  },
+  {
+    "id": "equipment-06",
+    "name": "굴착기",
+    "sourcePage": 11,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-06/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 34897,
+        "sha256": "6f23fdbeb9ab2e17f3c88cef4f8f250cf2ab2efeaa997e2911662ad0b504d054"
+      }
+    ]
+  },
+  {
+    "id": "equipment-07",
+    "name": "지게차",
+    "sourcePage": 12,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-07/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 35833,
+        "sha256": "c051aebabafc6d73b4afe73259e8c2d7d01fd485a9babaccabf33846a8640f7e"
+      }
+    ]
+  },
+  {
+    "id": "equipment-08",
+    "name": "고소작업대 (테이블 리프트)",
+    "sourcePage": 13,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-08/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 30725,
+        "sha256": "bfb2b39f012454716d65b6cc5b5dc64d7f657f94a1b995670478b345bfacf031"
+      }
+    ]
+  },
+  {
+    "id": "equipment-09",
+    "name": "고소작업대 (차량탑재형)",
+    "sourcePage": 14,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-09/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 26397,
+        "sha256": "3920951025dda56288aaf334e4f336d1a22988f48acca193eb1da06c1689511c"
+      }
+    ]
+  },
+  {
+    "id": "equipment-10",
+    "name": "건설용 리프트",
+    "sourcePage": 15,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-10/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 41664,
+        "sha256": "ca3a35e155982f87aa44cf4eda242a222b2b93320dab136f9197b936e0f52f3f"
+      }
+    ]
+  },
+  {
+    "id": "equipment-11",
+    "name": "곤돌라",
+    "sourcePage": 16,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-11/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 33003,
+        "sha256": "3273c113cd3cdcb5e19bf3cb858139a1563492da61b2632f8a1b2716adc0f9fb"
+      }
+    ]
+  },
+  {
+    "id": "equipment-12",
+    "name": "콘크리트 펌프카",
+    "sourcePage": 17,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-12/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 32240,
+        "sha256": "2a018e7ba20188cdf125acc9b78dd98b36a7785c2b198adb8d746969618efbba"
+      }
+    ]
+  },
+  {
+    "id": "equipment-13",
+    "name": "콘크리트 플레이싱 붐(CPB)",
+    "sourcePage": 18,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-13/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 21956,
+        "sha256": "ee854d7dba768ef213a1fee813644afd9ddabc7577b12471d27cc593df14e844"
+      }
+    ]
+  },
+  {
+    "id": "equipment-14",
+    "name": "로더",
+    "sourcePage": 19,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-14/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 27253,
+        "sha256": "726b65512281db805cf50d4f7eac0ee06ec7f7efe78f4c15905a9e1f2cd07c4b"
+      }
+    ]
+  },
+  {
+    "id": "equipment-15",
+    "name": "롤러",
+    "sourcePage": 20,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-15/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 33516,
+        "sha256": "fb6b4dc8a2eb90b080764d31a8dd6ba40ed8e38d5fae52748b6f57afdd4a7482"
+      }
+    ]
+  },
+  {
+    "id": "equipment-16",
+    "name": "불도저",
+    "sourcePage": 21,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-16/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 33557,
+        "sha256": "c45b3d3aab82d5dde9feecc58ce5c08edddcfe23026e9af99c200b2c0faa29ca"
+      }
+    ]
+  },
+  {
+    "id": "equipment-17",
+    "name": "모터그레이더",
+    "sourcePage": 22,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-17/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 19518,
+        "sha256": "2f35eff672659f0b15a39b0b01f7aaae3e05c07908272506ec4f4321d121f084"
+      }
+    ]
+  },
+  {
+    "id": "equipment-18",
+    "name": "스크레퍼",
+    "sourcePage": 23,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-18/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 20737,
+        "sha256": "a1053d5eabd590c7b7834dc9a17d77c83512efe3cda782c398d0b6da1422a9fd"
+      }
+    ]
+  },
+  {
+    "id": "equipment-19",
+    "name": "공기압축기",
+    "sourcePage": 24,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-19/guide-01.jpeg",
+        "width": 1000,
+        "height": 419,
+        "bytes": 31336,
+        "sha256": "4b88f5a19a1704915a4c4644fafd31093638c1c43b222cb67428cf9bfb56afa1"
+      }
+    ]
+  },
+  {
+    "id": "equipment-22",
+    "name": "믹서트럭",
+    "sourcePage": 27,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-22/guide-01.jpeg",
+        "width": 899,
+        "height": 411,
+        "bytes": 33631,
+        "sha256": "e3034208c546e17c6faf7eeaa9ffd77a1db80aac3e5d027e9939fe3bd132eeb4"
+      }
+    ]
+  },
+  {
+    "id": "equipment-23",
+    "name": "덤프트럭",
+    "sourcePage": 28,
+    "images": [
+      {
+        "src": "/equipment-inspection/guides/equipment-23/guide-01.jpeg",
+        "width": 974,
+        "height": 643,
+        "bytes": 48709,
+        "sha256": "a80ae00c41b72fa44c8cc67e13e2515cef451bb1bd5412f65e1a537b98425394"
+      },
+      {
+        "src": "/equipment-inspection/guides/equipment-23/guide-02.jpeg",
+        "width": 996,
+        "height": 631,
+        "bytes": 46027,
+        "sha256": "07ddb2038af90ef245dc3919fd2e081aec8d814c3b2dfe38f1a3bebfe0be091b"
+      }
+    ]
+  }
+]

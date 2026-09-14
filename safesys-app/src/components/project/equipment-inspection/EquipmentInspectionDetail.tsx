@@ -5,6 +5,7 @@
 import { Download, Loader2, Pencil } from 'lucide-react'
 import type { EquipmentInspection, EquipmentInspectionResult } from '@/lib/equipment-inspection-types'
 import { EQUIPMENT_INSPECTION_RESULT_LABELS } from '@/lib/equipment-inspections'
+import EquipmentGuideImages from '@/components/project/equipment-inspection/EquipmentGuideImages'
 
 interface EquipmentInspectionDetailProps {
   record: EquipmentInspection
@@ -65,6 +66,9 @@ export default function EquipmentInspectionDetail({
         <InfoCell label="차량번호" value={record.vehicle_number} />
         <InfoCell label="기계번호" value={record.machine_number} />
       </div>
+
+      {/* 장비 안내 그림 */}
+      <EquipmentGuideImages equipmentId={record.equipment_type} equipmentName={record.equipment_name} />
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
