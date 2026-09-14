@@ -9,7 +9,7 @@
 - `manager_inspections` — 관리자 점검
 - `headquarters_inspections` — 본부불시점검
 - `tbm_safety_inspections` — TBM 일일 안전점검
-- `equipment_daily_inspections` — 장비 일일점검 대장. 장비별 원문 점검표 응답(`answers` JSONB)과 점검자 직접 서명을 점검일 스냅샷으로 보관한다. 제출 후 수정 금지(UPDATE 정책 없음)이며 정정은 삭제 후 재제출이다. 조회 RLS는 `projects` 조회 정책에 얹어 관할을 판정하고, `answers`·서명·점검자 성명은 CHECK 제약으로 무결성을 강제한다(적합/부적합/해당없음 외 결과 거부, PNG dataURL만 서명 인정, 성명 100자 이하 한 줄). 적용 순서는 `database/20260914-2245_장비_일일점검_대장.sql` → `database/20260914-2246_merge_projects_equipment_daily_inspections.sql`이다
+- `equipment_daily_inspections` — 장비 일일점검 대장. 장비별 원문 점검표 응답(`answers` JSONB)과 점검자 직접 서명을 점검일 스냅샷으로 보관한다. 항목 문구는 그 점검에 한해 고쳐 쓸 수 있고 고친 문구는 `answers`에만 남는다(원문 카탈로그는 불변). 제출 후 수정은 작성자 본인만 할 수 있으며(UPDATE 정책 + 점검 내용 8개 칸에만 주는 열 단위 UPDATE 권한 — `id`·`project_id`·`equipment_type`·`equipment_name`·`created_by`·`created_at`은 고칠 수 없다), 내용을 고치면 화면이 서명을 무효로 만들어 새 서명을 받는다. 조회 RLS는 `projects` 조회 정책에 얹어 관할을 판정하고, `answers`·서명·점검자 성명은 CHECK 제약으로 무결성을 강제한다(적합/부적합/해당없음 외 결과 거부, PNG dataURL만 서명 인정, 성명 100자 이하 한 줄). 적용 순서는 `database/20260914-2245_장비_일일점검_대장.sql` → `database/20260914-2246_merge_projects_equipment_daily_inspections.sql` → `database/20260915-0448_장비_일일점검_작성자_수정_정책.sql`이다
 - `project_accidents` — 프로젝트별 사고 이력과 피해·예방조치 정보. 미등록 현장은 `project_id` NULL + `external_project_name`·본부·지사 직접입력
 - `workers` — 작업자 프로필/등록
 - `material_ledger` — 자재 원장

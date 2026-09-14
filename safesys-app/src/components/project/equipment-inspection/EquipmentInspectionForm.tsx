@@ -2,18 +2,25 @@
 
 // 장비 일일점검 작성 폼 — 기본사항, 원문 항목별 적합/부적합/해당없음, 점검자 직접 서명을 받는다.
 
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { PenTool } from 'lucide-react'
 import SignaturePad from '@/components/ui/SignaturePad'
-import type { EquipmentChecklist, EquipmentInspectionResult } from '@/lib/equipment-inspection-types'
+import type {
+  EquipmentChecklist,
+  EquipmentChecklistItem,
+  EquipmentInspectionResult,
+} from '@/lib/equipment-inspection-types'
 import {
   EQUIPMENT_INSPECTION_RESULTS,
   EQUIPMENT_INSPECTION_RESULT_LABELS,
   EQUIPMENT_INSPECTOR_NAME_MAX,
   editEquipmentInspectionDraft,
+  flattenEquipmentItemText,
   isBlankEquipmentSignature,
+  resolveEquipmentItemText,
   setEquipmentAnswerNote,
   setEquipmentAnswerResult,
+  setEquipmentAnswerText,
   unansweredEquipmentItems,
   type EquipmentInspectionDraft,
 } from '@/lib/equipment-inspections'
@@ -32,6 +39,80 @@ const RESULT_CLASS: Record<EquipmentInspectionResult, string> = {
   pass: 'border-green-600 bg-green-50 text-green-800',
   fail: 'border-red-600 bg-red-50 text-red-800',
   na: 'border-gray-400 bg-gray-100 text-gray-700',
+}
+
+/**
+ * 점검항목 문구 입력칸 — 내용 높이에 맞춰 늘어나 긴 문구가 잘리지 않는다.
+ * 원문 PDF의 강제 줄바꿈은 원본 양식의 칸 너비 때문에 생긴 것이라 표시할 때 한 줄로 펴고,
+ * 고쳐 쓰지 않은 항목은 저장할 때 원문 그대로 나간다.
+ */
+function ItemTextInput({
+  item,
+  value,
+  disabled,
+  onChange,
+}: {
+  item: EquipmentChecklistItem
+  value: string
+  disabled: boolean
+  onChange: (text: string) => void
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null)
+
+  const fitHeight = useCallback(() => {
+    const element = ref.current
+    if (!element) return
+    element.style.height = 'auto'
+    element.style.height = `${element.scrollHeight}px`
+  }, [])
+
+  useEffect(() => {
+    fitHeight()
+  }, [value, fitHeight])
+
+  /**
+   * 폭이 좁아지면 같은 문구도 줄 수가 늘어난다. 값이 바뀔 때만 높이를 재면
+   * 화면을 좁힌 뒤(예: 390px 휴대폰 폭) 문구 끝이 잘려 보인다.
+   */
+  useEffect(() => {
+    const element = ref.current
+    if (!element) return
+
+    // 높이는 우리가 직접 바꾸는 값이다. 폭이 실제로 달라졌을 때만 다시 재야 관찰이 스스로를 깨우지 않는다.
+    let lastWidth = element.clientWidth
+    const refit = () => {
+      const width = ref.current?.clientWidth ?? lastWidth
+      if (width === lastWidth) return
+      lastWidth = width
+      fitHeight()
+    }
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', refit)
+      return () => window.removeEventListener('resize', refit)
+    }
+
+    // 창 크기뿐 아니라 좌우 배치가 한 칸으로 접히는 경우까지 잡으려면 칸 자체를 본다.
+    const observer = new ResizeObserver(refit)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [fitHeight])
+
+  return (
+    <textarea
+      ref={ref}
+      value={value}
+      onChange={(event) => onChange(flattenEquipmentItemText(event.target.value))}
+      // 항목 문구는 한 문단이다. 줄바꿈을 넣으면 화면에서 바로 공백으로 펴져 입력 위치가 튀므로 아예 받지 않는다.
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') event.preventDefault()
+      }}
+      disabled={disabled}
+      rows={1}
+      aria-label={`점검항목 문구 — ${flattenEquipmentItemText(item.text)}`}
+      className={`${INPUT_CLASS} text-gray-900 resize-none overflow-hidden block`}
+    />
+  )
 }
 
 /** 원문 양식의 분류 순서를 유지한 채 항목을 분류별로 묶는다. */
@@ -124,6 +205,10 @@ export default function EquipmentInspectionForm({
           </span>
         </div>
 
+        <p className="px-3 py-2 bg-white text-xs text-gray-500 border-b border-gray-200">
+          ※ 점검항목 문구는 현장 실정에 맞게 고쳐 쓸 수 있습니다. 고친 문구는 이 점검에만 적용되고 원본 양식은 그대로입니다.
+        </p>
+
         <div className="divide-y divide-gray-200">
           {groupByCategory(checklist).map((group) => (
             <div key={group.category}>
@@ -132,7 +217,12 @@ export default function EquipmentInspectionForm({
                 const response = draft.responses[item.id]
                 return (
                   <div key={item.id} className="px-3 py-2.5 border-t border-gray-100">
-                    <p className="text-sm text-gray-900 whitespace-normal">{item.text}</p>
+                    <ItemTextInput
+                      item={item}
+                      value={flattenEquipmentItemText(resolveEquipmentItemText(draft, item))}
+                      disabled={saving}
+                      onChange={(text) => onChange(setEquipmentAnswerText(draft, item.id, text))}
+                    />
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {EQUIPMENT_INSPECTION_RESULTS.map((result) => {
                         const active = response?.result === result
@@ -226,7 +316,7 @@ export default function EquipmentInspectionForm({
         <p className="text-xs text-gray-500 mt-2">
           ※ 점검자 본인이 직접 서명합니다. 감독·시공사 일괄서명 대상이 아닙니다.
           <br />
-          ※ 서명 후 점검 결과나 기본사항을 고치면 서명이 지워집니다. 모든 입력을 마친 뒤 마지막에 서명하세요.
+          ※ 서명 후 점검항목 문구·결과나 기본사항을 고치면 서명이 지워집니다. 모든 입력을 마친 뒤 마지막에 서명하세요.
         </p>
       </div>
 

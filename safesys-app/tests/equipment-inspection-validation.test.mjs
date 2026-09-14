@@ -20,12 +20,13 @@ async function transpile(relativePath, dependencies = {}) {
 
 /** supabase 클라이언트 대역 — 마지막 호출 인자를 기록하고 미리 정한 응답을 돌려준다. */
 function createSupabaseStub(response) {
-  const calls = { table: null, inserted: null, filters: [], orders: [] }
+  const calls = { table: null, inserted: null, updated: null, filters: [], orders: [] }
   const builder = {
     select() { return builder },
     eq(column, value) { calls.filters.push([column, value]); return builder },
     order(column, options) { calls.orders.push([column, options]); return builder },
     insert(rows) { calls.inserted = rows; return builder },
+    update(values) { calls.updated = values; return builder },
     delete() { return builder },
     single() { return Promise.resolve(response) },
     then(resolve, reject) { return Promise.resolve(response).then(resolve, reject) },
@@ -423,4 +424,250 @@ test('장비 일일점검은 일괄서명 등록 대상이 아니다', async () 
     .map((target) => target.table)
 
   assert.ok(!tables.includes('equipment_daily_inspections'), '개인 점검자 서명이 일괄서명에 섞였다')
+})
+
+// ── 점검항목 문구 수정 ────────────────────────────────────────────────────────
+
+/** 원문 PDF의 강제 줄바꿈이 들어 있는 항목. 입력 표시에서는 한 줄로 펴서 보여준다. */
+const WRAPPED_CHECKLIST = {
+  id: 'equipment-03',
+  name: '항타기',
+  sourcePage: 8,
+  items: [
+    {
+      id: 'equipment-03-01',
+      category: '기본사항',
+      text: `날씨는 양호한가? (작업중지:순간풍속15m/s이상, 강우량 시간당${LF}1mm이상)`,
+    },
+    { id: 'equipment-03-02', category: '작업전점검', text: '와이어로프의 상태는 양호한가?' },
+  ],
+}
+
+test('원문의 강제 줄바꿈은 입력 표시에서 한 줄로 펴진다', async () => {
+  const lib = await loadModule()
+
+  assert.equal(
+    lib.flattenEquipmentItemText(WRAPPED_CHECKLIST.items[0].text),
+    '날씨는 양호한가? (작업중지:순간풍속15m/s이상, 강우량 시간당 1mm이상)'
+  )
+  // 줄바꿈이 없던 문구는 그대로다.
+  assert.equal(lib.flattenEquipmentItemText('와이어로프의 상태는 양호한가?'), '와이어로프의 상태는 양호한가?')
+  assert.equal(lib.flattenEquipmentItemText(''), '')
+})
+
+test('문구를 고치지 않은 항목은 원문 카탈로그 문구를 그대로 쓴다', async () => {
+  const lib = await loadModule()
+  const draft = completedDraft(lib, WRAPPED_CHECKLIST)
+
+  // 표시용으로만 펴 보일 뿐, 저장 문구는 원문의 줄바꿈까지 그대로다.
+  assert.equal(lib.resolveEquipmentItemText(draft, WRAPPED_CHECKLIST.items[0]), WRAPPED_CHECKLIST.items[0].text)
+  const answers = lib.buildEquipmentInspectionAnswers(draft, WRAPPED_CHECKLIST)
+  assert.equal(answers[0].text, WRAPPED_CHECKLIST.items[0].text)
+})
+
+test('고친 문구는 그 점검의 답변에만 담기고 카탈로그는 건드리지 않는다', async () => {
+  const lib = await loadModule()
+  const original = CHECKLIST.items[0].text
+  let draft = completedDraft(lib)
+  draft = lib.setEquipmentAnswerText(draft, 'equipment-01-01', '운전원의 면허·자격 유효기간을 확인했는가?')
+
+  const answers = lib.buildEquipmentInspectionAnswers(draft, CHECKLIST)
+  assert.equal(answers[0].text, '운전원의 면허·자격 유효기간을 확인했는가?')
+  // 항목 식별자·분류·순서·결과·비고는 그대로여야 대장이 원문 양식과 어긋나지 않는다.
+  assert.equal(answers[0].id, 'equipment-01-01')
+  assert.equal(answers[0].category, '기본사항')
+  assert.equal(answers[0].result, 'pass')
+  assert.deepEqual(answers.map((answer) => answer.id), CHECKLIST.items.map((item) => item.id))
+  // 다른 항목과 원본 카탈로그는 손대지 않는다.
+  assert.equal(answers[1].text, CHECKLIST.items[1].text)
+  assert.equal(CHECKLIST.items[0].text, original)
+})
+
+test('고친 문구의 앞뒤 공백은 저장 전에 정리한다', async () => {
+  const lib = await loadModule()
+  let draft = completedDraft(lib)
+  draft = lib.setEquipmentAnswerText(draft, 'equipment-01-02', '  방호장치 설치 상태는 양호한가?  ')
+
+  assert.equal(lib.buildEquipmentInspectionAnswers(draft, CHECKLIST)[1].text, '방호장치 설치 상태는 양호한가?')
+})
+
+test('문구를 비우면 제출을 막는다', async () => {
+  const lib = await loadModule()
+  const signed = completedDraft(lib)
+
+  for (const blank of ['', '   ', LF]) {
+    const draft = lib.setEquipmentAnswerText(signed, 'equipment-01-02', blank)
+    assert.match(
+      lib.validateEquipmentInspectionDraft({ ...draft, signature: SIGNATURE }, CHECKLIST) ?? '',
+      /문구/,
+      `${JSON.stringify(blank)}가 문구로 통과했다`
+    )
+    assert.throws(() => lib.buildEquipmentInspectionAnswers(draft, CHECKLIST), /문구/)
+  }
+
+  // 문구를 채워 넣으면 다시 제출할 수 있다.
+  const fixed = lib.setEquipmentAnswerText(signed, 'equipment-01-02', '방호장치 상태는 양호한가?')
+  assert.equal(lib.validateEquipmentInspectionDraft({ ...fixed, signature: SIGNATURE }, CHECKLIST), null)
+})
+
+test('문구를 고치면 서명이 무효가 된다', async () => {
+  const lib = await loadModule()
+  const signed = completedDraft(lib)
+
+  const edited = lib.setEquipmentAnswerText(signed, 'equipment-01-01', '운전원의 자격은 유효한가?')
+  assert.equal(edited.signature, '')
+  // 원본 초안과 결과·비고는 그대로다.
+  assert.equal(signed.signature, SIGNATURE)
+  assert.equal(edited.responses['equipment-01-01'].result, 'pass')
+  assert.equal(edited.responses['equipment-01-01'].note, '')
+})
+
+// ── 제출된 점검 수정 ──────────────────────────────────────────────────────────
+
+const RECORD = {
+  id: 'record-1',
+  project_id: 'p1',
+  equipment_type: 'equipment-01',
+  equipment_name: '타워크레인',
+  inspection_date: '2026-09-14',
+  company_name: '가나건설',
+  vehicle_number: '12가3456',
+  machine_number: 'TC-01',
+  inspector_name: '홍길동',
+  signature: null,
+  answers: [
+    { id: 'equipment-01-01', category: '기본사항', text: '운전원의 자격여부는 적정한가?', result: 'pass', note: '' },
+    { id: 'equipment-01-02', category: '기본사항', text: '고쳐 적은 방호장치 문구', result: 'fail', note: '덮개 파손' },
+  ],
+  remarks: '조치 예정',
+  created_by: 'user-1',
+  created_at: '2026-09-14T00:00:00Z',
+}
+
+function record(overrides = {}) {
+  return { ...RECORD, signature: SIGNATURE, ...overrides }
+}
+
+test('제출된 점검의 점검표는 현재 카탈로그가 아니라 저장 당시 스냅샷이다', async () => {
+  const lib = await loadModule()
+  const checklist = lib.equipmentInspectionChecklist(record())
+
+  assert.equal(checklist.id, 'equipment-01')
+  assert.equal(checklist.name, '타워크레인')
+  assert.deepEqual(checklist.items, [
+    { id: 'equipment-01-01', category: '기본사항', text: '운전원의 자격여부는 적정한가?' },
+    { id: 'equipment-01-02', category: '기본사항', text: '고쳐 적은 방호장치 문구' },
+  ])
+  // 원본 카탈로그(3항목)를 끌어오지 않는다.
+  assert.equal(checklist.items.length, 2)
+})
+
+test('제출된 점검을 폼 상태로 되살리면 저장 당시 값이 그대로 들어온다', async () => {
+  const lib = await loadModule()
+  const source = record()
+  const draft = lib.equipmentInspectionToDraft(source)
+  const checklist = lib.equipmentInspectionChecklist(source)
+
+  assert.equal(draft.checklistId, 'equipment-01')
+  assert.equal(draft.equipmentName, '타워크레인')
+  assert.equal(draft.inspectionDate, '2026-09-14')
+  assert.equal(draft.companyName, '가나건설')
+  assert.equal(draft.vehicleNumber, '12가3456')
+  assert.equal(draft.machineNumber, 'TC-01')
+  assert.equal(draft.inspectorName, '홍길동')
+  assert.equal(draft.remarks, '조치 예정')
+  assert.equal(draft.signature, SIGNATURE)
+  assert.deepEqual(draft.responses['equipment-01-02'], { result: 'fail', note: '덮개 파손' })
+  // 되살린 그대로면 미점검도 없고 제출도 가능하다.
+  assert.deepEqual(lib.unansweredEquipmentItems(draft, checklist), [])
+  assert.equal(lib.validateEquipmentInspectionDraft(draft, checklist), null)
+  // 손대지 않은 항목은 저장 당시 문구를 한 글자도 바꾸지 않는다.
+  assert.deepEqual(lib.buildEquipmentInspectionAnswers(draft, checklist), source.answers)
+})
+
+test('되살린 점검을 고치면 서명이 무효가 되어 다시 서명해야 한다', async () => {
+  const lib = await loadModule()
+  const draft = lib.equipmentInspectionToDraft(record())
+  const checklist = lib.equipmentInspectionChecklist(record())
+
+  const edited = lib.setEquipmentAnswerText(draft, 'equipment-01-02', '방호장치 덮개 상태는 양호한가?')
+  assert.equal(edited.signature, '')
+  assert.match(lib.validateEquipmentInspectionDraft(edited, checklist) ?? '', /서명/)
+})
+
+test('답변이 비어 있는 기록도 되살리기가 터지지 않는다', async () => {
+  const lib = await loadModule()
+  const draft = lib.equipmentInspectionToDraft(record({ answers: null }))
+
+  assert.deepEqual(draft.responses, {})
+  assert.deepEqual(lib.equipmentInspectionChecklist(record({ answers: null })).items, [])
+})
+
+test('수정 저장은 작성자·현장·장비 식별자를 건드리지 않는다', async () => {
+  const source = record()
+  const saved = { ...source, remarks: '조치 완료' }
+  const lib = await loadModule({ data: saved, error: null })
+  const checklist = lib.equipmentInspectionChecklist(source)
+  let draft = lib.equipmentInspectionToDraft(source)
+  draft = lib.setEquipmentAnswerText(draft, 'equipment-01-01', '운전원의 면허는 유효한가?')
+  draft = { ...draft, remarks: '조치 완료', signature: SIGNATURE }
+
+  const updated = await lib.updateEquipmentInspection(source, draft, checklist, 'user-1')
+
+  assert.deepEqual(updated, saved)
+  assert.equal(lib.calls.table, 'equipment_daily_inspections')
+  assert.deepEqual(lib.calls.filters, [['id', 'record-1']])
+  assert.equal(lib.calls.inserted, null, '수정인데 새 행을 넣었다')
+  const patch = lib.calls.updated
+  assert.equal(patch.remarks, '조치 완료')
+  assert.equal(patch.answers[0].text, '운전원의 면허는 유효한가?')
+  assert.equal(patch.answers[1].text, '고쳐 적은 방호장치 문구')
+  assert.equal(patch.signature, SIGNATURE)
+  for (const column of ['created_by', 'project_id', 'equipment_type', 'equipment_name', 'id']) {
+    assert.ok(!(column in patch), `${column}까지 함께 고치려 했다`)
+  }
+})
+
+test('작성자가 아니면 수정 저장을 시도조차 하지 않는다', async () => {
+  const source = record()
+  const lib = await loadModule({ data: source, error: null })
+  const checklist = lib.equipmentInspectionChecklist(source)
+  const draft = lib.equipmentInspectionToDraft(source)
+
+  await assert.rejects(() => lib.updateEquipmentInspection(source, draft, checklist, 'user-2'), /권한/)
+  await assert.rejects(() => lib.updateEquipmentInspection(source, draft, checklist, ''), /로그인/)
+  assert.equal(lib.calls.table, null)
+})
+
+test('검증을 통과하지 못한 수정은 저장을 시도하지 않는다', async () => {
+  const source = record()
+  const lib = await loadModule({ data: source, error: null })
+  const checklist = lib.equipmentInspectionChecklist(source)
+  const draft = lib.setEquipmentAnswerText(lib.equipmentInspectionToDraft(source), 'equipment-01-01', '  ')
+
+  await assert.rejects(() => lib.updateEquipmentInspection(source, draft, checklist, 'user-1'), /문구/)
+  assert.equal(lib.calls.table, null)
+})
+
+test('수정이 한 행도 고치지 못하면 성공으로 오해하지 않고 권한 문제로 알린다', async () => {
+  const source = record()
+  for (const response of [
+    { data: null, error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned' } },
+    { data: null, error: null },
+  ]) {
+    const lib = await loadModule(response)
+    const checklist = lib.equipmentInspectionChecklist(source)
+    const draft = lib.equipmentInspectionToDraft(source)
+
+    await assert.rejects(() => lib.updateEquipmentInspection(source, draft, checklist, 'user-1'), /권한/)
+  }
+})
+
+test('수정 저장 오류는 그대로 올린다', async () => {
+  const source = record()
+  const lib = await loadModule({ data: null, error: { message: 'new row violates row-level security policy' } })
+  const checklist = lib.equipmentInspectionChecklist(source)
+  const draft = lib.equipmentInspectionToDraft(source)
+
+  await assert.rejects(() => lib.updateEquipmentInspection(source, draft, checklist, 'user-1'), /row-level security/)
 })

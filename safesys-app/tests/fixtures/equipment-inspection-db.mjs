@@ -8,11 +8,15 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '../../..')
 
 export const MIGRATION_PATH = path.join(repoRoot, 'database', '20260914-2245_장비_일일점검_대장.sql')
+// 작성자 본인 수정 정책은 대장 생성 뒤에 얹는다. 운영에서도 같은 순서로 실행한다.
+export const UPDATE_POLICY_PATH = path.join(repoRoot, 'database', '20260915-0448_장비_일일점검_작성자_수정_정책.sql')
 const SCHEMA_PATH = path.join(here, 'equipment-inspection-schema.sql')
 
 export const IDS = {
   ownerProject: '11111111-1111-1111-1111-111111111111',
   otherProject: '22222222-2222-2222-2222-222222222222',
+  // owner가 볼 수 있는 또 하나의 현장. "정책은 통과하지만 열 권한이 없어 막힌다"를 가리는 데 쓴다.
+  ownerSecondProject: '33333333-3333-3333-3333-333333333333',
   owner: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
   sharedUser: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
   outsider: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
@@ -28,12 +32,13 @@ export const ANSWERS = [
 // 실제 PNG로 검증해야 한다 — 형태만 맞고 내용이 깨진 base64는 서명 이미지로 쓸 수 없다.
 export const SIGNATURE = `data:image/png;base64,${readFileSync(path.join(here, 'equipment-inspection-signature.png')).toString('base64')}`
 
-/** 스키마와 대장 마이그레이션을 적용한 새 PGlite DB를 만든다. 준비 중 실패하면 인스턴스를 닫고 예외를 올린다. */
+/** 스키마와 대장·수정 정책 마이그레이션을 적용한 새 PGlite DB를 만든다. 준비 중 실패하면 인스턴스를 닫고 예외를 올린다. */
 export async function createDb() {
   const db = await PGlite.create()
   try {
     await db.exec(readFileSync(SCHEMA_PATH, 'utf8'))
     await db.exec(readFileSync(MIGRATION_PATH, 'utf8'))
+    await db.exec(readFileSync(UPDATE_POLICY_PATH, 'utf8'))
     await seed(db)
   } catch (error) {
     await db.close()
@@ -43,9 +48,10 @@ export async function createDb() {
 }
 
 /**
- * 현장 두 곳과 사용자 다섯 명을 만든다.
+ * 현장 세 곳과 사용자 다섯 명을 만든다.
  * - owner는 ownerProject의 시공사 소유자, sharedUser는 공유받은 감리단, outsider는 무관한 시공사.
  * - client는 ownerProject 관할 발주청, otherClient는 다른 본부 발주청이다.
+ * - ownerSecondProject는 owner의 또 다른 현장이라 owner에게 보인다.
  */
 async function seed(db) {
   await db.exec(`
@@ -61,7 +67,8 @@ async function seed(db) {
 
     INSERT INTO public.projects (id, project_name, managing_hq, managing_branch, created_by) VALUES
       ('${IDS.ownerProject}', '가나교 보수공사', '서울본부', '강남지사', '${IDS.owner}'),
-      ('${IDS.otherProject}', '다라천 정비공사', '부산본부', '해운대지사', '${IDS.outsider}');
+      ('${IDS.otherProject}', '다라천 정비공사', '부산본부', '해운대지사', '${IDS.outsider}'),
+      ('${IDS.ownerSecondProject}', '마바로 확장공사', '서울본부', '강남지사', '${IDS.owner}');
 
     INSERT INTO public.project_shares (project_id, shared_with) VALUES
       ('${IDS.ownerProject}', '${IDS.sharedUser}');

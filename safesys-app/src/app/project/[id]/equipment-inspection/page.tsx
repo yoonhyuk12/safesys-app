@@ -19,8 +19,11 @@ import {
   createEquipmentInspection,
   createEquipmentInspectionDraft,
   deleteEquipmentInspection,
+  equipmentInspectionChecklist,
+  equipmentInspectionToDraft,
   getEquipmentInspections,
   selectEquipmentChecklist,
+  updateEquipmentInspection,
   type EquipmentInspectionDraft,
 } from '@/lib/equipment-inspections'
 import type { Project } from '@/lib/projects'
@@ -45,6 +48,8 @@ export default function EquipmentInspectionPage() {
   const [draft, setDraft] = useState<EquipmentInspectionDraft | null>(null)
   const [checklist, setChecklist] = useState<EquipmentChecklist | null>(null)
   const [selectedRecord, setSelectedRecord] = useState<EquipmentInspection | null>(null)
+  /** 값이 있으면 새 점검이 아니라 이미 제출한 그 점검을 고치는 중이다. */
+  const [editingRecord, setEditingRecord] = useState<EquipmentInspection | null>(null)
   const [saving, setSaving] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
@@ -90,8 +95,13 @@ export default function EquipmentInspectionPage() {
 
   const projectName = project?.project_name?.trim() ?? ''
 
-  // 점검 상세에서는 제출 목록으로, 목록에서는 프로젝트로 돌아간다.
+  // 수정 중에는 고치기 전 상세로, 점검 상세에서는 제출 목록으로, 목록에서는 프로젝트로 돌아간다.
   const handleBack = () => {
+    if (editingRecord) {
+      closeFormByUser()
+      window.scrollTo({ top: 0 })
+      return
+    }
     if (selectedRecord) {
       setSelectedRecord(null)
       window.scrollTo({ top: 0 })
@@ -140,6 +150,7 @@ export default function EquipmentInspectionPage() {
   const startInspection = () => {
     if (saving) return
     setSelectedRecord(null)
+    setEditingRecord(null)
     setChecklist(null)
     setDraft(
       createEquipmentInspectionDraft({
@@ -152,6 +163,21 @@ export default function EquipmentInspectionPage() {
   const closeForm = () => {
     setDraft(null)
     setChecklist(null)
+    setEditingRecord(null)
+  }
+
+  /**
+   * 제출한 점검을 고친다. 점검표는 지금의 카탈로그가 아니라 저장 당시 스냅샷으로 되살려
+   * 화면이 대장에 남은 것과 같은 항목·문구를 보여주게 한다. 취소하면 상세가 그대로 남는다.
+   */
+  const startEdit = (record: EquipmentInspection) => {
+    if (saving) return
+    if (record.created_by !== sessionUserId) return
+    setSelectedRecord(record)
+    setChecklist(equipmentInspectionChecklist(record))
+    setDraft(equipmentInspectionToDraft(record))
+    setEditingRecord(record)
+    window.scrollTo({ top: 0 })
   }
 
   /** 저장 중에는 초안이 사라지거나 바뀌면 안 된다 — 늦게 도착한 성공 응답이 새 초안을 닫아버린다. */
@@ -166,16 +192,26 @@ export default function EquipmentInspectionPage() {
     setChecklist(next)
   }
 
+  // 새 점검이면 제출하고, 고치는 중이면 그 행을 갱신한다. 수정이 새 행으로 들어가면 대장에 같은 점검이 두 번 남는다.
   const handleSubmit = async () => {
     if (!draft || saving) return
+    const editing = editingRecord
     setSaving(true)
     try {
-      await createEquipmentInspection(projectId, draft, checklist, sessionUserId ?? '')
-      closeForm()
-      setSelectedRecord(null)
+      if (editing) {
+        const updated = await updateEquipmentInspection(editing, draft, checklist, sessionUserId ?? '')
+        closeForm()
+        setSelectedRecord(updated)
+        // 긴 점검표 중간에서 저장했어도 갱신된 상세는 처음부터 보여준다.
+        window.scrollTo({ top: 0 })
+      } else {
+        await createEquipmentInspection(projectId, draft, checklist, sessionUserId ?? '')
+        closeForm()
+        setSelectedRecord(null)
+      }
       await loadRecords()
     } catch (error: unknown) {
-      alert(errorMessage(error, '장비 일일점검 제출에 실패했습니다.'))
+      alert(errorMessage(error, editing ? '장비 일일점검 수정에 실패했습니다.' : '장비 일일점검 제출에 실패했습니다.'))
     } finally {
       setSaving(false)
     }
@@ -309,7 +345,8 @@ export default function EquipmentInspectionPage() {
                   {/* 스크롤 중에도 저장할 수 있도록 제목 바를 고정한다. 상위 카드에는 overflow를 두지 않는다. */}
                   <div className="sticky top-0 z-20 bg-blue-600 text-white rounded-t-lg px-4 py-3 flex items-center justify-between gap-3">
                     <h2 className="font-semibold text-sm sm:text-base truncate min-w-0 flex-1">
-                      장비 일일점검{checklist ? ` — ${checklist.name}` : ''}
+                      {editingRecord ? '장비 일일점검 수정' : '장비 일일점검'}
+                      {checklist ? ` — ${checklist.name}` : ''}
                     </h2>
                     {checklist && (
                       <button
@@ -325,7 +362,7 @@ export default function EquipmentInspectionPage() {
                     <button
                       onClick={closeFormByUser}
                       disabled={saving}
-                      aria-label="작성 닫기"
+                      aria-label={editingRecord ? '수정 닫기' : '작성 닫기'}
                       className="text-white hover:text-blue-200 shrink-0 disabled:opacity-50"
                     >
                       <X className="h-5 w-5" />
@@ -361,7 +398,9 @@ export default function EquipmentInspectionPage() {
                       record={selectedRecord}
                       downloading={downloadingId === selectedRecord.id}
                       downloadDisabled={!projectName}
+                      canEdit={selectedRecord.created_by === sessionUserId}
                       onDownload={() => handleDownload(selectedRecord)}
+                      onEdit={() => startEdit(selectedRecord)}
                     />
                   </div>
                 </div>

@@ -2,7 +2,7 @@
 
 // 제출된 장비 일일점검 한 건의 상세 — 제출 당시 원문 항목·결과·서명을 그대로 보여준다.
 
-import { Download, Loader2 } from 'lucide-react'
+import { Download, Loader2, Pencil } from 'lucide-react'
 import type { EquipmentInspection, EquipmentInspectionResult } from '@/lib/equipment-inspection-types'
 import { EQUIPMENT_INSPECTION_RESULT_LABELS } from '@/lib/equipment-inspections'
 
@@ -11,7 +11,10 @@ interface EquipmentInspectionDetailProps {
   downloading: boolean
   /** 현장 정보를 아직 못 읽었으면 이름 없는 문서가 나가므로 내려받기를 잠근다. */
   downloadDisabled: boolean
+  /** 제출한 본인에게만 수정 진입점을 준다. 남의 서명이 달린 점검은 고칠 수 없다. */
+  canEdit: boolean
   onDownload: () => void
+  onEdit: () => void
 }
 
 const RESULT_BADGE: Record<EquipmentInspectionResult, string> = {
@@ -33,12 +36,27 @@ export default function EquipmentInspectionDetail({
   record,
   downloading,
   downloadDisabled,
+  canEdit,
   onDownload,
+  onEdit,
 }: EquipmentInspectionDetailProps) {
   const answers = record.answers ?? []
 
   return (
     <div className="space-y-4">
+      {canEdit && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="min-h-[44px] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center gap-2"
+          >
+            <Pencil className="h-4 w-4" />
+            수정
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <InfoCell label="점검일" value={record.inspection_date} />
         <InfoCell label="장비" value={record.equipment_name} />

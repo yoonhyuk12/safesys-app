@@ -18,10 +18,15 @@ export const EQUIPMENT_INSPECTION_RESULT_LABELS: Record<EquipmentInspectionResul
   na: '해당없음',
 }
 
-/** 항목 하나에 대한 점검 결과. 결과가 null이면 아직 점검하지 않은 것이다. */
+/**
+ * 항목 하나에 대한 점검 결과. 결과가 null이면 아직 점검하지 않은 것이다.
+ * text는 점검자가 그 점검에서만 고쳐 쓴 항목 문구다. 없으면(undefined) 원문 카탈로그 문구를 그대로 쓴다 —
+ * 빈 문자열은 "문구를 지웠다"는 뜻이라 제출을 막는 값이지 미수정이 아니다.
+ */
 export interface EquipmentInspectionResponse {
   result: EquipmentInspectionResult | null
   note: string
+  text?: string
 }
 
 /** 화면이 들고 있는 미제출 상태. 제출 직전에만 EquipmentInspection 행으로 바뀐다. */
@@ -51,6 +56,10 @@ const EQUIPMENT_SIGNATURE_MIN_LENGTH = 200
  */
 export const EQUIPMENT_INSPECTION_MISSING_TABLE =
   '장비 일일점검 대장이 아직 개설되지 않았습니다. 시스템 관리자에게 문의해주세요.'
+
+/** 수정 RLS가 막았을 때의 안내. 남의 점검을 고치려 했거나 수정 정책이 아직 적용되지 않은 경우다. */
+export const EQUIPMENT_INSPECTION_UPDATE_DENIED =
+  '이 점검을 수정할 권한이 없습니다. 본인이 제출한 점검만 수정할 수 있습니다.'
 
 interface SupabaseErrorLike {
   code?: string
@@ -158,6 +167,40 @@ export function setEquipmentAnswerNote(
   return withResponse(draft, itemId, { note })
 }
 
+/** 항목 문구를 이 점검에서만 고쳐 쓴다. 원본 카탈로그는 건드리지 않는다. */
+export function setEquipmentAnswerText(
+  draft: EquipmentInspectionDraft,
+  itemId: string,
+  text: string
+): EquipmentInspectionDraft {
+  return withResponse(draft, itemId, { text })
+}
+
+/**
+ * 원문 PDF에서 온 강제 줄바꿈을 한 줄로 편다. 그 줄바꿈은 원본 양식의 칸 너비 때문에 생긴 것이라
+ * 문장의 일부가 아니다. 입력칸에 그대로 넣으면 고치는 사람이 줄바꿈까지 상대해야 한다.
+ */
+export function flattenEquipmentItemText(text: string): string {
+  return text.replace(/\s*\n\s*/g, ' ')
+}
+
+/** 이 점검에 쓸 항목 문구 — 고쳐 쓴 문구가 있으면 그것을, 없으면 원문 카탈로그 문구를 돌려준다. */
+export function resolveEquipmentItemText(
+  draft: EquipmentInspectionDraft,
+  item: EquipmentChecklistItem
+): string {
+  const edited = draft.responses[item.id]?.text
+  return edited === undefined ? item.text : edited
+}
+
+/** 문구를 지워버린 항목을 원문 순서대로 돌려준다. 빈 문구는 대장에 남길 수 없다. */
+function blankTextEquipmentItems(
+  draft: EquipmentInspectionDraft,
+  checklist: EquipmentChecklist
+): EquipmentChecklistItem[] {
+  return checklist.items.filter((item) => !resolveEquipmentItemText(draft, item).trim())
+}
+
 /**
  * 서명 자리에 실제 그림이 들어왔는지 본다. 빈 값·안내 문구·빈 dataURL을 모두 걸러낸다.
  * 판정 기준은 signature 컬럼의 CHECK 제약과 같다 — 화면과 DB가 서로 다른 것을 서명으로 인정하면 안 된다.
@@ -195,6 +238,11 @@ export function validateEquipmentInspectionDraft(
     return `점검자 성명은 ${EQUIPMENT_INSPECTOR_NAME_MAX}자 이하로 입력해주세요.`
   }
 
+  const blankTexts = blankTextEquipmentItems(draft, checklist)
+  if (blankTexts.length > 0) {
+    return `점검항목 문구를 비워둘 수 없습니다. 비어 있는 항목이 ${blankTexts.length}개 있습니다.`
+  }
+
   const remaining = unansweredEquipmentItems(draft, checklist)
   if (remaining.length > 0) {
     return `점검하지 않은 항목이 ${remaining.length}개 남았습니다. 모든 항목에 적합·부적합·해당없음을 표시해주세요.`
@@ -204,7 +252,10 @@ export function validateEquipmentInspectionDraft(
   return null
 }
 
-/** 원문 항목의 분류·문구를 그대로 담은 제출용 답변 배열을 만든다. */
+/**
+ * 제출용 답변 배열을 만든다. 항목 ID·분류·순서는 원문 그대로 두고, 문구만 이 점검에서 고쳐 쓴 값을 담는다.
+ * 고치지 않은 항목은 원문의 강제 줄바꿈까지 한 글자도 바꾸지 않는다 — 출력물이 원본 양식과 같아야 한다.
+ */
 export function buildEquipmentInspectionAnswers(
   draft: EquipmentInspectionDraft,
   checklist: EquipmentChecklist
@@ -215,14 +266,57 @@ export function buildEquipmentInspectionAnswers(
     if (!result || !EQUIPMENT_INSPECTION_RESULTS.includes(result)) {
       throw new Error(`점검하지 않은 항목이 있습니다 — ${item.text}`)
     }
+    // 문구가 빈 항목은 무엇을 점검했는지 알 수 없다. DB CHECK도 같은 값을 거부한다.
+    const text = resolveEquipmentItemText(draft, item).trim()
+    if (!text) throw new Error(`점검항목 문구가 비어 있습니다 — ${item.id}`)
     return {
       id: item.id,
       category: item.category,
-      text: item.text,
+      text,
       result,
       note: draft.responses[item.id]?.note ?? '',
     }
   })
+}
+
+/**
+ * 제출된 기록을 그때의 점검표로 되돌린다. 지금의 카탈로그를 쓰지 않는 이유는,
+ * 카탈로그가 바뀌었거나 그때 문구를 고쳐 제출했다면 화면이 저장된 대장과 다른 것을 보여주기 때문이다.
+ */
+export function equipmentInspectionChecklist(record: EquipmentInspection): EquipmentChecklist {
+  return {
+    id: record.equipment_type,
+    name: record.equipment_name,
+    sourcePage: 0,
+    items: (record.answers ?? []).map((answer) => ({
+      id: answer.id,
+      category: answer.category,
+      text: answer.text,
+    })),
+  }
+}
+
+/**
+ * 제출된 기록을 수정용 초안으로 되살린다. 항목 문구는 스냅샷 점검표가 들고 있으므로 여기서 덮어쓰지 않는다 —
+ * 그래야 손대지 않은 항목이 저장 당시 문구 그대로 다시 저장된다.
+ */
+export function equipmentInspectionToDraft(record: EquipmentInspection): EquipmentInspectionDraft {
+  const responses: Record<string, EquipmentInspectionResponse> = {}
+  for (const answer of record.answers ?? []) {
+    responses[answer.id] = { result: answer.result, note: answer.note ?? '' }
+  }
+  return {
+    checklistId: record.equipment_type,
+    equipmentName: record.equipment_name,
+    inspectionDate: record.inspection_date,
+    companyName: record.company_name ?? '',
+    vehicleNumber: record.vehicle_number ?? '',
+    machineNumber: record.machine_number ?? '',
+    inspectorName: record.inspector_name,
+    signature: record.signature,
+    remarks: record.remarks ?? '',
+    responses,
+  }
 }
 
 /** 프로젝트의 점검 대장을 최신 점검일 순으로 가져온다. 빈 목록과 조회 실패를 구분한다. */
@@ -277,6 +371,50 @@ export async function createEquipmentInspection(
     .single()
 
   if (error) throw toError(error, '장비 일일점검 제출에 실패했습니다.')
+  return data as unknown as EquipmentInspection
+}
+
+/**
+ * 고친 점검을 저장한다. 고칠 수 있는 사람은 제출한 본인뿐이다 — UPDATE RLS도 같은 판정을 한다.
+ * 작성자·현장·장비 식별자는 이 점검이 무엇인지를 정하는 값이라 수정 대상에 넣지 않는다.
+ * 내용이 바뀌면 서명이 무효가 되므로(editEquipmentInspectionDraft) 저장 시점에는 늘 새 서명이 들어 있다.
+ */
+export async function updateEquipmentInspection(
+  record: EquipmentInspection,
+  draft: EquipmentInspectionDraft,
+  checklist: EquipmentChecklist | null,
+  userId: string
+): Promise<EquipmentInspection> {
+  const invalid = validateEquipmentInspectionDraft(draft, checklist)
+  if (invalid) throw new Error(invalid)
+  if (!userId) throw new Error('로그인이 필요합니다.')
+  if (!record?.id) throw new Error('수정할 점검을 찾을 수 없습니다.')
+  if (record.created_by !== userId) throw new Error(EQUIPMENT_INSPECTION_UPDATE_DENIED)
+
+  const patch = {
+    inspection_date: draft.inspectionDate,
+    company_name: draft.companyName.trim(),
+    vehicle_number: draft.vehicleNumber.trim(),
+    machine_number: draft.machineNumber.trim(),
+    inspector_name: draft.inspectorName.trim(),
+    signature: draft.signature.trim(),
+    answers: buildEquipmentInspectionAnswers(draft, checklist!),
+    remarks: draft.remarks.trim(),
+  }
+
+  const { data, error } = await supabase
+    .from(EQUIPMENT_INSPECTION_TABLE)
+    .update(patch)
+    .eq('id', record.id)
+    .select(SELECT_COLUMNS)
+    .single()
+
+  // 고친 행이 하나도 없으면 RLS가 막은 것이다. 조용히 성공으로 돌아가면 화면이 저장된 척한다.
+  if (error) {
+    if (error.code === 'PGRST116') throw new Error(EQUIPMENT_INSPECTION_UPDATE_DENIED)
+    throw toError(error, '장비 일일점검 수정에 실패했습니다.')
+  }
+  if (!data) throw new Error(EQUIPMENT_INSPECTION_UPDATE_DENIED)
   return data as unknown as EquipmentInspection
 }
 

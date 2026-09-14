@@ -78,6 +78,6 @@ GRANT SELECT ON public.user_profiles, public.project_shares TO authenticated;
 GRANT SELECT, DELETE ON public.projects TO authenticated;
 
 -- Supabase는 public 스키마 기본 권한으로 authenticated에 테이블 권한을 준다.
--- 마이그레이션에 GRANT가 없는 이유이며, UPDATE 권한이 있어도 정책이 없으면 막힌다는 점을 함께 확인한다.
+-- 마이그레이션에 GRANT가 없는 이유이며, UPDATE 권한이 있어도 정책이 허용한 행만 고쳐진다는 점을 함께 확인한다.
 ALTER DEFAULT PRIVILEGES IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
