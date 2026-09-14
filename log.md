@@ -1,6 +1,18 @@
 # 작업 로그
 
 <!-- worklog -->
+260915_074603 : folder-mobile.png 삭제, folder-variants-zoom.png 삭제, folder-variants.png 삭제, variant-E-zoom.png 삭제, variant-F-zoom.png 삭제, variants2-zoom.png 삭제
+260915_074541 : safesys-app/src/app/project/[id]/page.tsx 수정, variant-F-zoom.png 추가
+260915_074510 : safesys-app/src/components/project/DocumentFolder.tsx 수정, variant-E-zoom.png 추가, variants2-zoom.png 추가
+260915_074358 : folder-variants-zoom.png 추가, folder-variants.png 추가
+260915_074140 : folder-mobile.png 추가
+260915_073849 : safesys-app/src/components/project/DocumentFolder.tsx 수정
+260915_073710 : safesys-app/src/app/project/[id]/page.tsx 수정
+260915_073649 : safesys-app/src/app/project/[id]/page.tsx 수정
+260915_071929 : safesys-app/src/app/project/[id]/tbm-submission/page.tsx 수정
+260915_071912 : safesys-app/src/app/project/[id]/tbm-submission/page.tsx 수정
+260915_061101 : safesys-app/tests/tbm-risk-analysis-config.test.mjs 수정 — "// TBM 위험분석의 모델 조회 경로·문구·입력 길이 설정을 검증하는 정적 회귀 테스트 // 모델명은 ai…"
+260915_061056 : safesys-app/tests/tbm-risk-analysis-config.test.mjs 수정 — "const modalSource = await readFile( new URL('../src/componen…"
 260915_060618 : safesys-app/src/app/api/quality-summary/reject/route.ts 삭제, safesys-app/tests/quality-rejection-cancel.test.mjs 삭제
 260915_060609 : .gitignore 수정 — "# Temporary files safesys-app/addresses.txt safesys-app/temp…"
 260915_055633 : safesys-app/scratch/equipment-inspection/onepage-samples/edited-visible-signed.hwpx 수정, safesys-app/scratch/equipment-inspection/onepage-samples/equipment-01-signed.hwpx 수정, safesys-app/scratch/equipment-inspection/onepage-samples/equipment-02-signed.hwpx 수정, safesys-app/scratch/equipment-inspection/onepage-samples/equipment-03-signed.hwpx 수정, safesys-app/scratch/equipment-inspection/onepage-samples/equipment-04-signed.hwpx 수정, safesys-app/scratch/equipment-inspection/onepage-samples/equipment-05-signed.hwpx 수정 외 20건
