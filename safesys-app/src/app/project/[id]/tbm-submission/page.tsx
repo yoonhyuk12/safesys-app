@@ -58,6 +58,8 @@ export default function TBMSubmissionPage() {
   const [qrSubmission, setQrSubmission] = useState<TBMSubmission | null>(null)
   const [showTodayQr, setShowTodayQr] = useState(false)
   const [todayQrPdfLoading, setTodayQrPdfLoading] = useState(false)
+  // 링크 복사 안내를 띄울 QR 모달 구분값 ('submission' | 'today')
+  const [copiedLinkKey, setCopiedLinkKey] = useState<string | null>(null)
   const todayQrCanvasRef = React.useRef<HTMLDivElement>(null)
   const [showUpdateNotice, setShowUpdateNotice] = useState(true)
 
@@ -426,6 +428,41 @@ export default function TBMSubmissionPage() {
     } finally {
       setDownloadingId(null)
     }
+  }
+
+  // QR 링크를 외부 앱(카톡·문자 등)으로 전달 — 공유 시트가 없으면 클립보드 복사로 대체
+  const handleShareLink = async (key: string, url: string, title: string) => {
+    try {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title, text: title, url })
+        return
+      }
+      await copyLinkToClipboard(url)
+      setCopiedLinkKey(key)
+      setTimeout(() => setCopiedLinkKey(null), 2000)
+    } catch (error: any) {
+      // 공유 시트에서 사용자가 취소한 경우는 오류로 취급하지 않음
+      if (error?.name === 'AbortError') return
+      console.error('링크 공유 오류:', error)
+      window.prompt('아래 링크를 복사해 전달하세요.', url)
+    }
+  }
+
+  // 클립보드 API를 쓰되 미지원·차단 환경에서는 임시 입력창으로 복사
+  const copyLinkToClipboard = async (url: string) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url)
+      return
+    }
+    const textarea = document.createElement('textarea')
+    textarea.value = url
+    textarea.style.position = 'fixed'
+    textarea.style.opacity = '0'
+    document.body.appendChild(textarea)
+    textarea.select()
+    const copied = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    if (!copied) throw new Error('클립보드 복사에 실패했습니다.')
   }
 
   // 상시 TBM QR A4 포스터 PDF 다운로드
@@ -1093,6 +1130,22 @@ export default function TBMSubmissionPage() {
                   클릭하여 내용 보기
                 </p>
               </a>
+              <div className="w-full space-y-1">
+                <button
+                  onClick={() => handleShareLink(
+                    'submission',
+                    `${window.location.origin}/tbm-view/${qrSubmission.id}`,
+                    `${qrSubmission.project_name} TBM 교육내용 (${qrSubmission.meeting_date})`
+                  )}
+                  className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Share2 className="h-4 w-4" />
+                  링크 전달하기
+                </button>
+                <p className="text-xs text-center text-gray-500">
+                  {copiedLinkKey === 'submission' ? '링크를 복사했습니다. 붙여넣어 전달하세요.' : 'QR을 못 찍는 분께 링크로 보낼 수 있습니다'}
+                </p>
+              </div>
               <div className="text-center space-y-1">
                 <p className="text-sm font-medium text-gray-900">{qrSubmission.project_name}</p>
                 <p className="text-xs text-gray-500">
@@ -1166,6 +1219,22 @@ export default function TBMSubmissionPage() {
                   클릭하여 당일 TBM 보기
                 </p>
               </a>
+              <div className="w-full space-y-1">
+                <button
+                  onClick={() => handleShareLink(
+                    'today',
+                    `${window.location.origin}/tbm-today/${projectId}`,
+                    `${project?.project_name || '현장'} 상시 TBM 교육내용`
+                  )}
+                  className="w-full min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  <Share2 className="h-4 w-4" />
+                  링크 전달하기
+                </button>
+                <p className="text-xs text-center text-gray-500">
+                  {copiedLinkKey === 'today' ? '링크를 복사했습니다. 붙여넣어 전달하세요.' : 'QR을 못 찍는 분께 링크로 보낼 수 있습니다'}
+                </p>
+              </div>
               <div className="text-center space-y-1">
                 <p className="text-sm font-medium text-gray-900">{project?.project_name}</p>
                 <p className="text-xs text-gray-500">현장에 부착해두면 스캔한 날(한국시간)의 TBM 교육 내용이 열립니다.</p>
