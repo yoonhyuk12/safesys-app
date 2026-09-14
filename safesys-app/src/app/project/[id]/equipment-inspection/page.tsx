@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Plus, X } from 'lucide-react'
+import { ArrowLeft, Loader2, Plus, X } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -298,11 +298,23 @@ export default function EquipmentInspectionPage() {
           {(draft || selectedRecord) && (
             <div className="w-full lg:flex-1 lg:min-w-0">
               {draft ? (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between">
-                    <h2 className="font-semibold text-sm sm:text-base truncate">
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                  {/* 스크롤 중에도 저장할 수 있도록 제목 바를 고정한다. 상위 카드에는 overflow를 두지 않는다. */}
+                  <div className="sticky top-0 z-20 bg-blue-600 text-white rounded-t-lg px-4 py-3 flex items-center justify-between gap-3">
+                    <h2 className="font-semibold text-sm sm:text-base truncate min-w-0 flex-1">
                       장비 일일점검{checklist ? ` — ${checklist.name}` : ''}
                     </h2>
+                    {checklist && (
+                      <button
+                        type="button"
+                        onClick={handleSubmit}
+                        disabled={saving}
+                        className="min-h-[44px] px-4 py-2 bg-white text-blue-700 text-sm font-medium rounded-lg hover:bg-blue-50 inline-flex items-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                        {saving ? '저장 중...' : '저장'}
+                      </button>
+                    )}
                     <button
                       onClick={closeFormByUser}
                       disabled={saving}
@@ -320,8 +332,6 @@ export default function EquipmentInspectionPage() {
                         checklist={checklist}
                         saving={saving}
                         onChange={setDraft}
-                        onSubmit={handleSubmit}
-                        onCancel={closeFormByUser}
                       />
                     ) : (
                       <EquipmentPicker

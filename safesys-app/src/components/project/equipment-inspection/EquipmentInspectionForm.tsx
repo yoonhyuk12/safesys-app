@@ -3,7 +3,7 @@
 // 장비 일일점검 작성 폼 — 기본사항, 원문 항목별 적합/부적합/해당없음, 점검자 직접 서명을 받는다.
 
 import { useState } from 'react'
-import { PenTool, Loader2 } from 'lucide-react'
+import { PenTool } from 'lucide-react'
 import SignaturePad from '@/components/ui/SignaturePad'
 import type { EquipmentChecklist, EquipmentInspectionResult } from '@/lib/equipment-inspection-types'
 import {
@@ -23,8 +23,6 @@ interface EquipmentInspectionFormProps {
   checklist: EquipmentChecklist
   saving: boolean
   onChange: (draft: EquipmentInspectionDraft) => void
-  onSubmit: () => void
-  onCancel: () => void
 }
 
 const INPUT_CLASS =
@@ -55,8 +53,6 @@ export default function EquipmentInspectionForm({
   checklist,
   saving,
   onChange,
-  onSubmit,
-  onCancel,
 }: EquipmentInspectionFormProps) {
   const [showSignaturePad, setShowSignaturePad] = useState(false)
 
@@ -136,7 +132,7 @@ export default function EquipmentInspectionForm({
                 const response = draft.responses[item.id]
                 return (
                   <div key={item.id} className="px-3 py-2.5 border-t border-gray-100">
-                    <p className="text-sm text-gray-900 whitespace-pre-line">{item.text}</p>
+                    <p className="text-sm text-gray-900 whitespace-normal">{item.text}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {EQUIPMENT_INSPECTION_RESULTS.map((result) => {
                         const active = response?.result === result
@@ -232,26 +228,6 @@ export default function EquipmentInspectionForm({
           <br />
           ※ 서명 후 점검 결과나 기본사항을 고치면 서명이 지워집니다. 모든 입력을 마친 뒤 마지막에 서명하세요.
         </p>
-      </div>
-
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={saving}
-          className="px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-        >
-          취소
-        </button>
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={saving}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-        >
-          {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-          {saving ? '제출 중...' : '제출'}
-        </button>
       </div>
 
       {showSignaturePad && (
