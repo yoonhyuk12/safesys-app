@@ -1,7 +1,7 @@
 // 사용자가 확정한 사고발생보고 양식 hwpx를 열어 값만 치환·복제해 내려받는 모듈
 import JSZip from 'jszip'
 import { topLevelRanges, rebuild, stripLineseg } from './accident-report-xml'
-import { paginateSection, paragraphHeight } from './accident-report-layout'
+import { fitReportSection, paragraphHeight, bodyParaPr, appendBodyParagraphStyles, type BodyFormat } from './accident-report-layout'
 import type { ProjectAccident } from '@/lib/accident-analysis-types'
 import { normalizeAccidentReportDetails, type AccidentReportDetails } from '@/lib/accident-report'
 import { cleanAccidentReportContent } from '@/lib/accident-report-content'
@@ -183,6 +183,8 @@ interface ParagraphEntry {
     pre?: string
     text?: string
     inline?: string
+    paraPr?: number
+    charPr?: number
 }
 
 function paragraphRegex(token: string): RegExp {
@@ -227,6 +229,8 @@ function fillParagraph(source: string, token: string, entry: ParagraphEntry): st
     edits.sort((a, b) => b[0] - a[0])
     let out = source
     for (const [start, end, next] of edits) out = out.slice(0, start) + next + out.slice(end)
+    if (entry.paraPr !== undefined) out = out.replace(/paraPrIDRef="\d+"/, `paraPrIDRef="${entry.paraPr}"`)
+    if (entry.charPr !== undefined) out = out.replace(/(<hp:run charPrIDRef=")\d+/g, `$1${entry.charPr}`)
     return stripLineseg(out)
 }
 
@@ -235,16 +239,31 @@ function replaceToken(xml: string, token: string, value: string): string {
     return xml.replace(token, () => esc(value))
 }
 
-/** 값의 줄 목록. 빈 줄은 버린다. */
-function valueLines(value: string | null | undefined): string[] {
-    return (value ?? '').split('\n').map(line => line.trimEnd()).filter(line => line.trim() !== '')
+/** 고정 머리·체크줄도 글자 공백 대신 문단 여백으로 이어줄을 정렬한다. */
+function alignFixedParagraph(xml: string, token: string, format: BodyFormat): string {
+    const { source, index } = findParagraph(xml, token)
+    let leading = true
+    const paragraph = stripLineseg(source.replace(/paraPrIDRef="\d+"/, `paraPrIDRef="${bodyParaPr(format)}"`)
+        .replace(/<hp:t>([\s\S]*?)<\/hp:t>/g, (_all, text: string) => {
+            const trimmed = leading ? text.trimStart() : text
+            if (trimmed) leading = false
+            return `<hp:t>${trimmed}</hp:t>`
+        }))
+    return xml.slice(0, index) + paragraph + xml.slice(index + source.length)
 }
 
-/** 접두어 폭만큼의 공백. 한글·전각은 두 칸, ASCII는 한 칸으로 센다. */
-function padFor(prefix: string): string {
-    let width = 0
-    for (const ch of prefix) width += ch.charCodeAt(0) < 128 ? 1 : 2
-    return ' '.repeat(width)
+/** 플랫폼별 개행을 통일하며 입력 문단 사이 빈 줄과 공백은 보존한다. */
+function valueLines(value: string | null | undefined): string[] {
+    return value?.trim() ? value.replace(/\r\n?/g, '\n').split('\n') : []
+}
+
+/** 자동 줄바꿈과 명시 개행 모두 같은 본문 시작 위치를 사용한다. */
+function bodyEntries(value: string | null | undefined, format: BodyFormat, prefix = '', charPr = 17): ParagraphEntry[] {
+    const lines = valueLines(value)
+    return (lines.length ? lines : ['-']).map((line, index) => ({
+        text: `${index === 0 ? prefix : ''}${line}`,
+        paraPr: bodyParaPr(format, index > 0), charPr,
+    }))
 }
 
 // ── 사진 ──
@@ -303,15 +322,18 @@ function fillSingleValues(section: string, accident: ProjectAccident, details: A
     out = replaceToken(out, '{{REPORT_DATE}}', fmtDate(details.reportDate.trim() || seoulYmd(new Date())))
     out = replaceToken(out, '{{REPORTER}}', reporter)
     out = replaceToken(out, '{{REPORTER_PHONE}}', phone ? `(${phone})` : '')
-    out = replaceToken(out, '{{DISTRICT}}', project || '-')
-    out = replaceToken(out, '{{ACCIDENT_DATETIME}}', `${fmtAccidentDate(accident.accident_at)}${time ? `  ${time}경` : ''}`)
-    out = replaceToken(out, '{{LOCATION}}', valueLines(accident.location).join(' ') || '-')
+    out = expandParagraph(out, '{{DISTRICT}}', bodyEntries(project, 'district', '○ 지구 : '))
+    out = expandParagraph(out, '{{ACCIDENT_DATETIME}}', bodyEntries(`${fmtAccidentDate(accident.accident_at)}${time ? `  ${time}경` : ''}`, 'date', '○ 일시 : '))
+    out = expandParagraph(out, '{{LOCATION}}', bodyEntries(accident.location, 'location', '○ 장소 : '))
+    out = alignFixedParagraph(out, '{{CASUALTIES}}', 'bullet')
     out = replaceToken(out, '{{CASUALTIES}}', ` (${casualtySummary(accident)})`)
     out = replaceToken(out, '{{PHOTO_TITLE}}', `${fatal ? '사망' : '부상'}사고 발생 현장 사진`)
 
     const mark = (on: boolean) => (on ? CHECKED : UNCHECKED)
     const notified = (value: string) => (details.notifications as readonly string[]).includes(value)
     const acted = (value: string) => (details.victimActions as readonly string[]).includes(value)
+    out = alignFixedParagraph(out, '{{NOTIFY_119}}', 'checks')
+    out = alignFixedParagraph(out, '{{ACT_HOSPITAL}}', 'checks')
     out = replaceToken(out, '{{NOTIFY_119}}', mark(notified('emergency119')))
     out = replaceToken(out, '{{NOTIFY_POLICE}}', mark(notified('police')))
     out = replaceToken(out, '{{NOTIFY_LABOR}}', mark(notified('laborOffice')))
@@ -323,16 +345,14 @@ function fillSingleValues(section: string, accident: ProjectAccident, details: A
 }
 
 function summaryEntries(details: AccidentReportDetails): ParagraphEntry[] {
-    const lines = valueLines(details.summary)
-    if (lines.length === 0) return [{ inline: '-' }]
-    return [{ inline: lines[0] }, ...lines.slice(1).map(line => ({ text: `    ${line}` }))]
+    return bodyEntries(details.summary, 'summary', '○ ')
 }
 
 function victimEntries(details: AccidentReportDetails): ParagraphEntry[] {
     const lines = valueLines(details.victimDetails)
     const body = lines.length === 0 ? ['-'] : lines
     const treatment = details.expectedTreatmentDays === '' ? [] : [`산재요양 예상 ${details.expectedTreatmentDays}일`]
-    return [...body, ...treatment].map(line => ({ text: `      ${line}` }))
+    return [...body, ...treatment].map(line => ({ text: line, paraPr: bodyParaPr('victim'), charPr: 17 }))
 }
 
 /** 통계 컬럼(인명피해 수·사고유형·중대도)은 양식에 없는 정보라 `○ 피해자 인적사항` 줄 끝에 괄호로 붙인다(줄을 늘리지 않는다). */
@@ -342,9 +362,7 @@ function casualtySummary(accident: ProjectAccident): string {
 }
 
 function bulletEntries(value: string | null | undefined): ParagraphEntry[] {
-    const lines = valueLines(value)
-    const body = lines.length === 0 ? ['-'] : lines
-    return [{ text: `   ○ ${body[0]}` }, ...body.slice(1).map(line => ({ text: `      ${line}` }))]
+    return bodyEntries(value, 'bullet', '○ ')
 }
 
 function accidentDetailEntries(accident: ProjectAccident, details: AccidentReportDetails): ParagraphEntry[] {
@@ -359,21 +377,14 @@ function accidentDetailEntries(accident: ProjectAccident, details: AccidentRepor
     for (const [label, value] of items) {
         const lines = valueLines(value)
         if (lines.length === 0 && (label === '피해현황' || label === '귀책사유')) continue
-        const body = lines.length === 0 ? ['-'] : lines
-        const pad = padFor(`${label} : `)
-        entries.push({ pre: '   ○ ', text: `${label} : ${body[0]}` })
-        for (const line of body.slice(1)) entries.push({ pre: '      ', text: `${pad}${line}` })
+        entries.push(...bodyEntries(value, 'detail', `○ ${label} : `).map(entry => ({ ...entry, pre: '' })))
     }
     return entries
 }
 
 function actionEntries(accident: ProjectAccident, details: AccidentReportDetails): ParagraphEntry[] {
-    const actions = valueLines(details.actionDetails)
-    const prevention = valueLines(accident.prevention_action)
-    const entries: ParagraphEntry[] = actions.length > 0 ? [{ text: `   ○ 조치내용 : ${actions[0]}` }] : []
-    for (const line of actions.slice(1)) entries.push({ text: `      ${line}` })
-    entries.push({ text: `   ○ 향후 추진계획 : ${prevention[0] ?? '-'}` })
-    for (const line of prevention.slice(1)) entries.push({ text: `      ${line}` })
+    const entries = valueLines(details.actionDetails).length ? bodyEntries(details.actionDetails, 'detail', '○ 조치내용 : ') : []
+    entries.push(...bodyEntries(accident.prevention_action, 'plan', '○ 향후 추진계획 : '))
     return entries
 }
 
@@ -387,33 +398,25 @@ function fillMultilineValues(section: string, accident: ProjectAccident, details
     out = expandParagraph(out, '{{PROPERTY_DAMAGE}}', bulletEntries(details.propertyDamage))
     out = expandParagraph(out, '{{ACCIDENT_DETAILS}}', accidentDetailEntries(accident, details))
 
-    const reasons = valueLines(details.noNotificationReason)
-    const reasonBody = reasons.length === 0 ? ['-'] : reasons
-    out = expandParagraph(out, '{{NO_NOTIFICATION_REASON}}', [
-        { inline: reasonBody[0] },
-        ...reasonBody.slice(1).map(line => ({ pre: '        ', text: line })),
-    ])
+    out = expandParagraph(out, '{{NO_NOTIFICATION_REASON}}', bodyEntries(details.noNotificationReason, 'reason', '- 미신고 사유 : ').map(entry => ({ ...entry, pre: '' })))
 
     const compensation = valueLines(details.compensationDetails)
     const claim = `산재 ${compClaimLabel(accident.workers_comp_claim)}`
-    out = expandParagraph(out, '{{COMPENSATION}}', [
-        { text: compensation.length > 0 ? `${claim} / ${compensation[0]}` : claim },
-    ])
-    out = expandParagraph(out, '{{COMPENSATION_MORE}}', compensation.slice(1).map(line => ({ text: `        ${line}` })))
+    const compensationText = compensation.length ? `${claim} / ${compensation.join('\n')}` : claim
+    out = expandParagraph(out, '{{COMPENSATION}}', bodyEntries(compensationText, 'compensation', '- 산재보험처리 등 보상관련 : ').map(entry => ({ ...entry, pre: '' })))
+    out = expandParagraph(out, '{{COMPENSATION_MORE}}', [])
 
     out = expandParagraph(out, '{{ACTION_DETAILS}}', actionEntries(accident, details))
 
     const notes = valueLines(details.otherNotes)
-    const extra = notes.slice(1).map(line => fillParagraph(plain, '{{VICTIM_DETAILS}}', { text: `   ${line}` })).join('')
+    const extra = notes.slice(1).map(line => fillParagraph(plain, '{{VICTIM_DETAILS}}', { text: line, paraPr: bodyParaPr('notes', true), charPr: 17 })).join('')
     if (extra !== '') {
         const found = findParagraph(out, '{{OTHER_NOTES}}')
         out = out.slice(0, found.index + found.source.length) + extra + out.slice(found.index + found.source.length)
     }
-    out = replaceToken(out, '{{OTHER_NOTES}}', notes[0] ?? '-')
+    out = expandParagraph(out, '{{OTHER_NOTES}}', [{ inline: notes[0] ?? '-', paraPr: bodyParaPr('notes') }])
 
-    const contacts = valueLines(details.relatedContacts)
-    const contactBody = contacts.length === 0 ? ['-'] : contacts
-    out = expandParagraph(out, '{{CONTACTS}}', contactBody.map(line => ({ text: ` ▸ ${line}` })))
+    out = expandParagraph(out, '{{CONTACTS}}', bodyEntries(details.relatedContacts, 'contacts', '▸ ', 36))
     return out
 }
 
@@ -444,6 +447,7 @@ export async function buildAccidentReportHwpx(accident: ProjectAccident, project
     const details = { ...originalDetails, damageDetails: cleaned.damageDetails, actionDetails: cleaned.actionDetails }
     const outputAccident = { ...accident, description: cleaned.description }
     const template = await loadTemplate()
+    let header = appendBodyParagraphStyles(await readText(template, 'Contents/header.xml'))
     const collector = new ImageCollector()
 
     const photoItems: PhotoItem[] = []
@@ -457,7 +461,9 @@ export async function buildAccidentReportHwpx(accident: ProjectAccident, project
     section = fillSingleValues(section, outputAccident, details, projectName)
     section = fillMultilineValues(section, outputAccident, details)
     section = applyPhotos(section, collector, photoItems)
-    section = paginateSection(section)
+    const fitted = fitReportSection(section, header)
+    section = fitted.section
+    header = fitted.header
 
     const imageItems = collector.images.map(img =>
         `<opf:item id="${img.id}" href="BinData/${img.filename}" media-type="image/${img.ext === 'jpg' ? 'jpeg' : img.ext}" isEmbeded="1"/>`
@@ -475,6 +481,7 @@ export async function buildAccidentReportHwpx(accident: ProjectAccident, project
     for (const path of order) {
         if (path === 'mimetype') continue
         if (path === 'Contents/section0.xml') zip.file(path, section, deflate)
+        else if (path === 'Contents/header.xml') zip.file(path, header, deflate)
         else if (path === 'Contents/content.hpf') zip.file(path, hpf, deflate)
         else zip.file(path, await template.file(path)!.async('uint8array'), deflate)
     }

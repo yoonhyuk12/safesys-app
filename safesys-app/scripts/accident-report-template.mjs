@@ -127,7 +127,8 @@ function replaceSecondRunText(paragraph, next, label) {
     const run = paragraph.slice(start, end)
     const hits = textMatches(run)
     if (hits.length !== 1) fail(`${label} 둘째 run`)
-    const replaced = run.slice(0, hits[0].index) + `<hp:t>${next}</hp:t>` + run.slice(hits[0].index + hits[0][0].length)
+    const replaced = (run.slice(0, hits[0].index) + `<hp:t>${next}</hp:t>` + run.slice(hits[0].index + hits[0][0].length))
+        .replace(/charPrIDRef="\d+"/, 'charPrIDRef="17"')
     return paragraph.slice(0, start) + replaced + paragraph.slice(end)
 }
 
@@ -175,7 +176,8 @@ function transformBodyCell(cell) {
     out[12] = replaceSecondRunText(p[12], '{{ACCIDENT_DETAILS}}', '사고내용')
 
     if (!textMatches(p[14]).some(m => m[1].startsWith('   ○ 신고'))) fail('신고·연락사항 머리')
-    out[15] = replaceCheckMarks(p[15], '119신고', ['{{NOTIFY_119}}', '{{NOTIFY_POLICE}}', '{{NOTIFY_LABOR}}', '{{NOTIFY_FAMILY}}'], '신고·연락사항')
+    // cp24와 cp17은 모든 fontRef가 같으므로 PUA 폰트를 유지하며 자간만 본문에 맞춘다.
+    out[15] = replaceCheckMarks(p[15].replace('charPrIDRef="24"', 'charPrIDRef="17"'), '119신고', ['{{NOTIFY_119}}', '{{NOTIFY_POLICE}}', '{{NOTIFY_LABOR}}', '{{NOTIFY_FAMILY}}'], '신고·연락사항')
     out[16] = replaceSecondRunText(p[16], '미신고 사유 : {{NO_NOTIFICATION_REASON}}', '미신고 사유')
 
     if (!textMatches(p[17]).some(m => m[1].startsWith('   ○ 사고자 조치사항'))) fail('사고자 조치사항 머리')

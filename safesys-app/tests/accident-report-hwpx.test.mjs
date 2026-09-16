@@ -180,6 +180,26 @@ async function run() {
   const photo = (dataUrl, caption) => ({ dataUrl, caption })
 
   const cases = {
+    captions: {
+      accident: { ...baseAccident, report_details: { ...baseDetails,
+        photos: [photo(landscapeUrl, '캡'.repeat(196) + '설명하나'), photo(portraitUrl, '션'.repeat(196) + '설명둘끝')],
+      } }, pics: 2, checked: 2, outerTables: 1,
+    },
+    typography: {
+      accident: { ...baseAccident,
+        description: '가상 현장에서 운반 작업 중 단차에 걸려 넘어졌다. 작업을 중지하고 부상자를 병원으로 이송했다. 손목 타박상으로 치료를 받았다.\r\n이후 사고 구간의 출입을 통제했다.\r\n\r\n추가 조치 사항은 별도 기록으로 관리한다.',
+        cause: '통로의 단차에 발이 걸림.\r시야가 가려짐.',
+        report_details: { ...baseDetails, reportTitle: '가상 현장 사고발생보고',
+          summary: '운반 중 넘어짐 사고가 발생함.\n부상자 1명은 치료 중임.',
+          victimDetails: '가상인 / 남 / 40대 / 보통인부\n자재 운반 작업자',
+          damageDetails: '손목 타박상\n물적 피해 없음',
+          compensationDetails: '치료비 처리 절차 확인 중\n관련 서류 준비 중',
+          actionDetails: '작업 중지 및 병원 이송\n사고 구간 출입 통제',
+          otherNotes: '문의사항 없음\n추가 확인 사항 기록',
+          photos: [photo(landscapeUrl, '사진 설명 첫 줄\r\n\r\n설명 마지막 줄'), photo(portraitUrl, '조치 후 사진')],
+        },
+      }, pics: 2, checked: 2, outerTables: 1,
+    },
     nested: {
       accident: { ...baseAccident, report_details: { ...baseDetails,
         summary: '요'.repeat(3997) + '요지끝', relatedContacts: '연'.repeat(3996) + '연락처끝',
@@ -192,8 +212,7 @@ async function run() {
         reporterPosition: '직'.repeat(197) + '직책끝', reporterPhone: '전'.repeat(197) + '전화끝',
       } }, pics: 0, checked: 2, minOuterTables: 2,
     },
-    // 바깥 표 수 = 본문 쪽 수. 양식 본문 셀(62437)은 원본 내용(실측 약 61800)에 딱 맞게 잡혀 있어
-    // 값이 비거나 짧은 보고서는 원본처럼 한 쪽, 전 필드를 채운 one/two/three는 원본보다 몇 줄 길어 두 쪽이 된다.
+    // 짧은 입력과 모든 필드가 채워진 입력 모두 본문 한 쪽으로 맞춘다.
     empty: { accident: { ...baseAccident, report_details: null }, pics: 0, checked: 0, outerTables: 1 },
     one: {
       accident: {
@@ -202,7 +221,7 @@ async function run() {
       },
       pics: 1,
       checked: 2,
-      outerTables: 2,
+      outerTables: 1,
     },
     two: {
       accident: {
@@ -216,7 +235,7 @@ async function run() {
       },
       pics: 2,
       checked: 3,
-      outerTables: 2,
+      outerTables: 1,
     },
     three: {
       accident: {
@@ -232,7 +251,7 @@ async function run() {
       },
       pics: 2,
       checked: 2,
-      outerTables: 2,
+      outerTables: 1,
       droppedCaptions: ['셋째 사진 설명 버려짐'],
     },
     long: {
@@ -259,6 +278,12 @@ async function run() {
 
   const built = {}
   for (const [name, spec] of Object.entries(cases)) {
+    if (['nested', 'heading', 'long'].includes(name)) {
+      test(`${name}: 과다 장문은 잘라내거나 3쪽으로 늘리지 않고 축약을 요청한다`, async () => {
+        await assert.rejects(() => buildAccidentReportHwpx(spec.accident, PROJECT_NAME), /본문이 1쪽 분량을 초과/)
+      })
+      continue
+    }
     const blob = await buildAccidentReportHwpx(spec.accident, PROJECT_NAME)
     const buffer = Buffer.from(await blob.arrayBuffer())
     const zip = await JSZip.loadAsync(buffer)
@@ -274,6 +299,93 @@ async function run() {
   }
 
   // ── 공통 도우미 ──
+
+  test('연락처의 입력 빈 줄도 쪽 높이에 포함하여 과다 분량을 거부한다', async () => {
+    await assert.rejects(() => buildAccidentReportHwpx({ ...baseAccident,
+      report_details: { ...baseDetails, relatedContacts: `연락처시작${'\n'.repeat(60)}연락처끝` },
+    }, PROJECT_NAME), /본문이 1쪽 분량을 초과/)
+  })
+
+  test('200자 사진 설명 두 개는 사진 칸 높이를 나누고 끝 문구를 보존한다', () => {
+    const { $, section } = built.captions
+    const photos = $('hp\\:tbl').toArray().filter(table => $(table).children('hp\\:sz').attr('width') === '47337')
+    assert.equal(photos.length, 2)
+    for (const table of photos) {
+      const cells = $(table).find('hp\\:cellSz').toArray()
+      assert.ok(Number($(cells[0]).attr('height')) < 26890)
+      assert.ok(Number($(cells[2]).attr('height')) > 3142)
+      assert.equal(Number($(cells[0]).attr('height')) + Number($(cells[2]).attr('height')), 30032)
+    }
+    assert.ok(section.includes('설명하나'))
+    assert.ok(section.includes('설명둘끝'))
+    assert.equal((section.match(/pageBreak="1"/g) ?? []).length, 1)
+  })
+
+  test('본문 역할 글꼴과 명시 개행·빈 줄·이어쓰기 위치를 보존한다', async () => {
+    const blob = await buildAccidentReportHwpx({ ...baseAccident,
+      work_description: '첫작업\r\n\r\n둘째작업\r셋째작업',
+      report_details: { ...baseDetails, noNotificationReason: '첫사유\n\n둘째사유' },
+    }, PROJECT_NAME)
+    const zip = await JSZip.loadAsync(await blob.arrayBuffer())
+    const section = await zip.file('Contents/section0.xml').async('string')
+    const $ = load(section, { xml: true })
+    const header = load(await zip.file('Contents/header.xml').async('string'), { xml: true })
+    const leaves = $('hp\\:p').toArray().filter(p => $(p).find('hp\\:p').length === 0)
+    const first = leaves.findIndex(p => $(p).text().includes('첫작업'))
+    const texts = leaves.slice(first, first + 4).map(p => $(p).text())
+    assert.deepEqual(texts, ['○ 작업내용 : 첫작업', '', '둘째작업', '셋째작업'])
+    const profiles = leaves.slice(first, first + 4).map(p => header(`hh\\:paraPr[id="${$(p).attr('paraPrIDRef')}"]`))
+    const metric = (p, tag) => Number(p.find(`hp\\:case hc\\:${tag}`).attr('value'))
+    const continuationLeft = metric(profiles[0], 'left') - metric(profiles[0], 'intent')
+    for (const profile of profiles.slice(1)) {
+      assert.equal(metric(profile, 'left'), continuationLeft)
+      assert.equal(metric(profile, 'intent'), 0)
+    }
+    for (const p of leaves.filter(p => /첫작업|둘째작업|셋째작업|첫사유|둘째사유/.test($(p).text()))) {
+      assert.ok($(p).children('hp\\:run').toArray().every(run => $(run).attr('charPrIDRef') === '17'))
+    }
+    assert.doesNotMatch(section, /\r/)
+  })
+
+  test('피해자 머리와 신고·조치 체크줄은 공백 대신 문단 여백을 사용하고 원문과 체크를 보존한다', async () => {
+    const blob = await buildAccidentReportHwpx({ ...baseAccident, report_details: baseDetails }, PROJECT_NAME)
+    const zip = await JSZip.loadAsync(await blob.arrayBuffer())
+    const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+    const header = load(await zip.file('Contents/header.xml').async('string'), { xml: true })
+    const leaves = $('hp\\:p').toArray().filter(p => $(p).find('hp\\:p').length === 0)
+    for (const [needle, format, expected] of [
+      ['피해자 인적사항', 'bullet', '○ 피해자 인적사항 (부상 1명 / 사망 0명 / 휴업 5일 · 넘어짐 (휴업))'],
+      ['119신고', 'checks', '\uF0FE 119신고 / \uF06F 경찰서신고 / \uF06F 고용노동청 신고 / \uF06F 유가족 연락'],
+      ['병원진료', 'checks', '\uF0FE 병원진료 / \uF06F 장례식장 안치 / \uF06F 귀가조치'],
+    ]) {
+      const p = $(leaves.find(p => $(p).text().includes(needle)))
+      assert.equal(p.attr('paraPrIDRef'), String(layoutHelpers.bodyParaPr(format)))
+      assert.equal(p.text(), expected)
+      assert.ok(p.children('hp\\:run').toArray().every(run => $(run).attr('charPrIDRef') === '17'))
+      const profile = header(`hh\\:paraPr[id="${p.attr('paraPrIDRef')}"]`)
+      assert.ok(Number(profile.find('hp\\:case hc\\:left').attr('value')) > 0)
+      if (format === 'checks') assert.equal(profile.find('hp\\:case hc\\:intent').attr('value'), '0')
+    }
+  })
+
+  test('내어쓰기 폭을 높이에 반영하고 자동·수동 이어쓰기의 두 분기 여백이 같다', async () => {
+    const paragraph = id => `<hp:p paraPrIDRef="${id}"><hp:run charPrIDRef="17"><hp:t>${'가'.repeat(90)}</hp:t></hp:run></hp:p>`
+    assert.ok(layoutHelpers.paragraphHeight(paragraph(layoutHelpers.bodyParaPr('detail')))
+      > layoutHelpers.paragraphHeight(paragraph(21)))
+    const header = load(await built.typography.zip.file('Contents/header.xml').async('string'), { xml: true })
+    for (const name of ['summary', 'bullet', 'detail', 'plan', 'reason', 'compensation', 'location', 'contacts', 'notes']) {
+      const first = header(`hh\\:paraPr[id="${layoutHelpers.bodyParaPr(name)}"]`)
+      const next = header(`hh\\:paraPr[id="${layoutHelpers.bodyParaPr(name, true)}"]`)
+      for (const branch of ['case', 'default']) {
+        const value = (p, tag) => Number(p.find(`hp\\:${branch} hc\\:${tag}`).attr('value'))
+        assert.equal(value(first, 'left') - value(first, 'intent'), value(next, 'left'), `${name}/${branch}`)
+        assert.equal(value(next, 'intent'), 0)
+      }
+    }
+    const original = load(Buffer.from(originalHeader).toString('utf8'), { xml: true })
+    assert.equal(header('hh\\:charPr[id="17"] hh\\:fontRef').toString(), original('hh\\:charPr[id="24"] hh\\:fontRef').toString(), '체크 기호의 PUA 전용 fontRef를 보존한다')
+    assert.ok(Number(header('hh\\:charPr[id="17"]').attr('height')) < 1400, '여러 줄 표본에서 균일 축소 단계가 검증되어야 한다')
+  })
 
   const TOKENS = [
     '{{TITLE}}', '{{REPORT_DATE}}', '{{REPORTER}}', '{{REPORTER_PHONE}}', '{{SUMMARY}}',
@@ -349,10 +461,41 @@ async function run() {
       assert.equal(sequence(section, CELL_ADDR), sequence(emptySection, CELL_ADDR))
       assert.equal(sequence(section, CELL_SPAN), sequence(emptySection, CELL_SPAN))
       assert.equal(sequence(section, /<hp:cellSz width="\d+"/g), sequence(emptySection, /<hp:cellSz width="\d+"/g))
-      assert.deepEqual(await zip.file('Contents/header.xml').async('uint8array'), originalHeader)
+      assertBodyHeader(await zip.file('Contents/header.xml').async('string'))
     }
   })
   const originalWidths = new Set([...originalSection.matchAll(/<hp:cellSz width="(\d+)"/g)].map(m => m[1]))
+
+  function assertBodyHeader(actual) {
+    const source = Buffer.from(originalHeader).toString('utf8')
+    const original = load(source, { xml: true })
+    const output = load(actual, { xml: true })
+    for (const tag of ['fontfaces', 'borderFills', 'styles', 'tabProperties']) {
+      assert.equal(output(`hh\\:${tag}`).toString(), original(`hh\\:${tag}`).toString(), tag)
+    }
+    for (const char of original('hh\\:charPr').toArray()) {
+      const id = original(char).attr('id')
+      const next = output(`hh\\:charPr[id="${id}"]`)
+      if (id !== '17') assert.equal(next.toString(), original(char).toString())
+      else {
+        assert.ok([1200, 1300, 1400].includes(Number(next.attr('height'))))
+        assert.equal(next.children('hh\\:fontRef').toString(), original(char).children('hh\\:fontRef').toString())
+        assert.ok(Number(next.children('hh\\:ratio').attr('hangul')) >= 85)
+        assert.ok(Number(next.children('hh\\:spacing').attr('hangul')) >= -5)
+      }
+    }
+    for (const para of original('hh\\:paraPr').toArray()) {
+      const id = original(para).attr('id')
+      const next = output(`hh\\:paraPr[id="${id}"]`)
+      const withoutSpacing = xml => xml.replace(/(<hh:lineSpacing type="PERCENT" value=")\d+/g, '$1FIT')
+      assert.equal(["21", "40", "41"].includes(id) ? withoutSpacing(next.toString()) : next.toString(),
+        ["21", "40", "41"].includes(id) ? withoutSpacing(original(para).toString()) : original(para).toString())
+    }
+    assert.equal(Number(output('hh\\:paraProperties').attr('itemCnt')), output('hh\\:paraPr').length)
+    for (const p of output('hh\\:paraPr').toArray().filter(p => Number(output(p).attr('id')) >= 45)) {
+      assert.ok(Number(output(p).find('hh\\:lineSpacing').first().attr('value')) >= 100)
+    }
+  }
 
   function firstEntryIsStoredMimetype(buffer) {
     assert.equal(buffer.readUInt32LE(0), 0x04034b50, '첫 항목이 로컬 파일 헤더가 아니다')
@@ -386,7 +529,7 @@ async function run() {
         if (!dropped.includes(item.caption)) values.push(item.caption)
       }
     }
-    return values.flatMap(value => String(value ?? '').split('\n')).filter(line => line.trim() !== '')
+    return values.flatMap(value => String(value ?? '').split(/\r\n?|\n/)).filter(line => line.trim() !== '')
   }
 
   // ── 0. 양식 정화 검증 ──
@@ -523,30 +666,13 @@ async function run() {
     })
   })
 
-  test('긴 요지와 연락처는 머리 문구를 제외하고 글자 수와 끝 마커가 보존된다', () => {
-    const flat = flatText(built.nested)
-    assert.equal(countOf(flat.replace(/〈 보 고 요 지 〉|산재요양 예상 [0-9]+일/g, ''), '요'), 3998)
-    const $ = built.nested.$
-    const contacts = $('hp\\:t').toArray().map(el => $(el).text()).filter(text => /연{2}/.test(text)).join('')
-    assert.equal(countOf(contacts, '연'), 3997)
-    assert.equal(countOf(flat, '요지끝'), 1)
-    assert.equal(countOf(flat, '연락처끝'), 1)
-  })
-
-  test('긴 머리 행과 중첩 표도 쪽 높이를 넘기지 않고 명시 높이가 내용에 대응한다', () => {
-    for (const name of ['heading', 'nested', 'long', 'empty']) {
-      const { $ } = built[name]
-      for (const table of $('hp\\:tbl').toArray()) {
-        const height = Number($(table).children('hp\\:sz').attr('height'))
-        assert.ok(height < 68000, `${name}의 표 높이 ${height}가 한 쪽을 넘는다`)
+  test('보고서 1쪽과 사진대지 1쪽 구조 및 서식 하한을 지킨다', async () => {
+    for (const spec of Object.values(built)) {
+      assert.equal(countOf(spec.section, 'pageBreak="1"'), 1)
+      assertBodyHeader(await spec.zip.file('Contents/header.xml').async('string'))
+      for (const table of spec.$('hp\\:tbl').toArray()) {
+        assert.ok(Number(spec.$(table).children('hp\\:sz').attr('height')) < 68000)
       }
-    }
-    const { $ } = built.nested
-    const photoTables = $('hp\\:tbl').toArray().filter(table => $(table).children('hp\\:sz').attr('width') === '47337')
-    for (const table of photoTables) {
-      const cells = $(table).find('hp\\:cellSz').toArray()
-      assert.ok(Number($(cells[0]).attr('height')) < 26890, '장문 설명을 위한 사진 칸 여유가 없다')
-      assert.ok(Number($(cells[2]).attr('height')) > 3142, '장문 설명 칸이 자라지 않았다')
     }
   })
 
