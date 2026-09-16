@@ -320,8 +320,9 @@ test('프로젝트 사고 목록은 요양일 scalar만 추가하고 사진 JSON
 
   const rows = await lib.getProjectAccidents('project-a')
 
-  assert.deepEqual(stub.calls.selects, [['project_accidents', `${lib.PROJECT_ACCIDENT_LIST_COLUMNS}, expected_treatment_days:report_details->>expectedTreatmentDays`]])
-  assert.equal(lib.PROJECT_ACCIDENT_LIST_COLUMNS.includes('report_details'), false)
+  assert.deepEqual(stub.calls.selects, [['project_accidents', lib.PROJECT_ACCIDENT_LIST_COLUMNS]])
+  assert.equal(lib.PROJECT_ACCIDENT_LIST_COLUMNS.split(', ').includes('report_details'), false)
+  assert.equal(lib.PROJECT_ACCIDENT_LIST_COLUMNS.split('expected_treatment_days:').length, 2)
   assert.equal(rows[0].expected_treatment_days, '0')
   assert.equal(rows[0].report_details, undefined)
   assert.deepEqual(stub.calls.tables, ['project_accidents'])
@@ -356,6 +357,8 @@ test('사고 통계 조회도 사진 JSON 컬럼을 읽지 않는다', async () 
   assert.equal(accidentSelects.length, 2, '등록 현장·미등록 현장 조회 두 곳이어야 한다')
   for (const [, columns] of accidentSelects) {
     assert.equal(columns, lib.PROJECT_ACCIDENT_LIST_COLUMNS)
+    assert.ok(columns.includes('expected_treatment_days:report_details->>expectedTreatmentDays'))
+    assert.equal(columns.split(', ').includes('report_details'), false)
   }
 })
 

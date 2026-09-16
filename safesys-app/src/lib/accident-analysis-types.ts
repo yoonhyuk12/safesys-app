@@ -28,7 +28,7 @@ export interface ProjectAccident {
   lost_workdays: number
   /** 산재신청 여부. 기존 등록분은 null(미확인) */
   workers_comp_claim: WorkersCompClaim | null
-  /** 프로젝트 사고 목록에서만 읽는 요양일 scalar. 사진 JSON의 미조회 상태와 별개다. */
+  /** 사고 목록·분석 조회에서 읽는 요양일 scalar. 사진 JSON의 미조회 상태와 별개다. */
   expected_treatment_days?: string | null
   /**
    * 사고발생보고서 추가 항목·사진(JSONB). 대시보드 목록 조회는 이 컬럼을 읽지 않으므로 undefined일 수 있고,

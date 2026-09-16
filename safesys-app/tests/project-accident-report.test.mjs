@@ -407,6 +407,32 @@ async function renderDetail(props) {
   }))
 }
 
+test('사고 분석 산재승인은 양의 유효 요양일만 승인으로 표시한다', async () => {
+  for (const [value, approved] of [['14', true], ['1', true], [undefined, false], [null, false], ['', false], ['0', false], ['-1', false], ['1.5', false], ['NaN', false], ['Infinity', false], ['9007199254740992', false]]) {
+    let arrayStateIndex = 0
+    const accident = { ...OWN_ACCIDENT, accident_at: new Date().toISOString(), expected_treatment_days: value }
+    const load = createLoader({
+      '@/lib/supabase': { supabase: {} },
+      '@/lib/tbm': { getRegularWorkersByOrg: async () => ({}) },
+      '@/components/dashboard/AccidentEntryModal': { default: () => null },
+      react: { ...React, useState: (initial) => {
+        // 첫 배열 상태는 사고 목록이며 로딩 상태를 내려 조회 완료 화면을 렌더링한다.
+        if (Array.isArray(initial) && arrayStateIndex++ === 0) return React.useState([accident])
+        return React.useState(initial === true ? false : initial)
+      } },
+    })
+    const { default: View } = await load('@/components/dashboard/AccidentAnalysisView')
+    const markup = renderToStaticMarkup(React.createElement(View, {
+      projects: [PROJECT], userProfile: { role: '발주청', hq_division: '본사' }, canManageAccidents: false, initialBranch: null, onBack: () => {},
+    }))
+    assert.match(markup, /<th[^>]*>산재승인<\/th>/)
+    assert.doesNotMatch(markup, /<th[^>]*>산재신청<\/th>/)
+    const row = markup.match(/<tr[^>]*class="align-top"[^>]*>(.*?)<\/tr>/)?.[1] ?? ''
+    const cells = [...row.matchAll(/<td\b[^>]*>(.*?)<\/td>/g)].map((match) => match[1])
+    assert.match(cells[3] ?? '', approved ? /bg-green-100 text-green-800[^>]*>승인<\/span>/ : /bg-gray-100 text-gray-800[^>]*>미확인<\/span>/, String(value))
+  }
+})
+
 test('목록 인명 피해는 양수만 단위 없이 연결한다', async () => {
   for (const [injured_count, fatal_count, lost_workdays, expected] of [
     [1, 0, 0, '부상 1'], [0, 1, 0, '사망 1'], [0, 0, 3, '휴업 3'],

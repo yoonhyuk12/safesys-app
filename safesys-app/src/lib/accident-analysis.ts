@@ -39,7 +39,7 @@ export * from '@/lib/accident-analysis-types'
 export { calculateAccidentAnalysis } from '@/lib/accident-analysis-calculation'
 
 /** 목록·집계용 컬럼. report_details(사진 JSON)는 상세·수정·다운로드에서만 따로 읽는다. */
-export const PROJECT_ACCIDENT_LIST_COLUMNS = 'id, project_id, external_project_name, external_managing_hq, external_managing_branch, accident_at, severity, accident_type, location, work_description, description, cause, prevention_action, injured_count, fatal_count, lost_workdays, workers_comp_claim, created_by, created_at, updated_at'
+export const PROJECT_ACCIDENT_LIST_COLUMNS = 'id, project_id, external_project_name, external_managing_hq, external_managing_branch, accident_at, severity, accident_type, location, work_description, description, cause, prevention_action, injured_count, fatal_count, lost_workdays, workers_comp_claim, created_by, created_at, updated_at, expected_treatment_days:report_details->>expectedTreatmentDays'
 
 const SEVERITIES = new Set<AccidentSeverity>(ACCIDENT_SEVERITY_OPTIONS.map((option) => option.value))
 const COMP_CLAIMS = new Set<WorkersCompClaim | ''>(ACCIDENT_COMP_CLAIM_OPTIONS.map((option) => option.value))
@@ -543,7 +543,7 @@ export async function getProjectAccidents(projectId: string): Promise<ProjectAcc
   for (let page = 0; ; page += 1) {
     const { data, error } = await (supabase as any)
       .from('project_accidents')
-      .select(`${PROJECT_ACCIDENT_LIST_COLUMNS}, expected_treatment_days:report_details->>expectedTreatmentDays`)
+      .select(PROJECT_ACCIDENT_LIST_COLUMNS)
       .eq('project_id', scopedId)
       .order('accident_at', { ascending: false })
       .order('id', { ascending: true })
