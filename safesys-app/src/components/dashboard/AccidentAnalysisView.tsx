@@ -272,6 +272,7 @@ export default function AccidentAnalysisView({
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [selectedAccidentType, setSelectedAccidentType] = useState('')
   const [selectedSeverity, setSelectedSeverity] = useState('')
+  const [onlyWorkersCompApplied, setOnlyWorkersCompApplied] = useState(false)
   const [accidents, setAccidents] = useState<ProjectAccident[]>([])
   const [inspections, setInspections] = useState<NormalizedSafetyInspection[]>([])
   const [loading, setLoading] = useState(true)
@@ -421,6 +422,7 @@ export default function AccidentAnalysisView({
     () => accidents.filter((accident) => {
       if (selectedAccidentType && accident.accident_type !== selectedAccidentType) return false
       if (selectedSeverity && accident.severity !== selectedSeverity) return false
+      if (onlyWorkersCompApplied && accident.workers_comp_claim !== 'applied') return false
       if (accident.project_id) {
         return filteredProjectIds.has(accident.project_id)
       }
@@ -433,6 +435,7 @@ export default function AccidentAnalysisView({
     [
       accidents,
       filteredProjectIds,
+      onlyWorkersCompApplied,
       selectedAccidentType,
       selectedBranch,
       selectedHq,
@@ -710,6 +713,7 @@ export default function AccidentAnalysisView({
     setSelectedProjectId('')
     setSelectedAccidentType('')
     setSelectedSeverity('')
+    setOnlyWorkersCompApplied(false)
   }
 
   const kpiItems = [
@@ -801,7 +805,7 @@ export default function AccidentAnalysisView({
             </button>
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label htmlFor="analysis-start-date" className={filterLabelClassName}>시작일</label>
             <input
@@ -862,6 +866,20 @@ export default function AccidentAnalysisView({
               <option value="">전체 중대도</option>
               {severityOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
+          </div>
+          <div className="flex flex-col justify-end">
+            <label htmlFor="analysis-workers-comp-applied" className="flex min-h-[44px] cursor-pointer items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                id="analysis-workers-comp-applied"
+                type="checkbox"
+                checked={onlyWorkersCompApplied}
+                onChange={(event) => setOnlyWorkersCompApplied(event.target.checked)}
+                aria-describedby="analysis-workers-comp-applied-description"
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              산재승인건
+            </label>
+            <p id="analysis-workers-comp-applied-description" className="text-xs text-gray-500">신청 건 기준</p>
           </div>
         </div>
       </section>
