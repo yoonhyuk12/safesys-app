@@ -1,6 +1,7 @@
 # 작업 로그
 
 <!-- worklog -->
+260916_1725 : 사고보고 화면 배경을 인접 관리대장과 같은 남색 그라데이션으로 통일하고 서류철 하단 프로젝트별 (N) 건수를 연결했다. 행 전체 클릭으로 상세를 열되 날짜 키보드 진입과 수정·삭제 버튼을 분리했다. 타입·린트·38개 기존 테스트 및 브라우저 (0)/(3)·행 클릭·버튼 분리 검증 통과.
 260916_153009 : plans/20260916_사고보고_업로드_출력/hwpx-report.md 수정, safesys-app/public/사고발생보고_양식.hwpx 수정
 260916_152833 : safesys-app/tests/accident-report-hwpx.test.mjs 수정
 260916_152811 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정

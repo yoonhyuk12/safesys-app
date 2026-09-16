@@ -327,14 +327,14 @@ export default function AccidentReportPage() {
   // 세션 확인 중이거나 비로그인(리다이렉트 진행 중)일 때는 같은 대기 화면을 보여준다.
   if (!sessionChecked || !sessionUserId) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900 flex items-center justify-center">
         <LoadingSpinner />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
       <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <div className="flex items-center h-16 gap-3">

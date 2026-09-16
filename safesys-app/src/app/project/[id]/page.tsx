@@ -223,7 +223,7 @@ export default function ProjectDetailPage() {
       return countError ? null : (count ?? 0)
     }
     const loadCardCounts = async () => {
-      const [workDaily, materials, safeDocs, workPlans, tbmDirect, newWorker, workers, heatWave, tbmSafety, riskAssessments, equipmentInspection] = await Promise.all([
+      const [workDaily, materials, safeDocs, workPlans, tbmDirect, newWorker, workers, heatWave, tbmSafety, riskAssessments, equipmentInspection, accidents] = await Promise.all([
         countOf('work_daily_reports'),
         countOf('materials'),
         countOf('safe_document_inspections'),
@@ -235,6 +235,7 @@ export default function ProjectDetailPage() {
         countOf('tbm_safety_inspections'),
         countOf('risk_assessments'),
         countOf('equipment_daily_inspections'),
+        countOf('project_accidents'),
       ])
       // 레거시 TBM 제출분(project_id NULL)은 이름·본부·지사 매칭으로 합산
       let tbmLegacy = 0
@@ -263,6 +264,7 @@ export default function ProjectDetailPage() {
       put('tbmSafetyInspection', tbmSafety)
       put('riskAssessments', riskAssessments)
       put('equipmentInspection', equipmentInspection)
+      put('accidents', accidents)
       setCardCounts(counts)
     }
     loadCardCounts()
@@ -1683,6 +1685,7 @@ export default function ProjectDetailPage() {
                   isActive={false}
                   projectId={projectId}
                   onClick={() => router.push(`/project/${projectId}/accident-report`)}
+                  docCount={cardCounts.accidents}
                   pdcaCategory="A"
                 />
               </div>

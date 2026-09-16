@@ -102,12 +102,19 @@ export default function AccidentReportList({
           {accidents.map((accident) => {
             const accidentDate = formatAccidentDate(accident.accident_at)
             return (
-              <tr key={accident.id} className="hover:bg-gray-50">
+              <tr
+                key={accident.id}
+                onClick={() => onSelect(accident)}
+                className="cursor-pointer hover:bg-gray-50"
+              >
                 <td className="px-3 py-3 text-sm text-center whitespace-nowrap">
-                  {/* 상세 진입은 이 버튼 하나다. 행 전체 클릭만 두면 키보드로 열 수 없다. */}
+                  {/* 행 클릭과 함께 키보드로도 상세를 열 수 있는 버튼을 유지한다. */}
                   <button
                     type="button"
-                    onClick={() => onSelect(accident)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onSelect(accident)
+                    }}
                     className="min-h-[44px] px-2 font-medium text-blue-700 hover:underline rounded-md"
                   >
                     {accidentDate}
@@ -133,7 +140,10 @@ export default function AccidentReportList({
                         <button
                           type="button"
                           aria-label={`${accidentDate} 사고 수정`}
-                          onClick={() => onEdit(accident)}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            onEdit(accident)
+                          }}
                           className={`${iconButtonClassName} text-blue-600 hover:bg-blue-50`}
                         >
                           <Edit className="h-4 w-4" />
@@ -144,7 +154,10 @@ export default function AccidentReportList({
                           type="button"
                           aria-label={`${accidentDate} 사고 삭제`}
                           disabled={deletingId === accident.id}
-                          onClick={() => onDelete(accident)}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            onDelete(accident)
+                          }}
                           className={`${iconButtonClassName} text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
                           <Trash2 className="h-4 w-4" />
