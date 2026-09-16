@@ -11,6 +11,11 @@ import {
   normalizeAccidentExtraction,
 } from '@/lib/accident-report-extraction'
 import type { AccidentPrefillFields, AccidentPrefillResult } from '@/lib/accident-report-extraction'
+import type { AccidentReportPhoto } from '@/lib/accident-report'
+import { extractAccidentPdfPhotos } from '@/lib/accident-report-pdf-photos'
+
+/** 사진은 AI 응답이 아닌 로컬 PDF 추출에서만 가져온다. */
+export type AccidentDocumentPrefillResult = AccidentPrefillResult & { photos: AccidentReportPhoto[] }
 
 /** 사용자에게 그대로 보여 줄 한국어 메시지를 담는 오류. */
 export class AccidentImportError extends Error {
@@ -350,7 +355,7 @@ export async function requestAccidentPrefill(
   file: File,
   projectId: string,
   accessToken: string
-): Promise<AccidentPrefillResult> {
+): Promise<AccidentDocumentPrefillResult> {
   const trimmedProjectId = (projectId ?? '').trim()
   if (!trimmedProjectId) throw new AccidentImportError('현장을 먼저 선택해 주세요.')
 
@@ -402,13 +407,22 @@ export async function requestAccidentPrefill(
   // 서버가 이미 정규화했지만 클라이언트도 응답을 신뢰하지 않고 한 번 더 통과시킨다.
   const normalized = normalizeAccidentExtraction(payload.fields)
   const fields: AccidentPrefillFields = normalized.fields
+  // 본문 분석이 성공한 뒤 사진 실패는 안내만 추가한다. HWPX 사진 자동 추출은 지원하지 않는다.
+  const photoResult = kind === 'pdf'
+    ? await extractAccidentPdfPhotos(file).catch(() => ({
+        photos: [] as AccidentReportPhoto[],
+        warnings: ['PDF 사진을 추출하지 못했습니다. 본문 초안은 유지되며 사진은 직접 첨부해 주세요.'],
+      }))
+    : { photos: [], warnings: [] }
 
   return {
     fields,
+    photos: photoResult.photos,
     warnings: dedupe([
       ...(truncatedWarning ? [truncatedWarning] : []),
       ...serverWarningsOf(payload),
       ...normalized.warnings,
+      ...photoResult.warnings,
     ]),
   }
 }

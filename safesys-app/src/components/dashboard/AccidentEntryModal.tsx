@@ -11,12 +11,13 @@ import {
   type AccidentFormInput,
   type ProjectAccident,
 } from '@/lib/accident-analysis'
-import { normalizeAccidentReportDetails, validateAccidentReportDetails } from '@/lib/accident-report'
+import { normalizeAccidentReportDetails, validateAccidentReportDetails, type AccidentReportPhoto } from '@/lib/accident-report'
 import { supabase } from '@/lib/supabase'
 import { requestAccidentPrefill } from '@/lib/accident-report-import'
 import AccidentPrefillPanel from '@/components/project/accident-report/AccidentPrefillPanel'
 import AccidentReportFormSections from '@/components/project/accident-report/AccidentReportFormSections'
 import { planPrefillMerge, type AccidentDraft, type AccidentPrefillDraftFields } from '@/components/project/accident-report/prefill-merge'
+import { mergePdfPhotos } from '@/components/project/accident-report/pdf-photo-merge'
 import ProjectSearchSelect, { getProjectOptionLabel, inputClassName } from '@/components/dashboard/AccidentProjectSearchSelect'
 
 interface AccidentEntryModalProps {
@@ -106,6 +107,7 @@ export default function AccidentEntryModal({
   const [draftSession, setDraftSession] = useState(0)
   /** 사진 압축이 도는 동안 참. 저장을 막아 사진 없는 저장을 피한다. */
   const [photoBusy, setPhotoBusy] = useState(false)
+  const photoBusyRef = useRef(false)
   const [validationError, setValidationError] = useState('')
   const [prefillLoading, setPrefillLoading] = useState(false)
   const [prefillError, setPrefillError] = useState('')
@@ -113,6 +115,7 @@ export default function AccidentEntryModal({
   const [prefillNotice, setPrefillNotice] = useState('')
   /** 덮어쓰기 확인을 기다리는 문서 값. 병합은 사용자가 고른 시점의 최신 초안으로 다시 계산한다. */
   const [pendingFields, setPendingFields] = useState<AccidentPrefillDraftFields | null>(null)
+  const pendingPhotosRef = useRef<{ candidates: AccidentReportPhoto[]; atUploadStart: AccidentReportPhoto[] } | null>(null)
   /** 마지막 업로드 요청만 반영한다. 모달이 닫히거나 대상 사고가 바뀌면 번호를 올려 이전 응답을 버린다. */
   const prefillSeqRef = useRef(0)
   /** 신규 등록에서 자동으로 채워진 기본값. 사용자가 손댄 칸을 가려내는 기준이며 수정 모드에서는 null이다. */
@@ -160,7 +163,8 @@ export default function AccidentEntryModal({
     setPrefillWarnings([])
     setPrefillNotice('')
     setPendingFields(null)
-  }, [isOpen, accident])
+    pendingPhotosRef.current = null
+  }, [isOpen, accident, fixedProjectId, sortedProjects])
 
   useEffect(() => {
     if (!isOpen) return
@@ -170,6 +174,7 @@ export default function AccidentEntryModal({
     setDraft(nextDraft)
     setValidationError('')
     setPhotoBusy(false)
+    photoBusyRef.current = false
     setDraftSession((current) => current + 1)
   }, [isOpen, accident, sortedProjects, fixedProjectId])
 
@@ -198,6 +203,7 @@ export default function AccidentEntryModal({
   const PREFILL_APPLIED_NOTICE = '문서에서 읽은 초안입니다. 내용을 확인하고 부족한 항목을 보완한 뒤 저장하세요.'
 
   const handlePrefillFile = async (file: File) => {
+    const photosAtUploadStart = draftRef.current.reportDetails.photos
     const seq = prefillSeqRef.current + 1
     prefillSeqRef.current = seq
     setPrefillLoading(true)
@@ -205,6 +211,7 @@ export default function AccidentEntryModal({
     setPrefillWarnings([])
     setPrefillNotice('')
     setPendingFields(null)
+    pendingPhotosRef.current = null
     try {
       const { data } = await supabase.auth.getSession()
       const accessToken = data.session?.access_token
@@ -216,16 +223,28 @@ export default function AccidentEntryModal({
 
       // 업로드하는 동안 사용자가 적은 내용을 지우지 않도록 응답 시점의 최신 초안으로 병합을 계산한다.
       const plan = planPrefillMerge(draftRef.current, result.fields, baselineDraftRef.current ?? undefined)
-      setPrefillWarnings(result.warnings)
+      const currentPhotos = draftRef.current.reportDetails.photos
+      const candidates = photoBusyRef.current ? [] : result.photos
+      const mergedPhotos = mergePdfPhotos(currentPhotos, candidates, photosAtUploadStart)
+      setPrefillWarnings([
+        ...result.warnings,
+        ...(result.photos.length > 0 && mergedPhotos === currentPhotos
+          ? ['기존 사진 또는 업로드 중 변경한 사진 목록을 보존했습니다. PDF 사진이 필요하면 해당 사진을 직접 첨부해 주세요.']
+          : []),
+      ])
       if (plan.conflicts.length > 0) {
+        pendingPhotosRef.current = { candidates, atUploadStart: photosAtUploadStart }
         setPendingFields(result.fields)
         return
       }
-      if (!plan.hasChanges) {
+      if (!plan.hasChanges && mergedPhotos === currentPhotos) {
         setPrefillNotice('문서에서 채울 수 있는 항목을 찾지 못했습니다. 직접 입력해 주세요.')
         return
       }
-      setDraft((current) => planPrefillMerge(current, result.fields, baselineDraftRef.current ?? undefined).fillEmpty)
+      setDraft((current) => {
+        const next = planPrefillMerge(current, result.fields, baselineDraftRef.current ?? undefined).fillEmpty
+        return { ...next, reportDetails: { ...next.reportDetails, photos: mergePdfPhotos(current.reportDetails.photos, candidates, photosAtUploadStart) } }
+      })
       setPrefillNotice(PREFILL_APPLIED_NOTICE)
     } catch (error: unknown) {
       if (prefillSeqRef.current !== seq) return
@@ -238,13 +257,25 @@ export default function AccidentEntryModal({
   const applyPendingFields = (mode: 'fillEmpty' | 'overwrite') => {
     const fields = pendingFields
     if (!fields) return
-    setDraft((current) => planPrefillMerge(current, fields, baselineDraftRef.current ?? undefined)[mode])
+    const pendingPhotos = pendingPhotosRef.current
+    const candidates = photoBusyRef.current ? [] : pendingPhotos?.candidates ?? []
+    setDraft((current) => {
+      const next = planPrefillMerge(current, fields, baselineDraftRef.current ?? undefined)[mode]
+      return pendingPhotos
+        ? { ...next, reportDetails: { ...next.reportDetails, photos: mergePdfPhotos(current.reportDetails.photos, candidates, pendingPhotos.atUploadStart) } }
+        : next
+    })
+    pendingPhotosRef.current = null
     setPendingFields(null)
     setPrefillNotice(PREFILL_APPLIED_NOTICE)
   }
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (prefillLoading) {
+      setValidationError('문서와 사진을 처리하는 중입니다. 완료 후 확인하고 저장해 주세요.')
+      return
+    }
     if (photoBusy) {
       setValidationError('사진을 처리하는 중입니다. 잠시 뒤 저장해 주세요.')
       return
@@ -400,7 +431,7 @@ export default function AccidentEntryModal({
                 onSelectFile={handlePrefillFile}
                 onFillEmpty={() => applyPendingFields('fillEmpty')}
                 onOverwrite={() => applyPendingFields('overwrite')}
-                onCancel={() => setPendingFields(null)}
+                onCancel={() => { setPendingFields(null); pendingPhotosRef.current = null }}
               />
             )}
 
@@ -589,7 +620,7 @@ export default function AccidentEntryModal({
                 details={draft.reportDetails}
                 disabled={submitting}
                 onChange={(update) => setDraft((current) => ({ ...current, reportDetails: update(current.reportDetails) }))}
-                onPhotoBusyChange={setPhotoBusy}
+                onPhotoBusyChange={(busy) => { photoBusyRef.current = busy; setPhotoBusy(busy) }}
               />
             )}
           </div>
@@ -598,7 +629,7 @@ export default function AccidentEntryModal({
             <button type="button" onClick={onClose} disabled={submitting} className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
               취소
             </button>
-            <button type="submit" disabled={submitting || photoBusy} className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={submitting || photoBusy || prefillLoading} className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {accident ? '수정 저장' : '사고 이력 저장'}
             </button>

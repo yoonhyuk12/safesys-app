@@ -14,6 +14,11 @@ const { renderToStaticMarkup } = nodeRequire('react-dom/server')
  * `overrides`에 담긴 이름만 대역으로 바꾸고, 그 밖의 패키지는 node가 해결한다.
  */
 function createLoader(overrides) {
+  // SSR 마크업 테스트는 브라우저 PDF 디코더를 로드하지 않는다. 실제 추출은 전용 PDF 테스트에서 검증한다.
+  overrides = {
+    '@/lib/accident-report-pdf-photos': { extractAccidentPdfPhotos: async () => ({ photos: [], warnings: [] }) },
+    ...overrides,
+  }
   const cache = new Map()
 
   const resolveAlias = async (name) => {
@@ -122,6 +127,90 @@ const accidentRow = (id, accidentAt) => ({
   created_by: 'user-1',
   created_at: accidentAt,
   updated_at: accidentAt,
+})
+
+test('사고 저장 오류는 코드별로 안내하고 원문·사진을 노출하거나 자동 재시도하지 않는다', async (t) => {
+  const logs = []
+  t.mock.method(console, 'error', (...args) => logs.push(args))
+  const calls = []
+  let failure
+  let throws = false
+  const builder = {
+    insert(payload) { calls.push(['insert', payload]); return builder },
+    update(payload) { calls.push(['update', payload]); return builder },
+    select() { return builder },
+    eq() { return builder },
+    single() { return builder },
+    then(resolve, reject) {
+      return (throws ? Promise.reject(failure) : Promise.resolve({ data: null, error: failure })).then(resolve, reject)
+    },
+  }
+  const load = createLoader({ '@/lib/supabase': { supabase: { from: () => builder } } })
+  const lib = await load('@/lib/accident-analysis')
+  const secret = '민감한실패행_010-9876-5432'
+  const input = {
+    ...accidentRow('a1', '2026-09-16T00:00:00+09:00'),
+    external_project_name: '', external_managing_hq: '', external_managing_branch: '',
+    report_details: { summary: secret, photos: [{ dataUrl: 'data:image/jpeg;base64,/9j/AAAABBBBCCCC', caption: secret }] },
+  }
+  const before = structuredClone(input)
+  const cases = [
+    [{ code: '42501' }, /프로젝트.*권한/, '42501'],
+    [{ code: '23514', message: 'violates check constraint "project_accidents_report_details_check"' }, /보고서.*입력/, '23514'],
+    [{ code: '23514', message: 'another_check' }, /입력값.*저장 조건/, '23514'],
+    [{ code: '42703' }, /저장 항목.*확인/, '42703'],
+    [{ code: 'PGRST204' }, /저장 항목.*확인/, 'PGRST204'],
+    [{ code: '23503', message: 'violates foreign key constraint "project_accidents_created_by_fkey"' }, /작성자.*확인/, '23503'],
+    [{ code: '23503', message: 'project_accidents_project_id_fkey' }, /연결된.*확인/, '23503'],
+    [{ code: '23505' }, /사고.*저장하지 못/, '23505'],
+    [{ code: 'P0001' }, /사고.*저장하지 못/, 'P0001'],
+    [{ code: secret }, /사고.*저장하지 못/, 'UNKNOWN'],
+    [{ message: 'TypeError: Failed to fetch' }, /통신.*목록.*저장 여부/, 'NETWORK'],
+    [new TypeError('Failed to fetch'), /통신.*목록.*저장 여부/, 'NETWORK'],
+    [new TypeError(secret), /사고.*저장하지 못/, 'UNKNOWN'],
+  ]
+  for (const [error, message, code] of cases) {
+    for (const mode of [false, true]) {
+      throws = mode
+      failure = { code: error.code, message: error.message, details: secret, hint: secret }
+      for (const operation of ['create', 'update']) {
+        const count = calls.length
+        const result = operation === 'create'
+          ? await lib.createProjectAccident(input, 'user-1')
+          : await lib.updateProjectAccident('a1', input)
+        assert.equal(result.success, false)
+        assert.match(result.error, message)
+        assert.ok(result.error.includes(`오류 코드: ${code}`))
+        assert.doesNotMatch(result.error, /민감한실패행|010-9876|data:image/)
+        assert.equal(calls.length, count + 1, '자동 재시도나 필드 제거 후 저장이 없어야 한다')
+        assert.deepEqual(input, before, '실패해도 입력을 변경하지 않아야 한다')
+        assert.equal(calls.at(-1)[1].report_details.summary, secret)
+        assert.equal(calls.at(-1)[1].report_details.photos.length, 1)
+        assert.deepEqual(Object.keys(logs.at(-1)[1]).sort(), ['code', 'message'])
+        assert.equal(logs.at(-1)[1].code, code)
+        assert.doesNotMatch(JSON.stringify(logs.at(-1)), /민감한실패행|010-9876|data:image|violates|fkey/)
+      }
+    }
+  }
+})
+
+test('사고 저장 오류 분류는 details·hint를 읽지 않고 예상 밖 예외도 안전하게 처리한다', async () => {
+  const load = createLoader({})
+  const { classifyAccidentMutationError } = await load('@/lib/accident-mutation-error')
+  const source = {
+    code: '42501', message: '원문 개인정보',
+    get details() { throw new Error('details를 읽으면 안 된다') },
+    get hint() { throw new Error('hint를 읽으면 안 된다') },
+  }
+  assert.equal(classifyAccidentMutationError(source).code, '42501')
+  for (const error of [null, undefined, 3, '원문 개인정보', {}, { code: '23505\n' }, new TypeError('내부 오류 개인정보')]) {
+    const result = classifyAccidentMutationError(error)
+    assert.equal(result.code, 'UNKNOWN')
+    assert.doesNotMatch(result.message, /개인정보/)
+  }
+  for (const error of [new TypeError('Failed to fetch'), { code: '', message: 'TypeError: NetworkError when attempting to fetch resource.' }, { code: 'ETIMEDOUT' }]) {
+    assert.equal(classifyAccidentMutationError(error).code, 'NETWORK')
+  }
 })
 
 test('프로젝트 사고 조회는 그 프로젝트만 최신순으로 읽는다', async () => {

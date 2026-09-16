@@ -63,6 +63,10 @@ export default function AccidentPrefillPanel({
       <p className="text-xs text-gray-500">
         업로드한 보고서에서 읽은 내용으로 초안을 채웁니다. 문서에 없는 내용은 채우지 않으며 저장 전 직접 확인합니다.
       </p>
+      <p className="text-xs text-gray-500">
+        PDF 사진은 앞 8쪽의 사진 후보를 최대 2장 자동으로 채웁니다. 기존 사진과 업로드 중 변경한 사진은 보존합니다.
+        사진대지에서 확인하고 삭제·교체할 수 있습니다. 스캔한 전체 쪽·작은 그림과 HWPX 사진은 직접 첨부해 주세요.
+      </p>
 
       {error && (
         <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">

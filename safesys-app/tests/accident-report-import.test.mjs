@@ -58,7 +58,9 @@ function createLoader(overrides = {}) {
   return load
 }
 
-const load = createLoader()
+const load = createLoader({
+  '@/lib/accident-report-pdf-photos': { extractAccidentPdfPhotos: async () => ({ photos: [], warnings: [] }) },
+})
 const { AccidentImportError, extractHwpxText, requestAccidentPrefill } = await load('@/lib/accident-report-import')
 const { ACCIDENT_IMPORT_TEXT_MAX_CHARS } = await load('@/lib/accident-report-extraction')
 
@@ -342,6 +344,41 @@ test('HWPX는 추출 텍스트만 text FormData로 보낸다', async () => {
     assert.ok(sent.includes('사고발생보고'))
     // 추출 텍스트만 보내고 원본 바이트는 보내지 않는다.
     assert.equal(sent.includes('<hp:'), false)
+  } finally {
+    stub.restore()
+  }
+})
+
+test('PDF 로컬 사진은 별도 result.photos로 받고 AI 사진은 버린다', async () => {
+  const photos = [{ dataUrl: 'data:image/jpeg;base64,/9j/local', caption: '' }]
+  const localLoad = createLoader({
+    '@/lib/accident-report-pdf-photos': { extractAccidentPdfPhotos: async () => ({ photos, warnings: ['로컬 사진 안내'] }) },
+  })
+  const { requestAccidentPrefill: request } = await localLoad('@/lib/accident-report-import')
+  const stub = stubFetch(() => okResponse({ success: true, fields: { description: '본문 유지', photos: [{ dataUrl: 'untrusted' }] } }))
+  try {
+    const result = await request(pdfFile(), PROJECT_ID, TOKEN)
+    assert.equal(result.photos, photos)
+    assert.equal('photos' in result.fields, false)
+    assert.ok(result.warnings.includes('로컬 사진 안내'))
+    const hwpx = await request(new FileCtor([await buildHwpx()], '문서.hwpx'), PROJECT_ID, TOKEN)
+    assert.deepEqual(hwpx.photos, [])
+  } finally {
+    stub.restore()
+  }
+})
+
+test('사진 추출이 예외로 실패해도 성공한 본문 초안과 안내를 반환한다', async () => {
+  const localLoad = createLoader({
+    '@/lib/accident-report-pdf-photos': { extractAccidentPdfPhotos: async () => { throw new Error('decoder failed') } },
+  })
+  const { requestAccidentPrefill: request } = await localLoad('@/lib/accident-report-import')
+  const stub = stubFetch(() => okResponse({ success: true, fields: { description: '본문 유지' } }))
+  try {
+    const result = await request(pdfFile(), PROJECT_ID, TOKEN)
+    assert.equal(result.fields.description, '본문 유지')
+    assert.deepEqual(result.photos, [])
+    assert.match(result.warnings.join(' '), /본문 초안은 유지/)
   } finally {
     stub.restore()
   }

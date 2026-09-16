@@ -1,5 +1,6 @@
 // 프로젝트 사고 이력과 안전점검을 조회·정규화하는 데이터 모듈
 import { supabase } from '@/lib/supabase'
+import { classifyAccidentMutationError } from '@/lib/accident-mutation-error'
 import {
   ACCIDENT_COMP_CLAIM_OPTIONS,
   ACCIDENT_SEVERITY_OPTIONS,
@@ -754,13 +755,15 @@ export async function createProjectAccident(
       .select(mutationResultColumns(input))
       .single()
     if (error) {
-      console.error('사고 이력 등록 오류:', error)
-      return { success: false, error: '사고 이력을 등록하지 못했습니다.' }
+      const failure = classifyAccidentMutationError(error)
+      console.error('사고 이력 등록 오류:', failure)
+      return { success: false, error: failure.message }
     }
     return { success: true, accident: withNormalizedReportDetails(data as ProjectAccident) }
   } catch (error) {
-    console.error('사고 이력 등록 실패:', error)
-    return { success: false, error: '사고 이력을 등록하는 중 오류가 발생했습니다.' }
+    const failure = classifyAccidentMutationError(error)
+    console.error('사고 이력 등록 실패:', failure)
+    return { success: false, error: failure.message }
   }
 }
 
@@ -781,13 +784,15 @@ export async function updateProjectAccident(
       .select(mutationResultColumns(input))
       .single()
     if (error) {
-      console.error('사고 이력 수정 오류:', error)
-      return { success: false, error: '사고 이력을 수정하지 못했습니다.' }
+      const failure = classifyAccidentMutationError(error)
+      console.error('사고 이력 수정 오류:', failure)
+      return { success: false, error: failure.message }
     }
     return { success: true, accident: withNormalizedReportDetails(data as ProjectAccident) }
   } catch (error) {
-    console.error('사고 이력 수정 실패:', error)
-    return { success: false, error: '사고 이력을 수정하는 중 오류가 발생했습니다.' }
+    const failure = classifyAccidentMutationError(error)
+    console.error('사고 이력 수정 실패:', failure)
+    return { success: false, error: failure.message }
   }
 }
 
