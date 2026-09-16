@@ -29,7 +29,19 @@ interface AccidentReportListProps {
 }
 
 const casualtySummary = (accident: ProjectAccident): string =>
-  `부상 ${accident.injured_count}명 · 사망 ${accident.fatal_count}명 · 휴업 ${accident.lost_workdays}일`
+  [
+    accident.injured_count > 0 ? `부상 ${accident.injured_count}` : '',
+    accident.fatal_count > 0 ? `사망 ${accident.fatal_count}` : '',
+    accident.lost_workdays > 0 ? `휴업 ${accident.lost_workdays}` : '',
+  ].filter(Boolean).join(' · ') || '-'
+
+const treatmentDaysLabel = (accident: ProjectAccident): string => {
+  const value = accident.expected_treatment_days === undefined
+    ? accident.report_details?.expectedTreatmentDays
+    : accident.expected_treatment_days
+  if (typeof value !== 'string' || !/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) return '-'
+  return `${Number(value)}일`
+}
 
 const iconButtonClassName = 'min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md'
 
@@ -93,6 +105,7 @@ export default function AccidentReportList({
             <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">사고 장소</th>
             <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">인명 피해</th>
             <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">산재신청</th>
+            <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">요양일</th>
             {showManageColumn && (
               <th className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">관리</th>
             )}
@@ -133,6 +146,7 @@ export default function AccidentReportList({
                     {compClaimLabel(accident.workers_comp_claim)}
                   </span>
                 </td>
+                <td className="px-3 py-3 text-xs text-center text-gray-500 whitespace-nowrap">{treatmentDaysLabel(accident)}</td>
                 {showManageColumn && (
                   <td className="px-3 py-3 text-sm text-center">
                     <div className="inline-flex gap-1">

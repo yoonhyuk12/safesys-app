@@ -315,13 +315,36 @@ test('아직 채우지 않은 항목만 안내 목록에 오른다', async () =>
   assert.equal(partial.includes('reportTitle'), true)
 })
 
-test('프로젝트 사고 목록은 사진 JSON 컬럼을 읽지 않는다', async () => {
-  const { lib, stub } = await loadAccidentLib({ data: [accidentRow()], error: null })
+test('프로젝트 사고 목록은 요양일 scalar만 추가하고 사진 JSON을 읽지 않는다', async () => {
+  const { lib, stub } = await loadAccidentLib({ data: [accidentRow({ expected_treatment_days: '0' })], error: null })
 
-  await lib.getProjectAccidents('project-a')
+  const rows = await lib.getProjectAccidents('project-a')
 
-  assert.deepEqual(stub.calls.selects, [['project_accidents', lib.PROJECT_ACCIDENT_LIST_COLUMNS]])
+  assert.deepEqual(stub.calls.selects, [['project_accidents', `${lib.PROJECT_ACCIDENT_LIST_COLUMNS}, expected_treatment_days:report_details->>expectedTreatmentDays`]])
   assert.equal(lib.PROJECT_ACCIDENT_LIST_COLUMNS.includes('report_details'), false)
+  assert.equal(rows[0].expected_treatment_days, '0')
+  assert.equal(rows[0].report_details, undefined)
+  assert.deepEqual(stub.calls.tables, ['project_accidents'])
+})
+
+test('등록·수정 후 목록 재조회는 저장된 요양일과 미입력을 반영한다', async () => {
+  const { lib, stub } = await loadAccidentLib({ data: null, error: null })
+  for (const operation of ['create', 'update']) {
+    for (const value of ['14', '0', '']) {
+      stub.setResponse({ data: accidentRow({ report_details: { expectedTreatmentDays: value } }), error: null })
+      const input = formInput({ report_details: { expectedTreatmentDays: value } })
+      const result = operation === 'create'
+        ? await lib.createProjectAccident(input, 'user-1')
+        : await lib.updateProjectAccident('accident-1', input)
+      assert.equal(result.success, true)
+      const payload = (operation === 'create' ? stub.calls.inserts : stub.calls.updates).at(-1)[1]
+      assert.equal(payload.report_details?.expectedTreatmentDays ?? '', value)
+      stub.setResponse({ data: [accidentRow({ expected_treatment_days: value || null })], error: null })
+      const [row] = await lib.getProjectAccidents('project-a')
+      assert.equal(row.expected_treatment_days, value || null)
+      assert.equal(row.report_details, undefined)
+    }
+  }
 })
 
 test('사고 통계 조회도 사진 JSON 컬럼을 읽지 않는다', async () => {

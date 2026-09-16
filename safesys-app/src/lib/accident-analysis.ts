@@ -543,7 +543,7 @@ export async function getProjectAccidents(projectId: string): Promise<ProjectAcc
   for (let page = 0; ; page += 1) {
     const { data, error } = await (supabase as any)
       .from('project_accidents')
-      .select(PROJECT_ACCIDENT_LIST_COLUMNS)
+      .select(`${PROJECT_ACCIDENT_LIST_COLUMNS}, expected_treatment_days:report_details->>expectedTreatmentDays`)
       .eq('project_id', scopedId)
       .order('accident_at', { ascending: false })
       .order('id', { ascending: true })

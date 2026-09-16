@@ -407,6 +407,37 @@ async function renderDetail(props) {
   }))
 }
 
+test('목록 인명 피해는 양수만 단위 없이 연결한다', async () => {
+  for (const [injured_count, fatal_count, lost_workdays, expected] of [
+    [1, 0, 0, '부상 1'], [0, 1, 0, '사망 1'], [0, 0, 3, '휴업 3'],
+    [1, 1, 3, '부상 1 · 사망 1 · 휴업 3'], [0, 0, 0, '-'],
+  ]) {
+    const markup = await renderList({ accidents: [{ ...OWN_ACCIDENT, injured_count, fatal_count, lost_workdays }] })
+    const cells = [...markup.matchAll(/<td\b[^>]*>(.*?)<\/td>/g)].map((match) => match[1])
+    assert.equal(cells[4], expected)
+  }
+})
+
+test('목록 요양일은 산재신청 다음 열에서 명시 0과 미입력을 구분한다', async () => {
+  for (const [fields, expected] of [
+    [{ expected_treatment_days: '14' }, '14일'],
+    [{ expected_treatment_days: '0' }, '0일'],
+    [{ expected_treatment_days: '' }, '-'],
+    [{ expected_treatment_days: null }, '-'],
+    [{}, '-'],
+    [{ report_details: { expectedTreatmentDays: '14' } }, '14일'],
+    [{ expected_treatment_days: '0', report_details: { expectedTreatmentDays: '14' } }, '0일'],
+    [{ expected_treatment_days: '-1' }, '-'],
+    [{ expected_treatment_days: 'NaN' }, '-'],
+  ]) {
+    const markup = await renderList({ accidents: [{ ...OWN_ACCIDENT, ...fields }] })
+    const headers = [...markup.matchAll(/<th\b[^>]*>(.*?)<\/th>/g)].map((match) => match[1])
+    assert.equal(headers[headers.indexOf('산재신청') + 1], '요양일')
+    const cells = [...markup.matchAll(/<td\b[^>]*>(.*?)<\/td>/g)].map((match) => match[1])
+    assert.equal(cells[6], expected)
+  }
+})
+
 test('목록은 조회 실패를 빈 목록이 아니라 오류와 재시도로 보여준다', async () => {
   const markup = await renderList({ accidents: [], loadError: '사고 이력을 불러오지 못했습니다.' })
 
