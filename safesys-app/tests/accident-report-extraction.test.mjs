@@ -92,6 +92,120 @@ const {
   normalizeAccidentExtraction,
 } = extraction
 
+test('명시 라벨의 전용 필드 전체 중복만 제거하고 실제 사고 경위는 보존한다', () => {
+  const raw = {
+    description: '자재 이동 중 넘어졌다.\n○ 작업내용 : 자재 운반\n  둘째 작업\n○ 사고원인：통로 장애물\n피해현황: 손목 타박\n귀책사유: 조사 중',
+    work_description: '자재 운반\n  둘째 작업',
+    cause: '통로 장애물',
+    report_details: { damageDetails: '손목 타박', responsibility: '조사 중' },
+  }
+  const snapshot = structuredClone(raw)
+  const { fields } = normalizeAccidentExtraction(raw)
+  assert.equal(fields.description, '자재 이동 중 넘어졌다.')
+  assert.equal(fields.work_description, raw.work_description)
+  assert.equal(fields.cause, raw.cause)
+  assert.deepEqual(fields.report_details, raw.report_details)
+  assert.deepEqual(raw, snapshot, '입력 원본을 변형하면 안 된다')
+  assert.deepEqual(normalizeAccidentExtraction(fields).fields, fields, '재정규화도 같은 결과여야 한다')
+})
+
+test('부분 일치·다른 내용·라벨 없는 서술·누락 필드·미확인 라벨은 보존한다', () => {
+  for (const description of [
+    '통로 장애물',
+    '작업 중 사고원인: 통로 장애물을 확인했다.',
+    '사고원인: 통로 장애물과 조도 부족',
+    '사고원인: 통로  장애물',
+    '사고원인: 통로 장애물\n추가 확인이 필요하다.',
+    '피해현황: 손목 타박',
+    '원인 추정: 통로 장애물',
+    '사고원인: 통로 장애물\n참고사항: 별도 조사 중',
+  ]) {
+    assert.equal(normalizeAccidentExtraction({ description, cause: '통로 장애물' }).fields.description, description)
+  }
+})
+
+test('중복과 불일치 블록이 섞여도 불일치·경위 블록은 원문 그대로 남긴다', () => {
+  const { fields } = normalizeAccidentExtraction({
+    description: '작업내용: 자재 운반\n사고내용: 발판에서 넘어졌다.\n사고원인: 통로 장애물\n피해현황: 손목 타박과 추가 검사',
+    work_description: '자재 운반', cause: '통로 장애물', report_details: { damageDetails: '손목 타박' },
+  })
+  assert.equal(fields.description, '사고내용: 발판에서 넘어졌다.\n피해현황: 손목 타박과 추가 검사')
+})
+
+test('전부 전용 필드 중복이면 사고 경위를 새로 만들지 않고 누락 안내를 남긴다', () => {
+  const { fields, warnings } = normalizeAccidentExtraction({ description: '작업내용: 자재 운반', work_description: '자재 운반' })
+  assert.equal('description' in fields, false)
+  assert.equal(fields.work_description, '자재 운반')
+  assert.ok(warnings.includes('문서에서 사고 내용를 찾지 못했습니다.'))
+})
+
+test('추출 지시문은 상위 사고내용 전체 복사 대신 명시 하위 항목 분리를 요구한다', () => {
+  const prompt = buildAccidentExtractionPrompt()
+  assert.match(prompt, /상위.*사고내용.*전체.*description.*복사하지/)
+  assert.match(prompt, /작업내용.*work_description.*사고원인.*cause/)
+  assert.match(prompt, /피해현황.*damageDetails.*귀책사유.*responsibility/)
+})
+
+test('피해자 선두 전체 줄과 명시 미신고 사유만 정리하고 고유 상세는 보존한다', async () => {
+  const { cleanAccidentReportContent } = await load('@/lib/accident-report-content')
+  const details = {
+    victimDetails: '가상인 / 작업자\n가상 현장 소속',
+    damageDetails: '가상인 / 작업자\n가상 현장 소속\n손목 타박, 검사 예정',
+    noNotificationReason: '현장 확인 중',
+    actionDetails: '작업 중지\n미신고 사유 : 현장 확인 중',
+  }
+  const snapshot = structuredClone(details)
+  const cleaned = cleanAccidentReportContent({}, details)
+  assert.equal(cleaned.damageDetails, '손목 타박, 검사 예정')
+  assert.equal(cleaned.actionDetails, '작업 중지')
+  assert.deepEqual(details, snapshot)
+  const { fields } = normalizeAccidentExtraction({ report_details: details })
+  assert.equal(fields.report_details.damageDetails, cleaned.damageDetails)
+  assert.equal(fields.report_details.actionDetails, cleaned.actionDetails)
+  for (const damageDetails of ['가상인 / 작업자', `${details.victimDetails} 추가 정보`, `손목 타박\n${details.victimDetails}`]) {
+    assert.equal(cleanAccidentReportContent({}, { ...details, damageDetails }).damageDetails, damageDetails)
+  }
+  for (const actionDetails of ['현장 확인 중', '미신고 사유: 현장 확인 중\n추가 확인', '미신고 사유: 현장  확인 중']) {
+    assert.equal(cleanAccidentReportContent({}, { ...details, actionDetails }).actionDetails, actionDetails)
+  }
+})
+
+test('출력 정리는 개행 형식만 비교 정규화하고 불일치 원문과 초장문을 보존한다', async () => {
+  const { cleanAccidentReportContent } = await load('@/lib/accident-report-content')
+  assert.equal(cleanAccidentReportContent({ description: '사고원인: 원인\r\n둘째 줄', cause: '원인\n둘째 줄' }, {}).description, '')
+  const description = `경위 ${'가'.repeat(20000)}\r\n사고원인: 다른 원인`
+  assert.equal(cleanAccidentReportContent({ description, cause: '원인' }, {}).description, description)
+})
+
+test('피해자 선두 정리와 피해현황 중복 정리는 두 번 정규화해도 결과가 같다', () => {
+  for (const damageBlock of ['손목 타박', '가상인 / 작업자\n손목 타박']) {
+    const raw = {
+      description: `사고 경위\n피해현황: ${damageBlock}`,
+      report_details: { victimDetails: '가상인 / 작업자', damageDetails: '가상인 / 작업자\n손목 타박' },
+    }
+    const first = normalizeAccidentExtraction(raw)
+    assert.equal(first.fields.description, '사고 경위')
+    assert.equal(first.fields.report_details.damageDetails, '손목 타박')
+    assert.deepEqual(normalizeAccidentExtraction(first.fields), first)
+  }
+})
+
+test('피해현황의 글머리와 목록 구분자 차이는 전체 항목과 순서가 같을 때만 정리한다', () => {
+  const raw = {
+    description: '사고 경위\n피해현황: 손목 타박\n추가 검사 예정',
+    report_details: { victimDetails: '가상 작업자', damageDetails: '가상 작업자\n- 손목 타박, 추가 검사 예정' },
+  }
+  const first = normalizeAccidentExtraction(raw)
+  assert.equal(first.fields.description, '사고 경위')
+  assert.equal(first.fields.report_details.damageDetails, '- 손목 타박, 추가 검사 예정')
+  assert.deepEqual(normalizeAccidentExtraction(first.fields), first)
+  for (const damageDetails of ['- 손목 타박, 추가  검사 예정', '- 추가 검사 예정, 손목 타박', '- 손목 타박, 추가 검사 예정, 진료 중', '- 손목 타박']) {
+    assert.equal(normalizeAccidentExtraction({ ...raw, report_details: { damageDetails } }).fields.description, raw.description)
+  }
+  const description = '사고원인: 손목 타박\n추가 검사 예정'
+  assert.equal(normalizeAccidentExtraction({ description, cause: '- 손목 타박, 추가 검사 예정' }).fields.description, description)
+})
+
 test('업로드 상한 상수가 계획한 값과 같다', () => {
   assert.equal(ACCIDENT_IMPORT_PDF_MAX_BYTES, 4 * 1024 * 1024)
   assert.equal(ACCIDENT_IMPORT_TEXT_MAX_CHARS, 100_000)

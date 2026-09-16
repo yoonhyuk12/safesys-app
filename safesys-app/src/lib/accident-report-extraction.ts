@@ -15,6 +15,7 @@ import {
   isValidExpectedTreatmentDays,
 } from '@/lib/accident-report'
 import type { AccidentNotificationTarget, AccidentReportDetails, AccidentVictimAction } from '@/lib/accident-report'
+import { cleanAccidentReportContent } from '@/lib/accident-report-content'
 
 /** PDF 원본을 그대로 Gemini에 넘기므로 요청 본문 한도를 고려한 상한이다. */
 export const ACCIDENT_IMPORT_PDF_MAX_BYTES = 4 * 1024 * 1024
@@ -151,6 +152,9 @@ export function buildAccidentExtractionPrompt(): string {
 - victimActions 값은 hospital(병원 이송)·funeralHome(장례식장 안치)·home(귀가)다.
 
 [필드 대응]
+- 상위 사고내용 구역 전체를 description에 복사하지 않는다. 명시 하위 항목 작업내용은 work_description, 사고원인은 cause로 분리한다.
+- 피해현황은 report_details.damageDetails, 귀책사유는 report_details.responsibility로 분리한다. 피해자 인적사항과 미신고 사유도 각각 전용 필드에만 넣는다.
+- description에는 별도로 서술된 사고 경위만 남긴다. 별도 경위가 없으면 null이며 원인이나 참조 문구를 대신 넣지 않는다.
 - 사고내용·경위 → description
 - 사고 원인 → cause
 - 작업내용 → work_description
@@ -474,6 +478,18 @@ export function normalizeAccidentExtraction(raw: unknown): AccidentPrefillResult
     } else if (claim) {
       fields.workers_comp_claim = claim
     }
+  }
+
+  const cleaned = cleanAccidentReportContent(fields, fields.report_details ?? {})
+  if (cleaned.description) fields.description = cleaned.description
+  else delete fields.description
+  if (fields.report_details) {
+    const reportDetails = { ...fields.report_details }
+    for (const key of ['damageDetails', 'actionDetails'] as const) {
+      if (cleaned[key]) reportDetails[key] = cleaned[key]
+      else delete reportDetails[key]
+    }
+    fields.report_details = reportDetails
   }
 
   for (const { key, label } of CORE_FIELD_LABELS) {

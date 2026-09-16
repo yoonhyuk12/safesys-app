@@ -52,6 +52,7 @@ async function run() {
 
   const accidentTypes = await transpile('../src/lib/accident-analysis-types.ts')
   const accidentReport = await transpile('../src/lib/accident-report.ts')
+  const accidentContent = await transpile('../src/lib/accident-report-content.ts')
   const accidentFormat = await transpile('../src/lib/accident-report-format.ts', {
     '@/lib/accident-analysis-types': accidentTypes,
   })
@@ -63,6 +64,7 @@ async function run() {
     './accident-report-layout': layoutHelpers,
     '@/lib/accident-analysis-types': accidentTypes,
     '@/lib/accident-report': accidentReport,
+    '@/lib/accident-report-content': accidentContent,
     '@/lib/accident-report-format': accidentFormat,
   })
   const { buildAccidentReportHwpx, ACCIDENT_REPORT_TEMPLATE_PATH } = hwpxExport
@@ -302,6 +304,31 @@ async function run() {
   const CELL_SZ = /<hp:cellSz width="\d+" height="\d+"\/>/g
   const CELL_ADDR = /<hp:cellAddr colAddr="\d+" rowAddr="\d+"\/>/g
   const CELL_SPAN = /<hp:cellSpan colSpan="\d+" rowSpan="\d+"\/>/g
+
+  test('기존 저장 데이터의 중복은 재출력에서만 줄고 고유 내용과 원본은 보존된다', async () => {
+    const accident = {
+      ...baseAccident,
+      work_description: '합성작업유일문구',
+      cause: '합성원인유일문구',
+      description: '합성경위유일문구\n작업내용: 합성작업유일문구\n사고원인: 합성원인유일문구\n피해현황: 별도검사유일문구',
+      report_details: {
+        ...baseDetails,
+        victimDetails: '합성피해자유일문구',
+        damageDetails: '합성피해자유일문구\n합성부상유일문구',
+        noNotificationReason: '합성사유유일문구',
+        actionDetails: '합성조치유일문구\n미신고 사유: 합성사유유일문구',
+      },
+    }
+    const snapshot = structuredClone(accident)
+    const blob = await buildAccidentReportHwpx(accident, PROJECT_NAME)
+    const zip = await JSZip.loadAsync(await blob.arrayBuffer())
+    const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+    const text = $('hp\\:t').toArray().map(element => $(element).text()).join('')
+    for (const marker of ['합성작업유일문구', '합성원인유일문구', '합성경위유일문구', '별도검사유일문구', '합성피해자유일문구', '합성부상유일문구', '합성사유유일문구', '합성조치유일문구']) {
+      assert.equal(countOf(text, marker), 1, marker)
+    }
+    assert.deepEqual(accident, snapshot)
+  })
 
   test('요양 예상 일수는 휴업과 별도로 피해자 근처에 보존되고 빈값을 0으로 만들지 않는다', async () => {
     let emptySection

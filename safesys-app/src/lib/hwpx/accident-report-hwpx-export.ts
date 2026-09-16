@@ -4,6 +4,7 @@ import { topLevelRanges, rebuild, stripLineseg } from './accident-report-xml'
 import { paginateSection, paragraphHeight } from './accident-report-layout'
 import type { ProjectAccident } from '@/lib/accident-analysis-types'
 import { normalizeAccidentReportDetails, type AccidentReportDetails } from '@/lib/accident-report'
+import { cleanAccidentReportContent } from '@/lib/accident-report-content'
 import { compClaimLabel, severityLabel } from '@/lib/accident-report-format'
 
 // ── 공통 헬퍼 (TBM 정본 모듈에서 복사) ──
@@ -438,7 +439,10 @@ async function readText(zip: JSZip, path: string): Promise<string> {
 /** 사고발생보고 hwpx를 양식 치환으로 만든다. */
 export async function buildAccidentReportHwpx(accident: ProjectAccident, projectName: string): Promise<Blob> {
     resetPicSeq()
-    const details = normalizeAccidentReportDetails(accident.report_details)
+    const originalDetails = normalizeAccidentReportDetails(accident.report_details)
+    const cleaned = cleanAccidentReportContent(accident, originalDetails)
+    const details = { ...originalDetails, damageDetails: cleaned.damageDetails, actionDetails: cleaned.actionDetails }
+    const outputAccident = { ...accident, description: cleaned.description }
     const template = await loadTemplate()
     const collector = new ImageCollector()
 
@@ -450,8 +454,8 @@ export async function buildAccidentReportHwpx(accident: ProjectAccident, project
     }
 
     let section = await readText(template, 'Contents/section0.xml')
-    section = fillSingleValues(section, accident, details, projectName)
-    section = fillMultilineValues(section, accident, details)
+    section = fillSingleValues(section, outputAccident, details, projectName)
+    section = fillMultilineValues(section, outputAccident, details)
     section = applyPhotos(section, collector, photoItems)
     section = paginateSection(section)
 
