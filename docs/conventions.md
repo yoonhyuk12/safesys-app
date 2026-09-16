@@ -14,10 +14,10 @@
 - 결과 검증: diff 직접 확인, 테스트 직접 실행
 - 최종 커밋 승인, 사용자 보고
 
-**Worker(Opus 서브에이전트)에게 위임하는 일.**
+**Worker(Codex gpt-6, 추론 강도 low)에게 위임하는 일.**
 
 - 코드 작성과 수정, 테스트 작성 등 구현 작업 전부
-- Agent 도구로 위임하되 subagent_type은 `worker-opus`(정의 파일 `.claude/agents/worker-opus.md`, model: opus)를 사용한다. general-purpose로 위임하지 않는다 — 진행 표시에 역할이 드러나게 하기 위함이다
+- Orca orchestration으로 위임하며 `--agent codex --model gpt-6 --effort low`를 명시한다. 시작 결과의 `launch.effective`에서 적용된 모델·추론 강도를 확인한다. 사용자에게서 별도 모델 지시가 있으면 그 지시를 우선한다.
 - 서로 독립적인 작업은 병렬로 위임한다
 
 **브리프 기준.**
