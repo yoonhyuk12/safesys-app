@@ -180,7 +180,9 @@ export default function AccidentReportDetail({
               <>
                 <dl className="grid gap-4 sm:grid-cols-2">
                   {filledKeys.map((key) => (
-                    <DetailField key={key} label={ACCIDENT_REPORT_TEXT_LABELS[key]}>{details[key]}</DetailField>
+                    <DetailField key={key} label={ACCIDENT_REPORT_TEXT_LABELS[key]}>
+                      {key === 'expectedTreatmentDays' ? `${details[key]}일` : details[key]}
+                    </DetailField>
                   ))}
                   {details.notifications.length > 0 && (
                     <DetailField label="신고처">{toLabels(details.notifications, ACCIDENT_NOTIFICATION_OPTIONS)}</DetailField>

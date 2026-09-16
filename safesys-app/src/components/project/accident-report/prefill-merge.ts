@@ -10,6 +10,7 @@ import {
   ACCIDENT_REPORT_TEXT_KEYS,
   ACCIDENT_REPORT_TEXT_LABELS,
   normalizeAccidentReportDetails,
+  isValidExpectedTreatmentDays,
   type AccidentNotificationTarget,
   type AccidentReportDetails,
   type AccidentVictimAction,
@@ -197,6 +198,7 @@ export function planPrefillMerge(
   if (fields.report_details) {
     const incoming = normalizeAccidentReportDetails(fields.report_details)
     for (const key of ACCIDENT_REPORT_TEXT_KEYS) {
+      if (key === 'expectedTreatmentDays' && !isValidExpectedTreatmentDays(incoming[key])) continue
       pushText(
         ACCIDENT_REPORT_TEXT_LABELS[key],
         incoming[key],

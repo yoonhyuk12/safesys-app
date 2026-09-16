@@ -27,7 +27,7 @@ interface AccidentReportFormSectionsProps {
   onPhotoBusyChange?: (busy: boolean) => void
 }
 
-type FieldKind = 'text' | 'textarea' | 'date' | 'time'
+type FieldKind = 'text' | 'textarea' | 'date' | 'time' | 'number'
 
 const FIELD_KINDS: Record<AccidentReportTextKey, FieldKind> = {
   reportTitle: 'text',
@@ -38,6 +38,7 @@ const FIELD_KINDS: Record<AccidentReportTextKey, FieldKind> = {
   summary: 'textarea',
   accidentTime: 'time',
   victimDetails: 'textarea',
+  expectedTreatmentDays: 'number',
   damageDetails: 'textarea',
   propertyDamage: 'textarea',
   responsibility: 'textarea',
@@ -77,7 +78,11 @@ function ReportTextField({ fieldKey, value, disabled, onChange }: TextFieldProps
       ) : (
         <input
           id={id}
-          type={kind === 'date' ? 'date' : kind === 'time' ? 'time' : 'text'}
+          type={kind}
+          min={kind === 'number' ? 0 : undefined}
+          step={kind === 'number' ? 1 : undefined}
+          max={kind === 'number' ? Number.MAX_SAFE_INTEGER : undefined}
+          aria-describedby={kind === 'number' ? `${id}-unit` : undefined}
           value={value}
           onChange={(event) => onChange(event.target.value)}
           disabled={disabled}
@@ -86,6 +91,7 @@ function ReportTextField({ fieldKey, value, disabled, onChange }: TextFieldProps
           className={accidentReportInputClassName}
         />
       )}
+      {kind === 'number' && <p id={`${id}-unit`} className="mt-1 text-xs text-gray-500">일 단위 · 휴업일수와 별도로 입력합니다.</p>}
     </div>
   )
 }
@@ -173,7 +179,7 @@ export default function AccidentReportFormSections({ details, disabled, onChange
 
       <Section title="사고 시각·피해">
         <div className="grid gap-4 sm:grid-cols-2">
-          {renderFields(['accidentTime', 'victimDetails', 'damageDetails', 'propertyDamage'])}
+          {renderFields(['accidentTime', 'victimDetails', 'expectedTreatmentDays', 'damageDetails', 'propertyDamage'])}
           <CheckboxGroup<AccidentVictimAction>
             name="victimActions"
             legend="피해자 조치"

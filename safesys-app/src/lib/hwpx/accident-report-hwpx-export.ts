@@ -330,7 +330,8 @@ function summaryEntries(details: AccidentReportDetails): ParagraphEntry[] {
 function victimEntries(details: AccidentReportDetails): ParagraphEntry[] {
     const lines = valueLines(details.victimDetails)
     const body = lines.length === 0 ? ['-'] : lines
-    return body.map(line => ({ text: `      ${line}` }))
+    const treatment = details.expectedTreatmentDays === '' ? [] : [`산재요양 예상 ${details.expectedTreatmentDays}일`]
+    return [...body, ...treatment].map(line => ({ text: `      ${line}` }))
 }
 
 /** 통계 컬럼(인명피해 수·사고유형·중대도)은 양식에 없는 정보라 `○ 피해자 인적사항` 줄 끝에 괄호로 붙인다(줄을 늘리지 않는다). */

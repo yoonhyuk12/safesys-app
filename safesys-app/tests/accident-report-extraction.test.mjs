@@ -58,6 +58,24 @@ function createLoader(overrides = {}) {
 }
 
 const load = createLoader()
+
+test('요양 예상 일수 추출은 휴업일수와 독립이며 비정수·미입력을 버린다', async () => {
+  const { normalizeAccidentExtraction, buildAccidentExtractionPrompt } = await load('@/lib/accident-report-extraction')
+  for (const value of ['0', '14', '9007199254740991']) {
+    const { fields } = normalizeAccidentExtraction({ lost_workdays: 3, report_details: { expectedTreatmentDays: value } })
+    assert.equal(fields.report_details.expectedTreatmentDays, value)
+    assert.equal(fields.lost_workdays, 3)
+  }
+  for (const value of ['', null, undefined, '-1', '1.5', '삼일', '1e2', '9007199254740992']) {
+    const { fields } = normalizeAccidentExtraction({ lost_workdays: 3, report_details: { expectedTreatmentDays: value } })
+    assert.equal(fields.report_details?.expectedTreatmentDays, undefined)
+    assert.equal(fields.lost_workdays, 3)
+  }
+  assert.equal(normalizeAccidentExtraction({ lost_workdays: 14 }).fields.report_details?.expectedTreatmentDays, undefined)
+  assert.equal(normalizeAccidentExtraction({ report_details: { expectedTreatmentDays: '14' } }).fields.lost_workdays, undefined)
+  assert.match(buildAccidentExtractionPrompt(), /요양기간.*명시/)
+  assert.match(buildAccidentExtractionPrompt(), /휴업일수.*복사.*추정/)
+})
 const extraction = await load('@/lib/accident-report-extraction')
 const {
   ACCIDENT_EXTRACTION_RESPONSE_SCHEMA,

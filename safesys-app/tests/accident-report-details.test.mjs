@@ -7,6 +7,23 @@ import ts from 'typescript'
 
 const nodeRequire = createRequire(import.meta.url)
 
+test('산재요양 예상 일수는 미입력과 0을 구분하고 안전한 정수 문자열만 저장한다', async () => {
+  const { normalizeAccidentReportDetails, validateAccidentReportDetails, isAccidentReportDetailsEmpty } = await loadReportLib()
+  assert.equal(normalizeAccidentReportDetails(null).expectedTreatmentDays, '')
+  assert.equal(normalizeAccidentReportDetails({ summary: '기존 보고서' }).expectedTreatmentDays, '')
+  for (const value of ['', '0', '14', '9007199254740991']) {
+    const details = normalizeAccidentReportDetails({ expectedTreatmentDays: value })
+    assert.equal(details.expectedTreatmentDays, value)
+    assert.equal(validateAccidentReportDetails(details).valid, true)
+    assert.equal(isAccidentReportDetailsEmpty(details), value === '')
+  }
+  assert.equal(normalizeAccidentReportDetails({ expectedTreatmentDays: ' 14 ' }).expectedTreatmentDays, '14')
+  for (const value of ['-1', '1.5', '삼일', '1e2', '14일', '9007199254740992']) {
+    const details = normalizeAccidentReportDetails({ expectedTreatmentDays: value })
+    assert.ok(validateAccidentReportDetails(details).errors.expectedTreatmentDays, value)
+  }
+})
+
 /**
  * `@/` 별칭 모듈을 실제 소스로 따라가며 전부 transpile한다.
  * `overrides`에 담긴 이름만 대역으로 바꾸고, 그 밖의 패키지는 node가 해결한다.
@@ -479,6 +496,24 @@ test('형식이 어긋난 보고서는 DB에 닿기 전에 검증에서 막힌�
   assert.match(tooLong.error, /4,000/)
 
   assert.deepEqual(stub.calls.tables, [], '검증 전에 DB를 부르면 안 된다')
+})
+
+test('요양 예상 일수 저장은 0을 보존하고 잘못된 정수 문자열의 DB 호출을 막는다', async () => {
+  const { lib, stub } = await loadAccidentLib()
+  for (const value of ['-1', '1.5', '삼일', '9007199254740992']) {
+    const result = await lib.updateProjectAccident('accident-1', formInput({ report_details: { expectedTreatmentDays: value } }))
+    assert.equal(result.success, false, value)
+    assert.match(result.error, /산재요양 예상 일수/)
+  }
+  assert.deepEqual(stub.calls.tables, [])
+  for (const value of ['0', '14']) {
+    stub.setResponse({ data: accidentRow({ report_details: { expectedTreatmentDays: value } }), error: null })
+    const result = await lib.updateProjectAccident('accident-1', formInput({ report_details: { expectedTreatmentDays: value } }))
+    assert.equal(result.success, true)
+    assert.equal(stub.calls.updates.at(-1)[1].report_details.expectedTreatmentDays, value)
+    assert.equal(stub.calls.updates.at(-1)[1].lost_workdays, 3)
+    assert.equal(result.accident.report_details.expectedTreatmentDays, value)
+  }
 })
 
 test('입력 검증은 어긋난 보고서를 report_details 오류로 알린다', async () => {

@@ -30,6 +30,8 @@ export interface AccidentReportDetails {
   accidentTime: string
   /** 피해자 인적사항(여러 명이면 줄바꿈으로 나열) */
   victimDetails: string
+  /** 산재요양 예상 일수. 미입력은 빈 문자열, 입력하면 0 이상 안전 정수 문자열. 휴업일수와 별개다. */
+  expectedTreatmentDays: string
   /** 인명피해 상세(부위·정도·병원 등) */
   damageDetails: string
   /** 인명 외 피해(물적·공정) */
@@ -61,6 +63,7 @@ export const ACCIDENT_REPORT_TEXT_KEYS = [
   'summary',
   'accidentTime',
   'victimDetails',
+  'expectedTreatmentDays',
   'damageDetails',
   'propertyDamage',
   'responsibility',
@@ -105,6 +108,7 @@ const SHORT_TEXT_KEYS: ReadonlySet<AccidentReportTextKey> = new Set<AccidentRepo
   'reporterPosition',
   'reporterPhone',
   'accidentTime',
+  'expectedTreatmentDays',
 ])
 
 export const ACCIDENT_REPORT_TEXT_LABELS: Record<AccidentReportTextKey, string> = {
@@ -116,6 +120,7 @@ export const ACCIDENT_REPORT_TEXT_LABELS: Record<AccidentReportTextKey, string> 
   summary: '보고 요지',
   accidentTime: '사고 시각',
   victimDetails: '피해자 인적사항',
+  expectedTreatmentDays: '산재요양 예상 일수',
   damageDetails: '인명피해 상세',
   propertyDamage: '인명 외 피해',
   responsibility: '책임 소재',
@@ -140,6 +145,7 @@ export function createEmptyAccidentReportDetails(): AccidentReportDetails {
     summary: '',
     accidentTime: '',
     victimDetails: '',
+    expectedTreatmentDays: '',
     damageDetails: '',
     propertyDamage: '',
     responsibility: '',
@@ -156,6 +162,14 @@ export function createEmptyAccidentReportDetails(): AccidentReportDetails {
 
 export function maxLengthOfReportText(key: AccidentReportTextKey): number {
   return SHORT_TEXT_KEYS.has(key) ? ACCIDENT_REPORT_SHORT_TEXT_MAX_LENGTH : ACCIDENT_REPORT_LONG_TEXT_MAX_LENGTH
+}
+
+/** 미입력 또는 0 이상 안전 정수의 십진 숫자 문자열만 허용한다. */
+export function isValidExpectedTreatmentDays(value: unknown): value is string {
+  return typeof value === 'string' && (value === '' || (
+    value.length <= ACCIDENT_REPORT_SHORT_TEXT_MAX_LENGTH &&
+    /^[0-9]+$/.test(value) && Number.isSafeInteger(Number(value))
+  ))
 }
 
 const JPEG_DATA_URL_PATTERN = /^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/
@@ -249,6 +263,9 @@ export function validateAccidentReportDetails(details: AccidentReportDetails): A
   }
   if (details.accidentTime && !ACCIDENT_TIME_PATTERN.test(details.accidentTime)) {
     errors.accidentTime = '사고 시각은 HH:mm 형식으로 입력해 주세요.'
+  }
+  if (!isValidExpectedTreatmentDays(details.expectedTreatmentDays)) {
+    errors.expectedTreatmentDays = '산재요양 예상 일수는 0 이상의 정수로 입력해 주세요.'
   }
   if (details.notifications.some((item) => !NOTIFICATION_TARGETS.has(item))) {
     errors.notifications = '신고처 선택값이 올바르지 않습니다.'

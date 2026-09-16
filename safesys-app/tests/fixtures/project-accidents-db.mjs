@@ -9,13 +9,14 @@ const repoRoot = path.resolve(here, '../../..')
 
 const SCHEMA_PATH = path.join(here, 'project-accidents-schema.sql')
 
-// 운영에 적용된 순서 그대로 얹는다. 마지막 파일이 이번에 추가하는 보고서 항목 컬럼이다.
+// 배포 순서 그대로 얹는다. 보고서 항목 다음에 산재요양 예상 일수 검증 확장을 적용한다.
 export const MIGRATION_PATHS = [
   path.join(repoRoot, 'database', '20260718-0506_add_project_accidents.sql'),
   path.join(repoRoot, 'database', '20260718-0830_project_accidents_external_site.sql'),
   path.join(repoRoot, 'database', '20260831-1730_project_accidents_workers_comp_claim.sql'),
   path.join(repoRoot, 'database', '20260916-1032_사고보고_현장작성_권한.sql'),
   path.join(repoRoot, 'database', '20260916-1418_사고보고_보고서_항목.sql'),
+  path.join(repoRoot, 'database', '20260916-1720_사고보고_산재요양_예상일수.sql'),
 ]
 
 export const IDS = {

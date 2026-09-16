@@ -23,6 +23,24 @@ async function openDb(t) {
 /** 축소 JPEG data URL 한 장. FF D8 FF 매직의 base64 표기 /9j/로 시작한다. */
 const JPEG = 'data:image/jpeg;base64,/9j/AAAABBBBCCCCDDDD'
 
+test('후속 SQL은 요양 예상 일수의 빈값·0·안전 정수를 보존하고 잘못된 값은 거부한다', async (t) => {
+  const db = await openDb(t)
+  await signIn(db, IDS.owner)
+  const id = await seedAccident(db, { lost_workdays: 3 })
+  for (const value of ['', '0', '14', '9007199254740991']) {
+    await updateReportDetails(db, id, { expectedTreatmentDays: value })
+    const stored = await scalar(db, 'SELECT report_details FROM public.project_accidents')
+    assert.equal(stored.expectedTreatmentDays, value)
+    assert.equal(await scalar(db, 'SELECT lost_workdays FROM public.project_accidents'), 3)
+  }
+  for (const value of ['-1', '1.5', '삼일', '1e2', '14일', '9007199254740992', '0'.repeat(201), 0, null, {}, []]) {
+    const error = await expectError(updateReportDetails(db, id, { expectedTreatmentDays: value }))
+    assert.match(error.message, /project_accidents_report_details_check/i, JSON.stringify(value))
+  }
+  await updateReportDetails(db, id, { summary: '기존 보고서' })
+  assert.deepEqual(await scalar(db, 'SELECT report_details FROM public.project_accidents'), { summary: '기존 보고서' })
+})
+
 /** 서식의 칸을 고루 채운 정상 보고서. */
 const VALID_REPORT = {
   reportTitle: '사고발생보고',

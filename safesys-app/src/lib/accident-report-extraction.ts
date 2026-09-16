@@ -12,6 +12,7 @@ import {
   NOTIFICATION_TARGETS,
   VICTIM_ACTIONS,
   maxLengthOfReportText,
+  isValidExpectedTreatmentDays,
 } from '@/lib/accident-report'
 import type { AccidentNotificationTarget, AccidentReportDetails, AccidentVictimAction } from '@/lib/accident-report'
 
@@ -104,8 +105,8 @@ const ALLOWED_TOP_LEVEL_KEYS = [
   'report_details',
 ] as const
 
-/** 날짜·시각은 형식 정규화가 따로 필요하므로 문자열 일괄 처리에서 뺀다. */
-const FORMATTED_REPORT_TEXT_KEYS: ReadonlySet<string> = new Set(['reportDate', 'accidentTime'])
+/** 날짜·시각·일수는 형식 검증이 따로 필요하므로 문자열 일괄 처리에서 뺀다. */
+const FORMATTED_REPORT_TEXT_KEYS: ReadonlySet<string> = new Set(['reportDate', 'accidentTime', 'expectedTreatmentDays'])
 
 /** 핵심 필드가 비었을 때 사용자에게 알릴 이름. */
 const CORE_FIELD_LABELS: ReadonlyArray<{ key: keyof AccidentPrefillFields; label: string }> = [
@@ -136,6 +137,8 @@ export function buildAccidentExtractionPrompt(): string {
 [형식 규칙]
 - 날짜는 YYYY-MM-DD, 시각은 HH:mm(24시간제)로 쓴다.
 - 인원수·휴업일수는 0 이상의 정수로 쓴다. 문서에 숫자가 없으면 null이다.
+- 산재요양 예상 일수(expectedTreatmentDays)는 문서에 요양기간이 일 단위 숫자로 명시된 경우에만 0 이상 안전 정수의 숫자 문자열로 옮긴다. 없으면 null이며 미입력을 0으로 만들지 않는다.
+- 산재요양 예상 일수와 휴업일수(lost_workdays)는 별개이므로 서로 복사하거나 추정하지 않는다. 진단 주수·입원기간·사고일로 요양 예상 일수를 계산하지 않는다.
 - severity는 minor(경상)·lost_time(휴업)·serious(중상)·fatal(사망) 중 문서에 근거가 있을 때만 고르고 없으면 null이다.
 - accident_type은 다음 값 중 하나와 정확히 같게 쓰거나 null로 둔다 — ${accidentTypes}
 - 목록에 맞는 유형을 문서에서 판단할 수 없으면 '기타'로 임의 확정하지 않고 null로 둔다.
@@ -156,6 +159,7 @@ export function buildAccidentExtractionPrompt(): string {
 - 사고 일시(날짜) → accident_at, 사고 시각 → report_details.accidentTime
 - 보고 요지 → report_details.summary
 - 피해자 인적사항 → report_details.victimDetails
+- 산재요양 예상 일수·명시된 요양기간(일) → report_details.expectedTreatmentDays
 - 인명피해 상세(부위·정도·병원) → report_details.damageDetails
 - 인명 외 피해(물적·공정) → report_details.propertyDamage
 - 책임 소재·귀책 → report_details.responsibility
@@ -378,6 +382,15 @@ function normalizeReportDetails(
     const accidentTime = normalizeTime(raw.accidentTime)
     if (accidentTime) details.accidentTime = accidentTime
     else if (cleanText(raw.accidentTime, 50)) warnings.push('사고 시각 형식을 알아볼 수 없어 비워 두었습니다.')
+  }
+
+  if (raw.expectedTreatmentDays !== null && raw.expectedTreatmentDays !== undefined) {
+    const days = typeof raw.expectedTreatmentDays === 'string' ? raw.expectedTreatmentDays.trim() : raw.expectedTreatmentDays
+    if (isValidExpectedTreatmentDays(days)) {
+      if (days !== '') details.expectedTreatmentDays = days
+    } else {
+      warnings.push('산재요양 예상 일수는 0 이상 안전한 정수의 숫자 문자열이어야 하므로 비워 두었습니다.')
+    }
   }
 
   const notifications = normalizeEnumArray<AccidentNotificationTarget>(raw.notifications, NOTIFICATION_TARGETS)

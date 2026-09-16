@@ -6,6 +6,40 @@ import test from 'node:test'
 import ts from 'typescript'
 
 const nodeRequire = createRequire(import.meta.url)
+
+test('요양 예상 일수 병합은 입력한 0을 보존하고 휴업일수에서 복사하지 않는다', async () => {
+  const { planPrefillMerge, draft } = await loadMerge()
+  const current = draft({ lostWorkdays: '3', reportDetails: { ...draft().reportDetails, expectedTreatmentDays: '0' } })
+  const plan = planPrefillMerge(current, { report_details: { expectedTreatmentDays: '14' } })
+  assert.deepEqual(plan.conflicts, ['산재요양 예상 일수'])
+  assert.equal(plan.fillEmpty.reportDetails.expectedTreatmentDays, '0')
+  assert.equal(plan.overwrite.reportDetails.expectedTreatmentDays, '14')
+  assert.equal(plan.overwrite.lostWorkdays, '3')
+  const empty = draft()
+  assert.equal(planPrefillMerge(empty, { lost_workdays: 14 }).overwrite.reportDetails.expectedTreatmentDays, '')
+  assert.equal(planPrefillMerge(empty, { report_details: { expectedTreatmentDays: '0' } }).fillEmpty.reportDetails.expectedTreatmentDays, '0')
+  for (const value of ['', '-1', '1.5', '삼일', '9007199254740992']) {
+    assert.equal(planPrefillMerge(current, { report_details: { expectedTreatmentDays: value } }).hasChanges, false)
+  }
+})
+
+test('요양 예상 일수 입력은 number·min 0·step 1이고 상세는 일 단위를 표시한다', async () => {
+  const emptyMarkup = await renderModal({ reportMode: true })
+  const input = emptyMarkup.match(/<input[^>]*id="accident-report-expectedTreatmentDays"[^>]*>/)?.[0]
+  assert.ok(input)
+  assert.match(input, /type="number"/)
+  assert.match(input, /min="0"/)
+  assert.match(input, /step="1"/)
+  assert.match(input, /value=""/)
+  assert.match(emptyMarkup, /일 단위/)
+  for (const days of ['0', '14']) {
+    const accident = { ...ACCIDENT, report_details: { expectedTreatmentDays: days } }
+    const form = await renderModal({ reportMode: true, accident })
+    assert.match(form.match(/<input[^>]*id="accident-report-expectedTreatmentDays"[^>]*>/)?.[0] ?? '', new RegExp(`value="${days}"`))
+    const detail = await renderDetail({ accident })
+    assert.match(detail, new RegExp(`>${days}일<`))
+  }
+})
 const React = nodeRequire('react')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 

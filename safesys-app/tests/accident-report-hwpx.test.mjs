@@ -152,6 +152,7 @@ async function run() {
     summary: '가상지구 정비공사 현장에서 근로자 1명이 넘어져 휴업 재해가 발생함',
     accidentTime: '14:20',
     victimDetails: '가상인 / 남 / 40대 / 보통인부',
+    expectedTreatmentDays: '14',
     damageDetails: '오른쪽 발목 염좌로 2주 진단',
     propertyDamage: '해당없음',
     responsibility: '협력업체 안전조치 미흡',
@@ -301,6 +302,29 @@ async function run() {
   const CELL_SZ = /<hp:cellSz width="\d+" height="\d+"\/>/g
   const CELL_ADDR = /<hp:cellAddr colAddr="\d+" rowAddr="\d+"\/>/g
   const CELL_SPAN = /<hp:cellSpan colSpan="\d+" rowSpan="\d+"\/>/g
+
+  test('요양 예상 일수는 휴업과 별도로 피해자 근처에 보존되고 빈값을 0으로 만들지 않는다', async () => {
+    let emptySection
+    for (const days of [undefined, '', '0', '14', '9007199254740991']) {
+      const report_details = { ...baseDetails, expectedTreatmentDays: days }
+      const blob = await buildAccidentReportHwpx({ ...baseAccident, report_details }, PROJECT_NAME)
+      const zip = await JSZip.loadAsync(await blob.arrayBuffer())
+      const section = await zip.file('Contents/section0.xml').async('string')
+      const $ = load(section, { xml: true })
+      const text = $('hp\\:t').toArray().map(el => $(el).text()).join('\n')
+      assert.match(text, /휴업 5일/)
+      if (days === undefined || days === '') {
+        assert.doesNotMatch(text, /산재요양 예상/)
+      } else {
+        assert.match(text, new RegExp(`가상인 / 남 / 40대 / 보통인부[\\s\\S]*산재요양 예상 ${days}일`))
+      }
+      if (days === undefined) emptySection = section
+      assert.equal(sequence(section, CELL_ADDR), sequence(emptySection, CELL_ADDR))
+      assert.equal(sequence(section, CELL_SPAN), sequence(emptySection, CELL_SPAN))
+      assert.equal(sequence(section, /<hp:cellSz width="\d+"/g), sequence(emptySection, /<hp:cellSz width="\d+"/g))
+      assert.deepEqual(await zip.file('Contents/header.xml').async('uint8array'), originalHeader)
+    }
+  })
   const originalWidths = new Set([...originalSection.matchAll(/<hp:cellSz width="(\d+)"/g)].map(m => m[1]))
 
   function firstEntryIsStoredMimetype(buffer) {
@@ -474,7 +498,7 @@ async function run() {
 
   test('긴 요지와 연락처는 머리 문구를 제외하고 글자 수와 끝 마커가 보존된다', () => {
     const flat = flatText(built.nested)
-    assert.equal(countOf(flat.replace(/〈 보 고 요 지 〉/g, ''), '요'), 3998)
+    assert.equal(countOf(flat.replace(/〈 보 고 요 지 〉|산재요양 예상 [0-9]+일/g, ''), '요'), 3998)
     const $ = built.nested.$
     const contacts = $('hp\\:t').toArray().map(el => $(el).text()).filter(text => /연{2}/.test(text)).join('')
     assert.equal(countOf(contacts, '연'), 3997)
