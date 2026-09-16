@@ -16,8 +16,10 @@ interface AccidentReportListProps {
   /** 조회에 실패했으면 그 사유. 빈 목록과 구분해 보여준다. */
   loadError: string | null
   canCreate: boolean
-  /** 사고 한 건을 고칠 수 있는지 — 본인 작성 건이거나 본부급 관할일 때 참이다. */
-  canModify: (accident: ProjectAccident) => boolean
+  /** 사고 한 건을 수정할 수 있는지 — 이 현장을 열 수 있는 사용자면 참이다. */
+  canEdit: (accident: ProjectAccident) => boolean
+  /** 사고 한 건을 삭제할 수 있는지 — 본인 작성 건이거나 본부급 관할일 때 참이다. */
+  canDelete: (accident: ProjectAccident) => boolean
   deletingId: string | null
   onRetry: () => void
   onSelect: (accident: ProjectAccident) => void
@@ -35,7 +37,8 @@ export default function AccidentReportList({
   accidents,
   loadError,
   canCreate,
-  canModify,
+  canEdit,
+  canDelete,
   deletingId,
   onRetry,
   onSelect,
@@ -77,7 +80,7 @@ export default function AccidentReportList({
     )
   }
 
-  const showManageColumn = accidents.some(canModify)
+  const showManageColumn = accidents.some((accident) => canEdit(accident) || canDelete(accident))
 
   return (
     <div className="overflow-x-auto">
@@ -125,8 +128,8 @@ export default function AccidentReportList({
                 </td>
                 {showManageColumn && (
                   <td className="px-3 py-3 text-sm text-center">
-                    {canModify(accident) && (
-                      <div className="inline-flex gap-1">
+                    <div className="inline-flex gap-1">
+                      {canEdit(accident) && (
                         <button
                           type="button"
                           aria-label={`${accidentDate} 사고 수정`}
@@ -135,6 +138,8 @@ export default function AccidentReportList({
                         >
                           <Edit className="h-4 w-4" />
                         </button>
+                      )}
+                      {canDelete(accident) && (
                         <button
                           type="button"
                           aria-label={`${accidentDate} 사고 삭제`}
@@ -144,8 +149,8 @@ export default function AccidentReportList({
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </td>
                 )}
               </tr>

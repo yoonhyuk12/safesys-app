@@ -15,8 +15,10 @@ import {
 interface AccidentReportDetailProps {
   accident: ProjectAccident
   projectName: string
-  /** 본인 작성 건이거나 본부급 관할일 때만 수정·삭제를 보여준다. */
-  canModify: boolean
+  /** 이 현장을 열 수 있는 사용자면 참 — 수정 버튼을 보여준다. */
+  canEdit: boolean
+  /** 본인 작성 건이거나 본부급 관할일 때만 참 — 삭제 버튼을 보여준다. */
+  canDelete: boolean
   deleting: boolean
   onEdit: () => void
   onDelete: () => void
@@ -39,7 +41,8 @@ function DetailField({ label, children }: DetailFieldProps) {
 export default function AccidentReportDetail({
   accident,
   projectName,
-  canModify,
+  canEdit,
+  canDelete,
   deleting,
   onEdit,
   onDelete,
@@ -58,8 +61,8 @@ export default function AccidentReportDetail({
             산재 {compClaimLabel(accident.workers_comp_claim)}
           </span>
         </div>
-        {canModify && (
-          <div className="flex gap-2">
+        <div className="flex gap-2">
+          {canEdit && (
             <button
               type="button"
               onClick={onEdit}
@@ -68,6 +71,8 @@ export default function AccidentReportDetail({
               <Edit className="h-4 w-4" />
               수정
             </button>
+          )}
+          {canDelete && (
             <button
               type="button"
               onClick={onDelete}
@@ -77,8 +82,8 @@ export default function AccidentReportDetail({
               <Trash2 className="h-4 w-4" />
               삭제
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <dl className="grid gap-4 sm:grid-cols-2">

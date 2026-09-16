@@ -137,25 +137,150 @@ test('작성자 본인은 자기 사고를 고치고 지울 수 있다', async (
   assert.equal(deleted.rows.length, 1)
 })
 
-test('작성자가 아니면 현장 소유자·감리단·지사 발주청 누구도 남의 사고를 고치거나 지우지 못한다', async (t) => {
+test('그 현장을 볼 수 있으면 작성자가 아니어도 사고를 고친다', async (t) => {
   const db = await openDb(t)
-  // 공유받은 감리단이 남긴 사고다. 본부급 이상 발주청을 뺀 나머지는 손대지 못한다.
+  // 공유받은 감리단이 남긴 사고다. 같은 현장을 보는 소유 시공사·관할 지사 발주청이 이어서 고친다.
   await signIn(db, IDS.supervisor)
   await insertAccident(db, { created_by: IDS.supervisor })
 
-  for (const userId of [IDS.owner, IDS.branchClient, IDS.outsider, IDS.otherClient]) {
-    await signIn(db, userId)
-    const blocked = await db.query(
-      `UPDATE public.project_accidents SET cause = '원인 바꿔치기' RETURNING id`
-    )
-    assert.equal(blocked.rows.length, 0, `${userId}가 남의 사고를 고쳤다`)
+  await signIn(db, IDS.owner)
+  const byOwner = await db.query(
+    `UPDATE public.project_accidents SET cause = '현장 소유자가 고친 원인' RETURNING id`
+  )
+  assert.equal(byOwner.rows.length, 1, '현장 소유자가 남의 사고를 고치지 못했다')
 
+  await signIn(db, IDS.branchClient)
+  const byBranch = await db.query(
+    `UPDATE public.project_accidents SET cause = '지사 발주청이 고친 원인' RETURNING id`
+  )
+  assert.equal(byBranch.rows.length, 1, '관할 지사 발주청이 남의 사고를 고치지 못했다')
+
+  await signOut(db)
+  assert.equal(await scalar(db, 'SELECT cause FROM public.project_accidents'), '지사 발주청이 고친 원인')
+  // 고쳐도 원 작성자는 그대로다.
+  assert.equal(await scalar(db, 'SELECT created_by FROM public.project_accidents'), IDS.supervisor)
+})
+
+test('공유받은 감리단은 남이 쓴 사고를 고치되 지우지는 못한다', async (t) => {
+  const db = await openDb(t)
+  await signIn(db, IDS.owner)
+  await insertAccident(db)
+
+  await signIn(db, IDS.supervisor)
+  const updated = await db.query(
+    `UPDATE public.project_accidents SET cause = '감리단이 보완한 원인' RETURNING id`
+  )
+  assert.equal(updated.rows.length, 1, '공유받은 감리단이 남의 사고를 고치지 못했다')
+
+  await signOut(db)
+  assert.equal(
+    await scalar(db, 'SELECT cause FROM public.project_accidents'),
+    '감리단이 보완한 원인',
+    '감리단의 수정이 반영되지 않았다'
+  )
+  // 고쳐도 원 작성자는 그대로다.
+  assert.equal(await scalar(db, 'SELECT created_by FROM public.project_accidents'), IDS.owner)
+
+  await signIn(db, IDS.supervisor)
+  const notDeleted = await db.query('DELETE FROM public.project_accidents RETURNING id')
+  assert.equal(notDeleted.rows.length, 0, '공유받은 감리단이 남의 사고를 지웠다')
+
+  await signOut(db)
+  assert.equal(await visibleCount(db), 1, '남의 사고가 사라졌다')
+})
+
+test('작성자가 아니면 현장 소유자·지사 발주청도 남의 사고를 지우지 못한다', async (t) => {
+  const db = await openDb(t)
+  await signIn(db, IDS.supervisor)
+  await insertAccident(db, { created_by: IDS.supervisor })
+
+  for (const userId of [IDS.owner, IDS.branchClient]) {
+    await signIn(db, userId)
     const notDeleted = await db.query('DELETE FROM public.project_accidents RETURNING id')
     assert.equal(notDeleted.rows.length, 0, `${userId}가 남의 사고를 지웠다`)
   }
 
   await signOut(db)
+  assert.equal(await visibleCount(db), 1, '남의 사고가 사라졌다')
+})
+
+test('관할 밖 사용자는 남의 사고를 고치지도 지우지도 못한다', async (t) => {
+  const db = await openDb(t)
+  await signIn(db, IDS.supervisor)
+  await insertAccident(db, { created_by: IDS.supervisor })
+
+  for (const userId of [IDS.outsider, IDS.otherClient]) {
+    await signIn(db, userId)
+    const blocked = await db.query(
+      `UPDATE public.project_accidents SET cause = '원인 바꿔치기' RETURNING id`
+    )
+    assert.equal(blocked.rows.length, 0, `${userId}가 관할 밖 사고를 고쳤다`)
+
+    const notDeleted = await db.query('DELETE FROM public.project_accidents RETURNING id')
+    assert.equal(notDeleted.rows.length, 0, `${userId}가 관할 밖 사고를 지웠다`)
+  }
+
+  await signOut(db)
   assert.equal(await scalar(db, 'SELECT cause FROM public.project_accidents'), '안전대 미체결')
+})
+
+test('작성자가 아닌 수정자도 작성자 칸을 남에게 넘기지 못한다', async (t) => {
+  const db = await openDb(t)
+  await signIn(db, IDS.supervisor)
+  await insertAccident(db, { created_by: IDS.supervisor })
+
+  await signIn(db, IDS.owner)
+  const error = await expectError(
+    db.query('UPDATE public.project_accidents SET created_by = $1::uuid', [IDS.owner])
+  )
+  assert.match(error.message, /created_by는 변경할 수 없습니다|row-level security/i)
+
+  await signOut(db)
+  assert.equal(await scalar(db, 'SELECT created_by FROM public.project_accidents'), IDS.supervisor)
+})
+
+test('작성자가 아닌 수정자도 볼 수 없는 현장으로 사고를 옮기지 못한다', async (t) => {
+  const db = await openDb(t)
+  await signIn(db, IDS.supervisor)
+  await insertAccident(db, { created_by: IDS.supervisor })
+
+  await signIn(db, IDS.owner)
+  // USING은 통과하지만 WITH CHECK가 막으므로 조용히 0건이 아니라 예외로 거부된다.
+  const error = await expectError(
+    db.query('UPDATE public.project_accidents SET project_id = $1::uuid', [IDS.otherProject])
+  )
+  assert.match(error.message, /row-level security/i, '볼 수 없는 현장으로 남의 사고가 옮겨 갔다')
+
+  // 자기 현장끼리는 옮길 수 있다. 위 차단이 "정책이 통과한 적 없어서"가 아님을 가른다.
+  const moved = await db.query(
+    'UPDATE public.project_accidents SET project_id = $1::uuid RETURNING id',
+    [IDS.ownerSecondProject]
+  )
+  assert.equal(moved.rows.length, 1)
+
+  await signOut(db)
+  assert.equal(await scalar(db, 'SELECT project_id FROM public.project_accidents'), IDS.ownerSecondProject)
+})
+
+test('작성자가 아닌 수정자도 사고를 외부 미등록 현장으로 바꾸지 못한다', async (t) => {
+  const db = await openDb(t)
+  await signIn(db, IDS.supervisor)
+  await insertAccident(db, { created_by: IDS.supervisor })
+
+  await signIn(db, IDS.owner)
+  const error = await expectError(
+    db.query(
+      `UPDATE public.project_accidents
+          SET project_id = NULL,
+              external_project_name = '아무 현장',
+              external_managing_hq = '부산본부',
+              external_managing_branch = '해운대지사'`
+    )
+  )
+  assert.match(error.message, /row-level security/i, '남의 사고가 외부 현장으로 탈출했다')
+
+  await signOut(db)
+  assert.equal(await scalar(db, 'SELECT project_id FROM public.project_accidents'), IDS.ownerProject)
 })
 
 test('작성자라도 볼 수 없는 현장으로 사고를 옮기지 못한다', async (t) => {
@@ -208,6 +333,38 @@ test('공유가 철회되면 작성자라도 자기 사고를 더는 보지도 �
 
   await signOut(db)
   assert.equal(await scalar(db, 'SELECT cause FROM public.project_accidents'), '안전대 미체결')
+})
+
+test('공유가 철회된 감리단은 남이 쓴 사고도 더는 고치지 못한다', async (t) => {
+  const db = await openDb(t)
+  await signIn(db, IDS.owner)
+  await insertAccident(db)
+
+  await signIn(db, IDS.supervisor)
+  assert.equal(await visibleCount(db), 1, '공유 중에는 감리단에게 보여야 한다')
+
+  // 철회 전 성공을 먼저 확인해야 철회 후 0건이 정책 때문임이 갈린다.
+  const whileShared = await db.query(
+    `UPDATE public.project_accidents SET cause = '공유 중 보완' RETURNING id`
+  )
+  assert.equal(whileShared.rows.length, 1, '공유 중인 감리단이 남의 사고를 고치지 못했다')
+
+  await signOut(db)
+  await db.query('DELETE FROM public.project_shares WHERE project_id = $1::uuid AND shared_with = $2::uuid', [
+    IDS.ownerProject,
+    IDS.supervisor,
+  ])
+
+  await signIn(db, IDS.supervisor)
+  const notUpdated = await db.query(`UPDATE public.project_accidents SET cause = '뒤늦은 수정' RETURNING id`)
+  assert.equal(notUpdated.rows.length, 0, '공유가 끊긴 감리단이 남의 사고를 고쳤다')
+
+  await signOut(db)
+  assert.equal(
+    await scalar(db, 'SELECT cause FROM public.project_accidents'),
+    '공유 중 보완',
+    '공유가 끊긴 감리단의 수정이 반영됐다'
+  )
 })
 
 test('작성자는 자기 사고를 외부 미등록 현장으로 바꿔 관할 판정을 벗어나지 못한다', async (t) => {

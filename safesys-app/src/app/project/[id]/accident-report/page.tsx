@@ -92,11 +92,18 @@ export default function AccidentReportPage() {
   /**
    * 등록은 이 현장을 열 수 있는 사용자면 누구나 한다 — 현장 시공사·감리단의 사고보고가 목적이고,
    * 어느 현장을 열 수 있는지는 projects의 SELECT RLS가 판정하므로 여기서 직급을 다시 따지지 않는다.
-   * 수정·삭제는 본인이 올린 보고이거나 이 현장을 관할하는 본부급 이상일 때만 연다 (DB 정책과 같은 갈래다).
+   * 수정도 등록과 같은 기준으로 이 현장을 열 수 있는 사용자면 누구나 한다 (작성자는 바뀌지 않는다).
+   * 다만 그 사고가 지금 읽은 현장의 것일 때만 연다 — 다른 현장으로 옮겨 가는 사이 남은 목록을 고치지 않게 한다.
+   * 삭제만 본인이 올린 보고이거나 이 현장을 관할하는 본부급 이상일 때 연다 (DB 정책과 같은 갈래다).
    */
   const managesThisProject = canManageProjectAccidents(userProfile, project)
   const canCreate = Boolean(sessionUserId && project)
-  const canModify = useCallback(
+  const canEdit = useCallback(
+    (accident: ProjectAccident): boolean =>
+      Boolean(sessionUserId && project) && accident.project_id === project?.id,
+    [sessionUserId, project],
+  )
+  const canDelete = useCallback(
     (accident: ProjectAccident): boolean =>
       Boolean(sessionUserId) && (accident.created_by === sessionUserId || managesThisProject),
     [sessionUserId, managesThisProject],
@@ -165,7 +172,7 @@ export default function AccidentReportPage() {
   }
 
   const openEditModal = (accident: ProjectAccident) => {
-    if (!project || !canModify(accident)) return
+    if (!project || !canEdit(accident)) return
     setEditingAccident(accident)
     setSubmitError('')
     setModalOpen(true)
@@ -179,7 +186,7 @@ export default function AccidentReportPage() {
   }
 
   const handleSubmit = async (input: AccidentFormInput) => {
-    const allowed = editingAccident ? canModify(editingAccident) : canCreate
+    const allowed = editingAccident ? canEdit(editingAccident) : canCreate
     if (!allowed || !sessionUserId) {
       setSubmitError('사고보고를 저장할 권한이 없습니다.')
       return
@@ -207,7 +214,7 @@ export default function AccidentReportPage() {
 
   const handleDelete = async () => {
     const target = deleteTarget
-    if (!target || !canModify(target)) return
+    if (!target || !canDelete(target)) return
     setDeletingId(target.id)
     setDeleteError('')
     try {
@@ -228,7 +235,7 @@ export default function AccidentReportPage() {
   }
 
   const askDelete = (accident: ProjectAccident) => {
-    if (!canModify(accident)) return
+    if (!canDelete(accident)) return
     setDeleteError('')
     setDeleteTarget(accident)
   }
@@ -302,7 +309,8 @@ export default function AccidentReportPage() {
               <AccidentReportDetail
                 accident={selectedAccident}
                 projectName={project?.project_name ?? ''}
-                canModify={canModify(selectedAccident)}
+                canEdit={canEdit(selectedAccident)}
+                canDelete={canDelete(selectedAccident)}
                 deleting={deletingId === selectedAccident.id}
                 onEdit={() => openEditModal(selectedAccident)}
                 onDelete={() => askDelete(selectedAccident)}
@@ -317,7 +325,8 @@ export default function AccidentReportPage() {
               accidents={accidents}
               loadError={loadError}
               canCreate={canCreate}
-              canModify={canModify}
+              canEdit={canEdit}
+              canDelete={canDelete}
               deletingId={deletingId}
               onRetry={loadAccidents}
               onSelect={(accident) => {

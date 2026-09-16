@@ -1,6 +1,47 @@
 # 작업 로그
 
 <!-- worklog -->
+260916_111929 : plans/20260916_사고보고_공동수정/implementation-report.md 수정
+260916_111921 : plans/20260916_사고보고_공동수정/implementation-report.md 수정 — "- 그 현장을 볼 수 있으면 작성자가 아니어도 사고를 고친다 — owner·branchClient가 supe…"
+260916_111915 : plans/20260916_사고보고_공동수정/implementation-report.md 수정 — "- `src/app/project/[id]/accident-report/page.tsx` — `canModi…"
+260916_111855 : plans/20260916_사고보고_공동수정/verification-report.md 수정
+260916_111830 : plans/20260916_사고보고_공동수정/review-report.md 수정 — "# 사고보고 공동 수정 독립 리뷰 보고 리뷰일 2026-09-16. Orca dispatch ctx_1348…"
+260916_111815 : plans/20260916_사고보고_공동수정/verification-report.md 수정
+260916_111650 : plans/20260916_사고보고_공동수정/review-report.md 추가, safesys-app/tests/project-accidents-sql.test.mjs 수정
+260916_111633 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정
+260916_111627 : plans/20260916_사고보고_공동수정/verification-report.md 추가, safesys-app/src/app/project/[id]/accident-report/page.tsx 수정
+260916_111532 : plans/20260916_사고보고_공동수정/implementation-report.md 추가 — "# 사고보고 공동 수정 구현 보고 작업일 2026-09-16. Orca dispatch ctx_e91656b…"
+260916_111250 : database/20260916-1032_사고보고_현장작성_권한.sql 수정 — "-- 삭제는 작성자 본인으로 묶는다. 잘못 올린 보고는 올린 사람이 거둔다."
+260916_111214 : safesys-app/src/lib/accident-permissions.ts 수정
+260916_111203 : safesys-app/src/lib/accident-permissions.ts 수정 — "/** * 본인이 올리지 않은 사고보고까지 삭제(그리고 대시보드에서 관리)할 수 있는지 판정한다. * 사고보…"
+260916_111156 : safesys-app/src/lib/accident-permissions.ts 수정 — "// 남이 올린 사고보고까지 관리할 수 있는 사용자인지 소속과 현장 관할로 판정하는 순수 모듈"
+260916_111147 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정
+260916_111140 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "* 수정도 등록과 같은 기준으로 이 현장을 열 수 있는 사용자면 누구나 한다 (작성자는 바뀌지 않는다). *…"
+260916_111130 : database/20260916-1032_사고보고_현장작성_권한.sql 수정 — "'프로젝트별 실제 사고와 피해·원인·예방조치 이력. 등록 현장 사고(project_id)는 그 현장을 볼 수…"
+260916_111124 : database/20260916-1032_사고보고_현장작성_권한.sql 수정 — "-- * UPDATE는 USING과 WITH CHECK에 같은 조건을 걸어, 볼 수 없는 현장으로 사고를 -…"
+260916_111120 : safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정 — "<div className="flex gap-2"> {canEdit && ( <button type="but…"
+260916_111117 : database/20260916-1032_사고보고_현장작성_권한.sql 수정 — "-- 변경: 스키마·컬럼·트리거·기존 정책은 하나도 건드리지 않고 정책 네 개만 얹는다. -- 조회·등록·수…"
+260916_111113 : safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정 — "projectName, canEdit, canDelete, deleting,"
+260916_111112 : safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정 — "/** 이 현장을 열 수 있는 사용자면 참 — 수정 버튼을 보여준다. */ canEdit: boolean /…"
+260916_111109 : database/20260916-1032_사고보고_현장작성_권한.sql 수정 — "-- 수정은 그 현장을 볼 수 있는 사람이면 누구나 한다. 사고 내용은 현장이 함께 다듬는 기록이다. CRE…"
+260916_111108 : safesys-app/src/components/project/accident-report/AccidentReportList.tsx 수정 — "<div className="inline-flex gap-1"> {canEdit(accident) && ( …"
+260916_111103 : database/20260916-1032_사고보고_현장작성_권한.sql 수정 — "DROP POLICY IF EXISTS "작성자 사고 수정" ON public.project_accident…"
+260916_111100 : safesys-app/src/components/project/accident-report/AccidentReportList.tsx 수정 — "const showManageColumn = accidents.some((accident) => canEdi…"
+260916_111059 : safesys-app/src/components/project/accident-report/AccidentReportList.tsx 수정 — "canCreate, canEdit, canDelete, deletingId,"
+260916_111058 : docs/database.md 수정 — "등록 현장 사고는 그 현장을 볼 수 있는 로그인 사용자(시공사·감리단·관할 발주청)가 작성하고 작성자와 무관…"
+260916_111057 : safesys-app/src/components/project/accident-report/AccidentReportList.tsx 수정
+260916_111050 : docs/architecture.md 수정 — "등록과 수정은 그 현장을 열 수 있는 로그인 사용자면 누구나 하고(어느 현장을 열 수 있는지는 `projec…"
+260916_111043 : docs/architecture.md 수정 — "| `accident-permissions.ts` | 타인 사고보고 삭제 권한 판정(본사·관리자급 전사 권한…"
+260916_111041 : safesys-app/tests/project-accident-report.test.mjs 수정 — "test('상세의 수정·삭제는 고칠 권한이 있을 때만 보인다', async () => { const allo…"
+260916_111036 : docs/auth.md 수정 — "- **우회 차단**: 등록은 `created_by = auth.uid()`를 강제하고, 수정은 `USING…"
+260916_111035 : safesys-app/tests/project-accident-report.test.mjs 수정 — "test('목록의 수정·삭제는 고칠 수 있는 사고에만 붙는다', async () => { const only…"
+260916_111031 : docs/auth.md 수정 — "- **등록 현장 사고**(`project_id` 있음): 그 현장을 볼 수 있는 로그인 사용자면 누구나 조…"
+260916_111026 : safesys-app/tests/project-accidents-sql.test.mjs 수정 — "test('공유가 철회된 감리단은 남이 쓴 사고도 더는 고치지 못한다', async (t) => { cons…"
+260916_111024 : safesys-app/tests/project-accident-report.test.mjs 수정 — "projectName: PROJECT.project_name, canEdit: true, canDelete:…"
+260916_111023 : safesys-app/tests/project-accident-report.test.mjs 수정 — "canCreate: true, canEdit: () => true, canDelete: () => true,…"
+260916_111018 : safesys-app/tests/project-accidents-sql.test.mjs 수정 — "test('그 현장을 볼 수 있으면 작성자가 아니어도 사고를 고친다', async (t) => { const…"
+260916_110748 : plans/20260916_사고보고_공동수정.md 추가, plans/20260916_사고보고_공동수정/checklist.md 추가, plans/20260916_사고보고_공동수정/context-notes.md 추가
+260916_110723 : 사용방법.md 추가
 260916_110125 : plans/20260916_사고보고/review-report.md 수정
 260916_110117 : plans/20260916_사고보고/review-report.md 수정
 260916_110045 : plans/20260916_사고보고/review-report.md 수정

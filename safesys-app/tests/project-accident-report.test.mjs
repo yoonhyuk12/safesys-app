@@ -291,7 +291,8 @@ async function renderList(props) {
     accidents: [OWN_ACCIDENT, OTHERS_ACCIDENT],
     loadError: null,
     canCreate: true,
-    canModify: () => true,
+    canEdit: () => true,
+    canDelete: () => true,
     deletingId: null,
     onRetry: () => undefined,
     onSelect: () => undefined,
@@ -308,7 +309,8 @@ async function renderDetail(props) {
   return renderToStaticMarkup(React.createElement(detailModule.default, {
     accident: OWN_ACCIDENT,
     projectName: PROJECT.project_name,
-    canModify: true,
+    canEdit: true,
+    canDelete: true,
     deleting: false,
     onEdit: () => undefined,
     onDelete: () => undefined,
@@ -335,19 +337,40 @@ test('사고가 없으면 등록 권한이 있을 때만 등록 버튼을 준다
 })
 
 test('목록의 수정·삭제는 고칠 수 있는 사고에만 붙는다', async () => {
-  const markup = await renderList({ canModify: (accident) => accident.created_by === 'me' })
+  const onlyOwn = (accident) => accident.created_by === 'me'
+  const markup = await renderList({ canEdit: onlyOwn, canDelete: onlyOwn })
 
   assert.match(markup, /aria-label="2026\. 9\. 10\. 사고 수정"/)
   assert.match(markup, /aria-label="2026\. 9\. 10\. 사고 삭제"/)
   assert.doesNotMatch(markup, /2026\. 9\. 9\. 사고 수정/)
 })
 
+test('목록은 수정만 되는 사고에 삭제 버튼을 붙이지 않는다', async () => {
+  const markup = await renderList({
+    canEdit: () => true,
+    canDelete: (accident) => accident.created_by === 'me',
+  })
+
+  assert.match(markup, /aria-label="2026\. 9\. 10\. 사고 수정"/)
+  assert.match(markup, /aria-label="2026\. 9\. 10\. 사고 삭제"/)
+  assert.match(markup, /aria-label="2026\. 9\. 9\. 사고 수정"/)
+  assert.doesNotMatch(markup, /2026\. 9\. 9\. 사고 삭제/)
+})
+
 test('고칠 수 있는 사고가 하나도 없으면 관리 열 자체를 두지 않는다', async () => {
-  const markup = await renderList({ canModify: () => false })
+  const markup = await renderList({ canEdit: () => false, canDelete: () => false })
 
   assert.doesNotMatch(markup, /사고 수정/)
   assert.doesNotMatch(markup, /사고 삭제/)
   assert.doesNotMatch(markup, />관리</)
+})
+
+test('수정만 되는 사고가 있으면 관리 열을 남긴다', async () => {
+  const markup = await renderList({ canEdit: () => true, canDelete: () => false })
+
+  assert.match(markup, />관리</)
+  assert.match(markup, /aria-label="2026\. 9\. 10\. 사고 수정"/)
+  assert.doesNotMatch(markup, /사고 삭제/)
 })
 
 test('목록의 상세 진입은 키보드로 누를 수 있는 버튼이다', async () => {
@@ -367,13 +390,23 @@ test('상세는 기존 사고 항목을 모두 보여준다', async () => {
 })
 
 test('상세의 수정·삭제는 고칠 권한이 있을 때만 보인다', async () => {
-  const allowed = await renderDetail({ canModify: true })
-  const blocked = await renderDetail({ canModify: false })
+  const allowed = await renderDetail({ canEdit: true, canDelete: true })
+  const blocked = await renderDetail({ canEdit: false, canDelete: false })
 
   assert.match(allowed, />수정</)
   assert.match(allowed, />삭제</)
   assert.doesNotMatch(blocked, />수정</)
   assert.doesNotMatch(blocked, />삭제</)
+})
+
+test('상세는 수정 권한만 있으면 수정 버튼만 보여준다', async () => {
+  const editOnly = await renderDetail({ canEdit: true, canDelete: false })
+  const deleteOnly = await renderDetail({ canEdit: false, canDelete: true })
+
+  assert.match(editOnly, />수정</)
+  assert.doesNotMatch(editOnly, />삭제</)
+  assert.doesNotMatch(deleteOnly, />수정</)
+  assert.match(deleteOnly, />삭제</)
 })
 
 const projectPageSource = await readFile(
