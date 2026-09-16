@@ -1,6 +1,179 @@
 # 작업 로그
 
 <!-- worklog -->
+260916_153009 : plans/20260916_사고보고_업로드_출력/hwpx-report.md 수정, safesys-app/public/사고발생보고_양식.hwpx 수정
+260916_152833 : safesys-app/tests/accident-report-hwpx.test.mjs 수정
+260916_152811 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_152727 : safesys-app/scripts/accident-report-template.mjs 수정, safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정, safesys-app/tests/accident-report-hwpx.test.mjs 수정
+260916_152650 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_152515 : safesys-app/tests/accident-report-hwpx.test.mjs 수정
+260916_152502 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정, safesys-app/tests/accident-report-hwpx.test.mjs 수정
+260916_152321 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_152107 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_151910 : plans/20260916_사고보고_업로드_출력/verification.md 수정
+260916_151703 : plans/20260916_사고보고_업로드_출력/verification.md 수정
+260916_151658 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_151602 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_151508 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정 — "// 복제 표 id는 원본 id에서 한 칸씩 밀되 다른 개체(표·아이콘·그림) id와 부딪히지 않게 비켜 쓴…"
+260916_151408 : safesys-app/tests/accident-report-hwpx.test.mjs 수정
+260916_151346 : safesys-app/tests/accident-report-hwpx.test.mjs 수정
+260916_151231 : safesys-app/tests/accident-report-hwpx.test.mjs 수정
+260916_151149 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_150937 : plans/20260916_사고보고_업로드_출력/ui-db-report.md 수정
+260916_150907 : plans/20260916_사고보고_업로드_출력/ui-db-report.md 수정
+260916_150828 : plans/20260916_사고보고_업로드_출력/ui-db-report.md 수정 — "## 독립 리뷰(worker-opus, 읽기 전용) 결과와 반영 - 심각도 높음 없음. 중간 3건은 모두 반…"
+260916_150818 : safesys-app/tests/accident-report-hwpx.test.mjs 수정
+260916_150812 : safesys-app/tests/accident-report-hwpx.test.mjs 수정 — "// 사용자 확정 양식에서 만든 사고발생보고 HWPX의 양식 정화·값 치환·쪽 분할·사진 배치를 메모리 안에…"
+260916_150712 : safesys-app/tests/project-accident-report-ui.test.mjs 수정 — "test('문서 초안의 본 항목은 화면 입력 상한과 같은 길이로 잘린다', async () => { cons…"
+260916_150705 : safesys-app/tests/accident-report-details.test.mjs 수정 — "test('보고서를 넘기지 않은 저장은 응답으로도 사진 JSON을 되받지 않는다', async () => {…"
+260916_150613 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정, safesys-app/src/components/project/accident-report/AccidentPrefillPanel.tsx 수정, safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정, safesys-app/src/components/project/accident-report/prefill-merge.ts 수정, safesys-app/src/lib/accident-analysis.ts 수정
+260916_150554 : plans/20260916_사고보고_업로드_출력/import-report.md 수정, safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_150550 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정 — "const view = readOuterTable(anchor) const pages = paginatePa…"
+260916_150543 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정 — "function renderOuterTable(anchor: string, view: OuterTableVi…"
+260916_150542 : plans/20260916_사고보고_업로드_출력/import-report.md 수정 — "Advisor가 재현(1000자 198ms, 2000자 1.6초, 3990자 10.1초). 토큰 사이 구분자…"
+260916_150523 : safesys-app/scripts/accident-report-template.mjs 수정, safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_150506 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_150443 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_150406 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_150351 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_150322 : safesys-app/tests/accident-report-import.test.mjs 수정
+260916_150258 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정 — "// 사용자가 확정한 사고발생보고 양식 hwpx를 열어 값만 치환·복제해 내려받는 모듈 import JSZi…"
+260916_150245 : safesys-app/tests/accident-report-extraction.test.mjs 수정
+260916_150205 : safesys-app/src/lib/accident-report-extraction.ts 수정 — "* 실측에서 모델이 '산재보험처리' 라벨을 떼고 "신청 준비 중"만 돌려줬으므로, 산재 처리 항목 맨 앞의 …"
+260916_150128 : plans/20260916_사고보고_업로드_출력/import-report.md 수정 — "리뷰어는 7개 요구사항(JWT→RLS→AI 순서, 금지 키 이중 화이트리스트, zip 폭탄 상한, 타임아웃·…"
+260916_145942 : safesys-app/public/사고발생보고_양식.hwpx 추가
+260916_145839 : safesys-app/scripts/accident-report-template.mjs 수정
+260916_145821 : safesys-app/scripts/accident-report-template.mjs 수정
+260916_145753 : safesys-app/scripts/accident-report-template.mjs 추가 — "// 사용자가 확정한 사고발생보고 hwpx 원본에서 개인정보·이미지를 지우고 값 자리표시자만 남긴 양식을 만…"
+260916_145544 : plans/20260916_사고보고_업로드_출력/import-report.md 수정 — "npx tsc --noEmit → 오류 0 (exit 0, 앱 전체)"
+260916_145538 : plans/20260916_사고보고_업로드_출력/import-report.md 수정 — "# 사고보고 문서 자동 채움(문서 추출 담당) 구현 보고 작업일 2026-09-16. 1차 구현은 Orca …"
+260916_145428 : plans/20260916_사고보고_업로드_출력/사용안내.md 수정
+260916_145424 : plans/20260916_사고보고_업로드_출력/ui-db-report.md 수정
+260916_145335 : plans/20260916_사고보고_업로드_출력/checklist.md 수정, plans/20260916_사고보고_업로드_출력/verification.md 수정
+260916_145321 : safesys-app/tests/accident-report-extraction.test.mjs 수정 — "'산재 처리 검토중', '산재 접수 미정', // PDF 실측에서 모델이 '산재보험처리' 라벨을 떼고 이렇게…"
+260916_145317 : safesys-app/src/lib/accident-report-extraction.ts 수정 — "/** * 산재 신청·접수·처리 자체가 준비·예정·검토·미정이라고 적힌 경우만 미확정으로 본다. 신청 완료 …"
+260916_145121 : safesys-app/tests/accident-report-extraction.test.mjs 수정 — "assert.match(prompt, /향후 추진계획·재발방지대책 → prevention_action/) a…"
+260916_145118 : safesys-app/tests/accident-report-extraction.test.mjs 수정 — "assert.equal( normalizeAccidentExtraction({ report_details: …"
+260916_145103 : safesys-app/tests/accident-report-extraction.test.mjs 수정 — "test('산재 처리 문구가 준비중·예정이면 workers_comp_claim을 비우고 안내한다', () =…"
+260916_145050 : safesys-app/tests/accident-report-extraction.test.mjs 수정 — "test('사망 1명·부상 0명은 별도 집계이므로 값을 그대로 두고 경고하지 않는다', () => { con…"
+260916_145042 : safesys-app/src/lib/accident-report-extraction.ts 수정 — "text.match(/^(\d{4})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})…"
+260916_145040 : safesys-app/src/lib/accident-report-extraction.ts 수정 — "- 문서 맨 위나 공문 머리의 '보고일자'·'보고일'·'작성일' → report_details.reportD…"
+260916_145035 : safesys-app/src/lib/accident-report-extraction.ts 수정 — "- workers_comp_claim(산재신청 여부)은 '산재보험처리'·'산재 처리'·'산재신청' 항목의 문…"
+260916_145028 : safesys-app/src/lib/accident-report-extraction.ts 수정 — "/** 산재 신청·접수·처리 자체가 준비·예정·검토·미정이라고 적힌 경우만 미확정으로 본다. 신청 완료 뒤 …"
+260916_145024 : safesys-app/src/lib/accident-report-extraction.ts 수정 — "const details = normalizeReportDetails(picked.report_details…"
+260916_145001 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정
+260916_144942 : safesys-app/src/components/project/accident-report/AccidentPrefillPanel.tsx 수정
+260916_144932 : safesys-app/src/components/project/accident-report/prefill-merge.ts 수정
+260916_144931 : docs/architecture.md 수정
+260916_144906 : safesys-app/src/components/project/accident-report/AccidentReportFormSections.tsx 수정
+260916_144900 : safesys-app/package.json 수정 — "tests/accident-report-details.test.mjs tests/project-acciden…"
+260916_144859 : safesys-app/src/components/project/accident-report/AccidentReportFormSections.tsx 수정 — "export default function AccidentReportFormSections({ details…"
+260916_144855 : safesys-app/src/components/project/accident-report/AccidentReportFormSections.tsx 수정 — "interface AccidentReportFormSectionsProps { details: Acciden…"
+260916_144853 : database/20260916-1418_사고보고_보고서_항목.sql 수정
+260916_144851 : safesys-app/src/components/project/accident-report/AccidentReportPhotoField.tsx 수정 — "import { useEffect, useRef, useState } from 'react' import {…"
+260916_144848 : database/20260916-1418_사고보고_보고서_항목.sql 수정
+260916_144826 : safesys-app/src/components/project/accident-report/photo-list-updates.ts 추가 — "// 사고발생보고서 사진 목록을 최신 목록에서 새로 계산하는 순수 함수 모음 import { ACCIDENT…"
+260916_144818 : safesys-app/tests/project-accident-report-ui.test.mjs 수정
+260916_144736 : safesys-app/tests/project-accident-report-details-sql.test.mjs 수정 — "// 보고서 자리에 객체가 아닌 배열이 오는 것도 막는다. const arrayError = await ex…"
+260916_144705 : database/20260916-1418_사고보고_보고서_항목.sql 수정 — "'project_accidents.report_details의 형태를 검사한다. 허용 키 열아홉 개, 짧은 …"
+260916_144700 : database/20260916-1418_사고보고_보고서_항목.sql 수정 — "-- * 사진은 최대 2장, 브라우저에서 축소한 JPEG data URL(FF D8 FF 매직의 base64…"
+260916_144652 : database/20260916-1418_사고보고_보고서_항목.sql 수정 — "WHERE jsonb_typeof(photo) IS DISTINCT FROM 'object' -- 사진 한 …"
+260916_144647 : database/20260916-1418_사고보고_보고서_항목.sql 수정 — "-- 선택지가 넷뿐이라 배열도 넷을 넘지 못한다. 같은 값을 거듭 담아 부풀리는 길을 막는다. AND jso…"
+260916_144335 : plans/20260916_사고보고_업로드_출력/import-report.md 추가 — "# 사고보고 문서 자동 채움(문서 추출 담당) 구현 보고 작업일 2026-09-16. Orca dispatc…"
+260916_144219 : plans/20260916_사고보고_업로드_출력/ui-db-report.md 추가 — "# 사고보고 UI·데이터·SQL 구현 보고 작업일 2026-09-16. Orca dispatch ctx_21…"
+260916_144215 : safesys-app/tests/accident-report-extraction.test.mjs 수정 — "test('산재 처리 문구가 준비중·예정이면 workers_comp_claim을 비우고 안내한다', () =…"
+260916_144156 : safesys-app/src/lib/accident-report-extraction.ts 수정 — "- workers_comp_claim(산재신청 여부)도 문서에 신청·미신청이 명시될 때만 applied 또는…"
+260916_144150 : safesys-app/src/lib/accident-report-extraction.ts 수정 — "/** 인원수·휴업일수 상한. */ const COUNT_MAX = 99_999 /** 산재 처리 문구에 이…"
+260916_144145 : safesys-app/src/lib/accident-report-extraction.ts 수정 — "const details = normalizeReportDetails(picked.report_details…"
+260916_144132 : plans/20260916_사고보고_업로드_출력/context-notes.md 수정, plans/20260916_사고보고_업로드_출력/verification.md 수정
+260916_144108 : plans/20260916_사고보고_업로드_출력.md 수정
+260916_143958 : safesys-app/src/components/dashboard/AccidentProjectSearchSelect.tsx 수정
+260916_143909 : safesys-app/src/lib/accident-report-extraction.ts 수정
+260916_143858 : safesys-app/src/lib/accident-report-import.ts 수정
+260916_143854 : plans/20260916_사고보고_업로드_출력/hwpx-report.md 추가, safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정, safesys-app/src/components/dashboard/AccidentProjectSearchSelect.tsx 추가
+260916_143824 : safesys-app/src/lib/accident-report-import.ts 수정
+260916_143812 : safesys-app/src/lib/accident-report-import.ts 수정
+260916_143754 : docs/database.md 수정
+260916_143734 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정
+260916_143418 : plans/20260916_사고보고_업로드_출력/verification.md 추가, plans/20260916_사고보고_업로드_출력/사용안내.md 추가
+260916_143336 : safesys-app/package.json 수정
+260916_143320 : safesys-app/tests/accident-report-route.test.mjs 수정 — "// 모델명을 코드에 박으면 관리자 화면의 모델 설정이 무시된다. 반드시 기능 키로 조회해야 한다. asse…"
+260916_143309 : safesys-app/package.json 수정, safesys-app/tests/accident-report-route.test.mjs 추가
+260916_143145 : safesys-app/src/lib/accident-report-import.ts 수정 — "// 이어지는 단락 경계는 하나로 본다. .replace(/+/g, MARKER_PARAGRAPH) // …"
+260916_143116 : safesys-app/tests/accident-report-extraction.test.mjs 수정, safesys-app/tests/accident-report-import.test.mjs 수정
+260916_143108 : safesys-app/src/lib/accident-report-import.ts 수정 — "// 인스턴스 생성은 try 밖에 둔다 — 라이브러리 로딩 실패를 "손상된 파일"로 둘러대지 않는다. con…"
+260916_143025 : safesys-app/tests/accident-report-import.test.mjs 수정
+260916_143014 : safesys-app/tests/accident-report-import.test.mjs 추가 — "// HWPX 본문 추출이 안전 상한을 지키며 본문만 읽는지, 자동 채움 요청이 종류별로 올바른 FormDa…"
+260916_142954 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "import { normalizeAccidentReportDetails, validateAccidentRep…"
+260916_142910 : safesys-app/src/components/project/accident-report/prefill-merge.ts 수정 — "draft: AccidentDraft, fields: AccidentPrefillDraftFields, ba…"
+260916_142906 : safesys-app/src/components/project/accident-report/prefill-merge.ts 수정 — "/** * 문서에서 읽어 온 초안 값. 전부 선택이며 사진은 어떤 경로로도 받지 않으므로 report_det…"
+260916_142859 : safesys-app/src/lib/accident-report-import.ts 수정 — "for (const match of xml.matchAll(HWPX_TOKEN_PATTERN)) { cons…"
+260916_142850 : safesys-app/src/lib/accident-report-import.ts 수정 — "/** 구조 표시를 줄바꿈·탭으로 바꾸고 연속 공백·빈 줄을 정리한다. */ function tidyExtr…"
+260916_142845 : safesys-app/tests/accident-report-hwpx.test.mjs 추가 — "// 사고발생보고 HWPX의 zip 구조·참조 무결성·편집 가능 텍스트·쪽 분할·사진 비율을 검증하고 한글 …"
+260916_142843 : safesys-app/src/lib/accident-report-import.ts 수정 — "/** * 구조 태그와 글자 태그만 골라 읽는 토큰 패턴. * hp:t 안쪽은 자식 태그를 지우고 텍스트 노…"
+260916_142826 : safesys-app/tests/project-accident-report-ui.test.mjs 추가 — "// 사고발생보고서 UI — 보고서 모드 모달·사진 필드·상세 보고 항목과 문서 초안 병합 규칙을 검증한다 …"
+260916_142725 : safesys-app/src/lib/accident-report-extraction.ts 수정 — "function stripControlCharacters(value: string): string { let…"
+260916_142713 : safesys-app/tests/accident-report-extraction.test.mjs 추가 — "// 사고보고 자동 채움 정규화기가 문서에 없는 값을 지어내지 않고 형식 위반을 버리는지 검증한다 impor…"
+260916_142711 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "submitError={submitError} reportMode onClose={closeModal} on…"
+260916_142708 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — ")} {editOpenError && ( <div className="bg-white rounded-lg s…"
+260916_142704 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "deleting={deletingId === selectedAccident.id} onEdit={() => …"
+260916_142659 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "setModalOpen(false) setEditingAccident(null) const saved = r…"
+260916_142656 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "const openCreateModal = () => { if (!canCreate) return setEd…"
+260916_142645 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "const loadAccidents = useCallback(async () => { if (!project…"
+260916_142634 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "// 보고서 항목을 읽은 사고가 있으면 그것을, 아직이면 목록의 사고를 보여준다. const selected…"
+260916_142630 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정, safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 수정
+260916_142623 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "import { createProjectAccident, deleteProjectAccident, getPr…"
+260916_142619 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "import { useCallback, useEffect, useMemo, useRef, useState }…"
+260916_142613 : safesys-app/src/lib/hwpx/accident-report-hwpx-export.ts 추가 — "// 사고발생보고를 한글문서(hwpx/OWPML)로 조립·다운로드하는 모듈 import JSZip from …"
+260916_142601 : safesys-app/src/lib/ai-models.ts 수정 — "feature: 'TBM 위험요인 연계', remarks: '폴백 체인 gemini-3.1-flash-lit…"
+260916_142555 : safesys-app/src/lib/ai-models.ts 수정 — "/** AI 사용 인벤토리 기본값 23행 — 시드·폴백·관리자 화면 표시의 단일 출처 (2026-08-27 …"
+260916_142550 : safesys-app/src/app/api/ai/accident-report/route.ts 추가 — "// 사고보고 문서(PDF 원본·HWPX 추출 텍스트)를 Gemini로 읽어 사고 입력 초안 필드만 돌려주는…"
+260916_142543 : safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정 — "<section className="border-t border-gray-100 pt-4 space-y-3"…"
+260916_142529 : safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정 — "</div> </div> {downloadError && ( <div className="flex items…"
+260916_142524 : safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정 — "<div className="flex flex-wrap gap-2"> <button type="button"…"
+260916_142520 : safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정 — "deleting, onEdit, onDelete, onDownloadHwpx, downloading, dow…"
+260916_142514 : safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정 — "import { AlertCircle, Download, Edit, Loader2, Trash2 } from…"
+260916_142508 : safesys-app/src/lib/accident-report-import.ts 추가 — "// 사고보고 문서 업로드의 브라우저 측 처리 — HWPX 텍스트 추출과 자동 채움 API 호출을 담당한다.…"
+260916_142502 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "</select> </div> </div> {reportMode && ( <AccidentReportForm…"
+260916_142458 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "<span>{visibleError}</span> </div> )} {reportMode && ( <Acci…"
+260916_142453 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "<p id={descriptionId} className="mt-1 text-sm text-gray-500"…"
+260916_142448 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "workers_comp_claim: draft.workersCompClaim, // 보고서 모드가 아니면 키…"
+260916_142444 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "const normalizedReportDetails = normalizeAccidentReportDetai…"
+260916_142439 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "const updateDraft = <K extends keyof AccidentDraft>(key: K, …"
+260916_142428 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "// 모달이 닫히거나 대상 사고가 바뀌면 진행 중인 업로드 응답을 버린다. useEffect(() => { …"
+260916_142423 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "onSubmit, fixedProject = null, reportMode = false, }: Accide…"
+260916_142414 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "lostWorkdays: String(accident?.lost_workdays ?? 0), workersC…"
+260916_142411 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "import { useEffect, useId, useMemo, useRef, useState } from …"
+260916_142406 : safesys-app/src/lib/accident-report-extraction.ts 수정 — "// 사고보고 문서(PDF·HWPX)에서 AI가 뽑은 값을 검증·정규화하는 순수 모듈. 서버 라우트와 브라우…"
+260916_142402 : safesys-app/package.json 수정 — ""test:accident-report": "node --test tests/project-accident-…"
+260916_142355 : safesys-app/src/components/project/accident-report/AccidentPrefillPanel.tsx 추가 — "'use client' // 사고발생보고서 초안을 문서(PDF·HWPX)에서 불러오는 업로드 영역과 덮어쓰기…"
+260916_142353 : safesys-app/tests/accident-report-details.test.mjs 추가 — "// 사고발생보고서 항목의 정규화·검증과, 그 항목을 읽고 쓰는 데이터 계층(목록 컬럼 분리·상세 조회·저장…"
+260916_142331 : safesys-app/src/components/project/accident-report/prefill-merge.ts 추가 — "// 문서에서 읽은 사고 초안을 현재 입력 중인 초안에 합칠 방법을 계산하는 순수 함수 import { AC…"
+260916_142244 : safesys-app/src/components/project/accident-report/AccidentReportFormSections.tsx 추가 — "'use client' // 사고발생보고서 추가 항목(보고 개요·피해·신고조치·특이사항·사진대지) 입력 섹션…"
+260916_142222 : plans/20260916_사고보고_업로드_출력/SQL적용안내.md 추가, safesys-app/src/lib/accident-report-extraction.ts 추가
+260916_142216 : safesys-app/src/components/project/accident-report/AccidentReportPhotoField.tsx 추가 — "'use client' // 사고발생보고서 사진대지 입력 필드 — 축소 JPEG로 최대 2장까지만 담는다 i…"
+260916_142201 : safesys-app/tests/project-accident-report-details-sql.test.mjs 추가 — "// 사고발생보고서 항목(project_accidents.report_details)의 컬럼·CHECK 제약…"
+260916_142154 : safesys-app/src/components/project/accident-report/accident-report-form-styles.ts 추가 — "// 사고발생보고서 폼 조각들이 사고 입력 모달과 같은 입력·라벨 클래스를 쓰도록 모아 둔 상수 export…"
+260916_142142 : safesys-app/src/lib/accident-report-photo.ts 추가 — "// 사고발생보고서 사진을 브라우저에서 축소해 JPEG data URL로 만드는 유틸 (브라우저 전용) im…"
+260916_142116 : safesys-app/tests/fixtures/project-accidents-db.mjs 수정 — "/** 사고 한 건의 보고서 항목(report_details)만 갱신한다. 갱신된 행 목록을 돌려준다. */…"
+260916_142112 : safesys-app/tests/fixtures/project-accidents-db.mjs 수정 — "// 운영에 적용된 순서 그대로 얹는다. 마지막 파일이 이번에 추가하는 보고서 항목 컬럼이다. export …"
+260916_142103 : docs/database.md 수정, safesys-app/src/lib/accident-analysis.ts 수정
+260916_142057 : safesys-app/src/lib/accident-analysis.ts 수정 — "lost_workdays: normalized.lost_workdays, workers_comp_claim:…"
+260916_142052 : safesys-app/src/lib/accident-analysis.ts 수정 — "lost_workdays: input.lost_workdays, workers_comp_claim: inpu…"
+260916_142046 : safesys-app/src/lib/accident-analysis.ts 수정 — "const reportError = Object.values(reportValidation.errors).f…"
+260916_142040 : safesys-app/src/lib/accident-analysis.ts 수정 — "if (!Number.isFinite(value) || value < 0 || !Number.isIntege…"
+260916_142034 : safesys-app/src/lib/accident-analysis.ts 수정 — "/** DB가 돌려준 행의 report_details만 정규화한다. 값이 없으면 null로 둔다. */ co…"
+260916_142022 : safesys-app/src/lib/accident-analysis.ts 수정 — ".from('project_accidents') .select(PROJECT_ACCIDENT_LIST_COL…"
+260916_142019 : safesys-app/src/lib/accident-analysis.ts 수정 — ".from('project_accidents') .select(PROJECT_ACCIDENT_LIST_COL…"
+260916_142016 : safesys-app/src/lib/accident-analysis.ts 수정 — ".from('project_accidents') .select(PROJECT_ACCIDENT_LIST_COL…"
+260916_142012 : safesys-app/src/lib/accident-analysis.ts 수정 — "/** 목록·집계용 컬럼. report_details(사진 JSON)는 상세·수정·다운로드에서만 따로 읽는다…"
+260916_142007 : safesys-app/src/lib/accident-analysis.ts 수정 — "import { isAccidentReportDetailsEmpty, normalizeAccidentRepo…"
+260916_141959 : database/20260916-1418_사고보고_보고서_항목.sql 추가 — "-- 사고발생보고서의 추가 항목과 축소 사진을 public.project_accidents에 JSONB 한 …"
+260916_141749 : safesys-app/tests/fixtures/accident-report-photo-landscape.jpg 추가, safesys-app/tests/fixtures/accident-report-photo-portrait.jpg 추가
+260916_141734 : docs/architecture.md 수정, docs/auth.md 수정
+260916_141534 : safesys-app/src/lib/accident-analysis-types.ts 수정
+260916_141509 : safesys-app/src/lib/accident-report.ts 추가 — "// 사고발생보고서 추가 항목(보고자·피해자·조치·사진)의 공통 타입·기본값·정규화·검증 모듈. UI/API…"
+260916_141240 : plans/20260916_사고보고_업로드_출력.md 추가, plans/20260916_사고보고_업로드_출력/checklist.md 추가, plans/20260916_사고보고_업로드_출력/context-notes.md 추가, safesys-app/public/사고/260915 경기_파주지사 민북지구 사고발생보고.pdf 추가, safesys-app/public/사고/사고보고_평택지사(20260610).hwpx 추가
 260916_111929 : plans/20260916_사고보고_공동수정/implementation-report.md 수정
 260916_111921 : plans/20260916_사고보고_공동수정/implementation-report.md 수정 — "- 그 현장을 볼 수 있으면 작성자가 아니어도 사고를 고친다 — owner·branchClient가 supe…"
 260916_111915 : plans/20260916_사고보고_공동수정/implementation-report.md 수정 — "- `src/app/project/[id]/accident-report/page.tsx` — `canModi…"

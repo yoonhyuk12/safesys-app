@@ -79,9 +79,10 @@ accident-report, daily-inspection, edit, equipment-inspection, headquarters-insp
 
 ## API 라우트 (`src/app/api/`)
 
-**AI 엔드포인트 (9개):**
+**AI 엔드포인트 (10개):**
 
 - `/api/ai/daily-inspection` — AI 일일점검 생성
+- `/api/ai/accident-report` — PDF·HWPX 사고보고 자동 채움 초안 추출(Bearer 인증·프로젝트 RLS 확인, Gemini)
 - `/api/ai/extract-equipment-count` — OCR 장비 수량 추출
 - `/api/ai/ocr-card` — 카드 OCR
 - `/api/ai/supervisor-summary` — AI 감독일지 요약
@@ -143,6 +144,10 @@ src/components/
 | `accident-analysis-calculation.ts` | 프로젝트-월 단위 KPI, 월별 추이, 사고 전 30일·90일 점검 관계 계산 |
 | `accident-permissions.ts` | 타인 사고보고 삭제 권한 판정(본사·관리자급 전사 권한과 본부 소속의 프로젝트 관할 대조). 수정은 현장 접근만 보므로 여기서 다루지 않는다 |
 | `accident-report-format.ts` | 사고 중대도·산재신청 배지 클래스와 서울 시간대 고정 날짜 표기 |
+| `accident-report.ts` | 사고발생보고서 추가 항목·사진의 공통 타입, 정규화와 검증 |
+| `accident-report-import.ts` | PDF/HWPX 업로드 자동 채움 요청과 브라우저 HWPX 텍스트 추출 |
+| `accident-report-extraction.ts` | 사고보고 AI 추출 프롬프트·허용 필드·응답 검증 |
+| `hwpx/accident-report-hwpx-export.ts` | 평택지사 원본 양식에 사고발생보고 본문과 최대 2장 사진대지를 채워 HWPX 생성 |
 | `new-district-consulting.ts` | 신규지구 안전컨설팅용 계약·본부 점검 페이지네이션 조회와 집계 진입점 |
 | `new-district-consulting-utils.ts` | 대표 계약 시작일 해석, 달력 개월 인정 기한, 본부/지사 소계 재계산 순수 로직 |
 | `equipment-inspections.ts` | 장비 일일점검 작성 초안 상태·항목 문구 수정·제출 전 검증(미점검·빈 문구·빈 서명 차단)·조회/제출/수정/삭제 |

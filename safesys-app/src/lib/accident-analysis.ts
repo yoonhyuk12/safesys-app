@@ -13,6 +13,11 @@ import {
   type ProjectAccident,
   type WorkersCompClaim,
 } from '@/lib/accident-analysis-types'
+import {
+  isAccidentReportDetailsEmpty,
+  normalizeAccidentReportDetails,
+  validateAccidentReportDetails,
+} from '@/lib/accident-report'
 import { resolveFindingCode } from '@/lib/finding-classification'
 import {
   BATCH_SIZE,
@@ -31,6 +36,9 @@ import {
 
 export * from '@/lib/accident-analysis-types'
 export { calculateAccidentAnalysis } from '@/lib/accident-analysis-calculation'
+
+/** 목록·집계용 컬럼. report_details(사진 JSON)는 상세·수정·다운로드에서만 따로 읽는다. */
+export const PROJECT_ACCIDENT_LIST_COLUMNS = 'id, project_id, external_project_name, external_managing_hq, external_managing_branch, accident_at, severity, accident_type, location, work_description, description, cause, prevention_action, injured_count, fatal_count, lost_workdays, workers_comp_claim, created_by, created_at, updated_at'
 
 const SEVERITIES = new Set<AccidentSeverity>(ACCIDENT_SEVERITY_OPTIONS.map((option) => option.value))
 const COMP_CLAIMS = new Set<WorkersCompClaim | ''>(ACCIDENT_COMP_CLAIM_OPTIONS.map((option) => option.value))
@@ -363,7 +371,7 @@ export async function getAccidentAnalysisData(
   const fetchExternalAccidents = async (): Promise<ProjectAccident[]> => {
     const { data, error } = await (supabase as any)
       .from('project_accidents')
-      .select('*')
+      .select(PROJECT_ACCIDENT_LIST_COLUMNS)
       .is('project_id', null)
       .gte('accident_at', `${startDate}T00:00:00+09:00`)
       .lt('accident_at', `${accidentEndExclusive}T00:00:00+09:00`)
@@ -395,7 +403,7 @@ export async function getAccidentAnalysisData(
       scopedProjectIds,
       (batchIds) => (supabase as any)
         .from('project_accidents')
-        .select('*')
+        .select(PROJECT_ACCIDENT_LIST_COLUMNS)
         .in('project_id', batchIds)
         .gte('accident_at', `${startDate}T00:00:00+09:00`)
         .lt('accident_at', `${accidentEndExclusive}T00:00:00+09:00`)
@@ -534,7 +542,7 @@ export async function getProjectAccidents(projectId: string): Promise<ProjectAcc
   for (let page = 0; ; page += 1) {
     const { data, error } = await (supabase as any)
       .from('project_accidents')
-      .select('*')
+      .select(PROJECT_ACCIDENT_LIST_COLUMNS)
       .eq('project_id', scopedId)
       .order('accident_at', { ascending: false })
       .order('id', { ascending: true })
@@ -551,6 +559,43 @@ export async function getProjectAccidents(projectId: string): Promise<ProjectAcc
   }
 
   return collected
+}
+
+/**
+ * DB가 돌려준 행의 report_details만 정규화한다. 읽어 온 값이 없으면 null로 둔다.
+ * 컬럼을 아예 읽지 않은 행(키 부재)은 undefined 그대로 둬 "읽지 않음"과 "작성분 없음"을 구분한다.
+ */
+const withNormalizedReportDetails = (row: ProjectAccident): ProjectAccident => {
+  if (!('report_details' in row)) return row
+  return {
+    ...row,
+    report_details: row.report_details ? normalizeAccidentReportDetails(row.report_details) : null,
+  }
+}
+
+/** 저장 응답 컬럼. 보고서를 보낸 호출에만 사진 JSON을 되받고, 대시보드 간단 저장은 목록 컬럼만 받는다. */
+const mutationResultColumns = (input: AccidentFormInput): string =>
+  input.report_details === undefined
+    ? PROJECT_ACCIDENT_LIST_COLUMNS
+    : `${PROJECT_ACCIDENT_LIST_COLUMNS}, report_details`
+
+/** 사고 한 건을 보고서 항목(report_details)까지 읽는다. 상세·수정·HWPX 다운로드 직전에만 부른다. */
+export async function getProjectAccidentDetail(id: string): Promise<ProjectAccident> {
+  const scopedId = id.trim()
+  if (!scopedId) throw new Error('사고 상세를 불러오지 못했습니다.')
+
+  const { data, error } = await (supabase as any)
+    .from('project_accidents')
+    .select(`${PROJECT_ACCIDENT_LIST_COLUMNS}, report_details`)
+    .eq('id', scopedId)
+    .single()
+
+  if (error || !data) {
+    console.error('사고 상세 조회 오류:', error)
+    throw new Error('사고 상세를 불러오지 못했습니다.')
+  }
+
+  return withNormalizedReportDetails(data as ProjectAccident)
 }
 
 const requiredTextFields: ReadonlyArray<{ key: keyof AccidentFormInput; label: string }> = [
@@ -612,6 +657,15 @@ export function validateAccidentInput(input: AccidentFormInput): AccidentValidat
     }
   }
 
+  // 넘기지 않은(undefined) 보고서는 기존 값을 그대로 두는 뜻이므로 검증 대상이 아니다.
+  if (input.report_details !== undefined) {
+    const reportValidation = validateAccidentReportDetails(normalizeAccidentReportDetails(input.report_details))
+    const reportError = Object.values(reportValidation.errors).find(
+      (message): message is string => Boolean(message)
+    )
+    if (reportError) errors.report_details = reportError
+  }
+
   return { valid: Object.keys(errors).length === 0, errors }
 }
 
@@ -642,6 +696,10 @@ const normalizeAccidentInput = (input: AccidentFormInput): AccidentFormInput => 
     fatal_count: input.fatal_count,
     lost_workdays: input.lost_workdays,
     workers_comp_claim: input.workers_comp_claim,
+    // 넘기지 않은 보고서는 키 자체를 만들지 않는다. 대시보드 간단 수정이 현장 보고서를 지우면 안 된다.
+    ...(input.report_details === undefined
+      ? {}
+      : { report_details: normalizeAccidentReportDetails(input.report_details) }),
   }
 }
 
@@ -666,6 +724,14 @@ const toAccidentDbPayload = (input: AccidentFormInput) => {
     fatal_count: normalized.fatal_count,
     lost_workdays: normalized.lost_workdays,
     workers_comp_claim: normalized.workers_comp_claim || null,
+    // 키가 없으면 DB의 기존 보고서가 그대로 남고, 빈 보고서는 NULL로 지운다.
+    ...(normalized.report_details === undefined
+      ? {}
+      : {
+          report_details: isAccidentReportDetailsEmpty(normalized.report_details)
+            ? null
+            : normalized.report_details,
+        }),
   }
 }
 
@@ -685,13 +751,13 @@ export async function createProjectAccident(
     const { data, error } = await (supabase as any)
       .from('project_accidents')
       .insert(payload)
-      .select('*')
+      .select(mutationResultColumns(input))
       .single()
     if (error) {
       console.error('사고 이력 등록 오류:', error)
       return { success: false, error: '사고 이력을 등록하지 못했습니다.' }
     }
-    return { success: true, accident: data as ProjectAccident }
+    return { success: true, accident: withNormalizedReportDetails(data as ProjectAccident) }
   } catch (error) {
     console.error('사고 이력 등록 실패:', error)
     return { success: false, error: '사고 이력을 등록하는 중 오류가 발생했습니다.' }
@@ -712,13 +778,13 @@ export async function updateProjectAccident(
       .from('project_accidents')
       .update(payload)
       .eq('id', id.trim())
-      .select('*')
+      .select(mutationResultColumns(input))
       .single()
     if (error) {
       console.error('사고 이력 수정 오류:', error)
       return { success: false, error: '사고 이력을 수정하지 못했습니다.' }
     }
-    return { success: true, accident: data as ProjectAccident }
+    return { success: true, accident: withNormalizedReportDetails(data as ProjectAccident) }
   } catch (error) {
     console.error('사고 이력 수정 실패:', error)
     return { success: false, error: '사고 이력을 수정하는 중 오류가 발생했습니다.' }

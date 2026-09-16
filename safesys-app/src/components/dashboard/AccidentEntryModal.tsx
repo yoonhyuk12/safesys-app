@@ -2,7 +2,7 @@
 // 관할 프로젝트의 사고 이력을 입력하고 수정하는 접근 가능한 모달 폼. 미등록 현장 직접입력을 지원한다.
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Check, ChevronDown, Loader2, Search, X } from 'lucide-react'
+import { AlertCircle, Loader2, X } from 'lucide-react'
 import type { Project } from '@/lib/projects'
 import {
   ACCIDENT_COMP_CLAIM_OPTIONS,
@@ -11,6 +11,13 @@ import {
   type AccidentFormInput,
   type ProjectAccident,
 } from '@/lib/accident-analysis'
+import { normalizeAccidentReportDetails, validateAccidentReportDetails } from '@/lib/accident-report'
+import { supabase } from '@/lib/supabase'
+import { requestAccidentPrefill } from '@/lib/accident-report-import'
+import AccidentPrefillPanel from '@/components/project/accident-report/AccidentPrefillPanel'
+import AccidentReportFormSections from '@/components/project/accident-report/AccidentReportFormSections'
+import { planPrefillMerge, type AccidentDraft, type AccidentPrefillDraftFields } from '@/components/project/accident-report/prefill-merge'
+import ProjectSearchSelect, { getProjectOptionLabel, inputClassName } from '@/components/dashboard/AccidentProjectSearchSelect'
 
 interface AccidentEntryModalProps {
   isOpen: boolean
@@ -22,29 +29,13 @@ interface AccidentEntryModalProps {
   onSubmit: (input: AccidentFormInput) => Promise<void> | void
   /** 지정하면 이 프로젝트로 고정한다. 프로젝트 변경과 미등록 현장 직접입력을 막는다. */
   fixedProject?: Project | null
+  /**
+   * 참이면 사고발생보고서 추가 항목과 문서 업로드 초안 채우기를 함께 보여주고 report_details를 저장한다.
+   * 거짓(기본)이면 report_details를 아예 넘기지 않아 현장이 작성한 보고서를 지우지 않는다.
+   */
+  reportMode?: boolean
 }
 
-interface AccidentDraft {
-  projectId: string
-  externalProjectName: string
-  externalManagingHq: string
-  externalManagingBranch: string
-  isExternal: boolean
-  accidentAt: string
-  severity: AccidentFormInput['severity']
-  accidentType: string
-  location: string
-  workDescription: string
-  description: string
-  cause: string
-  preventionAction: string
-  injuredCount: string
-  fatalCount: string
-  lostWorkdays: string
-  workersCompClaim: AccidentFormInput['workers_comp_claim']
-}
-
-const inputClassName = 'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200 disabled:bg-gray-100'
 const labelClassName = 'mb-1.5 block text-sm font-medium text-gray-700'
 
 const severityOptions = ACCIDENT_SEVERITY_OPTIONS
@@ -56,16 +47,6 @@ const isAccidentSeverity = (value: string): value is AccidentFormInput['severity
 
 const isWorkersCompClaim = (value: string): value is AccidentFormInput['workers_comp_claim'] =>
   compClaimOptions.some((option) => option.value === value)
-
-const getProjectOptionLabel = (project: Project): string =>
-  `${project.project_name} (${project.managing_hq} · ${project.managing_branch})`
-
-const getExternalLabel = (name: string, hq: string, branch: string): string => {
-  const org = [hq, branch].filter(Boolean).join(' · ')
-  return org ? `${name} (미등록 · ${org})` : `${name} (미등록 현장)`
-}
-
-const normalizeSearchText = (value: string): string => value.trim().toLocaleLowerCase('ko')
 
 const toLocalDateInput = (value?: string | null): string => {
   const date = value ? new Date(value) : new Date()
@@ -101,262 +82,8 @@ const createDraft = (
     fatalCount: String(accident?.fatal_count ?? 0),
     lostWorkdays: String(accident?.lost_workdays ?? 0),
     workersCompClaim: accident?.workers_comp_claim ?? '',
+    reportDetails: normalizeAccidentReportDetails(accident?.report_details ?? null),
   }
-}
-
-interface ProjectSearchSelectProps {
-  id: string
-  projects: Project[]
-  projectId: string
-  externalProjectName: string
-  isExternal: boolean
-  externalManagingHq: string
-  externalManagingBranch: string
-  disabled: boolean
-  onSelectProject: (projectId: string) => void
-  onSelectExternal: (name: string) => void
-}
-
-function ProjectSearchSelect({
-  id,
-  projects,
-  projectId,
-  externalProjectName,
-  isExternal,
-  externalManagingHq,
-  externalManagingBranch,
-  disabled,
-  onSelectProject,
-  onSelectExternal,
-}: ProjectSearchSelectProps) {
-  const listboxId = useId()
-  const inputRef = useRef<HTMLInputElement>(null)
-  const activeOptionRef = useRef<HTMLButtonElement>(null)
-  const selectedProject = projects.find((project) => project.id === projectId)
-  const selectedLabel = isExternal
-    ? getExternalLabel(externalProjectName, externalManagingHq, externalManagingBranch)
-    : selectedProject
-      ? getProjectOptionLabel(selectedProject)
-      : ''
-  const [query, setQuery] = useState(selectedLabel)
-  const [isOpen, setIsOpen] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(0)
-
-  const filteredProjects = useMemo(() => {
-    const searchTerms = normalizeSearchText(query).split(/\s+/).filter(Boolean)
-    if (searchTerms.length === 0) return projects
-
-    return projects.filter((project) => {
-      const searchableText = normalizeSearchText(
-        `${project.project_name} ${project.managing_hq} ${project.managing_branch}`,
-      )
-      return searchTerms.every((term) => searchableText.includes(term))
-    })
-  }, [projects, query])
-
-  const trimmedQuery = query.trim()
-  const canUseExternal = trimmedQuery.length > 0
-  // 프로젝트 옵션 + 직접입력 옵션을 하나의 목록으로 다룬다.
-  const optionCount = filteredProjects.length + (canUseExternal ? 1 : 0)
-  const activeProject = activeIndex >= 0 && activeIndex < filteredProjects.length
-    ? filteredProjects[activeIndex]
-    : undefined
-  const isExternalOptionActive = canUseExternal && activeIndex === filteredProjects.length
-
-  useEffect(() => {
-    setQuery(selectedLabel)
-    setIsOpen(false)
-  }, [selectedLabel])
-
-  useEffect(() => {
-    setActiveIndex(optionCount > 0 ? 0 : -1)
-  }, [optionCount, query])
-
-  useEffect(() => {
-    if (isOpen) activeOptionRef.current?.scrollIntoView({ block: 'nearest' })
-  }, [activeIndex, isOpen])
-
-  const selectProject = (project: Project) => {
-    onSelectProject(project.id)
-    setQuery(getProjectOptionLabel(project))
-    setIsOpen(false)
-    inputRef.current?.focus()
-  }
-
-  const selectExternal = (name: string) => {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    onSelectExternal(trimmed)
-    setQuery(getExternalLabel(trimmed, '', ''))
-    setIsOpen(false)
-    inputRef.current?.focus()
-  }
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      if (!isOpen) {
-        setQuery('')
-        setIsOpen(true)
-        return
-      }
-      setActiveIndex((current) => Math.min(current + 1, optionCount - 1))
-      return
-    }
-
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      if (!isOpen) {
-        setQuery('')
-        setIsOpen(true)
-        return
-      }
-      setActiveIndex((current) => Math.max(current - 1, 0))
-      return
-    }
-
-    if (event.key === 'Enter' && isOpen && activeIndex >= 0) {
-      event.preventDefault()
-      if (isExternalOptionActive) {
-        selectExternal(trimmedQuery)
-        return
-      }
-      const project = filteredProjects[activeIndex]
-      if (project) selectProject(project)
-      return
-    }
-
-    if (event.key === 'Escape' && isOpen) {
-      event.preventDefault()
-      event.stopPropagation()
-      setQuery(selectedLabel)
-      setIsOpen(false)
-    }
-  }
-
-  return (
-    <div
-      className="relative"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          setQuery(selectedLabel)
-          setIsOpen(false)
-        }
-      }}
-    >
-      <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-gray-400" />
-      <input
-        ref={inputRef}
-        id={id}
-        type="text"
-        role="combobox"
-        aria-autocomplete="list"
-        aria-controls={listboxId}
-        aria-expanded={isOpen}
-        aria-activedescendant={
-          isOpen
-            ? (isExternalOptionActive
-              ? `${listboxId}-external`
-              : activeProject
-                ? `${listboxId}-${activeProject.id}`
-                : undefined)
-            : undefined
-        }
-        aria-required="true"
-        autoComplete="off"
-        value={query}
-        placeholder="프로젝트명 검색 또는 미등록 현장 직접입력"
-        disabled={disabled}
-        onFocus={(event) => {
-          event.currentTarget.select()
-          setQuery('')
-          setIsOpen(true)
-        }}
-        onChange={(event) => {
-          setQuery(event.target.value)
-          setIsOpen(true)
-        }}
-        onKeyDown={handleKeyDown}
-        className={`${inputClassName} pl-9 pr-10`}
-      />
-      <button
-        type="button"
-        tabIndex={-1}
-        aria-label={isOpen ? '프로젝트 목록 닫기' : '프로젝트 목록 열기'}
-        disabled={disabled}
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={() => {
-          if (isOpen) {
-            setQuery(selectedLabel)
-            setIsOpen(false)
-          } else {
-            setQuery('')
-            setIsOpen(true)
-            inputRef.current?.focus()
-          }
-        }}
-        className="absolute right-0 top-0 flex h-full w-10 items-center justify-center text-gray-400 hover:text-gray-700 disabled:cursor-not-allowed"
-      >
-        <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-
-      {isOpen && !disabled && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
-          <div className="border-b border-gray-100 px-3 py-2 text-xs text-gray-500">
-            {filteredProjects.length.toLocaleString('ko-KR')}개 프로젝트 · 미등록 현장은 직접입력 가능
-          </div>
-          <ul id={listboxId} role="listbox" className="max-h-60 overflow-y-auto py-1">
-            {filteredProjects.map((project, index) => {
-              const isSelected = !isExternal && project.id === projectId
-              const isActive = index === activeIndex
-              return (
-                <li key={project.id}>
-                  <button
-                    ref={isActive ? activeOptionRef : undefined}
-                    id={`${listboxId}-${project.id}`}
-                    type="button"
-                    role="option"
-                    aria-selected={isSelected}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onMouseEnter={() => setActiveIndex(index)}
-                    onClick={() => selectProject(project)}
-                    className={`flex w-full items-start gap-2 px-3 py-2 text-left text-sm ${isActive ? 'bg-indigo-50 text-indigo-900' : 'text-gray-800 hover:bg-gray-50'}`}
-                  >
-                    <Check className={`mt-0.5 h-4 w-4 flex-shrink-0 ${isSelected ? 'text-indigo-600' : 'invisible'}`} />
-                    <span className="min-w-0 break-words">{getProjectOptionLabel(project)}</span>
-                  </button>
-                </li>
-              )
-            })}
-            {canUseExternal && (
-              <li>
-                <button
-                  ref={isExternalOptionActive ? activeOptionRef : undefined}
-                  id={`${listboxId}-external`}
-                  type="button"
-                  role="option"
-                  aria-selected={isExternal && externalProjectName === trimmedQuery}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onMouseEnter={() => setActiveIndex(filteredProjects.length)}
-                  onClick={() => selectExternal(trimmedQuery)}
-                  className={`flex w-full items-start gap-2 border-t border-gray-100 px-3 py-2.5 text-left text-sm ${isExternalOptionActive ? 'bg-amber-50 text-amber-950' : 'text-amber-900 hover:bg-amber-50'}`}
-                >
-                  <Check className={`mt-0.5 h-4 w-4 flex-shrink-0 ${isExternal && externalProjectName === trimmedQuery ? 'text-amber-600' : 'invisible'}`} />
-                  <span className="min-w-0">
-                    <span className="font-medium">미등록 현장으로 직접입력</span>
-                    <span className="mt-0.5 block break-words text-xs text-amber-800/80">「{trimmedQuery}」</span>
-                  </span>
-                </button>
-              </li>
-            )}
-            {filteredProjects.length === 0 && !canUseExternal && (
-              <li className="px-3 py-5 text-center text-sm text-gray-500">검색어를 입력해 주세요.</li>
-            )}
-          </ul>
-        </div>
-      )}
-    </div>
-  )
 }
 
 export default function AccidentEntryModal({
@@ -368,13 +95,37 @@ export default function AccidentEntryModal({
   onClose,
   onSubmit,
   fixedProject = null,
+  reportMode = false,
 }: AccidentEntryModalProps) {
   const titleId = useId()
   const descriptionId = useId()
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const fixedProjectId = fixedProject?.id ?? ''
   const [draft, setDraft] = useState<AccidentDraft>(() => createDraft(accident, projects[0]?.id ?? '', fixedProjectId))
+  /** 초안을 새로 만들 때마다 오르는 번호. 사진 필드를 다시 마운트해 늦게 도착한 압축 결과를 버린다. */
+  const [draftSession, setDraftSession] = useState(0)
+  /** 사진 압축이 도는 동안 참. 저장을 막아 사진 없는 저장을 피한다. */
+  const [photoBusy, setPhotoBusy] = useState(false)
   const [validationError, setValidationError] = useState('')
+  const [prefillLoading, setPrefillLoading] = useState(false)
+  const [prefillError, setPrefillError] = useState('')
+  const [prefillWarnings, setPrefillWarnings] = useState<string[]>([])
+  const [prefillNotice, setPrefillNotice] = useState('')
+  /** 덮어쓰기 확인을 기다리는 문서 값. 병합은 사용자가 고른 시점의 최신 초안으로 다시 계산한다. */
+  const [pendingFields, setPendingFields] = useState<AccidentPrefillDraftFields | null>(null)
+  /** 마지막 업로드 요청만 반영한다. 모달이 닫히거나 대상 사고가 바뀌면 번호를 올려 이전 응답을 버린다. */
+  const prefillSeqRef = useRef(0)
+  /** 신규 등록에서 자동으로 채워진 기본값. 사용자가 손댄 칸을 가려내는 기준이며 수정 모드에서는 null이다. */
+  const baselineDraftRef = useRef<AccidentDraft | null>(null)
+  /** 비동기 업로드 응답이 클릭 시점이 아니라 지금의 초안을 보게 하는 거울. */
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+
+  // 확인 패널에 보여줄 충돌 항목. 초안이 바뀌면 다시 계산한다.
+  const pendingConflicts = useMemo(
+    () => (pendingFields ? planPrefillMerge(draft, pendingFields, baselineDraftRef.current ?? undefined).conflicts : null),
+    [pendingFields, draft],
+  )
 
   const sortedProjects = useMemo(
     () => [...projects].sort((a, b) =>
@@ -401,10 +152,25 @@ export default function AccidentEntryModal({
     [draft.externalManagingHq, sortedProjects],
   )
 
+  // 모달이 닫히거나 대상 사고가 바뀌면 진행 중인 업로드 응답을 버린다.
+  useEffect(() => {
+    prefillSeqRef.current += 1
+    setPrefillLoading(false)
+    setPrefillError('')
+    setPrefillWarnings([])
+    setPrefillNotice('')
+    setPendingFields(null)
+  }, [isOpen, accident])
+
   useEffect(() => {
     if (!isOpen) return
-    setDraft(createDraft(accident, sortedProjects[0]?.id ?? '', fixedProjectId))
+    const nextDraft = createDraft(accident, sortedProjects[0]?.id ?? '', fixedProjectId)
+    // 신규 등록에서만 기본값을 기준으로 삼는다. 수정에서는 저장된 값이 "빈 칸"으로 취급되면 안 된다.
+    baselineDraftRef.current = accident ? null : nextDraft
+    setDraft(nextDraft)
     setValidationError('')
+    setPhotoBusy(false)
+    setDraftSession((current) => current + 1)
   }, [isOpen, accident, sortedProjects, fixedProjectId])
 
   useEffect(() => {
@@ -429,8 +195,60 @@ export default function AccidentEntryModal({
     setDraft((current) => ({ ...current, [key]: value }))
   }
 
+  const PREFILL_APPLIED_NOTICE = '문서에서 읽은 초안입니다. 내용을 확인하고 부족한 항목을 보완한 뒤 저장하세요.'
+
+  const handlePrefillFile = async (file: File) => {
+    const seq = prefillSeqRef.current + 1
+    prefillSeqRef.current = seq
+    setPrefillLoading(true)
+    setPrefillError('')
+    setPrefillWarnings([])
+    setPrefillNotice('')
+    setPendingFields(null)
+    try {
+      const { data } = await supabase.auth.getSession()
+      const accessToken = data.session?.access_token
+      if (!accessToken) throw new Error('로그인 정보를 확인하지 못했습니다.')
+
+      const result = await requestAccidentPrefill(file, draft.projectId || fixedProjectId, accessToken)
+      // 늦게 도착한 이전 요청이나 닫힌 모달의 응답은 초안에 반영하지 않는다.
+      if (prefillSeqRef.current !== seq) return
+
+      // 업로드하는 동안 사용자가 적은 내용을 지우지 않도록 응답 시점의 최신 초안으로 병합을 계산한다.
+      const plan = planPrefillMerge(draftRef.current, result.fields, baselineDraftRef.current ?? undefined)
+      setPrefillWarnings(result.warnings)
+      if (plan.conflicts.length > 0) {
+        setPendingFields(result.fields)
+        return
+      }
+      if (!plan.hasChanges) {
+        setPrefillNotice('문서에서 채울 수 있는 항목을 찾지 못했습니다. 직접 입력해 주세요.')
+        return
+      }
+      setDraft((current) => planPrefillMerge(current, result.fields, baselineDraftRef.current ?? undefined).fillEmpty)
+      setPrefillNotice(PREFILL_APPLIED_NOTICE)
+    } catch (error: unknown) {
+      if (prefillSeqRef.current !== seq) return
+      setPrefillError(error instanceof Error && error.message ? error.message : '문서에서 초안을 읽지 못했습니다.')
+    } finally {
+      if (prefillSeqRef.current === seq) setPrefillLoading(false)
+    }
+  }
+
+  const applyPendingFields = (mode: 'fillEmpty' | 'overwrite') => {
+    const fields = pendingFields
+    if (!fields) return
+    setDraft((current) => planPrefillMerge(current, fields, baselineDraftRef.current ?? undefined)[mode])
+    setPendingFields(null)
+    setPrefillNotice(PREFILL_APPLIED_NOTICE)
+  }
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (photoBusy) {
+      setValidationError('사진을 처리하는 중입니다. 잠시 뒤 저장해 주세요.')
+      return
+    }
     const injuredCount = Number(draft.injuredCount)
     const fatalCount = Number(draft.fatalCount)
     const lostWorkdays = Number(draft.lostWorkdays)
@@ -491,6 +309,15 @@ export default function AccidentEntryModal({
       return
     }
 
+    const normalizedReportDetails = normalizeAccidentReportDetails(draft.reportDetails)
+    if (reportMode) {
+      const reportValidation = validateAccidentReportDetails(normalizedReportDetails)
+      if (!reportValidation.valid) {
+        setValidationError(Object.values(reportValidation.errors)[0] ?? '보고서 항목을 확인해 주세요.')
+        return
+      }
+    }
+
     setValidationError('')
     const input: AccidentFormInput = {
       project_id: draft.isExternal ? '' : draft.projectId,
@@ -510,6 +337,8 @@ export default function AccidentEntryModal({
       fatal_count: fatalCount,
       lost_workdays: lostWorkdays,
       workers_comp_claim: draft.workersCompClaim,
+      // 보고서 모드가 아니면 키 자체를 넣지 않아 저장된 report_details를 건드리지 않는다.
+      ...(reportMode ? { report_details: normalizedReportDetails } : {}),
     }
     await onSubmit(input)
   }
@@ -533,7 +362,9 @@ export default function AccidentEntryModal({
               {accident ? '사고 이력 수정' : '사고 이력 입력'}
             </h2>
             <p id={descriptionId} className="mt-1 text-sm text-gray-500">
-              피해자 개인정보 없이 사고와 예방조치에 필요한 정보만 기록합니다.
+              {reportMode
+                ? '사고발생보고서에 필요한 항목을 함께 기록합니다. 모든 추가 항목은 선택이며 사진은 최대 2장입니다.'
+                : '피해자 개인정보 없이 사고와 예방조치에 필요한 정보만 기록합니다.'}
               {fixedProject ? ' 현장은 이 프로젝트로 고정됩니다.' : ' 시스템에 없는 현장은 직접 입력할 수 있습니다.'}
             </p>
           </div>
@@ -556,6 +387,21 @@ export default function AccidentEntryModal({
                 <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
                 <span>{visibleError}</span>
               </div>
+            )}
+
+            {reportMode && (
+              <AccidentPrefillPanel
+                loading={prefillLoading}
+                disabled={submitting}
+                error={prefillError}
+                warnings={prefillWarnings}
+                notice={prefillNotice}
+                conflicts={pendingConflicts}
+                onSelectFile={handlePrefillFile}
+                onFillEmpty={() => applyPendingFields('fillEmpty')}
+                onOverwrite={() => applyPendingFields('overwrite')}
+                onCancel={() => setPendingFields(null)}
+              />
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -736,13 +582,23 @@ export default function AccidentEntryModal({
                 </select>
               </div>
             </div>
+
+            {reportMode && (
+              <AccidentReportFormSections
+                key={draftSession}
+                details={draft.reportDetails}
+                disabled={submitting}
+                onChange={(update) => setDraft((current) => ({ ...current, reportDetails: update(current.reportDetails) }))}
+                onPhotoBusyChange={setPhotoBusy}
+              />
+            )}
           </div>
 
           <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-4 py-4 sm:px-6">
             <button type="button" onClick={onClose} disabled={submitting} className="rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">
               취소
             </button>
-            <button type="submit" disabled={submitting} className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={submitting || photoBusy} className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
               {accident ? '수정 저장' : '사고 이력 저장'}
             </button>

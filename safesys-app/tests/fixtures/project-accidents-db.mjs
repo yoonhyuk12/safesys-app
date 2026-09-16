@@ -9,12 +9,13 @@ const repoRoot = path.resolve(here, '../../..')
 
 const SCHEMA_PATH = path.join(here, 'project-accidents-schema.sql')
 
-// 운영에 적용된 순서 그대로 얹는다. 마지막 파일이 이번에 추가하는 현장 작성 권한이다.
+// 운영에 적용된 순서 그대로 얹는다. 마지막 파일이 이번에 추가하는 보고서 항목 컬럼이다.
 export const MIGRATION_PATHS = [
   path.join(repoRoot, 'database', '20260718-0506_add_project_accidents.sql'),
   path.join(repoRoot, 'database', '20260718-0830_project_accidents_external_site.sql'),
   path.join(repoRoot, 'database', '20260831-1730_project_accidents_workers_comp_claim.sql'),
   path.join(repoRoot, 'database', '20260916-1032_사고보고_현장작성_권한.sql'),
+  path.join(repoRoot, 'database', '20260916-1418_사고보고_보고서_항목.sql'),
 ]
 
 export const IDS = {
@@ -132,6 +133,17 @@ export function insertAccident(db, overrides = {}) {
       row.accident_at, row.severity, row.accident_type, row.location, row.work_description,
       row.description, row.cause, row.prevention_action, row.injured_count, row.fatal_count,
       row.lost_workdays, row.created_by]
+  )
+}
+
+/** 사고 한 건의 보고서 항목(report_details)만 갱신한다. 갱신된 행 목록을 돌려준다. */
+export function updateReportDetails(db, id, details) {
+  return db.query(
+    `UPDATE public.project_accidents
+        SET report_details = $2::jsonb
+      WHERE id = $1::uuid
+      RETURNING id`,
+    [id, details === null ? null : JSON.stringify(details)]
   )
 }
 

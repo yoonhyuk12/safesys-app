@@ -38,6 +38,8 @@ const canSeeAllHq = userProfile?.role === '발주청' &&
 - **우회 차단**: 등록은 `created_by = auth.uid()`를 강제하고, 수정은 `USING`·`WITH CHECK`에 같은 현장 접근 조건을 걸어 볼 수 없는 현장으로 사고를 옮기지 못하게 한다. 수정 정책에 작성자 조건이 없어도 `created_by`는 `prevent_project_accidents_created_by_change` 트리거가 지키므로, 누가 고쳐도 원 작성자는 바뀌지 않는다.
 - 정책 본문은 `database/20260916-1032_사고보고_현장작성_권한.sql`, 회귀 검증은 `safesys-app/tests/project-accidents-sql.test.mjs`다.
 
+사고보고 문서 자동 채움(`/api/ai/accident-report`)도 로그인 토큰과 해당 사용자의 프로젝트 조회 RLS로 접근을 확인한다. 업로드 문서로 프로젝트·작성자·권한을 바꾸지 않으며, 추출 결과는 저장 전 입력 초안으로만 돌려준다. 사진과 보고서 추가 항목은 기존 사고 행의 `report_details`에 함께 보관되어 동일한 조회·공동 수정·삭제 권한을 따른다.
+
 ## 인증 플로우
 
 - **AuthContext** (`src/contexts/AuthContext.tsx`): 전역 인증 상태 (user, userProfile, refreshProfile, signOut)

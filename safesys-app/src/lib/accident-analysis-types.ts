@@ -1,5 +1,6 @@
 // 사고 통계 분석의 공개 타입과 한글 선택 옵션을 정의하는 모듈
 import type { FindingClassificationSummary, FindingCode } from '@/lib/finding-classification'
+import type { AccidentReportDetails } from '@/lib/accident-report'
 
 export type AccidentSeverity = 'minor' | 'lost_time' | 'serious' | 'fatal'
 
@@ -27,6 +28,11 @@ export interface ProjectAccident {
   lost_workdays: number
   /** 산재신청 여부. 기존 등록분은 null(미확인) */
   workers_comp_claim: WorkersCompClaim | null
+  /**
+   * 사고발생보고서 추가 항목·사진(JSONB). 대시보드 목록 조회는 이 컬럼을 읽지 않으므로 undefined일 수 있고,
+   * 보고서를 작성하지 않은 기존 등록분은 null이다.
+   */
+  report_details?: AccidentReportDetails | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -52,6 +58,11 @@ export interface AccidentFormInput {
   lost_workdays: number
   /** 산재신청 여부. 빈 문자열이면 미확인으로 저장한다. */
   workers_comp_claim: WorkersCompClaim | ''
+  /**
+   * 사고발생보고서 추가 항목. 넘기지 않으면(undefined) 저장 시 기존 report_details를 건드리지 않는다 —
+   * 대시보드 간단 수정이 현장이 작성한 보고서를 지우지 않게 하려는 것이다.
+   */
+  report_details?: AccidentReportDetails
 }
 
 export type SafetyInspectionSource = 'safety' | 'manager' | 'headquarters'

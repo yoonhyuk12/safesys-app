@@ -2,7 +2,7 @@
 
 // 프로젝트 사고보고 서류철 — 이 현장의 사고만 조회하고 등록·수정·삭제한다
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { AlertCircle, ArrowLeft, Loader2, Plus } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -16,11 +16,13 @@ import { formatAccidentDate } from '@/lib/accident-report-format'
 import {
   createProjectAccident,
   deleteProjectAccident,
+  getProjectAccidentDetail,
   getProjectAccidents,
   updateProjectAccident,
   type AccidentFormInput,
   type ProjectAccident,
 } from '@/lib/accident-analysis'
+import { downloadAccidentReportHwpx } from '@/lib/hwpx/accident-report-hwpx-export'
 import type { Project } from '@/lib/projects'
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -48,6 +50,18 @@ export default function AccidentReportPage() {
   const [deleteTarget, setDeleteTarget] = useState<ProjectAccident | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState('')
+
+  /** report_details까지 읽은 사고. 목록 조회는 이 컬럼을 읽지 않으므로 상세·수정·다운로드 직전에 채운다. */
+  const [detailsById, setDetailsById] = useState<Record<string, ProjectAccident>>({})
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
+  const [detailError, setDetailError] = useState('')
+  const [editOpenError, setEditOpenError] = useState('')
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState('')
+  /** 늦게 도착한 이전 상세 응답을 버리는 요청 번호 */
+  const detailSeqRef = useRef(0)
+  /** 마지막으로 시작한 상세 읽기의 번호. 목록 재조회로 추월당해도 자기 로딩 표시는 자기가 끈다. */
+  const detailLoadSeqRef = useRef(0)
 
   /**
    * 전역 AuthContext의 loading은 SupabaseProvider가 getSession을 끝내기 전에 이미 false가 된다.
@@ -109,9 +123,10 @@ export default function AccidentReportPage() {
     [sessionUserId, managesThisProject],
   )
 
+  // 보고서 항목을 읽은 사고가 있으면 그것을, 아직이면 목록의 사고를 보여준다.
   const selectedAccident = useMemo(
-    () => accidents.find((accident) => accident.id === selectedId) ?? null,
-    [accidents, selectedId],
+    () => (selectedId ? detailsById[selectedId] ?? accidents.find((accident) => accident.id === selectedId) ?? null : null),
+    [accidents, detailsById, selectedId],
   )
 
   // 참조가 매 렌더 바뀌면 모달이 초안을 다시 만들어, 저장 실패 후 입력이 날아간다.
@@ -139,6 +154,10 @@ export default function AccidentReportPage() {
   const loadAccidents = useCallback(async () => {
     if (!projectId) return
     setLoading(true)
+    // 목록을 다시 읽으면 보고서 항목 캐시도 버려 저장 직후의 옛 값을 보여주지 않는다.
+    detailSeqRef.current += 1
+    setDetailsById({})
+    setDetailError('')
     try {
       setAccidents(await getProjectAccidents(projectId))
       setLoadError(null)
@@ -154,6 +173,38 @@ export default function AccidentReportPage() {
     if (sessionUserId && projectId) loadAccidents()
   }, [sessionUserId, projectId, loadAccidents])
 
+  /**
+   * 보고서 항목까지 읽어 캐시에 넣는다.
+   * 실패(detail null·superseded 거짓)와 추월당한 응답(superseded 참)을 구분해 돌려준다 —
+   * 추월은 오류가 아니므로 호출자가 안내 문구를 내지 않는다.
+   */
+  const loadDetail = useCallback(async (id: string): Promise<{ detail: ProjectAccident | null; superseded: boolean }> => {
+    const seq = detailSeqRef.current + 1
+    detailSeqRef.current = seq
+    detailLoadSeqRef.current = seq
+    setDetailLoadingId(id)
+    setDetailError('')
+    try {
+      const detail = await getProjectAccidentDetail(id)
+      if (detailSeqRef.current !== seq) return { detail: null, superseded: true }
+      setDetailsById((current) => ({ ...current, [detail.id]: detail }))
+      return { detail, superseded: false }
+    } catch (error: unknown) {
+      if (detailSeqRef.current !== seq) return { detail: null, superseded: true }
+      setDetailError(errorMessage(error, '보고서 항목을 불러오지 못했습니다.'))
+      return { detail: null, superseded: false }
+    } finally {
+      // 목록 재조회가 번호를 올려도 더 새로운 상세 읽기가 없으면 로딩 표시는 여기서 끈다.
+      if (detailLoadSeqRef.current === seq) setDetailLoadingId(null)
+    }
+  }, [])
+
+  // 상세를 열면 그 사고의 보고서 항목을 읽는다. 이미 읽었으면 다시 읽지 않는다.
+  useEffect(() => {
+    if (!selectedId || detailsById[selectedId]) return
+    void loadDetail(selectedId)
+  }, [selectedId, detailsById, loadDetail])
+
   // 상세를 보고 있으면 목록으로, 목록에서는 프로젝트로 돌아간다.
   const handleBack = () => {
     if (selectedId) {
@@ -168,14 +219,44 @@ export default function AccidentReportPage() {
     if (!canCreate) return
     setEditingAccident(null)
     setSubmitError('')
+    setEditOpenError('')
     setModalOpen(true)
   }
 
-  const openEditModal = (accident: ProjectAccident) => {
+  /**
+   * 보고서 항목을 읽은 뒤에만 수정을 연다 — 비어 있는 채로 저장해 기존 report_details를 지우지 않으려는 것이다.
+   */
+  const openEditModal = async (accident: ProjectAccident) => {
     if (!project || !canEdit(accident)) return
-    setEditingAccident(accident)
+    setEditOpenError('')
+    const cached = detailsById[accident.id]
+    const loaded = cached ? { detail: cached, superseded: false } : await loadDetail(accident.id)
+    if (!loaded.detail) {
+      // 목록이 다시 읽히는 사이 추월당했으면 오류가 아니다. 사용자가 다시 누르면 된다.
+      if (!loaded.superseded) setEditOpenError('보고서 항목을 불러오지 못해 수정을 열 수 없습니다. 다시 시도해 주세요.')
+      return
+    }
+    setEditingAccident(loaded.detail)
     setSubmitError('')
     setModalOpen(true)
+  }
+
+  const handleDownloadHwpx = async (accident: ProjectAccident) => {
+    setDownloadError('')
+    setDownloadingId(accident.id)
+    try {
+      const cached = detailsById[accident.id]
+      const loaded = cached ? { detail: cached, superseded: false } : await loadDetail(accident.id)
+      if (!loaded.detail) {
+        if (!loaded.superseded) setDownloadError('보고서 항목을 불러오지 못해 한글 문서를 만들 수 없습니다. 다시 시도해 주세요.')
+        return
+      }
+      await downloadAccidentReportHwpx(loaded.detail, project?.project_name ?? '')
+    } catch (error: unknown) {
+      setDownloadError(errorMessage(error, '한글 문서를 만들지 못했습니다.'))
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
   const closeModal = () => {
@@ -203,8 +284,11 @@ export default function AccidentReportPage() {
       }
       setModalOpen(false)
       setEditingAccident(null)
-      if (result.accident) setSelectedId(result.accident.id)
+      const saved = result.accident
+      if (saved) setSelectedId(saved.id)
+      // 목록 재조회가 캐시를 비우므로 저장 결과는 그 뒤에 넣는다.
       await loadAccidents()
+      if (saved && saved.report_details !== undefined) setDetailsById({ [saved.id]: saved })
     } catch (error: unknown) {
       setSubmitError(errorMessage(error, '사고 이력을 저장하는 중 오류가 발생했습니다.'))
     } finally {
@@ -294,6 +378,12 @@ export default function AccidentReportPage() {
           </div>
         )}
 
+        {editOpenError && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3" role="alert">
+            <p className="text-sm text-red-700">{editOpenError}</p>
+          </div>
+        )}
+
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
           <div className="bg-blue-600 text-white px-4 py-3 flex items-center justify-between gap-2">
             <h2 className="font-semibold text-sm sm:text-base truncate">
@@ -314,6 +404,12 @@ export default function AccidentReportPage() {
                 deleting={deletingId === selectedAccident.id}
                 onEdit={() => openEditModal(selectedAccident)}
                 onDelete={() => askDelete(selectedAccident)}
+                onDownloadHwpx={() => handleDownloadHwpx(selectedAccident)}
+                downloading={downloadingId === selectedAccident.id}
+                downloadError={downloadError}
+                detailLoading={detailLoadingId === selectedAccident.id}
+                detailError={detailError}
+                onRetryDetail={() => void loadDetail(selectedAccident.id)}
               />
             </div>
           ) : loading ? (
@@ -348,6 +444,7 @@ export default function AccidentReportPage() {
         accident={editingAccident}
         submitting={submitting}
         submitError={submitError}
+        reportMode
         onClose={closeModal}
         onSubmit={handleSubmit}
       />

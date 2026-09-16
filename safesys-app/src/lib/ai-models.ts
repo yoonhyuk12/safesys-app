@@ -14,7 +14,7 @@ export interface AiModelSetting {
   outputPricePer1m: number | null
 }
 
-/** AI 사용 인벤토리 기본값 22행 — 시드·폴백·관리자 화면 표시의 단일 출처 (2026-08-27 관리자 DB와 폴백 동기화) */
+/** AI 사용 인벤토리 기본값 23행 — 시드·폴백·관리자 화면 표시의 단일 출처 (2026-08-27 관리자 DB와 폴백 동기화) */
 export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'chat.project-assistant',
@@ -233,6 +233,16 @@ export const DEFAULT_AI_MODELS = [
     location: 'src/app/api/ai/tbm-risk-link/route.ts',
     feature: 'TBM 위험요인 연계',
     remarks: '폴백 체인 gemini-3.1-flash-lite 자동 적용',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
+  },
+  {
+    featureKey: 'ai.accident-report',
+    provider: 'Google',
+    model: 'gemini-flash-lite-latest',
+    location: 'src/app/api/ai/accident-report/route.ts',
+    feature: '사고보고 문서 자동 채움',
+    remarks: 'PDF는 inlineData, HWPX는 추출 텍스트로 전달',
     inputPricePer1m: null,
     outputPricePer1m: null,
   },
