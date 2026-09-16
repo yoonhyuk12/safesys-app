@@ -1676,6 +1676,15 @@ export default function ProjectDetailPage() {
                   onClick={() => router.push(`/project/${projectId}/holiday-work`)}
                   pdcaCategory="A"
                 />
+                <DocumentFolder
+                  title="사고
+보고"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/accident-report`)}
+                  pdcaCategory="A"
+                />
               </div>
             </div>
           </div>

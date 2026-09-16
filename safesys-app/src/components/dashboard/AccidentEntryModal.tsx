@@ -20,6 +20,8 @@ interface AccidentEntryModalProps {
   submitError: string
   onClose: () => void
   onSubmit: (input: AccidentFormInput) => Promise<void> | void
+  /** 지정하면 이 프로젝트로 고정한다. 프로젝트 변경과 미등록 현장 직접입력을 막는다. */
+  fixedProject?: Project | null
 }
 
 interface AccidentDraft {
@@ -74,10 +76,15 @@ const toLocalDateInput = (value?: string | null): string => {
   return `${year}-${month}-${day}`
 }
 
-const createDraft = (accident: ProjectAccident | null, defaultProjectId: string): AccidentDraft => {
-  const isExternal = Boolean(accident && !accident.project_id && accident.external_project_name)
+const createDraft = (
+  accident: ProjectAccident | null,
+  defaultProjectId: string,
+  fixedProjectId: string,
+): AccidentDraft => {
+  // 고정 모드에서는 저장된 값이 미등록 현장이더라도 이 프로젝트로 묶는다.
+  const isExternal = !fixedProjectId && Boolean(accident && !accident.project_id && accident.external_project_name)
   return {
-    projectId: isExternal ? '' : (accident?.project_id ?? defaultProjectId),
+    projectId: fixedProjectId || (isExternal ? '' : (accident?.project_id ?? defaultProjectId)),
     externalProjectName: isExternal ? (accident?.external_project_name ?? '') : '',
     externalManagingHq: isExternal ? (accident?.external_managing_hq ?? '') : '',
     externalManagingBranch: isExternal ? (accident?.external_managing_branch ?? '') : '',
@@ -360,11 +367,13 @@ export default function AccidentEntryModal({
   submitError,
   onClose,
   onSubmit,
+  fixedProject = null,
 }: AccidentEntryModalProps) {
   const titleId = useId()
   const descriptionId = useId()
   const closeButtonRef = useRef<HTMLButtonElement>(null)
-  const [draft, setDraft] = useState<AccidentDraft>(() => createDraft(accident, projects[0]?.id ?? ''))
+  const fixedProjectId = fixedProject?.id ?? ''
+  const [draft, setDraft] = useState<AccidentDraft>(() => createDraft(accident, projects[0]?.id ?? '', fixedProjectId))
   const [validationError, setValidationError] = useState('')
 
   const sortedProjects = useMemo(
@@ -394,9 +403,9 @@ export default function AccidentEntryModal({
 
   useEffect(() => {
     if (!isOpen) return
-    setDraft(createDraft(accident, sortedProjects[0]?.id ?? ''))
+    setDraft(createDraft(accident, sortedProjects[0]?.id ?? '', fixedProjectId))
     setValidationError('')
-  }, [isOpen, accident, sortedProjects])
+  }, [isOpen, accident, sortedProjects, fixedProjectId])
 
   useEffect(() => {
     if (!isOpen) return
@@ -426,7 +435,13 @@ export default function AccidentEntryModal({
     const fatalCount = Number(draft.fatalCount)
     const lostWorkdays = Number(draft.lostWorkdays)
 
-    if (draft.isExternal) {
+    if (fixedProjectId) {
+      // 고정 모드에서는 초안이 이미 이 프로젝트로 묶여 있다. 검사만 남겨 회귀를 막는다.
+      if (draft.isExternal || draft.projectId !== fixedProjectId) {
+        setValidationError('이 현장의 사고만 등록할 수 있습니다.')
+        return
+      }
+    } else if (draft.isExternal) {
       if (!draft.externalProjectName.trim()) {
         setValidationError('미등록 현장명을 입력해 주세요.')
         return
@@ -518,7 +533,8 @@ export default function AccidentEntryModal({
               {accident ? '사고 이력 수정' : '사고 이력 입력'}
             </h2>
             <p id={descriptionId} className="mt-1 text-sm text-gray-500">
-              피해자 개인정보 없이 사고와 예방조치에 필요한 정보만 기록합니다. 시스템에 없는 현장은 직접 입력할 수 있습니다.
+              피해자 개인정보 없이 사고와 예방조치에 필요한 정보만 기록합니다.
+              {fixedProject ? ' 현장은 이 프로젝트로 고정됩니다.' : ' 시스템에 없는 현장은 직접 입력할 수 있습니다.'}
             </p>
           </div>
           <button
@@ -545,32 +561,48 @@ export default function AccidentEntryModal({
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label htmlFor="accident-project" className={labelClassName}>프로젝트 <span className="text-red-500">*</span></label>
-                <ProjectSearchSelect
-                  id="accident-project"
-                  projects={sortedProjects}
-                  projectId={draft.projectId}
-                  externalProjectName={draft.externalProjectName}
-                  isExternal={draft.isExternal}
-                  externalManagingHq={draft.externalManagingHq}
-                  externalManagingBranch={draft.externalManagingBranch}
-                  disabled={lockProject}
-                  onSelectProject={(projectId) => setDraft((current) => ({
-                    ...current,
-                    projectId,
-                    isExternal: false,
-                    externalProjectName: '',
-                    externalManagingHq: '',
-                    externalManagingBranch: '',
-                  }))}
-                  onSelectExternal={(name) => setDraft((current) => ({
-                    ...current,
-                    projectId: '',
-                    isExternal: true,
-                    externalProjectName: name,
-                    externalManagingHq: current.externalManagingHq || hqOptions[0] || '',
-                    externalManagingBranch: current.externalManagingBranch || '',
-                  }))}
-                />
+                {fixedProject ? (
+                  <>
+                    <input
+                      id="accident-project"
+                      type="text"
+                      value={getProjectOptionLabel(fixedProject)}
+                      readOnly
+                      aria-describedby="accident-project-fixed-note"
+                      className={`${inputClassName} bg-gray-50 text-gray-700`}
+                    />
+                    <p id="accident-project-fixed-note" className="mt-1.5 text-xs text-gray-500">
+                      이 현장의 사고보고 서류철에서 작성하므로 다른 현장으로 바꿀 수 없습니다.
+                    </p>
+                  </>
+                ) : (
+                  <ProjectSearchSelect
+                    id="accident-project"
+                    projects={sortedProjects}
+                    projectId={draft.projectId}
+                    externalProjectName={draft.externalProjectName}
+                    isExternal={draft.isExternal}
+                    externalManagingHq={draft.externalManagingHq}
+                    externalManagingBranch={draft.externalManagingBranch}
+                    disabled={lockProject}
+                    onSelectProject={(projectId) => setDraft((current) => ({
+                      ...current,
+                      projectId,
+                      isExternal: false,
+                      externalProjectName: '',
+                      externalManagingHq: '',
+                      externalManagingBranch: '',
+                    }))}
+                    onSelectExternal={(name) => setDraft((current) => ({
+                      ...current,
+                      projectId: '',
+                      isExternal: true,
+                      externalProjectName: name,
+                      externalManagingHq: current.externalManagingHq || hqOptions[0] || '',
+                      externalManagingBranch: current.externalManagingBranch || '',
+                    }))}
+                  />
+                )}
                 {draft.isExternal && (
                   <div className="mt-3 grid gap-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3 sm:grid-cols-2">
                     <p className="sm:col-span-2 text-xs text-amber-900">

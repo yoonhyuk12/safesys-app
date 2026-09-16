@@ -75,7 +75,7 @@ const [selectedSafetyBranch, setSelectedSafetyBranch] = useState<string | null>(
 모든 `/safe` 페이지 컴포넌트는 동일 구조 — `<Dashboard />`를 렌더링하고 URL pathname으로 상태를 결정한다.
 
 **프로젝트 상세 라우트 (`/project/[id]/`):**
-daily-inspection, edit, equipment-inspection, headquarters-inspection, heatwave, holiday-work, issue-management, manager-inspection, material-ledger, new-worker-orientation, ptw, risk-assessment, safe-documents, safety-inspection-ledger, supervisor-diary, tbm-safety-inspection, tbm-submission, worker-management, work-plan
+accident-report, daily-inspection, edit, equipment-inspection, headquarters-inspection, heatwave, holiday-work, issue-management, manager-inspection, material-ledger, new-worker-orientation, ptw, risk-assessment, safe-documents, safety-inspection-ledger, supervisor-diary, tbm-safety-inspection, tbm-submission, worker-management, work-plan
 
 ## API 라우트 (`src/app/api/`)
 
@@ -137,10 +137,12 @@ src/components/
 | `tbm.ts` | TBM 상태 관리 |
 | `telegram.ts` | Telegram 봇 연동 |
 | `ui-settings.ts` | UI 상태 영속화 (분기 토글) |
-| `accident-analysis.ts` | `project_accidents` CRUD, 3종 안전점검 조회·정규화, 분석 모듈 공개 진입점 |
+| `accident-analysis.ts` | `project_accidents` CRUD, 프로젝트 단위 사고 조회(`getProjectAccidents`), 3종 안전점검 조회·정규화, 분석 모듈 공개 진입점 |
 | `accident-analysis-types.ts` | 사고 입력·조회 DTO, 점검 정규화 타입, 분석 결과 타입과 선택 옵션 |
 | `accident-analysis-utils.ts` | 서울 달력일 계산과 점검 JSON 정규화 공통 유틸리티 |
 | `accident-analysis-calculation.ts` | 프로젝트-월 단위 KPI, 월별 추이, 사고 전 30일·90일 점검 관계 계산 |
+| `accident-permissions.ts` | 타인 사고보고 수정·삭제 권한 판정(본사·관리자급 전사 권한과 본부 소속의 프로젝트 관할 대조) |
+| `accident-report-format.ts` | 사고 중대도·산재신청 배지 클래스와 서울 시간대 고정 날짜 표기 |
 | `new-district-consulting.ts` | 신규지구 안전컨설팅용 계약·본부 점검 페이지네이션 조회와 집계 진입점 |
 | `new-district-consulting-utils.ts` | 대표 계약 시작일 해석, 달력 개월 인정 기한, 본부/지사 소계 재계산 순수 로직 |
 | `equipment-inspections.ts` | 장비 일일점검 작성 초안 상태·항목 문구 수정·제출 전 검증(미점검·빈 문구·빈 서명 차단)·조회/제출/수정/삭제 |
@@ -148,9 +150,11 @@ src/components/
 
 **사고 통계 분석 데이터 흐름:**
 
-`/safe/accident-analysis` 또는 `/safe/branch/[branch]/accident-analysis` → `Dashboard` → `AccidentAnalysisView` → `accident-analysis.ts` → Supabase 순서로 연결된다. `AccidentEntryModal`은 본부급 이상 사용자에게 사고 입력·수정 폼을 제공하며, 저장·수정·삭제 권한은 데이터베이스 RLS에서도 다시 제한한다.
+`/safe/accident-analysis` 또는 `/safe/branch/[branch]/accident-analysis` → `Dashboard` → `AccidentAnalysisView` → `accident-analysis.ts` → Supabase 순서로 연결된다. `AccidentEntryModal`이 사고 입력·수정 폼을 담당하며, 저장·수정·삭제 권한은 데이터베이스 RLS에서도 다시 제한한다. 모달은 두 가지 모드로 쓴다 — 대시보드는 프로젝트 검색과 미등록 현장 직접입력을 열어 두고, 선택적 `fixedProject`를 주면 그 현장으로 고정해 프로젝트 변경과 미등록 현장 입력을 막는다.
 
-`project_accidents.project_id`는 `projects.id`를 참조하고 프로젝트 삭제 시 함께 삭제된다. 시스템에 없는 현장은 `project_id`를 비우고 `external_project_name`·`external_managing_hq`·`external_managing_branch`로 직접 입력할 수 있다. 발주청 사용자는 조직 관할 사고를 조회하고, 본사·본부급 사용자는 관할 프로젝트·미등록 현장 사고를 등록·수정·삭제한다. 조회 모듈은 이 사고 이력과 정기안전점검·관리자점검·본부불시점검을 공통 점검 타입으로 정규화하며, 계산 모듈이 프로젝트-월 및 사고 전 30일·90일 관계를 산출한다.
+`project_accidents.project_id`는 `projects.id`를 참조하고 프로젝트 삭제 시 함께 삭제된다. 시스템에 없는 현장은 `project_id`를 비우고 `external_project_name`·`external_managing_hq`·`external_managing_branch`로 직접 입력할 수 있다. 미등록 현장 사고는 관할 발주청이 지사급까지 조회하고, 등록·수정·삭제는 본부급 이상만 한다. 조회 모듈은 이 사고 이력과 정기안전점검·관리자점검·본부불시점검을 공통 점검 타입으로 정규화하며, 계산 모듈이 프로젝트-월 및 사고 전 30일·90일 관계를 산출한다.
+
+**프로젝트 사고보고:** `/project/[id]/accident-report` → `AccidentReportList`·`AccidentReportDetail`·`AccidentEntryModal`(`fixedProject` 고정) → `accident-analysis.ts` → `project_accidents`. 안전캐비넷 A(조치)의 서류철에서 들어간다. 사고 테이블을 새로 만들지 않으므로 여기서 올린 보고는 안전대시보드 사고현황 집계에 그대로 잡힌다. 목록은 `getProjectAccidents`가 그 프로젝트의 `project_id`만 최신순으로 페이지를 넘겨 가며 모두 읽어 다른 현장·미등록 현장 사고가 섞이지 않고 뒤쪽 사고가 조용히 빠지지도 않는다. 조회 실패는 빈 목록으로 감추지 않고 오류와 재시도 버튼으로 드러낸다. 등록은 그 현장을 열 수 있는 로그인 사용자면 누구나 하고(어느 현장을 열 수 있는지는 `projects`의 SELECT RLS가 판정한다), 수정·삭제는 본인이 올린 보고이거나 `accident-permissions.ts`가 참으로 보는 본부급 관할일 때만 연다. 화면은 세션 복원이 끝나기 전에 로그인으로 보내지 않는다.
 
 **KRC 패트롤 점검:** `/safe/patrol` 또는 `/safe/branch/[branch]/patrol` → `Dashboard` → `PatrolInspectionView`에서 본부·지사·프로젝트별 점검을 조회한다. `headquarters_inspections.patrol_car_used = true`인 관할 점검만 분기별로 모으며, 준공 프로젝트의 과거 기록도 포함한다. 웹은 핵심 6열을 보여주고 `lib/excel/patrol-inspection-export.ts`는 전체 18열을 내보낸다. 엑셀은 빈 셀을 포함해 모두 가로·세로 가운데 정렬하고 확인자는 공란으로 둔다. 다운로드할 때만 서버 `OPENAI_API_KEY`로 재발방지대책과 재해유형을 작성한다. 조치완료일은 조치사진 파일명의 실제 업로드 시각을 서울 날짜로 바꾸며, 점검일로부터 7일 초과한 지연 건은 음영 처리한다. 날짜 근거가 없는 완료 건은 일자 미기록으로 표시한다.
 

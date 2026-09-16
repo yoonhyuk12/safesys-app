@@ -518,6 +518,41 @@ export async function getAccidentAnalysisData(
   }
 }
 
+/** 한 프로젝트 사고 이력을 넘겨 읽는 단위. 기본 조회 한도에 걸려 뒤쪽 사고가 조용히 빠지는 것을 막는다. */
+export const PROJECT_ACCIDENT_PAGE_SIZE = 500
+
+/**
+ * 한 프로젝트의 사고 이력만 최신순으로 모두 읽는다.
+ * `project_id` 일치 조건이므로 다른 프로젝트와 미등록 현장 사고는 들어오지 않는다.
+ * 조회 실패를 빈 목록으로 감추면 "사고 없음"과 구분되지 않으므로 오류를 그대로 올린다.
+ */
+export async function getProjectAccidents(projectId: string): Promise<ProjectAccident[]> {
+  const scopedId = projectId.trim()
+  if (!scopedId) throw new Error('프로젝트를 확인하지 못했습니다.')
+
+  const collected: ProjectAccident[] = []
+  for (let page = 0; ; page += 1) {
+    const { data, error } = await (supabase as any)
+      .from('project_accidents')
+      .select('*')
+      .eq('project_id', scopedId)
+      .order('accident_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(page * PROJECT_ACCIDENT_PAGE_SIZE, (page + 1) * PROJECT_ACCIDENT_PAGE_SIZE - 1)
+
+    if (error) {
+      console.error('프로젝트 사고 이력 조회 오류:', error)
+      throw new Error('사고 이력을 불러오지 못했습니다.')
+    }
+
+    const rows = (data ?? []) as ProjectAccident[]
+    collected.push(...rows)
+    if (rows.length < PROJECT_ACCIDENT_PAGE_SIZE) break
+  }
+
+  return collected
+}
+
 const requiredTextFields: ReadonlyArray<{ key: keyof AccidentFormInput; label: string }> = [
   { key: 'accident_at', label: '사고일자' },
   { key: 'accident_type', label: '사고 유형' },

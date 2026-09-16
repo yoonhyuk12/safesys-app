@@ -27,6 +27,17 @@ const canSeeAllHq = userProfile?.role === '발주청' &&
 - 서명란별 소속 기준과 삭제 권한은 수정 권한과 별도로 유지한다.
 - 성과총괄표의 서명 삭제 버튼은 발주청에 세 칸 모두 허용한다. 그 외 계정은 문서 작성자이면서 해당 칸의 서명 소속 조건을 충족해야 한다. 서명 삭제는 수정 폼 저장 시 반영된다.
 
+## 사고보고 권한
+
+`project_accidents` 한 테이블이 안전캐비넷 A(조치)의 사고보고와 안전대시보드 사고현황을 함께 떠받친다. 등록 현장 사고와 외부 미등록 현장 사고의 권한이 서로 다르다.
+
+- **등록 현장 사고**(`project_id` 있음): 그 현장을 볼 수 있는 로그인 사용자면 누구나 조회·등록한다. 현장 소유 시공사, 공유받은 감리단, 관할 발주청(지사급 포함)이 모두 해당한다. 판정은 `projects`의 조회 RLS에 그대로 얹으므로(`EXISTS (SELECT 1 FROM projects p WHERE p.id = ...)`), 프로젝트 접근 규칙이 바뀌면 사고 권한도 함께 따라간다.
+- **수정·삭제**: 작성자 본인이면서 그 현장을 여전히 볼 수 있을 때만 가능하다. 남의 이름과 조치 내용이 달린 보고를 제3자가 고칠 수 없다.
+- **본부급 이상 발주청**(`hq_division` NULL, 본사/본사, `branch_division LIKE '%본부'`)은 기존대로 작성자와 무관하게 관할 사고를 등록·수정·삭제한다. 위 작성자 정책은 permissive 정책으로 OR 합쳐질 뿐이라 이 권한을 줄이지 않는다.
+- **외부 미등록 현장 사고**(`project_id` NULL + `external_project_name`)의 등록·수정·삭제는 본부급 이상 발주청만 가능하고, 조회는 기존 발주청 관할 정책을 따른다(관할 지사급 포함). 시공사·감리단은 등록도 조회도 하지 못하며, 자기 사고의 `project_id`를 지워 외부 현장으로 바꾸는 것도 막힌다.
+- **우회 차단**: 등록은 `created_by = auth.uid()`를 강제하고, 수정은 `USING`·`WITH CHECK`에 같은 조건을 걸어 볼 수 없는 현장으로 사고를 옮기지 못하게 한다. `created_by`는 `prevent_project_accidents_created_by_change` 트리거가 함께 지킨다.
+- 정책 본문은 `database/20260916-1032_사고보고_현장작성_권한.sql`, 회귀 검증은 `safesys-app/tests/project-accidents-sql.test.mjs`다.
+
 ## 인증 플로우
 
 - **AuthContext** (`src/contexts/AuthContext.tsx`): 전역 인증 상태 (user, userProfile, refreshProfile, signOut)

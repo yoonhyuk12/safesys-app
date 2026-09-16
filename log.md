@@ -1,6 +1,82 @@
 # 작업 로그
 
 <!-- worklog -->
+260916_110125 : plans/20260916_사고보고/review-report.md 수정
+260916_110117 : plans/20260916_사고보고/review-report.md 수정
+260916_110045 : plans/20260916_사고보고/review-report.md 수정
+260916_105710 : plans/20260916_사고보고/verification-report.md 수정
+260916_105423 : plans/20260916_사고보고/implementation-report.md 수정
+260916_105407 : plans/20260916_사고보고/implementation-report.md 수정
+260916_105247 : plans/20260916_사고보고/verification-report.md 추가
+260916_105236 : safesys-app/tests/project-accident-report.test.mjs 수정
+260916_105220 : docs/architecture.md 수정, plans/20260916_사고보고/context-notes.md 수정
+260916_105207 : safesys-app/package.json 수정 — ""test:accident-report": "node --test tests/project-accident-…"
+260916_105159 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "{/* 빈 목록일 때만 표 가운데 버튼에 진입점을 넘긴다. 조회가 실패했거나 아직 로딩 중이면 그 버튼이 없…"
+260916_105154 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "import { canManageProjectAccidents } from '@/lib/accident-pe…"
+260916_105151 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "* 수정·삭제는 본인이 올린 보고이거나 이 현장을 관할하는 본부급 이상일 때만 연다 (DB 정책과 같은 갈래…"
+260916_105140 : safesys-app/src/lib/accident-permissions.ts 수정 — "// 남이 올린 사고보고까지 고칠 수 있는 사용자인지 소속과 현장 관할로 판정하는 순수 모듈 /** 판정에 …"
+260916_105025 : plans/20260916_사고보고/implementation-report.md 추가 — "# 사고보고 구현 보고 작업일 2026-09-16. worker-opus 역할로 직접 구현했다. 커밋·푸시·…"
+260916_104848 : safesys-app/package.json 수정
+260916_104841 : plans/20260916_사고보고.md 수정, plans/20260916_사고보고/checklist.md 수정
+260916_104832 : plans/20260916_사고보고/review-report.md 추가
+260916_104830 : docs/architecture.md 수정
+260916_104808 : docs/architecture.md 수정
+260916_104717 : safesys-app/tests/project-accident-report.test.mjs 수정
+260916_104636 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "<p className="mt-2 text-sm text-gray-600"> {formatAccidentDa…"
+260916_104631 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "projects={modalProjects}"
+260916_104628 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "<div className="bg-white rounded-lg shadow-sm border border-…"
+260916_104614 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "{canCreate && !selectedId && accidents.length > 0 && ( <butt…"
+260916_104606 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "const handleDelete = async () => { const target = deleteTarg…"
+260916_104559 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "const handleSubmit = async (input: AccidentFormInput) => { c…"
+260916_104555 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "const openCreateModal = () => { if (!canCreate) return setEd…"
+260916_104550 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "/** * 등록은 이 현장을 열 수 있는 사용자면 누구나 한다 — 현장 시공사·감리단의 사고보고가 목적이고,…"
+260916_104541 : safesys-app/src/app/project/[id]/accident-report/page.tsx 수정 — "const [deleteTarget, setDeleteTarget] = useState<ProjectAcci…"
+260916_104536 : safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정 — "{canModify && ( <div className="flex gap-2">"
+260916_104534 : safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정 — "projectName, canModify, deleting,"
+260916_104531 : safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정 — "interface AccidentReportDetailProps { accident: ProjectAccid…"
+260916_104526 : safesys-app/src/components/project/accident-report/AccidentReportList.tsx 수정 — "'use client' // 프로젝트 사고보고 목록 표 — 조회 오류·빈 목록·사고 목록 세 가지 상태를 함…"
+260916_104524 : database/20260916-1032_사고보고_현장작성_권한.sql 수정, docs/auth.md 수정
+260916_104502 : safesys-app/src/lib/accident-report-format.ts 수정 — "// 사고 이력의 중대도·산재신청·일자를 화면 표기로 바꾸는 순수 표시 모듈 import { ACCIDENT…"
+260916_104340 : plans/20260916_사고보고/db-report.md 수정 — "- **운영 미적용 상태다.** 적용은 Supabase 콘솔 SQL Editor에서 `database/202…"
+260916_104335 : plans/20260916_사고보고/db-report.md 수정 — "| `safesys-app/tests/project-accidents-sql.test.mjs` | 실제 마이…"
+260916_104331 : plans/20260916_사고보고/db-report.md 수정 — "### 테스트와 운영 현재 정책의 관계 원격 DB는 변경하지 않았다. **이 마이그레이션은 아직 운영에 적용…"
+260916_104317 : plans/20260916_사고보고/db-report.md 수정 — "- 작성자라도 볼 수 없는 현장으로 옮기지 못한다(자기 현장끼리는 가능 — 차단이 "정책이 통과한 적 없어서…"
+260916_104311 : plans/20260916_사고보고/db-report.md 수정 — "결과 — **tests 18 / pass 17 / fail 0 / todo 1**. TDD로 진행했다. 마이…"
+260916_104231 : safesys-app/tests/project-accidents-sql.test.mjs 수정 — "test('공유가 철회되면 작성자라도 자기 사고를 더는 보지도 고치지도 지우지도 못한다', async (t)…"
+260916_104220 : database/20260916-1032_사고보고_현장작성_권한.sql 수정 — "-- 배경: 20260718-0506에서 사고 이력은 발주청 전용이었고, 2026-09-16 사고보고 화면 …"
+260916_104204 : plans/20260916_사고보고/db-report.md 추가 — "<!-- 사고보고 DB 권한 작업 완료 보고 — 마이그레이션·테스트·검증 결과와 후속 과제 --> # 사고보…"
+260916_104049 : docs/auth.md 수정 — "## 사고보고 권한 `project_accidents` 한 테이블이 안전캐비넷 A(조치)의 사고보고와 안전대…"
+260916_104035 : docs/database.md 수정 — "- `project_accidents` — 프로젝트별 사고 이력과 피해·예방조치 정보. 미등록 현장은 `pr…"
+260916_104024 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "externalManagingBranch: current.externalManagingBranch || ''…"
+260916_104021 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "</> ) : ( <ProjectSearchSelect"
+260916_104011 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정
+260916_103907 : safesys-app/tests/project-accidents-sql.test.mjs 수정 — "// 이번 권한 확대와 무관한 기존 결함이라 통과 조건에서 분리한다. // 20260718-0506의 pre…"
+260916_103906 : safesys-app/tests/project-accident-report.test.mjs 수정 — "test('사고보고 화면은 조회 실패를 화면에 드러낸다', () => { assert.match(pageSo…"
+260916_103900 : safesys-app/tests/project-accident-report.test.mjs 수정 — "test('사고 작성 권한은 본부급 이상 발주청으로 제한한다', async () => { const load…"
+260916_103856 : safesys-app/tests/project-accidents-sql.test.mjs 수정 — "const error = await expectError( db.query( `UPDATE public.pr…"
+260916_103852 : safesys-app/tests/project-accidents-sql.test.mjs 수정 — "// USING은 통과하지만 WITH CHECK가 막으므로 조용히 0건이 아니라 예외로 거부된다. const…"
+260916_103848 : safesys-app/tests/project-accident-report.test.mjs 수정 — "test('안전캐비넷 A(조치)에 사고보고 서류철이 있다', () => { // 안전 캐비넷의 A 그룹 라벨…"
+260916_103828 : safesys-app/src/app/project/[id]/page.tsx 수정 — "<DocumentFolder title="휴일작업 관리대장" year={new Date().getFullYe…"
+260916_103823 : safesys-app/src/app/project/[id]/accident-report/page.tsx 추가 — "'use client' // 프로젝트 사고보고 서류철 — 이 현장의 사고만 조회하고 등록·수정·삭제한다 im…"
+260916_103735 : safesys-app/src/lib/accident-permissions.ts 추가 — "// 사고 이력을 등록·수정·삭제할 수 있는 사용자인지 소속만으로 판정하는 순수 모듈 /** 판정에 필요한 …"
+260916_103722 : safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 추가 — "'use client' // 사고 한 건의 모든 기록 항목을 보여주는 상세 화면 import { Edit, …"
+260916_103705 : safesys-app/src/components/project/accident-report/AccidentReportList.tsx 추가 — "'use client' // 프로젝트 사고보고 목록 표 — 최신순 사고를 훑고 상세·수정·삭제로 넘어가는 진…"
+260916_103646 : safesys-app/src/lib/accident-report-format.ts 추가 — "// 사고 이력의 중대도·산재신청·일자를 화면 표기로 바꾸는 순수 표시 모듈 import { ACCIDENT…"
+260916_103630 : database/20260916-1032_사고보고_현장작성_권한.sql 수정 — "-- 사고보고를 현장 시공사·감리단도 작성할 수 있게 RLS 정책을 추가한다 -- 배경: 20260718-0…"
+260916_103613 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "if (fixedProjectId) { // 고정 모드에서는 초안이 이미 이 프로젝트로 묶여 있다. 검사만 …"
+260916_103608 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "피해자 개인정보 없이 사고와 예방조치에 필요한 정보만 기록합니다. {fixedProject ? ' 현장은 이…"
+260916_103604 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "externalManagingBranch: current.externalManagingBranch || ''…"
+260916_103601 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "<label htmlFor="accident-project" className={labelClassName}…"
+260916_103555 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "setDraft(createDraft(accident, sortedProjects[0]?.id ?? '', …"
+260916_103551 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "onClose, onSubmit, fixedProject = null, }: AccidentEntryModa…"
+260916_103546 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "const createDraft = ( accident: ProjectAccident | null, defa…"
+260916_103541 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정 — "onClose: () => void onSubmit: (input: AccidentFormInput) => …"
+260916_103537 : safesys-app/src/lib/accident-analysis.ts 수정 — "/** 한 프로젝트 사고 이력을 넘겨 읽는 단위. 기본 조회 한도에 걸려 뒤쪽 사고가 조용히 빠지는 것을 막…"
+260916_103519 : database/20260916-1032_사고보고_현장작성_권한.sql 추가, safesys-app/tests/project-accident-report.test.mjs 추가
+260916_103512 : safesys-app/tests/project-accidents-sql.test.mjs 추가 — "// 사고보고의 RLS를 실제 마이그레이션으로 검증한다 — 현장 시공사·감리단의 작성 권한 추가와 // 기존…"
+260916_103421 : safesys-app/tests/fixtures/project-accidents-db.mjs 추가 — "// 사고보고 RLS 테스트용 PGlite 인메모리 DB 준비와 로그인 사용자 전환 헬퍼. import { …"
+260916_103323 : safesys-app/tests/fixtures/project-accidents-schema.sql 추가 — "-- 사고보고 RLS 회귀 테스트용 최소 스키마. -- Supabase의 auth.uid()와 운영 proj…"
+260916_103004 : plans/20260916_사고보고.md 추가, plans/20260916_사고보고/checklist.md 추가, plans/20260916_사고보고/context-notes.md 추가
 260915_074603 : folder-mobile.png 삭제, folder-variants-zoom.png 삭제, folder-variants.png 삭제, variant-E-zoom.png 삭제, variant-F-zoom.png 삭제, variants2-zoom.png 삭제
 260915_074541 : safesys-app/src/app/project/[id]/page.tsx 수정, variant-F-zoom.png 추가
 260915_074510 : safesys-app/src/components/project/DocumentFolder.tsx 수정, variant-E-zoom.png 추가, variants2-zoom.png 추가
