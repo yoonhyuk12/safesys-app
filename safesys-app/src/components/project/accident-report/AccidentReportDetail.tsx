@@ -50,9 +50,9 @@ interface DetailFieldProps {
 
 function DetailField({ label, children }: DetailFieldProps) {
   return (
-    <div>
-      <dt className="text-xs font-medium text-gray-500">{label}</dt>
-      <dd className="mt-1 text-sm text-gray-900 whitespace-pre-wrap break-words">{children}</dd>
+    <div className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white">
+      <dt className="border-b border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700">{label}</dt>
+      <dd className="px-3 py-2 text-sm text-gray-900 whitespace-pre-wrap break-words">{children}</dd>
     </div>
   )
 }
