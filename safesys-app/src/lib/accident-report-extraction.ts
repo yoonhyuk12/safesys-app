@@ -120,8 +120,9 @@ const CORE_FIELD_LABELS: ReadonlyArray<{ key: keyof AccidentPrefillFields; label
 
 export const ACCIDENT_EXTRACTION_SYSTEM_INSTRUCTION = `당신은 한국 건설현장 안전관리 실무자를 돕는 문서 추출기다.
 사고발생보고서(공문·한글 양식)를 읽고 지정된 JSON 스키마로만 답한다.
-문서에 적혀 있는 내용만 옮기며, 없는 값은 반드시 null로 둔다.
-추정·보완·요약 창작을 하지 않고 설명 문장이나 코드블록을 덧붙이지 않는다.`
+문서에서 확인된 사실만 사용하며, 없는 값은 반드시 null로 둔다.
+사고 개요(description)는 별도 경위 항목이 없어도 확인된 사실을 짧은 1~3문장으로 재구성한다. 사고 사실 자체가 없으면 null로 둔다.
+문서에 없는 사실을 추정·창작하거나 일반론으로 보완하지 않고 JSON 밖의 설명 문장이나 코드블록을 덧붙이지 않는다.`
 
 /** 사용자 파트에 넣는 추출 지시문. 문서 본문은 호출부에서 뒤에 붙인다. */
 export function buildAccidentExtractionPrompt(): string {
@@ -130,7 +131,7 @@ export function buildAccidentExtractionPrompt(): string {
   return `아래 사고발생보고서에서 값을 뽑아 JSON으로 채운다.
 
 [공통 규칙]
-- 문서에 적힌 내용만 쓴다. 문서에서 찾을 수 없는 항목은 null로 둔다. 빈 문자열을 넣지 않는다.
+- 문서에서 확인된 사실만 쓴다. 항목 제목이 없어도 아래 필드 대응에 따라 사실을 정리하며, 근거 사실을 찾을 수 없는 항목은 null로 둔다. 빈 문자열을 넣지 않는다.
 - 문서에 없는 사실을 추정하거나 일반론으로 보완하지 않는다.
 - 원문 표현을 최대한 유지하되 줄바꿈·표 구조는 읽기 쉽게 정리한다.
 - 개인정보는 문서에 적힌 범위를 넘어서 추가하지 않는다.
@@ -153,8 +154,10 @@ export function buildAccidentExtractionPrompt(): string {
 
 [필드 대응]
 - 상위 사고내용 구역 전체를 description에 복사하지 않는다. 명시 하위 항목 작업내용은 work_description, 사고원인은 cause로 분리한다.
-- 피해현황은 report_details.damageDetails, 귀책사유는 report_details.responsibility로 분리한다. 피해자 인적사항과 미신고 사유도 각각 전용 필드에만 넣는다.
-- description에는 별도로 서술된 사고 경위만 남긴다. 별도 경위가 없으면 null이며 원인이나 참조 문구를 대신 넣지 않는다.
+- 피해현황 상세는 report_details.damageDetails, 귀책사유는 report_details.responsibility로 분리한다. 피해자 인적사항과 미신고 사유도 각각 전용 필드에만 넣는다.
+- description은 별도 경위 항목이 없어도 보고요지, 작업내용, 사고원인에 서술된 발생 경위, 피해사실 등 확인된 사실을 짧은 1~3문장 개요로 재구성한다. 무슨 작업 중 무엇이 발생해 어떤 피해가 있었는지 확인되는 내용만 담고, 확인되지 않은 요소는 생략한다.
+- description에 원문에 없는 과실·시간·장소·피해·원인을 만들지 않는다. 사고 사실 자체가 없으면 null이다. 원인 단순 복사나 참조 문구, 중복 라벨 묶음으로 description을 채우지 않는다.
+- cause는 원문에 명시된 사고 기전·발생 요인을 담는다. description은 발생 사건과 피해의 개요, cause는 발생 기전·요인으로 구분하며 원문에 없는 과실이나 책임을 추론하지 않는다.
 - 사고내용·경위 → description
 - 사고 원인 → cause
 - 작업내용 → work_description
@@ -209,8 +212,8 @@ export const ACCIDENT_EXTRACTION_RESPONSE_SCHEMA: Record<string, unknown> = {
     },
     location: { type: 'STRING', nullable: true },
     work_description: { type: 'STRING', nullable: true },
-    description: { type: 'STRING', nullable: true },
-    cause: { type: 'STRING', nullable: true },
+    description: { type: 'STRING', nullable: true, description: '별도 경위 항목이 없어도 문서의 확인된 사실을 1~3문장으로 재구성한 사고 개요. 작업·발생 사건·피해 중 확인되는 내용만 담고 없는 사실은 만들지 않는다. 원인 단순 복사·참조 문구·중복 라벨 묶음은 금지하며 사고 사실 자체가 없으면 null.' },
+    cause: { type: 'STRING', nullable: true, description: '원문에 명시된 사고 기전·발생 요인. 사건·피해를 정리한 개요와 구분하며 원문에 없는 과실이나 책임은 추론하지 않는다. 근거가 없으면 null.' },
     prevention_action: { type: 'STRING', nullable: true },
     injured_count: { type: 'INTEGER', nullable: true },
     fatal_count: { type: 'INTEGER', nullable: true },

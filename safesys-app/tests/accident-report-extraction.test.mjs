@@ -92,6 +92,41 @@ const {
   normalizeAccidentExtraction,
 } = extraction
 
+test('확인된 사실로 재구성한 개요는 중복 정리와 재정규화에서도 보존한다', () => {
+  const description = '자재 운반 중 통로 장애물에 걸려 넘어졌다. 손목 타박상을 입었다.'
+  const raw = {
+    description: `${description}\n작업내용: 자재 운반\n사고원인: 통로 장애물에 걸려 넘어짐\n피해현황: 손목 타박상`,
+    work_description: '자재 운반',
+    cause: '통로 장애물에 걸려 넘어짐',
+    report_details: { summary: '자재 운반 중 넘어짐 사고 발생', damageDetails: '손목 타박상' },
+  }
+  const snapshot = structuredClone(raw)
+  const first = normalizeAccidentExtraction(raw)
+  assert.equal(first.fields.description, description)
+  assert.equal(first.fields.cause, raw.cause)
+  assert.deepEqual(normalizeAccidentExtraction(first.fields), first)
+  assert.deepEqual(raw, snapshot)
+  assert.equal(normalizeAccidentExtraction({ description: null }).fields.description, undefined)
+})
+
+test('개요 자동 작성 규칙은 사실 재구성을 허용하고 별도 경위 필수 규칙을 제거한다', () => {
+  const prompt = buildAccidentExtractionPrompt()
+  const system = ACCIDENT_EXTRACTION_SYSTEM_INSTRUCTION
+  const schema = ACCIDENT_EXTRACTION_RESPONSE_SCHEMA.properties.description
+  for (const instruction of [system, prompt, schema.description]) {
+    assert.match(instruction, /1~3문장/)
+    assert.match(instruction, /확인된 사실/)
+    assert.doesNotMatch(instruction, /요약 창작|별도 경위가 없으면 null|별도로 서술된 사고 경위만/)
+  }
+  assert.match(prompt, /보고요지.*작업내용.*사고원인.*피해사실/)
+  assert.match(prompt, /무슨 작업 중 무엇이 발생해 어떤 피해/)
+  assert.match(prompt, /사고 기전.*발생 요인/)
+  assert.match(prompt, /과실·시간·장소·피해·원인.*만들지 않는다/)
+  assert.match(prompt, /사고 사실 자체가 없으면 null/)
+  assert.match(prompt, /원인 단순 복사.*참조 문구.*중복 라벨 묶음/)
+  assert.equal(schema.nullable, true)
+})
+
 test('명시 라벨의 전용 필드 전체 중복만 제거하고 실제 사고 경위는 보존한다', () => {
   const raw = {
     description: '자재 이동 중 넘어졌다.\n○ 작업내용 : 자재 운반\n  둘째 작업\n○ 사고원인：통로 장애물\n피해현황: 손목 타박\n귀책사유: 조사 중',
