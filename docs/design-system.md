@@ -125,6 +125,8 @@ SafeSys UI의 **정본(canonical)** 이다. 새 화면·컴포넌트를 만들 �
 
 **아이콘**은 `lucide-react`만 쓴다. 기본 `h-4 w-4`(214), 섹션 제목 옆 `h-5 w-5`(62), 배지 안 `h-3 w-3`. 이모지를 UI 아이콘으로 쓰지 않는다.
 
+**사진 업로드**는 어느 화면이든 같은 두 조각으로 만든다. (1) 받기는 점선 업로드 영역 — `flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg h-24 bg-white hover:bg-gray-50 cursor-pointer` 안에 `Upload` 아이콘과 문구, 숨긴 `<input type="file" className="hidden">`. (2) 올린 사진에는 반드시 크롭·회전 진입(`Crop` 아이콘)을 붙이고, 편집은 공용 `src/components/ui/ImageEditor.tsx`(`imageUrl`, `onSave(blob)`, `onClose`)만 쓴다. 편집 결과는 새 파일로 올린 뒤 옛 파일을 지우고 URL을 바꾼다(`MaterialInspectionPhotoField`, `PatrolLedgerForm` 참조). 화면마다 크롭·회전 UI를 새로 만들지 않는다.
+
 ## 5. 표 — SafeSys의 주력
 
 본문 정렬은 **가운데가 기본**이다. 왼쪽 정렬은 현장명처럼 길이가 들쭉날쭉한 이름 열에만 쓴다.

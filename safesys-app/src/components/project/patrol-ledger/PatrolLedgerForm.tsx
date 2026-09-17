@@ -2,7 +2,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Upload } from 'lucide-react'
+import { Crop, Upload } from 'lucide-react'
+import ImageEditor from '@/components/ui/ImageEditor'
 import SignaturePad from '@/components/ui/SignaturePad'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { supabase } from '@/lib/supabase'
@@ -11,7 +12,7 @@ import type { PatrolLedgerAiRequest, PatrolLedgerAiResponse } from '@/lib/patrol
 import { loadTbmWorkForDate } from '@/lib/patrol-ledger/tbm-work'
 import {
   buildPatrolLedgerItems, isBlankPatrolLedgerSignature, setAllPatrolLedgerResults,
-  setPatrolLedgerItemResult, setPatrolLedgerItemText, uploadPatrolLedgerPhoto,
+  removePatrolLedgerPhoto, setPatrolLedgerItemResult, setPatrolLedgerItemText, uploadPatrolLedgerPhoto,
   validatePatrolLedgerDraft, type PatrolLedgerDraft,
 } from '@/lib/patrol-ledger/records'
 
@@ -36,6 +37,7 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
   const [generating, setGenerating] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [showSignature, setShowSignature] = useState(false)
+  const [editingPhoto, setEditingPhoto] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [tbmError, setTbmError] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
@@ -103,6 +105,22 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
     } finally { if (alive.current) setUploading(false) }
   }
 
+  // 공용 ImageEditor의 크롭·회전 결과를 새 파일로 올리고 옛 파일은 지운다.
+  const saveEditedPhoto = async (blob: Blob) => {
+    const previous = draft.finding_photo_url
+    setEditingPhoto(false)
+    if (!previous || busy) return
+    setUploading(true)
+    setError(null)
+    try {
+      const url = await uploadPatrolLedgerPhoto(project.id, blob)
+      await removePatrolLedgerPhoto(previous).catch(() => undefined)
+      if (alive.current) edit({ finding_photo_url: url })
+    } catch (cause) {
+      if (alive.current) setError(cause instanceof Error ? cause.message : '편집한 사진 저장에 실패했습니다.')
+    } finally { if (alive.current) setUploading(false) }
+  }
+
   return <form className="space-y-4" onSubmit={async event => {
     event.preventDefault()
     if (busy || loadingTbm) return
@@ -165,7 +183,10 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
           {draft.finding_photo_url && <div className="mt-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={draft.finding_photo_url} alt="점검사진 미리보기" className="max-h-48 max-w-full object-contain" />
-            <button type="button" className={SECONDARY} onClick={() => edit({ finding_photo_url: null })}>사진 삭제</button>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button type="button" className={`${SECONDARY} inline-flex items-center gap-1`} onClick={() => setEditingPhoto(true)}><Crop className="h-4 w-4" />크롭/회전</button>
+              <button type="button" className={SECONDARY} onClick={() => edit({ finding_photo_url: null })}>사진 삭제</button>
+            </div>
           </div>}
         </div>
         <label className="block text-sm font-medium text-gray-700">지적사항<textarea value={draft.finding_text} rows={5} className={INPUT} onChange={event => edit({ finding_text: event.target.value })} /></label>
@@ -185,6 +206,7 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
         <p className="sm:col-span-2 text-xs text-gray-500">점검자 본인이 직접 서명합니다. 내용을 고치면 서명이 지워지므로 모든 입력을 마친 뒤 서명해주세요.</p>
       </div>
     </fieldset>
+    {editingPhoto && draft.finding_photo_url && <ImageEditor imageUrl={draft.finding_photo_url} onSave={saveEditedPhoto} onClose={() => setEditingPhoto(false)} />}
     {showSignature && <SignaturePad title="점검자 서명" onSave={signature => { setDraft(current => ({ ...current, signature })); setShowSignature(false) }} onCancel={() => setShowSignature(false)} />}
   </form>
 }

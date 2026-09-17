@@ -111,11 +111,28 @@ export async function deletePatrolLedgerInspection(id: string): Promise<void> {
   if (error) throw toError(error, '순회점검 삭제에 실패했습니다.')
   if (!data?.length) throw new Error('이 점검을 삭제할 권한이 없거나 이미 삭제되었습니다.')
 }
-export async function uploadPatrolLedgerPhoto(projectId: string, file: File): Promise<string> {
-  const safeName = file.name.replace(/[^A-Za-z0-9._-]/g, '_') || 'photo'
+const PHOTO_BUCKET = 'safety-inspection-photos'
+
+/** 원본 파일이든 ImageEditor가 만든 크롭·회전 Blob이든 같은 경로 규칙으로 올린다. */
+export async function uploadPatrolLedgerPhoto(projectId: string, file: File | Blob): Promise<string> {
+  const rawName = file instanceof File ? file.name : 'edited.jpg'
+  const safeName = rawName.replace(/[^A-Za-z0-9._-]/g, '_') || 'photo'
   const path = `patrol-ledger/${projectId}/${Date.now()}_${safeName}`
-  const bucket = supabase.storage.from('safety-inspection-photos')
-  const { error } = await bucket.upload(path, file)
+  const bucket = supabase.storage.from(PHOTO_BUCKET)
+  const { error } = await bucket.upload(path, file, file instanceof File ? undefined : { contentType: file.type || 'image/jpeg' })
   if (error) throw new Error('점검사진 업로드에 실패했습니다.')
   return bucket.getPublicUrl(path).data.publicUrl
+}
+
+/** 공개 URL에서 버킷 안 경로를 꺼낸다. 이 버킷 URL이 아니면 null이다. */
+export function patrolLedgerPhotoStoragePath(url: string): string | null {
+  const path = url.split(`/${PHOTO_BUCKET}/`)[1]
+  return path ? decodeURIComponent(path) : null
+}
+
+/** 크롭·회전으로 교체된 옛 사진을 지운다. 실패해도 저장 흐름을 막지 않도록 조용히 넘어간다. */
+export async function removePatrolLedgerPhoto(url: string): Promise<void> {
+  const path = patrolLedgerPhotoStoragePath(url)
+  if (!path) return
+  await supabase.storage.from(PHOTO_BUCKET).remove([path])
 }
