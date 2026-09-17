@@ -111,7 +111,14 @@ test('10행 정렬·값·서식과 사진/서명 전체 구조를 유지한다',
     else { const image = new CanvasImage(); image.src=data; assert.equal(image.width,1200); assert.equal(image.height,750) }
   }
   const original = await JSZip.loadAsync(template)
-  assert.equal(await zip.file('Contents/header.xml').async('string'), await original.file('Contents/header.xml').async('string'))
+  // header는 원본과 같되, 채운 글자용 검정 charPr 복제본(id 26 이상)만 charProperties 끝에 덧붙는다.
+  const originalHeader = await original.file('Contents/header.xml').async('string')
+  const outputHeader = await zip.file('Contents/header.xml').async('string')
+  const withoutClones = outputHeader
+    .replace(/<hh:charPr id="(2[6-9]|[3-9]\d|\d{3,})"[\s\S]*?<\/hh:charPr>/g, '')
+    .replace(/<hh:charProperties itemCnt="\d+"/, '<hh:charProperties itemCnt="26"')
+  assert.equal(withoutClones, originalHeader)
+  assert.notEqual(outputHeader, originalHeader)
   assert.ok(xml.includes('(서명)'))
   if (process.env.PATROL_LEDGER_HWPX_SAMPLES === '1') {
     const dir = new URL('../scratch/patrol-ledger/', import.meta.url)
@@ -149,7 +156,9 @@ test('셀 그리드·문단 서식·기존 로고는 원본과 같고 동시 생
       const oldCell = original(oldCells[i]); const newCell = a.$(newCells[i])
       for (const tag of ['cellAddr', 'cellSpan', 'cellSz', 'cellMargin']) assert.deepEqual(newCell.children(`hp\\:${tag}`).attr(), oldCell.children(`hp\\:${tag}`).attr())
       for (const attr of ['paraPrIDRef','styleIDRef']) assert.equal(newCell.find('hp\\:p').first().attr(attr),oldCell.find('hp\\:p').first().attr(attr))
-      assert.equal(newCell.find('hp\\:run').first().attr('charPrIDRef'),oldCell.find('hp\\:run').first().attr('charPrIDRef'))
+      // 파랑(19)·빨강(24)·회색(25) 칸은 채울 때 검정 복제본으로 바뀐다. 그 외 칸과 (서명) 칸은 원본 그대로여야 한다.
+      const oldRef = oldCell.find('hp\\:run').first().attr('charPrIDRef')
+      if (!['19', '24', '25'].includes(oldRef) || text(oldCell) === '(서명)') assert.equal(newCell.find('hp\\:run').first().attr('charPrIDRef'), oldRef)
     }
   }
   assert.deepEqual(await a.zip.file('BinData/image1.jpg').async('nodebuffer'), await originalZip.file('BinData/image1.jpg').async('nodebuffer'))
@@ -165,4 +174,20 @@ test('사진만·서명만 있는 문서도 각각의 이미지 자리를 유지
     assert.equal($('hp\\:pic').length, 3)
     if (process.env.PATROL_LEDGER_HWPX_SAMPLES === '1') await writeFile(new URL(`../scratch/patrol-ledger/${name}.hwpx`, import.meta.url), bytes)
   }
+})
+
+test('채운 글자는 모두 검정이고 (서명) 문구만 원본 회색을 유지한다', async () => {
+  const { zip, $ } = await build()
+  const header = load(await zip.file('Contents/header.xml').async('string'), { xmlMode: true })
+  const colorOf = id => header(`hh\\:charPr[id="${id}"]`).attr('textColor')
+  const itemCnt = Number(header('hh\\:charProperties').attr('itemCnt'))
+  assert.equal(header('hh\\:charPr').length, itemCnt)
+  const filled = [[0,0,0],[0,3,1],[0,3,4],[0,4,4],[0,13,3],[1,0,1],[1,1,1],[1,2,2],[1,2,4],[1,2,6]]
+  for (const [t, r, c] of filled) {
+    const refs = new Set(cell($, t, r, c).find('hp\\:run').map((_, el) => $(el).attr('charPrIDRef')).get())
+    assert.ok(refs.size >= 1)
+    for (const id of refs) assert.equal(colorOf(id), '#000000', `표${t} r${r} c${c} charPr ${id}`)
+  }
+  const signatureRef = cell($, 1, 2, 7).find('hp\\:run').attr('charPrIDRef')
+  assert.equal(colorOf(signatureRef), '#A6A6A6')
 })

@@ -76,20 +76,50 @@ function buildFloatingPicXml(binItemId: string, imgW: number, imgH: number, xPap
 }
 
 
-function fillCell(cell: string, text: string, picture = ''): string {
+/**
+ * 양식의 빈 칸이 파랑·빨강·회색 글자 스타일을 물려주므로, 채워 넣는 글자는 같은 스타일의 검정 복제본을 쓴다.
+ * "(서명)" 칸은 채우지 않으므로 원본 회색이 그대로 남는다. 복제본은 header.xml charProperties 끝에 덧붙인다.
+ */
+class BlackCharPrMap {
+  private readonly clones = new Map<string, string>()
+  private nextId: number
+  constructor(private header: string) {
+    const count = /<hh:charProperties itemCnt="(\d+)"/.exec(header)?.[1]
+    if (!count) throw new Error('순회점검 한글 양식의 글자 스타일 목록을 찾지 못했습니다.')
+    this.nextId = Number(count)
+  }
+  resolve(id: string): string {
+    const cached = this.clones.get(id)
+    if (cached) return cached
+    const match = new RegExp(`<hh:charPr id="${id}"[^>]*>[\\s\\S]*?</hh:charPr>`).exec(this.header)
+    if (!match) return id
+    const source = match[0]
+    if (/textColor="#000000"/i.test(source)) return id
+    const cloneId = String(this.nextId++)
+    const clone = source.replace(`id="${id}"`, `id="${cloneId}"`).replace(/textColor="#[0-9A-Fa-f]{6}"/, 'textColor="#000000"')
+    this.header = this.header.replace('</hh:charProperties>', `${clone}</hh:charProperties>`)
+      .replace(/<hh:charProperties itemCnt="\d+"/, `<hh:charProperties itemCnt="${this.nextId}"`)
+    this.clones.set(id, cloneId)
+    return cloneId
+  }
+  get xml(): string { return this.header }
+}
+
+function fillCell(cell: string, text: string, charPrs: BlackCharPrMap, picture = ''): string {
   const sub = topLevelRanges(cell, 'hp:subList')[0]
   if (!sub) throw new Error('순회점검 양식의 셀 본문을 찾지 못했습니다.')
   const source = cell.slice(...sub)
   const paragraph = /<hp:p\s[^>]*>/.exec(source)?.[0]
-  const charPr = /<hp:run\s[^>]*charPrIDRef="([^"]+)"/.exec(source)?.[1]
-  if (!paragraph || !charPr) throw new Error('순회점검 양식의 문단 서식을 찾지 못했습니다.')
+  const sourceCharPr = /<hp:run\s[^>]*charPrIDRef="([^"]+)"/.exec(source)?.[1]
+  if (!paragraph || !sourceCharPr) throw new Error('순회점검 양식의 문단 서식을 찾지 못했습니다.')
+  const charPr = charPrs.resolve(sourceCharPr)
   const content = text.replace(/\r\n?/g, '\n').split('\n').map((line, index) =>
     `${paragraph}<hp:run charPrIDRef="${charPr}">${index === 0 ? picture : ''}<hp:t>${esc(line)}</hp:t></hp:run></hp:p>`).join('')
   const openEnd = source.indexOf('>') + 1
   return rebuild(cell, [sub], [source.slice(0, openEnd) + content + '</hp:subList>'])
 }
 
-function fillTable(table: string, values: Map<string, string>, photo: Picture | null): string {
+function fillTable(table: string, values: Map<string, string>, photo: Picture | null, charPrs: BlackCharPrMap): string {
   const ranges = topLevelRanges(table, 'hp:tc')
   return rebuild(table, ranges, ranges.map(range => {
     const cell = table.slice(...range)
@@ -98,9 +128,9 @@ function fillTable(table: string, values: Map<string, string>, photo: Picture | 
     const key = `${address[2]},${address[1]}`
     if (photo && key === '13,1') {
       const size = fit(photo, 26198 - 1020, 18750 - 282)
-      return fillCell(cell, '', buildInlinePicXml(photo.id, size.w, size.h))
+      return fillCell(cell, '', charPrs, buildInlinePicXml(photo.id, size.w, size.h))
     }
-    return values.has(key) ? fillCell(cell, values.get(key)!) : cell
+    return values.has(key) ? fillCell(cell, values.get(key)!, charPrs) : cell
   }))
 }
 
@@ -110,7 +140,9 @@ export async function buildPatrolLedgerHwpxBlob(record: PatrolLedgerInspection, 
   const template = await JSZip.loadAsync(await response.arrayBuffer())
   const sectionFile = template.file('Contents/section0.xml')
   const manifestFile = template.file('Contents/content.hpf')
-  if (!sectionFile || !manifestFile) throw new Error('순회점검 한글 양식의 필수 파일이 없습니다.')
+  const headerFile = template.file('Contents/header.xml')
+  if (!sectionFile || !manifestFile || !headerFile) throw new Error('순회점검 한글 양식의 필수 파일이 없습니다.')
+  const charPrs = new BlackCharPrMap(await headerFile.async('string'))
   let section = await sectionFile.async('string')
   let manifest = await manifestFile.async('string')
   let imageNo = Math.max(0, ...Array.from(manifest.matchAll(/id="image(\d+)"/g), match => Number(match[1])))
@@ -132,7 +164,7 @@ export async function buildPatrolLedgerHwpxBlob(record: PatrolLedgerInspection, 
   ])
   const tables = topLevelRanges(section, 'hp:tbl')
   if (tables.length !== 2) throw new Error('순회점검 한글 양식의 표 구성이 다릅니다.')
-  section = rebuild(section, tables, [fillTable(section.slice(...tables[0]), values, photo), fillTable(section.slice(...tables[1]), details, null)])
+  section = rebuild(section, tables, [fillTable(section.slice(...tables[0]), values, photo, charPrs), fillTable(section.slice(...tables[1]), details, null, charPrs)])
   if (signature) {
     const size = fit(signature, 6441 - 1020, 3589 - 282)
     // PAPER 좌표 = 여백 + 앞 열/행 합계. 한글 2022 PDF 실측에서 (서명) 중심은 (521.67, 742.81)pt.
@@ -156,6 +188,7 @@ export async function buildPatrolLedgerHwpxBlob(record: PatrolLedgerInspection, 
     manifest = manifest.replace('</opf:manifest>', `<opf:item id="${picture.id}" href="${filename}" media-type="image/${picture.ext === 'png' ? 'png' : 'jpeg'}" isEmbeded="1"/></opf:manifest>`)
   }
   output.file('Contents/section0.xml', section)
+  output.file('Contents/header.xml', charPrs.xml)
   output.file('Contents/content.hpf', manifest)
   return output.generateAsync({ type: 'blob', compression: 'DEFLATE', mimeType: MIMETYPE })
 }
