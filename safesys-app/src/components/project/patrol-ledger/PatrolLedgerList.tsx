@@ -10,12 +10,13 @@ export default function PatrolLedgerList({ records, onSelect }: {
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead className="bg-gray-50 border-b border-gray-200"><tr>
-          {['점검일', '점검자', '미흡', '지적사항'].map(label => <th key={label} className="px-3 py-3 text-center text-xs font-medium text-gray-500">{label}</th>)}
+          {['점검일', '점검자', '미흡', '주요 테마', '지적사항'].map(label => <th key={label} className="px-3 py-3 text-center text-xs font-medium text-gray-500">{label}</th>)}
         </tr></thead>
         <tbody className="bg-white divide-y divide-gray-200">{records.map(record => <tr key={record.id} onClick={() => onSelect(record)} className="hover:bg-gray-50 cursor-pointer">
           <td className="px-3 py-3 text-sm text-center"><button onClick={() => onSelect(record)} className="min-h-[44px] text-blue-600 underline" aria-label={`${record.inspection_date} ${record.inspector_name} 점검 상세`}>{record.inspection_date}</button></td>
           <td className="px-3 py-3 text-sm text-center text-gray-900">{record.inspector_name}</td>
           <td className="px-3 py-3 text-sm text-center">{record.items.filter(item => item.result === '미흡').length}건</td>
+          <td className="px-3 py-3 text-sm text-center truncate max-w-[12rem]" title={record.theme || undefined}>{record.theme || '—'}</td>
           <td className="px-3 py-3 text-sm text-center">{record.finding_text.trim() ? '있음' : '없음'}</td>
         </tr>)}</tbody>
       </table>

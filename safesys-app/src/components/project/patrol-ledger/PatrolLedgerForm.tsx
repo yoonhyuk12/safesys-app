@@ -8,8 +8,9 @@ import SignaturePad from '@/components/ui/SignaturePad'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { supabase } from '@/lib/supabase'
 import type { Project } from '@/lib/projects'
-import { PATROL_LEDGER_PHOTO_KIND_LABELS, PATROL_LEDGER_PHOTO_KINDS, type PatrolLedgerAiRequest, type PatrolLedgerAiResponse } from '@/lib/patrol-ledger/types'
+import { PATROL_LEDGER_PHOTO_KIND_LABELS, PATROL_LEDGER_PHOTO_KINDS, PATROL_LEDGER_THEME_MAX, type PatrolLedgerAiRequest, type PatrolLedgerAiResponse } from '@/lib/patrol-ledger/types'
 import { loadTbmWorkForDate } from '@/lib/patrol-ledger/tbm-work'
+import { getPatrolLedgerWeeklyTheme, patrolLedgerWeekStart } from '@/lib/patrol-ledger/themes'
 import {
   buildPatrolLedgerItems, isBlankPatrolLedgerSignature, setAllPatrolLedgerResults,
   removePatrolLedgerPhoto, setPatrolLedgerItemResult, setPatrolLedgerItemText, uploadPatrolLedgerPhoto,
@@ -66,6 +67,21 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
     return () => { active = false }
   }, [project, draft.inspection_date, reload])
 
+  useEffect(() => {
+    let active = true
+    const loadTheme = async () => {
+      try {
+        const weeklyTheme = await getPatrolLedgerWeeklyTheme(patrolLedgerWeekStart(draft.inspection_date))
+        if (!active || !weeklyTheme) return
+        setDraft(current => current.theme.trim() ? current : { ...current, theme: weeklyTheme.theme, signature: '' })
+      } catch (cause) {
+        console.error('금주 점검 테마를 불러오지 못했습니다.', cause)
+      }
+    }
+    void loadTheme()
+    return () => { active = false }
+  }, [draft.inspection_date])
+
   const edit = (patch: Partial<PatrolLedgerDraft>) => {
     setDraft(current => ({ ...current, ...patch, signature: '' }))
     setError(null)
@@ -79,7 +95,7 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
     try {
       const { data } = await supabase.auth.getSession()
       if (!data.session?.access_token) throw new Error('로그인이 필요합니다.')
-      const body: PatrolLedgerAiRequest = { projectId: project.id, inspectionDate: draft.inspection_date, ...(manual ? { workDescription: manualText.trim() } : {}) }
+      const body: PatrolLedgerAiRequest = { projectId: project.id, inspectionDate: draft.inspection_date, ...(manual ? { workDescription: manualText.trim() } : {}), ...(draft.theme.trim() ? { theme: draft.theme.trim() } : {}) }
       const response = await fetch('/api/ai/patrol-ledger', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify(body),
       })
@@ -159,7 +175,13 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
           {manual ? <label className="block text-sm text-gray-700">작업내용 직접 입력<textarea value={manualText} maxLength={2000} rows={4} className={INPUT} onChange={event => { setManualText(event.target.value); edit({}) }} /></label>
             : <p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{work.summary}</p>}
         </>}
-        <button type="button" disabled={loadingTbm || (manual ? !manualText.trim() : !work.summary)} onClick={generate} className={SECONDARY}>AI 점검항목 생성</button>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="block min-w-0 flex-1 basis-64 text-sm font-medium text-gray-700">주요 테마
+            <input value={draft.theme} maxLength={PATROL_LEDGER_THEME_MAX} placeholder="금주 점검 테마가 자동으로 채워집니다" className={INPUT} onChange={event => edit({ theme: event.target.value })} />
+          </label>
+          <button type="button" disabled={loadingTbm || (manual ? !manualText.trim() : !work.summary)} onClick={generate} className={SECONDARY}>AI 점검항목 생성</button>
+        </div>
+        <p className="text-xs text-gray-500">테마 항목 5건은 주요 테마와 당일 작업내용을 결합해 만듭니다.</p>
         {generating && <LoadingSpinner />}
       </div>
 

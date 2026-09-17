@@ -46,7 +46,7 @@ export default function PatrolLedgerDetail({ record, canEdit, canDelete, busy, d
       <dl className="grid grid-cols-2 sm:grid-cols-3 gap-px border-t border-gray-200 bg-gray-200">
         {[
           ['점검일자', record.inspection_date], ['지구명', record.district_name], ['점검자 소속', record.inspector_affiliation],
-          ['직급', record.inspector_position], ['성명', record.inspector_name],
+          ['직급', record.inspector_position], ['성명', record.inspector_name], ['주요 테마', record.theme],
         ].map(([label, value]) => <div key={label} className="bg-white p-3"><dt className="text-xs text-gray-500">{label}</dt><dd className="mt-1 text-sm font-medium text-gray-900 break-words">{value || '—'}</dd></div>)}
         <div className="bg-white p-3"><dt className="text-xs text-gray-500">서명</dt><dd>
           {/* eslint-disable-next-line @next/next/no-img-element */}
