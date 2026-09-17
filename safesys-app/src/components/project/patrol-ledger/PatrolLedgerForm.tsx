@@ -2,7 +2,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Crop, Upload } from 'lucide-react'
+import { Pencil, Trash2, Upload } from 'lucide-react'
 import ImageEditor from '@/components/ui/ImageEditor'
 import SignaturePad from '@/components/ui/SignaturePad'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -189,12 +189,12 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
             </>}
             <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={event => { void upload(event.target.files?.[0]); event.target.value = '' }} />
           </label>
-          {draft.finding_photo_url && <div className="mt-2">
+          {draft.finding_photo_url && <div className="mt-2 relative inline-block max-w-full rounded-lg overflow-hidden border border-gray-200">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={draft.finding_photo_url} alt="점검사진 미리보기" className="max-h-48 max-w-full object-contain" />
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button type="button" className={`${SECONDARY} inline-flex items-center gap-1`} onClick={() => setEditingPhoto(true)}><Crop className="h-4 w-4" />크롭/회전</button>
-              <button type="button" className={SECONDARY} onClick={() => edit({ finding_photo_url: null })}>사진 삭제</button>
+            <div className="absolute top-1 right-1 flex gap-1">
+              <button type="button" aria-label="사진 크롭·회전" title="크롭/회전" onClick={() => setEditingPhoto(true)} className="p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"><Pencil className="h-4 w-4" /></button>
+              <button type="button" aria-label="사진 삭제" title="사진 삭제" onClick={() => edit({ finding_photo_url: null })} className="p-1.5 rounded-full bg-black/60 text-red-300 hover:bg-black/80 hover:text-red-200 transition-colors"><Trash2 className="h-4 w-4" /></button>
             </div>
           </div>}
         </div>
