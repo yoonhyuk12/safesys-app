@@ -28,14 +28,16 @@ const BUTTON = 'min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border bor
 const TH = 'px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'
 const TD = 'px-3 py-3 text-sm text-center'
 const shortDate = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
+/** 표의 건수 칸. 0건은 숫자 대신 '-'로 보여 비어 있음을 한눈에 알게 한다. */
+const count = (value: number) => (value === 0 ? '-' : value)
 
 /** 본부·지사 표의 숫자 열 — 등록 프로젝트 수 / 분기 점검 대상 / TBM 금주 / 순회점검 건수 / 비고 */
 function TotalCells({ totals }: { totals: PatrolStatusTotals }) {
   return <>
-    <td className={TD}>{totals.registeredCount}</td>
-    <td className={TD}>{totals.targetCount}</td>
-    <td className={TD}>{totals.tbmCount}</td>
-    <td className={TD}>{totals.inspectionCount}</td>
+    <td className={TD}>{count(totals.registeredCount)}</td>
+    <td className={TD}>{count(totals.targetCount)}</td>
+    <td className={TD}>{count(totals.tbmCount)}</td>
+    <td className={TD}>{count(totals.inspectionCount)}</td>
     <td className={`${TD} whitespace-nowrap`}>{patrolStatusRemark(totals)}</td>
   </>
 }
@@ -227,7 +229,7 @@ function StatusContent({ initialHq, initialBranch, onBack, profile, userId }: Pr
               {(level === 'project' ? projectRows : rows).length === 0 ? <tr><td colSpan={level === 'project' ? 8 : 6} className="px-4 py-8 text-center text-sm text-gray-500">{level === 'project' ? '선택 주에 공사중인 현장이 없습니다.' : '관할에 등록된 현장이 없습니다.'}</td></tr> : level === 'project' ? projectRows.map(row =>
                 <tr key={row.id}>
                   <td className="px-3 py-3 text-sm text-left font-medium text-gray-900">{row.name}</td>
-                  <td className={TD}>{row.tbmCount}</td><td className={TD}>{row.inspectionCount}</td><td className={TD}>{row.poorCount}</td><td className={TD}>{row.photoCount}</td>
+                  <td className={TD}>{count(row.tbmCount)}</td><td className={TD}>{count(row.inspectionCount)}</td><td className={TD}>{count(row.poorCount)}</td><td className={TD}>{count(row.photoCount)}</td>
                   <td className={`${TD} whitespace-nowrap`}>{row.lastInspectionDate || '-'}</td><td className={TD}>{row.inspectorName || '-'}</td><td className={TD}>{row.themes || '-'}</td>
                 </tr>) : groups.map(group => {
                   const selectGroup = () => {
@@ -243,7 +245,7 @@ function StatusContent({ initialHq, initialBranch, onBack, profile, userId }: Pr
             </tbody>
             <tfoot className="bg-gray-50 border-t border-gray-200 font-semibold"><tr>
               <td className={TD}>합계{level === 'project' ? ` (${totals.targetCount}개 현장)` : ''}</td>
-              {level === 'project' ? <><td className={TD}>{totals.tbmCount}</td><td className={TD}>{totals.inspectionCount}</td><td className={TD}>{totals.poorCount}</td><td className={TD}>{totals.photoCount}</td><td colSpan={3} className={TD}>미점검 {totals.uninspectedCount}개 현장</td></> : <TotalCells totals={totals} />}
+              {level === 'project' ? <><td className={TD}>{count(totals.tbmCount)}</td><td className={TD}>{count(totals.inspectionCount)}</td><td className={TD}>{count(totals.poorCount)}</td><td className={TD}>{count(totals.photoCount)}</td><td colSpan={3} className={TD}>{totals.uninspectedCount === 0 ? '-' : `미점검 ${totals.uninspectedCount}개 현장`}</td></> : <TotalCells totals={totals} />}
             </tr></tfoot>
           </table>
         </div>}
