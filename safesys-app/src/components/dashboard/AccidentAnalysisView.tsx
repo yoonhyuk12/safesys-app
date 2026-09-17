@@ -27,6 +27,7 @@ import {
   createProjectAccident,
   deleteProjectAccident,
   getAccidentAnalysisData,
+  getProjectAccidentDetail,
   updateProjectAccident,
   type AccidentFormInput,
   type NormalizedSafetyInspection,
@@ -279,6 +280,8 @@ export default function AccidentAnalysisView({
   const [editingAccident, setEditingAccident] = useState<ProjectAccident | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  /** 수정을 열기 전에 보고서 항목을 읽는 중인 사고 id */
+  const [editOpeningId, setEditOpeningId] = useState<string | null>(null)
   const [visibleMonthlySeries, setVisibleMonthlySeries] =
     useState<Record<MonthlyChartSeriesKey, boolean>>(INITIAL_MONTHLY_SERIES_VISIBILITY)
   // 재해율 분모: 분석 필터 기간 기준 프로젝트별 상시근로자 (TBM 누적÷제출일수)
@@ -640,10 +643,24 @@ export default function AccidentAnalysisView({
     setIsModalOpen(true)
   }
 
-  const openEditModal = (accident: ProjectAccident) => {
-    setEditingAccident(accident)
+  /**
+   * 사고보고 서류철과 같은 등록·수정 모듈을 쓴다. 목록 조회는 report_details를 읽지 않으므로
+   * 보고서 항목까지 읽은 뒤에만 수정을 연다 — 비어 있는 채로 저장해 현장이 작성한 보고서를 지우지 않으려는 것이다.
+   */
+  const openEditModal = async (accident: ProjectAccident) => {
+    if (editOpeningId) return
+    setEditOpeningId(accident.id)
     setActionError('')
-    setIsModalOpen(true)
+    try {
+      const detail = await getProjectAccidentDetail(accident.id)
+      setEditingAccident(detail)
+      setIsModalOpen(true)
+    } catch (caught) {
+      console.error('사고 상세 조회 실패', caught)
+      setActionError('보고서 항목을 불러오지 못해 수정을 열 수 없습니다. 다시 시도해 주세요.')
+    } finally {
+      setEditOpeningId(null)
+    }
   }
 
   const closeModal = () => {
@@ -1426,8 +1443,8 @@ export default function AccidentAnalysisView({
                           {canManageAccidents && (
                             <td className="px-3 py-3 text-center">
                               <div className="inline-flex gap-1">
-                                <button type="button" onClick={() => openEditModal(accident)} aria-label={`${project?.project_name ?? ''} 사고 이력 수정`} className="rounded-md p-2 text-indigo-600 hover:bg-indigo-50">
-                                  <Edit className="h-4 w-4" />
+                                <button type="button" onClick={() => void openEditModal(accident)} disabled={editOpeningId !== null} aria-label={`${project?.project_name ?? ''} 사고 이력 수정`} className="rounded-md p-2 text-indigo-600 hover:bg-indigo-50 disabled:opacity-50">
+                                  {editOpeningId === accident.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
                                 </button>
                                 <button type="button" onClick={() => void handleDelete(accident)} disabled={deletingId === accident.id} aria-label={`${project?.project_name ?? ''} 사고 이력 삭제`} className="rounded-md p-2 text-red-600 hover:bg-red-50 disabled:opacity-50">
                                   {deletingId === accident.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
@@ -1452,6 +1469,7 @@ export default function AccidentAnalysisView({
         accident={editingAccident}
         submitting={submitting}
         submitError={actionError}
+        reportMode
         onClose={closeModal}
         onSubmit={handleSubmit}
       />
