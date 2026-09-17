@@ -97,6 +97,7 @@ function createRecordingSupabaseStub(defaultResponse = { data: [], error: null }
     neq: passthrough,
     not: passthrough,
     gte: passthrough,
+    or: passthrough,
     lt: passthrough,
     lte: passthrough,
     order: passthrough,

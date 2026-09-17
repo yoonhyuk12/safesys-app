@@ -150,6 +150,14 @@ const formatInputDate = (date: Date): string => {
   return `${year}-${month}-${day}`
 }
 
+/** 조회 기간을 어느 날짜에 적용할지. accident=사고 발생일, claim=산재승인 건의 산재신청 연도 */
+type DateBasis = 'accident' | 'claim'
+
+const DATE_BASIS_OPTIONS: ReadonlyArray<{ value: DateBasis; label: string }> = [
+  { value: 'accident', label: '발생일' },
+  { value: 'claim', label: '산재승인' },
+]
+
 /** 분석 필터 기간 프리셋. custom은 사용자가 날짜를 직접 고른 경우 */
 type DatePreset = 'year_to_date' | 'h1' | 'h2' | 'rolling_1y' | 'custom'
 
@@ -326,6 +334,7 @@ export default function AccidentAnalysisView({
   const [startDate, setStartDate] = useState(initialRange.startDate)
   const [endDate, setEndDate] = useState(initialRange.endDate)
   const [datePreset, setDatePreset] = useState<DatePreset>('year_to_date')
+  const [dateBasis, setDateBasis] = useState<DateBasis>('accident')
   const [selectedHq, setSelectedHq] = useState(defaultHq)
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch)
   const [selectedProjectId, setSelectedProjectId] = useState('')
@@ -549,9 +558,25 @@ export default function AccidentAnalysisView({
     [filteredProjectIds, inspections],
   )
 
+  /**
+   * 산재승인 기준이면 사고일자 대신 산재신청 연도가 조회 기간의 연도 범위에 드는 산재승인 건만 본다.
+   * 발생일 기준은 기존대로 사고일자로 거른다. 월별 추이 차트는 항상 발생일 기준이다.
+   */
+  const analysisOptions = useMemo(() => {
+    if (dateBasis !== 'claim') return {}
+    const startYear = Number(startDate.slice(0, 4))
+    const endYear = Number(endDate.slice(0, 4))
+    return {
+      accidentInScope: (accident: ProjectAccident) => {
+        const year = accident.workers_comp_claim_year
+        return isCompApproved(accident) && typeof year === 'number' && year >= startYear && year <= endYear
+      },
+    }
+  }, [dateBasis, endDate, startDate])
+
   const analysis = useMemo(
-    () => calculateAccidentAnalysis(filteredProjects, filteredAccidents, filteredInspections, startDate, endDate),
-    [endDate, filteredAccidents, filteredInspections, filteredProjects, startDate],
+    () => calculateAccidentAnalysis(filteredProjects, filteredAccidents, filteredInspections, startDate, endDate, analysisOptions),
+    [analysisOptions, endDate, filteredAccidents, filteredInspections, filteredProjects, startDate],
   )
 
   /** 분석 필터 기간 기준 사고 유형별 순위 (건수 내림차순) */
@@ -973,6 +998,7 @@ export default function AccidentAnalysisView({
     setSelectedAccidentType('')
     setSelectedSeverity('')
     setOnlyWorkersCompApplied(false)
+    setDateBasis('accident')
   }
 
   // 산재승인 건수 = 필터된 사고 중 산재요양 예상 일수가 기록된 건 (목록의 산재승인 열과 같은 판정)
@@ -1107,6 +1133,27 @@ export default function AccidentAnalysisView({
               }}
               className={selectClassName}
             />
+          </div>
+          <div>
+            <span id="analysis-date-basis-label" className={filterLabelClassName}>기준</span>
+            <div className="inline-flex w-full rounded-md border border-gray-300 bg-white p-0.5" role="group" aria-labelledby="analysis-date-basis-label">
+              {DATE_BASIS_OPTIONS.map((option) => {
+                const active = dateBasis === option.value
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setDateBasis(option.value)}
+                    className={`flex-1 rounded px-2.5 py-1.5 text-sm font-medium transition-colors ${
+                      active ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
           </div>
           <div>
             <label htmlFor="analysis-hq" className={filterLabelClassName}>본부</label>

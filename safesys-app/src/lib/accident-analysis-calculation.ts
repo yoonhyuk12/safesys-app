@@ -66,16 +66,27 @@ const overlapsConstructionPeriod = (project: Project, rangeStart: number, rangeE
     (constructionEnd === null || constructionEnd + DAY_MS > rangeStart)
 }
 
+export interface AccidentAnalysisOptions {
+  /**
+   * 사고를 분석 범위에 넣을지 정하는 기준. 주면 사고일자의 기간 판정 대신 이 판정을 쓴다
+   * (예: 산재신청 연도 기준). 프로젝트·미등록 현장 소속 판정은 그대로 한다.
+   * 점검·프로젝트-월 관측은 여전히 기간 기준이다.
+   */
+  accidentInScope?: (accident: ProjectAccident) => boolean
+}
+
 export function calculateAccidentAnalysis(
   projects: Project[],
   accidents: ProjectAccident[],
   inspections: NormalizedSafetyInspection[],
   startDate: string,
-  endDate: string
+  endDate: string,
+  options: AccidentAnalysisOptions = {}
 ): AccidentAnalysisResult {
   const startTimestamp = parseCalendarDay(startDate)
   const endTimestamp = parseCalendarDay(endDate)
   if (startTimestamp === null || endTimestamp === null || startTimestamp > endTimestamp) return emptyAnalysis()
+  const accidentInScope = options.accidentInScope
 
   const endExclusive = endTimestamp + DAY_MS
   const projectMap = new Map<string, Project>()
@@ -84,6 +95,7 @@ export function calculateAccidentAnalysis(
   }
   const hasExternalAccidentInRange = accidents.some((accident) => {
     if (accident.project_id) return false
+    if (accidentInScope) return accidentInScope(accident)
     const timestamp = toSeoulCalendarDay(accident.accident_at)
     return timestamp !== null && timestamp >= startTimestamp && timestamp < endExclusive
   })
@@ -127,6 +139,11 @@ export function calculateAccidentAnalysis(
   }
 
   const scopedAccidents = accidents.filter((accident) => {
+    if (accidentInScope) {
+      // 호출자가 준 기준으로 거른다. 기간 밖 사고일자라도 넣되 소속 프로젝트는 분석 대상이어야 한다.
+      if (!accidentInScope(accident)) return false
+      return !accident.project_id || projectMap.has(accident.project_id)
+    }
     const timestamp = toSeoulCalendarDay(accident.accident_at)
     if (timestamp === null || timestamp < startTimestamp || timestamp >= endExclusive) return false
     // 미등록 현장 사고는 프로젝트-월 관측 없이도 기간 내 건으로 포함한다.

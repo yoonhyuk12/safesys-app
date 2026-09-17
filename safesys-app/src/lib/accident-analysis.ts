@@ -362,6 +362,19 @@ const fetchSignedIds = async (
   return new Set(rows.map(asRecord).filter((row): row is UnknownRecord => row !== null).map((row) => textValue(row.id)).filter(Boolean))
 }
 
+/**
+ * PostgREST or 필터 문자열. 사고일자가 [start, endExclusive) 안이거나
+ * 산재신청 연도가 [start 연도, end 연도] 안이면 참이다. 값에 '+'·':'가 있어 큰따옴표로 감싼다.
+ */
+export const buildAccidentScopeFilter = (startDate: string, endExclusiveDate: string, endDate: string): string => {
+  const startYear = Number(startDate.slice(0, 4))
+  const endYear = Number(endDate.slice(0, 4))
+  return [
+    `and(accident_at.gte."${startDate}T00:00:00+09:00",accident_at.lt."${endExclusiveDate}T00:00:00+09:00")`,
+    `and(workers_comp_claim_year.gte.${startYear},workers_comp_claim_year.lte.${endYear})`,
+  ].join(',')
+}
+
 /** 조회 기간을 검증하고 배치 조회에 쓸 프로젝트 id 목록을 정리한다. 기간이 어긋나면 null. */
 const prepareAnalysisScope = (
   projectIds: string[],
@@ -389,6 +402,9 @@ export async function getAccidentAnalysisAccidents(
   if (!scope) return { success: false, accidents: [], error: INVALID_RANGE_MESSAGE }
   const { scopedProjectIds } = scope
   const accidentEndExclusive = addCalendarDays(endDate, 1)
+  // 사고일자가 기간 안이거나, 산재신청 연도가 기간이 걸친 연도 안인 사고를 함께 읽는다.
+  // 화면이 "발생일 기준"과 "산재승인 기준"을 같은 결과 집합에서 고르게 하려는 것이다.
+  const accidentScopeFilter = buildAccidentScopeFilter(startDate, accidentEndExclusive, endDate)
 
   // 미등록 현장 사고는 project_id가 없어 배치 조회에 포함되지 않으므로 별도 조회한다. RLS가 관할을 제한한다.
   const fetchExternalAccidents = async (): Promise<ProjectAccident[]> => {
@@ -396,8 +412,7 @@ export async function getAccidentAnalysisAccidents(
       .from('project_accidents')
       .select(PROJECT_ACCIDENT_LIST_COLUMNS)
       .is('project_id', null)
-      .gte('accident_at', `${startDate}T00:00:00+09:00`)
-      .lt('accident_at', `${accidentEndExclusive}T00:00:00+09:00`)
+      .or(accidentScopeFilter)
       .order('accident_at', { ascending: false })
     if (error) {
       console.error('미등록 현장 사고 이력 조회 오류:', error)
@@ -417,8 +432,7 @@ export async function getAccidentAnalysisAccidents(
             .from('project_accidents')
             .select(PROJECT_ACCIDENT_LIST_COLUMNS)
             .in('project_id', batchIds)
-            .gte('accident_at', `${startDate}T00:00:00+09:00`)
-            .lt('accident_at', `${accidentEndExclusive}T00:00:00+09:00`)
+            .or(accidentScopeFilter)
             .order('accident_at', { ascending: false }),
           '사고 이력'
         ),
