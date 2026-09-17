@@ -2,6 +2,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { Upload } from 'lucide-react'
 import SignaturePad from '@/components/ui/SignaturePad'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { supabase } from '@/lib/supabase'
@@ -146,8 +147,14 @@ export default function PatrolLedgerForm({ project, initialDraft, saving, onSave
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 grid sm:grid-cols-2 gap-4">
-        <div><label className="block text-sm font-medium text-gray-700">지적사진 (없는 경우 점검사진)<input type="file" accept="image/*" className={`${INPUT} min-h-[44px] mt-1`} onChange={event => { void upload(event.target.files?.[0]); event.target.value = '' }} /></label>
-          {uploading && <LoadingSpinner />}
+        <div><p className="block text-sm font-medium text-gray-700">지적사진 (없는 경우 점검사진)</p>
+          <label className="mt-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg h-24 bg-white hover:bg-gray-50 cursor-pointer transition-colors">
+            {uploading ? <span className="text-xs text-gray-500">업로드중...</span> : <>
+              <Upload className="h-5 w-5 text-gray-400 mb-1" />
+              <span className="text-xs font-medium text-gray-500">{draft.finding_photo_url ? '사진 바꾸기' : '사진 업로드'}</span>
+            </>}
+            <input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={event => { void upload(event.target.files?.[0]); event.target.value = '' }} />
+          </label>
           {draft.finding_photo_url && <div className="mt-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={draft.finding_photo_url} alt="점검사진 미리보기" className="max-h-48 max-w-full object-contain" />
