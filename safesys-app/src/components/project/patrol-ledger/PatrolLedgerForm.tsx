@@ -137,13 +137,24 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
     } finally { if (alive.current) setUploading(false) }
   }
 
-  return <form className="space-y-4" onSubmit={async event => {
-    event.preventDefault()
+  // 저장·수정 모두 서명 모달을 거친다. 서명 외 입력을 먼저 검사해 모달에서 서명한 뒤 다시 돌아오는 일을 막는다.
+  const requestSave = () => {
     if (busy || loadingTbm) return
-    const invalid = validatePatrolLedgerDraft(draft)
+    const invalid = validatePatrolLedgerDraft(draft, { skipSignature: true })
     if (invalid) { setError(invalid); return }
-    await onSave(draft)
-  }}>
+    setError(null)
+    setShowSignature(true)
+  }
+  const saveWithSignature = async (signature: string) => {
+    const next = { ...draft, signature }
+    setDraft(next)
+    setShowSignature(false)
+    const invalid = validatePatrolLedgerDraft(next)
+    if (invalid) { setError(invalid); return }
+    await onSave(next)
+  }
+
+  return <form className="space-y-4" onSubmit={event => { event.preventDefault(); requestSave() }}>
     <div className={`sticky ${TOOLBAR_TOP} z-10 bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-2 flex flex-wrap items-center justify-between gap-2`}>
       <h2 className="text-sm font-semibold text-gray-900">{editing ? '점검 수정' : '새 점검 작성'}</h2>
       <div className="flex gap-2">
@@ -229,16 +240,15 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
           ['inspector_position', '직급'], ['inspector_name', '성명'],
         ] as const).map(([key, label]) => <label key={key} className="block text-sm font-medium text-gray-700">{label}<input value={draft[key]} maxLength={key === 'inspector_name' ? 100 : undefined} className={INPUT} onChange={event => edit({ [key]: event.target.value })} /></label>)}
         <div><p className="text-sm font-medium text-gray-700">점검자 서명</p>
-          {!isBlankPatrolLedgerSignature(draft.signature) && <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={draft.signature} alt="점검자 서명" className="h-16 max-w-full object-contain" />
-          </>}
-          <button type="button" className={SECONDARY} onClick={() => setShowSignature(true)}>{draft.signature ? '다시 서명' : '서명하기'}</button>
+          {!isBlankPatrolLedgerSignature(draft.signature)
+            /* eslint-disable-next-line @next/next/no-img-element */
+            ? <img src={draft.signature} alt="점검자 서명" className="h-16 max-w-full object-contain" />
+            : <p className="text-sm text-gray-500">저장 버튼을 누르면 서명 창이 열립니다.</p>}
         </div>
-        <p className="sm:col-span-2 text-xs text-gray-500">점검자 본인이 직접 서명합니다. 내용을 고치면 서명이 지워지므로 모든 입력을 마친 뒤 서명해주세요.</p>
+        <p className="sm:col-span-2 text-xs text-gray-500">점검자 본인이 직접 서명합니다. 저장·수정할 때마다 새로 서명하며, 서명이 끝나면 바로 저장됩니다.</p>
       </div>
     </fieldset>
     {editingPhoto && draft.finding_photo_url && <ImageEditor imageUrl={draft.finding_photo_url} onSave={saveEditedPhoto} onClose={() => setEditingPhoto(false)} />}
-    {showSignature && <SignaturePad title="점검자 서명" onSave={signature => { setDraft(current => ({ ...current, signature })); setShowSignature(false) }} onCancel={() => setShowSignature(false)} />}
+    {showSignature && <SignaturePad title="점검자 서명 후 저장" onSave={signature => { void saveWithSignature(signature) }} onCancel={() => setShowSignature(false)} />}
   </form>
 }

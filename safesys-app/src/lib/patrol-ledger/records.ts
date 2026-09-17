@@ -54,12 +54,13 @@ export function setAllPatrolLedgerResults(items: PatrolLedgerItem[], result: Pat
 export function isBlankPatrolLedgerSignature(value: unknown): boolean {
   return typeof value !== 'string' || value.length < 200 || !/^data:image\/png;base64,iVBORw0KGgo[A-Za-z0-9+/]*={0,2}$/.test(value)
 }
-export function validatePatrolLedgerDraft(draft: PatrolLedgerDraft): string | null {
+/** 저장 전 검증. 화면은 저장 버튼에서 서명 모달을 띄우므로, 그 직전엔 `skipSignature`로 서명만 빼고 검사한다. */
+export function validatePatrolLedgerDraft(draft: PatrolLedgerDraft, options: { skipSignature?: boolean } = {}): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(draft.inspection_date) || !Number.isFinite(Date.parse(draft.inspection_date)) || new Date(draft.inspection_date).toISOString().slice(0, 10) !== draft.inspection_date) return '점검일을 올바르게 입력해주세요.'
   if (!draft.inspector_name.trim()) return '점검자 성명을 입력해주세요.'
   if (/[\r\n]/.test(draft.inspector_name)) return '점검자 성명은 한 줄로 입력해주세요.'
   if (draft.inspector_name.length > 100) return '점검자 성명은 100자 이하로 입력해주세요.'
-  if (isBlankPatrolLedgerSignature(draft.signature)) return '점검자 서명을 입력해주세요.'
+  if (!options.skipSignature && isBlankPatrolLedgerSignature(draft.signature)) return '점검자 서명을 입력해주세요.'
   if (!Array.isArray(draft.items) || draft.items.length < 1 || draft.items.length > 10) return '점검항목은 1~10건이어야 합니다.'
   for (const item of draft.items) {
     if (!item || typeof item.text !== 'string' || !item.text.trim()) return '점검항목 문구를 비워둘 수 없습니다.'

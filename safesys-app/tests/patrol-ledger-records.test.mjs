@@ -129,3 +129,9 @@ test('전경사진 기록은 초안으로 바꿀 때 지적사항을 비운다',
   assert.equal(records.patrolLedgerToDraft({ ...base, finding_photo_kind: 'finding', finding_text: '지적' }).finding_text, '지적')
   assert.equal(records.createPatrolLedgerDraft(init).finding_photo_kind, 'finding')
 })
+
+test('skipSignature 옵션은 서명만 건너뛰고 나머지 검증은 그대로 한다', () => {
+  assert.equal(records.validatePatrolLedgerDraft({ ...valid(), signature: '' }, { skipSignature: true }), null)
+  assert.equal(typeof records.validatePatrolLedgerDraft({ ...valid(), signature: '' }), 'string')
+  assert.equal(typeof records.validatePatrolLedgerDraft({ ...valid(), signature: '', inspector_name: '' }, { skipSignature: true }), 'string')
+})
