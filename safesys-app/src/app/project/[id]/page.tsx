@@ -108,6 +108,8 @@ export default function ProjectDetailPage() {
   const [issueLedgerCount, setIssueLedgerCount] = useState<number | null>(null)
   /** 지적사항 관리대장 미조치 건수 — 본부·정기·순회점검·직접등록 지적 중 조치사진(또는 해당없음)이 없는 건 */
   const [issueLedgerPendingCount, setIssueLedgerPendingCount] = useState<number | null>(null)
+  /** 순회점검·직접등록 미조치 건수 — 안전 캐비닛 서랍 '미조치' 라벨 합산용(본부·정기·관리자는 별도 상태로 이미 합산) */
+  const [ledgerOnlyPendingCount, setLedgerOnlyPendingCount] = useState(0)
   const [ptwCount, setPtwCount] = useState<number | null>(null)
   const [inspectionRequestCount, setInspectionRequestCount] = useState<number | null>(null)
   const [visitLogCount, setVisitLogCount] = useState<number | null>(null)
@@ -477,6 +479,8 @@ export default function ProjectDetailPage() {
       const patrolIssuePending = patrolFindings.filter((r: any) => isOpenAction(r.action_photo_url)).length
       setIssueLedgerCount(hqIssueTotal + safetyFindingTotal + patrolFindings.length + directIssueCount)
       setIssueLedgerPendingCount(hqIssuePending + safetyFindingPending + patrolIssuePending + directIssuePending)
+      // 안전 캐비닛 서랍의 '미조치' 라벨은 본부·정기·관리자 미조치를 이미 더하므로, 관리대장에서만 관리하는 순회점검·직접등록만 따로 얹는다.
+      setLedgerOnlyPendingCount(patrolIssuePending + directIssuePending)
 
       // 관리자점검(지사 안전점검) 미완료 건수 조회 — 미완성 열과 동일 기준
       // 1) 서명 없음, 2) 위험성평가 사진 없음, 3) 재해예방 대상에서 내용·보고서 사진 중 하나만 있음(불일치)
@@ -1306,7 +1310,7 @@ export default function ProjectDetailPage() {
                     key={name}
                     title={name}
                     titleSuffix={name === '시공' && constructionProgress !== null ? `(${constructionProgress}%)` : undefined}
-                    pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) + (managerPendingCount || 0) : undefined}
+                    pendingCount={name === '안전' ? (hqPendingCount || 0) + (safetyLedgerPendingCount || 0) + (managerPendingCount || 0) + ledgerOnlyPendingCount : undefined}
                     pendingVariant="red"
                     pendingLabel="미조치"
                     weatherLocation={name === '안전' ? {
