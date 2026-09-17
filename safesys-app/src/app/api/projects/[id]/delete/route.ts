@@ -114,6 +114,12 @@ export async function POST(
     push(r.before_photo_url, r.after_photo_url)
   })
 
+  const { data: patrolLedger } = await supabaseAdmin
+    .from('patrol_ledger_inspections')
+    .select('finding_photo_url')
+    .eq('project_id', id)
+  patrolLedger?.forEach((r: { finding_photo_url: unknown }) => push(r.finding_photo_url))
+
   const { data: workPlans } = await supabaseAdmin
     .from('work_plans')
     .select('map_image_url, site_photo_urls')
@@ -135,7 +141,7 @@ export async function POST(
   }
 
   // 4. safety-inspection-photos: URL 컬럼이 없어 {projectId}/ 폴더를 직접 list
-  const safetyPaths = new Set<string>()
+  const safetyPaths = byBucket['safety-inspection-photos'] ?? new Set<string>()
   for (let offset = 0; ; offset += 100) {
     const { data: files } = await supabaseAdmin.storage
       .from('safety-inspection-photos')
