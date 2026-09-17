@@ -42,7 +42,13 @@ export * from '@/lib/accident-analysis-types'
 export { calculateAccidentAnalysis } from '@/lib/accident-analysis-calculation'
 
 /** 목록·집계용 컬럼. report_details(사진 JSON)는 상세·수정·다운로드에서만 따로 읽는다. */
-export const PROJECT_ACCIDENT_LIST_COLUMNS = 'id, project_id, external_project_name, external_managing_hq, external_managing_branch, accident_at, severity, accident_type, location, work_description, description, cause, prevention_action, injured_count, fatal_count, lost_workdays, workers_comp_claim, created_by, created_at, updated_at, expected_treatment_days:report_details->>expectedTreatmentDays, report_date:report_details->>reportDate'
+export const PROJECT_ACCIDENT_LIST_COLUMNS = 'id, project_id, external_project_name, external_managing_hq, external_managing_branch, accident_at, severity, accident_type, location, work_description, description, cause, prevention_action, injured_count, fatal_count, lost_workdays, workers_comp_claim, workers_comp_claim_year, created_by, created_at, updated_at, expected_treatment_days:report_details->>expectedTreatmentDays, report_date:report_details->>reportDate'
+
+/** 산재신청 연도 허용 범위. DB CHECK(project_accidents_workers_comp_claim_year_check)와 같다. */
+export const CLAIM_YEAR_MIN = 2000
+export const CLAIM_YEAR_MAX = 2100
+export const isValidClaimYear = (value: number): boolean =>
+  Number.isInteger(value) && value >= CLAIM_YEAR_MIN && value <= CLAIM_YEAR_MAX
 
 const SEVERITIES = new Set<AccidentSeverity>(ACCIDENT_SEVERITY_OPTIONS.map((option) => option.value))
 const COMP_CLAIMS = new Set<WorkersCompClaim | ''>(ACCIDENT_COMP_CLAIM_OPTIONS.map((option) => option.value))
@@ -706,6 +712,10 @@ export function validateAccidentInput(input: AccidentFormInput): AccidentValidat
   if (!COMP_CLAIMS.has(input.workers_comp_claim)) {
     errors.workers_comp_claim = '산재신청 여부를 선택해 주세요.'
   }
+  const claimYear = input.workers_comp_claim_year ?? null
+  if (claimYear !== null && !isValidClaimYear(claimYear)) {
+    errors.workers_comp_claim_year = `산재신청 연도는 ${CLAIM_YEAR_MIN}~${CLAIM_YEAR_MAX} 사이 연도로 입력해 주세요.`
+  }
 
   const numericFields: ReadonlyArray<{ key: 'injured_count' | 'fatal_count' | 'lost_workdays'; label: string }> = [
     { key: 'injured_count', label: '부상자 수' },
@@ -758,6 +768,7 @@ const normalizeAccidentInput = (input: AccidentFormInput): AccidentFormInput => 
     fatal_count: input.fatal_count,
     lost_workdays: input.lost_workdays,
     workers_comp_claim: input.workers_comp_claim,
+    workers_comp_claim_year: input.workers_comp_claim_year ?? null,
     // 넘기지 않은 보고서는 키 자체를 만들지 않는다. 대시보드 간단 수정이 현장 보고서를 지우면 안 된다.
     ...(input.report_details === undefined
       ? {}
@@ -786,6 +797,7 @@ const toAccidentDbPayload = (input: AccidentFormInput) => {
     fatal_count: normalized.fatal_count,
     lost_workdays: normalized.lost_workdays,
     workers_comp_claim: normalized.workers_comp_claim || null,
+    workers_comp_claim_year: normalized.workers_comp_claim_year ?? null,
     // 키가 없으면 DB의 기존 보고서가 그대로 남고, 빈 보고서는 NULL로 지운다.
     ...(normalized.report_details === undefined
       ? {}

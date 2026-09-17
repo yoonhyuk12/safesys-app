@@ -156,6 +156,9 @@ export default function AccidentReportDetail({
         <DetailField label="사망자 수">{accident.fatal_count.toLocaleString('ko-KR')}명</DetailField>
         <DetailField label="휴업일수">{accident.lost_workdays.toLocaleString('ko-KR')}일</DetailField>
         <DetailField label="산재신청 여부">{compClaimLabel(accident.workers_comp_claim)}</DetailField>
+        <DetailField label="산재신청 연도">
+          {typeof accident.workers_comp_claim_year === 'number' ? `${accident.workers_comp_claim_year}년` : '-'}
+        </DetailField>
       </dl>
 
       <section className="border-t border-gray-100 pt-4 space-y-3">

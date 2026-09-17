@@ -2,12 +2,15 @@
 // 관할 프로젝트의 사고 이력을 입력하고 수정하는 접근 가능한 모달 폼. 미등록 현장 직접입력을 지원한다.
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { AlertCircle, Loader2, X } from 'lucide-react'
+import { AlertCircle, Loader2, Minus, Plus, X } from 'lucide-react'
 import type { Project } from '@/lib/projects'
 import {
   ACCIDENT_COMP_CLAIM_OPTIONS,
   ACCIDENT_SEVERITY_OPTIONS,
   ACCIDENT_TYPE_OPTIONS,
+  CLAIM_YEAR_MAX,
+  CLAIM_YEAR_MIN,
+  isValidClaimYear,
   type AccidentFormInput,
   type ProjectAccident,
 } from '@/lib/accident-analysis'
@@ -49,6 +52,13 @@ const isAccidentSeverity = (value: string): value is AccidentFormInput['severity
 const isWorkersCompClaim = (value: string): value is AccidentFormInput['workers_comp_claim'] =>
   compClaimOptions.some((option) => option.value === value)
 
+/** 산재신청 연도 초기값. 신규는 당해 연도, 수정은 저장된 값(없으면 빈칸). */
+const toClaimYearInput = (accident: ProjectAccident | null): string => {
+  if (!accident) return String(new Date().getFullYear())
+  const year = accident.workers_comp_claim_year
+  return typeof year === 'number' && Number.isFinite(year) ? String(year) : ''
+}
+
 const toLocalDateInput = (value?: string | null): string => {
   const date = value ? new Date(value) : new Date()
   if (Number.isNaN(date.getTime())) return ''
@@ -83,6 +93,7 @@ const createDraft = (
     fatalCount: String(accident?.fatal_count ?? 0),
     lostWorkdays: String(accident?.lost_workdays ?? 0),
     workersCompClaim: accident?.workers_comp_claim ?? '',
+    workersCompClaimYear: toClaimYearInput(accident),
     reportDetails: normalizeAccidentReportDetails(accident?.report_details ?? null),
   }
 }
@@ -198,6 +209,17 @@ export default function AccidentEntryModal({
 
   const updateDraft = <K extends keyof AccidentDraft>(key: K, value: AccidentDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  /** ± 버튼으로 연도를 한 해씩 옮긴다. 빈칸이면 당해 연도에서 시작하고 허용 범위 안에 묶는다. */
+  const stepClaimYear = (delta: 1 | -1) => {
+    setDraft((current) => {
+      const base = /^\d{4}$/.test(current.workersCompClaimYear.trim())
+        ? Number(current.workersCompClaimYear)
+        : new Date().getFullYear()
+      const next = Math.min(CLAIM_YEAR_MAX, Math.max(CLAIM_YEAR_MIN, base + delta))
+      return { ...current, workersCompClaimYear: String(next) }
+    })
   }
 
   const PREFILL_APPLIED_NOTICE = '문서에서 읽은 초안입니다. 내용을 확인하고 부족한 항목을 보완한 뒤 저장하세요.'
@@ -339,6 +361,12 @@ export default function AccidentEntryModal({
       setValidationError('부상자 수, 사망자 수, 휴업일수는 0 이상의 정수로 입력해 주세요.')
       return
     }
+    const claimYearText = draft.workersCompClaimYear.trim()
+    const claimYear = claimYearText === '' ? null : Number(claimYearText)
+    if (claimYear !== null && !isValidClaimYear(claimYear)) {
+      setValidationError(`산재신청 연도는 ${CLAIM_YEAR_MIN}~${CLAIM_YEAR_MAX} 사이 연도로 입력해 주세요.`)
+      return
+    }
 
     const normalizedReportDetails = normalizeAccidentReportDetails(draft.reportDetails)
     if (reportMode) {
@@ -368,6 +396,7 @@ export default function AccidentEntryModal({
       fatal_count: fatalCount,
       lost_workdays: lostWorkdays,
       workers_comp_claim: draft.workersCompClaim,
+      workers_comp_claim_year: claimYear,
       // 보고서 모드가 아니면 키 자체를 넣지 않아 저장된 report_details를 건드리지 않는다.
       ...(reportMode ? { report_details: normalizedReportDetails } : {}),
     }
@@ -585,7 +614,7 @@ export default function AccidentEntryModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <div>
                 <label htmlFor="accident-injured-count" className={labelClassName}>부상자 수</label>
                 <input id="accident-injured-count" type="number" min="0" step="1" value={draft.injuredCount} onChange={(event) => updateDraft('injuredCount', event.target.value)} disabled={submitting} className={inputClassName} inputMode="numeric" />
@@ -597,6 +626,42 @@ export default function AccidentEntryModal({
               <div>
                 <label htmlFor="accident-lost-workdays" className={labelClassName}>휴업일수</label>
                 <input id="accident-lost-workdays" type="number" min="0" step="1" value={draft.lostWorkdays} onChange={(event) => updateDraft('lostWorkdays', event.target.value)} disabled={submitting} className={inputClassName} inputMode="numeric" />
+              </div>
+              <div>
+                <label htmlFor="accident-comp-claim-year" className={labelClassName}>산재신청 연도</label>
+                <div className="flex items-stretch gap-1">
+                  <button
+                    type="button"
+                    onClick={() => stepClaimYear(-1)}
+                    disabled={submitting}
+                    aria-label="산재신청 연도 한 해 앞으로"
+                    className="inline-flex min-w-[44px] items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <input
+                    id="accident-comp-claim-year"
+                    type="number"
+                    min={CLAIM_YEAR_MIN}
+                    max={CLAIM_YEAR_MAX}
+                    step="1"
+                    value={draft.workersCompClaimYear}
+                    onChange={(event) => updateDraft('workersCompClaimYear', event.target.value)}
+                    disabled={submitting}
+                    className={`${inputClassName} text-center tabular-nums`}
+                    inputMode="numeric"
+                    placeholder="미입력"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => stepClaimYear(1)}
+                    disabled={submitting}
+                    aria-label="산재신청 연도 한 해 뒤로"
+                    className="inline-flex min-w-[44px] items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               <div>
                 <label htmlFor="accident-comp-claim" className={labelClassName}>산재신청 여부</label>

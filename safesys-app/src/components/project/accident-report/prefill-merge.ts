@@ -35,6 +35,8 @@ export interface AccidentDraft {
   fatalCount: string
   lostWorkdays: string
   workersCompClaim: AccidentFormInput['workers_comp_claim']
+  /** 산재신청 연도 입력값. 빈 문자열이면 미입력이다. */
+  workersCompClaimYear: string
   /** 사고발생보고서 추가 항목. 보고서 모드에서만 화면에 나온다. */
   reportDetails: AccidentReportDetails
 }

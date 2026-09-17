@@ -488,3 +488,23 @@ test.todo('가입 해지로 계정이 사라져도 사고 기록은 남는다 (�
   assert.equal(await visibleCount(db), 1)
   assert.equal(await scalar(db, 'SELECT created_by FROM public.project_accidents'), null)
 })
+
+test('산재신청 연도는 2000~2100만 받고 새 등록은 비워 둔다', async (t) => {
+  const db = await openDb(t)
+  await signIn(db, IDS.owner)
+  await insertAccident(db)
+  // 마이그레이션이 채운 기존 행은 없고, 새로 넣은 행은 앱이 값을 주기 전까지 NULL이다.
+  assert.equal(await scalar(db, 'SELECT workers_comp_claim_year FROM public.project_accidents'), null)
+  for (const year of [2000, 2026, 2100]) {
+    await db.query('UPDATE public.project_accidents SET workers_comp_claim_year = $1::smallint', [year])
+    assert.equal(Number(await scalar(db, 'SELECT workers_comp_claim_year FROM public.project_accidents')), year)
+  }
+  for (const year of [1999, 2101]) {
+    const error = await expectError(
+      db.query('UPDATE public.project_accidents SET workers_comp_claim_year = $1::smallint', [year])
+    )
+    assert.match(error.message, /project_accidents_workers_comp_claim_year_check/i, String(year))
+  }
+  await db.query('UPDATE public.project_accidents SET workers_comp_claim_year = NULL')
+  assert.equal(await scalar(db, 'SELECT workers_comp_claim_year FROM public.project_accidents'), null)
+})
