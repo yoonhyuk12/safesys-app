@@ -110,14 +110,14 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
     if (invalid) { setError(invalid); return }
     await onSave(draft)
   }}>
-    <div className={`sticky ${TOOLBAR_TOP} z-10 bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-2 flex items-center justify-between gap-2`}>
+    <div className={`sticky ${TOOLBAR_TOP} z-10 bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-2 flex flex-wrap items-center justify-between gap-2`}>
       <h2 className="text-sm font-semibold text-gray-900">{editing ? '점검 수정' : '새 점검 작성'}</h2>
       <div className="flex gap-2">
         <button type="button" disabled={busy} onClick={onCancel} className={SECONDARY}>취소</button>
         <button type="submit" disabled={busy || loadingTbm} className="min-h-[44px] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{saving ? '저장 중' : '저장'}</button>
       </div>
     </div>
-    {error &&<p role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800">{error}</p>}
+    {error && <p role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800">{error}</p>}
     <fieldset disabled={busy} className="space-y-4 disabled:opacity-75">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-3">
         <label className="block text-sm font-medium text-gray-700">점검일자
@@ -136,25 +136,21 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
           }} />직접 수정</label>}
         </div>
         {loadingTbm ? <LoadingSpinner /> : <>
-          {tbmError && <div className="text-sm text-red-800" role="alert">{tbmError}<button type="button" className={SECONDARY} onClick={() => setReload(value => value + 1)}>다시 조회</button></div>}
+          {tbmError && <div className="text-sm text-red-800 break-words" role="alert">{tbmError}<button type="button" className={SECONDARY} onClick={() => setReload(value => value + 1)}>다시 조회</button></div>}
           {!work.summary && !tbmError && <p className="text-sm text-gray-500">해당 일자에 제출된 TBM 작업내용이 없습니다. 작업내용을 직접 입력해주세요.</p>}
           {manual ? <label className="block text-sm text-gray-700">작업내용 직접 입력<textarea value={manualText} maxLength={2000} rows={4} className={INPUT} onChange={event => { setManualText(event.target.value); edit({}) }} /></label>
-            : <p className="text-sm text-gray-600 whitespace-pre-wrap">{work.summary}</p>}
+            : <p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{work.summary}</p>}
         </>}
         <button type="button" disabled={loadingTbm || (manual ? !manualText.trim() : !work.summary)} onClick={generate} className={SECONDARY}>AI 점검항목 생성</button>
         {generating && <LoadingSpinner />}
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="flex items-center justify-between gap-2 p-3"><h2 className="text-lg font-semibold text-gray-900">점검사항</h2><button type="button" disabled={!draft.items.length} className={SECONDARY} onClick={() => edit({ items: setAllPatrolLedgerResults(draft.items, '양호') })}>전체 양호</button></div>
-        {!draft.items.length ? <p className="px-4 py-8 text-center text-sm text-gray-500">작업내용을 확인한 뒤 AI 점검항목을 생성해주세요.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[520px]">
-          <thead className="bg-gray-50 border-b border-gray-200"><tr>{['No.', '점검사항', '결과'].map(label => <th key={label} className="px-3 py-3 text-center text-xs font-medium text-gray-500">{label}</th>)}</tr></thead>
-          <tbody className="bg-white divide-y divide-gray-200">{draft.items.map((item, index) => <tr key={item.no}>
-            <td className="px-3 py-3 text-sm text-center">{item.no}</td>
-            <td className="px-3 py-3 text-sm"><label className="block text-xs text-gray-500">({item.category})<input aria-label={`${item.no}번 점검사항`} value={item.text} className={INPUT} onChange={event => edit({ items: setPatrolLedgerItemText(draft.items, index, event.target.value) })} /></label></td>
-            <td className="px-3 py-3 text-sm text-center"><div className="flex gap-1">{(['양호', '미흡'] as const).map(result => <button type="button" key={result} aria-pressed={item.result === result} aria-label={`${item.no}번 ${result}`} onClick={() => edit({ items: setPatrolLedgerItemResult(draft.items, index, item.result === result ? '' : result) })} className={`min-h-[44px] px-3 py-2 rounded-lg text-sm font-medium border whitespace-nowrap ${item.result === result ? result === '양호' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200' : 'bg-white text-gray-700 border-gray-300'}`}>{result}</button>)}</div></td>
-          </tr>)}</tbody>
-        </table></div>}
+        <div className="flex flex-wrap items-center justify-between gap-2 p-3"><h2 className="text-lg font-semibold text-gray-900">점검사항</h2><button type="button" disabled={!draft.items.length} className={SECONDARY} onClick={() => edit({ items: setAllPatrolLedgerResults(draft.items, '양호') })}>전체 양호</button></div>
+        {!draft.items.length ? <p className="px-4 py-8 text-center text-sm text-gray-500">작업내용을 확인한 뒤 AI 점검항목을 생성해주세요.</p> : <ul className="divide-y divide-gray-200">{draft.items.map((item, index) => <li key={item.no} className="p-3 flex flex-col sm:flex-row sm:items-end gap-2">
+          <label className="block min-w-0 flex-1 text-xs text-gray-500">{item.no}. ({item.category})<input aria-label={`${item.no}번 점검사항`} value={item.text} className={INPUT} onChange={event => edit({ items: setPatrolLedgerItemText(draft.items, index, event.target.value) })} /></label>
+          <div className="flex gap-1 shrink-0">{(['양호', '미흡'] as const).map(result => <button type="button" key={result} aria-pressed={item.result === result} aria-label={`${item.no}번 ${result}`} onClick={() => edit({ items: setPatrolLedgerItemResult(draft.items, index, item.result === result ? '' : result) })} className={`min-h-[44px] flex-1 sm:flex-none px-3 py-2 rounded-lg text-sm font-medium border whitespace-nowrap ${item.result === result ? result === '양호' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200' : 'bg-white text-gray-700 border-gray-300'}`}>{result}</button>)}</div>
+        </li>)}</ul>}
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 grid sm:grid-cols-2 gap-4">
