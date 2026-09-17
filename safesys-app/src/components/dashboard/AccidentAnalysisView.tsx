@@ -824,11 +824,14 @@ export default function AccidentAnalysisView({
 
   // 산재승인 건수 = 필터된 사고 중 산재요양 예상 일수가 기록된 건 (목록의 산재승인 열과 같은 판정)
   const compApprovedCount = analysis.accidentDetails.filter((detail) => isCompApproved(detail.accident)).length
+  // 지연보고 건수 = 필터된 사고 중 발생일로부터 2일 이상 지나 보고한 건 (목록의 보고일자 초과 표시와 같은 판정)
+  const delayedReportCount = analysis.accidentDetails.filter((detail) => isReportDelayed(detail.accident)).length
 
   const kpiItems = [
     { key: 'projects', label: '관측 프로젝트', value: `${analysis.kpis.observedProjectCount.toLocaleString()}개` },
     { key: 'accidents', label: '사고', value: `${analysis.kpis.accidentCount.toLocaleString()}건` },
     { key: 'compApproved', label: '산재승인', value: `${compApprovedCount.toLocaleString()}건` },
+    { key: 'delayedReport', label: '지연보고', value: `${delayedReportCount.toLocaleString()}건` },
     { key: 'injured', label: '부상자', value: `${analysis.kpis.injuredCount.toLocaleString()}명` },
     { key: 'fatal', label: '사망자', value: `${analysis.kpis.fatalCount.toLocaleString()}명` },
     { key: 'inspections', label: '안전점검', value: `${analysis.kpis.inspectionCount.toLocaleString()}건` },
@@ -1021,7 +1024,7 @@ export default function AccidentAnalysisView({
         <div className="rounded-lg border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">선택한 조건에 해당하는 프로젝트가 없습니다.</div>
       ) : (
         <>
-          <section className="grid grid-cols-2 gap-3 lg:grid-cols-7" aria-label="사고 분석 핵심 지표">
+          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-8" aria-label="사고 분석 핵심 지표">
             {kpiItems.map((item) => (
               <div key={item.key} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                 <p className="text-xs font-medium text-gray-500">{item.label}</p>
