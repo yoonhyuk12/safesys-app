@@ -17,8 +17,8 @@ import {
   validatePatrolLedgerDraft, type PatrolLedgerDraft,
 } from '@/lib/patrol-ledger/records'
 
-/** 페이지 헤더(py-3 + 44px 버튼 + 1px 테두리) 아래에 폼 툴바가 붙도록 하는 sticky 오프셋. */
-const TOOLBAR_TOP = 'top-[69px]'
+/** 페이지 헤더가 스크롤된 뒤에도 폼 툴바는 화면 상단에 유지한다. */
+const TOOLBAR_TOP = 'top-0'
 const INPUT = 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
 const SECONDARY = 'min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50'
 
@@ -154,17 +154,17 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
     await onSave(next)
   }
 
-  return <form className="space-y-4" onSubmit={event => { event.preventDefault(); requestSave() }}>
-    <div className={`sticky ${TOOLBAR_TOP} z-10 bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-2 flex flex-wrap items-center justify-between gap-2`}>
-      <h2 className="text-sm font-semibold text-gray-900">{editing ? '점검 수정' : '새 점검 작성'}</h2>
-      <div className="flex gap-2">
-        <button type="button" disabled={busy} onClick={onCancel} className={SECONDARY}>취소</button>
-        <button type="submit" disabled={busy || loadingTbm} className="min-h-[44px] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{saving ? '저장 중' : '저장'}</button>
+  return <form className="min-w-0 bg-white rounded-lg shadow-sm border border-gray-200" onSubmit={event => { event.preventDefault(); requestSave() }}>
+    <div className={`sticky ${TOOLBAR_TOP} z-20 bg-blue-600 text-white rounded-t-lg px-4 py-3 flex flex-wrap items-center justify-between gap-2`}>
+      <h2 className="font-semibold text-sm sm:text-base truncate min-w-0 flex-1">{editing ? '점검 수정' : '새 점검 작성'}</h2>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" disabled={busy} onClick={onCancel} className="min-h-[44px] px-4 py-2 text-sm font-medium text-white border border-white rounded-lg hover:bg-blue-700 disabled:opacity-50">취소</button>
+        <button type="submit" disabled={busy || loadingTbm} className="min-h-[44px] px-4 py-2 bg-white text-blue-700 text-sm font-medium rounded-lg hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{saving ? '저장 중' : '저장'}</button>
       </div>
     </div>
-    {error && <p role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800">{error}</p>}
-    <fieldset disabled={busy} className="space-y-4 disabled:opacity-75">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-3">
+    {error && <p role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 text-sm text-red-800">{error}</p>}
+    <fieldset disabled={busy} className="min-w-0 p-3 sm:p-4 space-y-4 disabled:opacity-75">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 space-y-3">
         <label className="block text-sm font-medium text-gray-700">점검일자
           <input type="date" required value={draft.inspection_date} className={INPUT} onChange={event => {
             edit({ inspection_date: event.target.value })
@@ -182,8 +182,8 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
         </div>
         {loadingTbm ? <LoadingSpinner /> : <>
           {tbmError && <div className="text-sm text-red-800 break-words" role="alert">{tbmError}<button type="button" className={SECONDARY} onClick={() => setReload(value => value + 1)}>다시 조회</button></div>}
-          {!work.summary && !tbmError && <p className="text-sm text-gray-500">해당 일자에 제출된 TBM 작업내용이 없습니다. 작업내용을 직접 입력해주세요.</p>}
-          {manual ? <label className="block text-sm text-gray-700">작업내용 직접 입력<textarea value={manualText} maxLength={2000} rows={4} className={INPUT} onChange={event => { setManualText(event.target.value); edit({}) }} /></label>
+          {!work.summary && !tbmError && <p className="text-xs text-gray-500">해당 일자에 제출된 TBM 작업내용이 없습니다. 작업내용을 직접 입력해주세요.</p>}
+          {manual ? <label className="block text-sm font-medium text-gray-700">작업내용 직접 입력<textarea value={manualText} maxLength={2000} rows={4} className={INPUT} onChange={event => { setManualText(event.target.value); edit({}) }} /></label>
             : <p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{work.summary}</p>}
         </>}
         <div className="flex flex-wrap items-end gap-2">
@@ -197,18 +197,18 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-2 p-3"><h2 className="text-lg font-semibold text-gray-900">점검사항</h2><button type="button" disabled={!draft.items.length} className={SECONDARY} onClick={() => edit({ items: setAllPatrolLedgerResults(draft.items, '양호') })}>전체 양호</button></div>
-        {!draft.items.length ? <p className="px-4 py-8 text-center text-sm text-gray-500">작업내용을 확인한 뒤 AI 점검항목을 생성해주세요.</p> : <ul className="divide-y divide-gray-200">{draft.items.map((item, index) => <li key={item.no} className="p-3 flex flex-col sm:flex-row sm:items-end gap-2">
-          <label className="block min-w-0 flex-1 text-xs text-gray-500">{item.no}. ({item.category})<input aria-label={`${item.no}번 점검사항`} value={item.text} className={INPUT} onChange={event => edit({ items: setPatrolLedgerItemText(draft.items, index, event.target.value) })} /></label>
-          <div className="flex gap-1 shrink-0">{(['양호', '미흡'] as const).map(result => <button type="button" key={result} aria-pressed={item.result === result} aria-label={`${item.no}번 ${result}`} onClick={() => edit({ items: setPatrolLedgerItemResult(draft.items, index, item.result === result ? '' : result) })} className={`min-h-[44px] flex-1 sm:flex-none px-3 py-2 rounded-lg text-sm font-medium border whitespace-nowrap ${item.result === result ? result === '양호' ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200' : 'bg-white text-gray-700 border-gray-300'}`}>{result}</button>)}</div>
+        <div className="bg-gray-50 border-b border-gray-200 px-3 py-2 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-medium text-gray-700">점검사항</h2><button type="button" disabled={!draft.items.length} className={SECONDARY} onClick={() => edit({ items: setAllPatrolLedgerResults(draft.items, '양호') })}>전체 양호</button></div>
+        {!draft.items.length ? <p className="px-4 py-8 text-center text-sm text-gray-500">작업내용을 확인한 뒤 AI 점검항목을 생성해주세요.</p> : <ul className="divide-y divide-gray-200">{draft.items.map((item, index) => <li key={item.no} className="px-3 py-2.5 flex flex-col sm:flex-row sm:items-end gap-2">
+          <label className="block min-w-0 flex-1 text-sm font-medium text-gray-700">{item.no}. ({item.category})<input aria-label={`${item.no}번 점검사항`} value={item.text} className={INPUT} onChange={event => edit({ items: setPatrolLedgerItemText(draft.items, index, event.target.value) })} /></label>
+          <div className="flex flex-wrap gap-2 shrink-0">{(['양호', '미흡'] as const).map(result => <button type="button" key={result} aria-pressed={item.result === result} aria-label={`${item.no}번 ${result}`} onClick={() => edit({ items: setPatrolLedgerItemResult(draft.items, index, item.result === result ? '' : result) })} className={`min-h-[44px] flex-1 sm:flex-none px-4 py-2 text-sm rounded-lg border transition-colors whitespace-nowrap ${item.result === result ? result === '양호' ? 'border-green-600 bg-green-50 text-green-800' : 'border-red-600 bg-red-50 text-red-800' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}>{result}</button>)}</div>
         </li>)}</ul>}
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 grid sm:grid-cols-2 gap-4">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-medium text-gray-700">사진 구분</p>
-            <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden" role="radiogroup" aria-label="사진 구분">
+            <div className="inline-flex flex-wrap rounded-lg border border-gray-300 overflow-hidden" role="radiogroup" aria-label="사진 구분">
               {PATROL_LEDGER_PHOTO_KINDS.map(kind => <button type="button" key={kind} role="radio" aria-checked={draft.finding_photo_kind === kind}
                 onClick={() => edit(kind === 'overview' ? { finding_photo_kind: kind, finding_text: '' } : { finding_photo_kind: kind })}
                 className={`min-h-[44px] px-4 py-2 text-sm font-medium transition-colors ${draft.finding_photo_kind === kind ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{PATROL_LEDGER_PHOTO_KIND_LABELS[kind]}</button>)}
@@ -225,16 +225,16 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
           {draft.finding_photo_url && <div className="mt-2 relative inline-block max-w-full rounded-lg overflow-hidden border border-gray-200">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={draft.finding_photo_url} alt="점검사진 미리보기" className="max-h-48 max-w-full object-contain" />
-            <div className="absolute top-1 right-1 flex gap-1">
-              <button type="button" aria-label="사진 크롭·회전" title="크롭/회전" onClick={() => setEditingPhoto(true)} className="p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"><Pencil className="h-4 w-4" /></button>
-              <button type="button" aria-label="사진 삭제" title="사진 삭제" onClick={() => edit({ finding_photo_url: null })} className="p-1.5 rounded-full bg-black/60 text-red-300 hover:bg-black/80 hover:text-red-200 transition-colors"><Trash2 className="h-4 w-4" /></button>
+            <div className="absolute top-1 right-1 flex flex-wrap gap-1">
+              <button type="button" aria-label="사진 크롭·회전" title="크롭/회전" onClick={() => setEditingPhoto(true)} className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"><Pencil className="h-4 w-4" /></button>
+              <button type="button" aria-label="사진 삭제" title="사진 삭제" onClick={() => edit({ finding_photo_url: null })} className="min-h-[44px] min-w-[44px] inline-flex items-center justify-center p-1.5 rounded-md bg-white border border-gray-300 text-gray-500 hover:bg-gray-50 transition-colors"><Trash2 className="h-4 w-4" /></button>
             </div>
           </div>}
         </div>
         <label className={`block text-sm font-medium ${draft.finding_photo_kind === 'overview' ? 'text-gray-400' : 'text-gray-700'}`}>지적사항{draft.finding_photo_kind === 'overview' && <span className="ml-1 text-xs font-normal">(전경사진에서는 입력하지 않습니다)</span>}
           <textarea value={draft.finding_text} rows={5} disabled={draft.finding_photo_kind === 'overview'} className={`${INPUT} disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed`} onChange={event => edit({ finding_text: event.target.value })} /></label>
       </div>
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 grid sm:grid-cols-2 gap-3">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         {([
           ['contractor_name', '시공사명'], ['district_name', '지구명'], ['inspector_affiliation', '점검자 소속'],
           ['inspector_position', '직급'], ['inspector_name', '성명'],
@@ -242,8 +242,8 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
         <div><p className="text-sm font-medium text-gray-700">점검자 서명</p>
           {!isBlankPatrolLedgerSignature(draft.signature)
             /* eslint-disable-next-line @next/next/no-img-element */
-            ? <img src={draft.signature} alt="점검자 서명" className="h-16 max-w-full object-contain" />
-            : <p className="text-sm text-gray-500">저장 버튼을 누르면 서명 창이 열립니다.</p>}
+            ? <img src={draft.signature} alt="점검자 서명" className="h-16 max-w-full object-contain border border-gray-200 rounded-md bg-white" />
+            : <p className="text-xs text-gray-500">저장 버튼을 누르면 서명 창이 열립니다.</p>}
         </div>
         <p className="sm:col-span-2 text-xs text-gray-500">점검자 본인이 직접 서명합니다. 저장·수정할 때마다 새로 서명하며, 서명이 끝나면 바로 저장됩니다.</p>
       </div>

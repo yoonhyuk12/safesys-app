@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import type { Project } from '@/lib/projects'
@@ -118,27 +118,29 @@ export default function PatrolLedgerPage() {
     } catch (cause) { setError(message(cause, '점검 삭제에 실패했습니다.')); setConfirmDelete(false) }
     finally { setDeleting(false) }
   }
-  const download = async () => {
-    if (!selected || !project || busy) return
+  const download = async (record: PatrolLedgerInspection) => {
+    if (!project || busy) return
     setDownloading(true)
     setError(null)
-    try { await downloadPatrolLedgerHwpx(selected, { projectName: project.project_name }) }
+    try { await downloadPatrolLedgerHwpx(record, { projectName: project.project_name }) }
     catch (cause) { setError(message(cause, 'HWPX 다운로드에 실패했습니다.')) }
     finally { setDownloading(false) }
   }
 
   if (!sessionChecked || !userId) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>
   return <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
-    <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
-      <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
-        <button disabled={busy} aria-label="프로젝트로 돌아가기" className={SECONDARY} onClick={() => {
+    <header className="bg-white shadow-sm border-b border-gray-200">
+      <div className="max-w-7xl lg:max-w-none mx-auto px-4 sm:px-6 lg:px-4">
+      <div className="flex items-center h-16">
+        <button disabled={busy} aria-label="프로젝트로 돌아가기" className="mr-3 p-2 min-h-[44px] inline-flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900 rounded-md hover:bg-gray-100 shrink-0 disabled:opacity-50" onClick={() => {
           sessionStorage.setItem(`project_${projectId}_from_subpage`, 'true')
           router.push(`/project/${projectId}`)
-        }}><ArrowLeft className="h-4 w-4" /></button>
-        <div className="min-w-0 flex-1"><h1 className="text-xl font-bold text-gray-900">(AI) 순회점검대장</h1><p className="text-sm text-gray-500 truncate">{project?.project_name}</p></div>
-        {!draft && !selected && <button disabled={!project || loading || busy} onClick={start} className="min-h-[44px] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 inline-flex items-center gap-2"><Plus className="h-4 w-4" />새 점검</button>}      </div>
+        }}><ArrowLeft className="h-4 w-4" />{(draft || selected) && '뒤로 가기'}</button>
+        <h1 className="text-base sm:text-xl font-bold text-gray-900 truncate flex-1">(AI) 순회점검대장</h1>
+      </div>
+      </div>
     </header>
-    <main className="max-w-5xl mx-auto p-4 space-y-4">
+    <main className="max-w-none mx-auto py-4 px-2 sm:px-4 space-y-4">
       {error && <p role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800">{error}</p>}
       {loadError &&<div role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800"><p>{loadError}</p><button onClick={load} className={SECONDARY}>다시 불러오기</button></div>}
       {draft && project ? <PatrolLedgerForm key={editingId ?? 'new'} project={project} initialDraft={draft} editing={editingId !== null} saving={saving} onSave={save} onCancel={() => { setDraft(null); setEditingId(null); setError(null) }} />
@@ -146,13 +148,13 @@ export default function PatrolLedgerPage() {
           <PatrolLedgerDetail record={selected} busy={busy} downloading={downloading} canEdit={selected.created_by === userId}
             onBack={() => { setSelected(null); setError(null) }}
             canDelete={selected.created_by === userId || project.created_by === userId || userProfile?.role === '발주청'}
-            onDownload={download} onDelete={() => setConfirmDelete(true)} onEdit={() => {
+            onDownload={() => download(selected)} onDelete={() => setConfirmDelete(true)} onEdit={() => {
               if (selected.created_by !== userId) return
               setEditingId(selected.id)
               setDraft(patrolLedgerToDraft(selected))
               setError(null)
             }} />
-        </> : loading ? <LoadingSpinner /> : !loadError && <PatrolLedgerList records={records} onSelect={setSelected} />}
+        </> : loading ? <LoadingSpinner /> : !loadError && <PatrolLedgerList records={records} onSelect={setSelected} onStartInspection={start} startDisabled={!project || loading || busy} onDownload={download} downloadDisabled={!project || busy} />}
     </main>
     {confirmDelete && selected && <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true" aria-labelledby="patrol-delete-title" onKeyDown={event => {
       if (event.key === 'Escape' && !deleting) setConfirmDelete(false)
@@ -167,7 +169,7 @@ export default function PatrolLedgerPage() {
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
         <h2 id="patrol-delete-title" className="text-lg font-semibold text-gray-900">점검 삭제</h2>
         <p className="mt-3 text-sm text-gray-600">{selected.inspection_date} {selected.inspector_name}님의 점검을 삭제하시겠습니까?</p>
-        <div className="flex justify-end gap-2 mt-4">
+        <div className="flex flex-wrap justify-end gap-2 mt-4">
           <button autoFocus disabled={deleting} className={SECONDARY} onClick={() => setConfirmDelete(false)}>취소</button>
           <button disabled={deleting} onClick={remove} className="min-h-[44px] px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50">{deleting ? '삭제 중' : '삭제'}</button>
         </div>
