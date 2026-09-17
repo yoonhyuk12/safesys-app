@@ -17,6 +17,9 @@ import {
   X,
 } from 'lucide-react'
 import AccidentEntryModal from '@/components/dashboard/AccidentEntryModal'
+import AccidentReportDetail from '@/components/project/accident-report/AccidentReportDetail'
+import { formatAccidentDate } from '@/lib/accident-report-format'
+import { downloadAccidentReportHwpx } from '@/lib/hwpx/accident-report-hwpx-export'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { BRANCH_OPTIONS } from '@/lib/constants'
 import { isOrganizationInUserScope } from '@/lib/organization-scope'
@@ -334,6 +337,14 @@ export default function AccidentAnalysisView({
   const [deleteError, setDeleteError] = useState('')
   /** 사고 이력 표 썸네일. 사고 id → 첫 사진 data URL, 사진이 없으면 null. 목록을 다시 읽으면 비운다. */
   const [photoById, setPhotoById] = useState<Map<string, string | null>>(new Map())
+  /** 행을 눌러 연 사고 상세. 서류철 상세와 같은 내용을 모달로 보여준다. null이면 닫힌 상태다. */
+  const [detailTarget, setDetailTarget] = useState<ProjectAccident | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
+  const [downloadingHwpx, setDownloadingHwpx] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
+  /** 늦게 도착한 이전 상세 응답을 버리는 요청 번호 */
+  const detailSeqRef = useRef(0)
   /** 크게 보기로 연 사진. { src, alt } 이며 null이면 닫힌 상태다. */
   const [enlargedPhoto, setEnlargedPhoto] = useState<{ src: string; alt: string } | null>(null)
   /** 썸네일을 읽는 중이거나 읽기를 마친 사고 id. 같은 사고를 두 번 요청하지 않는다. */
@@ -731,6 +742,74 @@ export default function AccidentAnalysisView({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [enlargedPhoto])
 
+  /** 표에 보이는 이름과 같은 규칙으로 상세 제목에 쓸 프로젝트명을 고른다. */
+  const accidentProjectName = (accident: ProjectAccident): string =>
+    (accident.project_id ? projectMap.get(accident.project_id)?.project_name : null)
+      ?? accident.external_project_name
+      ?? '프로젝트 미상'
+
+  /** 보고서 항목까지 읽어 상세 모달에 채운다. 실패하면 모달 안에서 다시 시도할 수 있게 오류만 남긴다. */
+  const loadDetailInto = async (accident: ProjectAccident) => {
+    const seq = ++detailSeqRef.current
+    setDetailLoading(true)
+    setDetailError('')
+    try {
+      const detail = await getProjectAccidentDetail(accident.id)
+      if (detailSeqRef.current !== seq) return
+      setDetailTarget(detail)
+    } catch (caught) {
+      if (detailSeqRef.current !== seq) return
+      console.error('사고 상세 조회 실패', caught)
+      setDetailError('보고서 항목을 불러오지 못했습니다.')
+    } finally {
+      if (detailSeqRef.current === seq) setDetailLoading(false)
+    }
+  }
+
+  const openDetail = (accident: ProjectAccident) => {
+    setDetailTarget(accident)
+    setDownloadError('')
+    if (accident.report_details === undefined) void loadDetailInto(accident)
+  }
+
+  const closeDetail = () => {
+    detailSeqRef.current += 1
+    setDetailTarget(null)
+    setDetailLoading(false)
+    setDetailError('')
+    setDownloadError('')
+  }
+
+  // 상세 모달은 Esc로도 닫는다. 사진 크게 보기가 위에 떠 있으면 그쪽이 먼저 닫힌다.
+  useEffect(() => {
+    if (!detailTarget || enlargedPhoto) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeDetail()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [detailTarget, enlargedPhoto])
+
+  const handleDownloadHwpx = async () => {
+    if (!detailTarget || detailTarget.report_details === undefined) return
+    setDownloadError('')
+    setDownloadingHwpx(true)
+    try {
+      await downloadAccidentReportHwpx(detailTarget, accidentProjectName(detailTarget))
+    } catch (caught) {
+      setDownloadError(caught instanceof Error && caught.message ? caught.message : '한글 문서를 만들지 못했습니다.')
+    } finally {
+      setDownloadingHwpx(false)
+    }
+  }
+
+  /** 행의 버튼·펼침 요소를 누른 것은 상세 열기로 치지 않는다. */
+  const handleRowClick = (event: React.MouseEvent<HTMLTableRowElement>, accident: ProjectAccident) => {
+    const target = event.target as HTMLElement
+    if (target.closest('button, a, summary, details, input, select, textarea')) return
+    openDetail(accident)
+  }
+
   const openCreateModal = () => {
     setEditingAccident(null)
     setActionError('')
@@ -746,7 +825,7 @@ export default function AccidentAnalysisView({
     setEditOpeningId(accident.id)
     setActionError('')
     try {
-      const detail = await getProjectAccidentDetail(accident.id)
+      const detail = accident.report_details === undefined ? await getProjectAccidentDetail(accident.id) : accident
       setEditingAccident(detail)
       setIsModalOpen(true)
     } catch (caught) {
@@ -1504,7 +1583,11 @@ export default function AccidentAnalysisView({
                       const isExternalSite = !accident.project_id
                       const compApproved = isCompApproved(accident)
                       return (
-                        <tr key={accident.id} className="align-top">
+                        <tr
+                          key={accident.id}
+                          onClick={(event) => handleRowClick(event, accident)}
+                          className="align-top cursor-pointer hover:bg-gray-50"
+                        >
                           <td className="px-3 py-3">
                             <p className="font-medium text-gray-900">
                               {projectName}
@@ -1631,6 +1714,55 @@ export default function AccidentAnalysisView({
         onClose={closeModal}
         onSubmit={handleSubmit}
       />
+
+      {detailTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-6" role="presentation" onClick={closeDetail}>
+          <div
+            className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-white shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="accident-detail-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-2 bg-blue-600 px-4 py-3 text-white">
+              <div className="min-w-0">
+                <h2 id="accident-detail-title" className="truncate text-sm font-semibold sm:text-base">
+                  {formatAccidentDate(detailTarget.accident_at)} 사고 상세
+                </h2>
+                <p className="truncate text-xs text-blue-100">{accidentProjectName(detailTarget)}</p>
+              </div>
+              <button type="button" onClick={closeDetail} aria-label="닫기" className="rounded-md p-2 hover:bg-blue-700">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-3 sm:p-4">
+              <AccidentReportDetail
+                accident={detailTarget}
+                projectName={accidentProjectName(detailTarget)}
+                canEdit={canManageAccidents}
+                canDelete={canManageAccidents}
+                deleting={deletingId === detailTarget.id}
+                onEdit={() => {
+                  const target = detailTarget
+                  closeDetail()
+                  void openEditModal(target)
+                }}
+                onDelete={() => {
+                  const target = detailTarget
+                  closeDetail()
+                  askDelete(target)
+                }}
+                onDownloadHwpx={() => void handleDownloadHwpx()}
+                downloading={downloadingHwpx}
+                downloadError={downloadError}
+                detailLoading={detailLoading}
+                detailError={detailError}
+                onRetryDetail={() => void loadDetailInto(detailTarget)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {enlargedPhoto && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60]" onClick={() => setEnlargedPhoto(null)} role="dialog" aria-modal="true" aria-label="사고 사진 크게 보기">
