@@ -1,6 +1,154 @@
 # 작업 로그
 
 <!-- worklog -->
+260917_193153 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정, safesys-app/src/components/project/patrol-ledger/PatrolLedgerDetail.tsx 수정, safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정, safesys-app/src/components/project/patrol-ledger/PatrolLedgerList.tsx 수정
+260917_192654 : plans/20260917_AI_순회점검대장/brief-G-design-align.md 추가 — "# Worker G 브리프 — 순회점검대장 화면을 다른 점검 서류철과 같은 디자인·색상으로 통일 너는 Saf…"
+260917_192418 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정, safesys-app/tests/patrol-ledger-records.test.mjs 수정
+260917_192334 : safesys-app/src/lib/patrol-ledger/records.ts 수정 — "if (!options.skipSignature && isBlankPatrolLedgerSignature(d…"
+260917_192332 : safesys-app/src/lib/patrol-ledger/records.ts 수정 — "/** 저장 전 검증. 화면은 저장 버튼에서 서명 모달을 띄우므로, 그 직전엔 `skipSignature`로…"
+260917_192114 : safesys-app/src/components/Dashboard.tsx 수정, safesys-app/src/components/dashboard/ContractorDashboard.tsx 수정, safesys-app/src/components/dashboard/ProjectCardsGrid.tsx 수정, safesys-app/src/components/project/ProjectCard.tsx 수정
+260917_191844 : safesys-app/src/app/project/[id]/page.tsx 수정 — "pendingCount={name === '안전' ? (hqPendingCount || 0) + (safet…"
+260917_191841 : safesys-app/src/app/project/[id]/page.tsx 수정 — "const [issueLedgerPendingCount, setIssueLedgerPendingCount] …"
+260917_191838 : safesys-app/src/app/project/[id]/page.tsx 수정 — "setIssueLedgerPendingCount(hqIssuePending + safetyFindingPen…"
+260917_191716 : safesys-app/src/app/project/[id]/page.tsx 수정
+260917_191158 : safesys-app/tests/patrol-ledger-sql.test.mjs 수정 — "// 현장을 보는 비작성자(소유자·관할 발주청)는 행이 보여도 트리거가 내용 변경을 거부하고, 관할 밖은 행…"
+260917_191147 : safesys-app/tests/patrol-ledger-sql.test.mjs 수정
+260917_191030 : safesys-app/tests/fixtures/patrol-ledger-db.mjs 수정 — "await db.exec(readFileSync(THEME_PATH, 'utf8')) await db.exe…"
+260917_191028 : safesys-app/tests/fixtures/patrol-ledger-db.mjs 수정 — "export const THEME_PATH = path.join(repoRoot, 'database', '2…"
+260917_191019 : safesys-app/src/app/project/[id]/issue-management/page.tsx 수정
+260917_190948 : docs/database.md 수정 — "→ `database/20260917-1900_순회점검_주간테마.sql` → `database/2026091…"
+260917_190944 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerDetail.tsx 수정 — "<div className="p-3 bg-gray-50 rounded-lg border border-gray…"
+260917_190936 : safesys-app/src/app/api/projects/[id]/delete/route.ts 수정 — ".from('patrol_ledger_inspections') .select('finding_photo_ur…"
+260917_190933 : safesys-app/src/lib/patrol-ledger/records.ts 수정 — "finding_photo_url, finding_photo_kind, theme, action_text, a…"
+260917_190931 : safesys-app/src/lib/patrol-ledger/types.ts 수정 — "/** 점검항목 생성에 쓴 주요 테마 (한 줄, 200자 이하). 없으면 빈 문자열 */ theme: str…"
+260917_190928 : database/20260917-2000_순회점검_조치사항.sql 추가 — "-- 순회점검 지적사항의 조치 결과(조치내용·조치사진·조치일)를 기록하는 컬럼과, 작성자가 아닌 현장 사용자…"
+260917_185349 : safesys-app/src/components/dashboard/PatrolLedgerStatusView.tsx 수정
+260917_185243 : safesys-app/src/components/dashboard/PatrolLedgerStatusView.tsx 수정
+260917_184639 : safesys-app/tests/patrol-ledger-status.test.mjs 수정
+260917_184622 : safesys-app/src/lib/patrol-ledger/status-aggregate.ts 수정 — "// 순회점검 주간 범위·점검 대상 판정과 본부·지사·현장별 집계(등록 현장·분기 대상·TBM·순회점검)를 …"
+260917_184330 : safesys-app/package.json 수정 — "tests/patrol-ledger-hwpx.test.mjs tests/patrol-ledger-themes…"
+260917_184329 : safesys-app/tests/patrol-ledger-status.test.mjs 수정
+260917_184246 : safesys-app/src/components/dashboard/PatrolLedgerStatusView.tsx 수정 — "type Level = 'hq' | 'branch' | 'project' const ORG_ORDER = {…"
+260917_184244 : safesys-app/src/components/dashboard/PatrolLedgerStatusView.tsx 수정 — "// 본부·지사 표는 직제 순서(BRANCH_OPTIONS의 본부 순서와 본부별 지사 순서)로 나열한다. c…"
+260917_184241 : safesys-app/src/lib/patrol-ledger/status-aggregate.ts 수정 — "})).sort((a, b) => orgRank(order?.hqs, a.hq) - orgRank(order…"
+260917_184238 : safesys-app/src/lib/patrol-ledger/status-aggregate.ts 수정 — "/** 직제 순서. hqs는 본부 순서, branches는 본부별 지사 순서(BRANCH_OPTIONS 형태…"
+260917_184151 : plans/20260917_AI_순회점검대장/report-E-dashboard.md 추가, safesys-app/src/app/safe/branch/[branch]/patrol-ledger/page.tsx 추가, safesys-app/src/app/safe/patrol-ledger/page.tsx 추가, safesys-app/src/components/Dashboard.tsx 수정, safesys-app/src/components/dashboard/PatrolLedgerStatusView.tsx 추가
+260917_183716 : docs/database.md 수정, safesys-app/package.json 수정, safesys-app/src/lib/patrol-ledger/status-aggregate.ts 추가, safesys-app/tests/fixtures/patrol-ledger-db.mjs 수정, safesys-app/tests/patrol-ledger-sql.test.mjs 수정, safesys-app/tests/patrol-ledger-status.test.mjs 추가 외 1건
+260917_183501 : safesys-app/src/app/api/ai/patrol-ledger/route.ts 수정, safesys-app/src/components/project/patrol-ledger/PatrolLedgerDetail.tsx 수정, safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정, safesys-app/src/components/project/patrol-ledger/PatrolLedgerList.tsx 수정
+260917_183407 : safesys-app/tests/patrol-ledger-route.test.mjs 수정
+260917_183126 : plans/20260917_AI_순회점검대장/brief-F-form-theme.md 추가 — "# Worker F 브리프 — 순회점검 작성 폼의 "주요 테마" 칸과 AI 반영 너는 SafeSys(Next…"
+260917_183105 : plans/20260917_AI_순회점검대장/brief-E-dashboard.md 추가 — "# Worker E 브리프 — 안전현황 대시보드 "공사감독 순회점검" 카드·현황 뷰·금주 점검 테마 너는 S…"
+260917_183024 : plans/20260917_AI_순회점검대장/brief-D-theme-route.md 추가 — "# Worker D 브리프 — 순회점검 주간 테마: AI 라우트 반영 + SQL·순수 함수 테스트 너는 Sa…"
+260917_182951 : database/20260917-1900_순회점검_주간테마.sql 수정
+260917_182921 : safesys-app/src/lib/patrol-ledger/records.ts 수정
+260917_182910 : safesys-app/src/lib/patrol-ledger/themes.ts 추가 — "// 순회점검 금주 점검 테마 — 주 시작일 계산, 조회·저장, 편집 권한 판정(본부급 발주청) import…"
+260917_182852 : safesys-app/src/lib/patrol-ledger/types.ts 수정 — "/** TBM이 없거나 사용자가 직접 고쳐 쓴 작업내용. 있으면 TBM 대신 이 내용을 쓴다 */ workD…"
+260917_182847 : safesys-app/src/lib/patrol-ledger/types.ts 수정 — "/** 사진 구분. finding=지적사진(지적사항 동반), overview=전경·점검사진(지적사항 없음) …"
+260917_182843 : database/20260917-1900_순회점검_주간테마.sql 추가 — "-- 순회점검 금주 점검 테마(회사 공통, 주 단위)와 기록별 적용 테마 컬럼을 추가한다. -- 배경: 안전…"
+260917_181752 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "import { Pencil, Trash2, Upload } from 'lucide-react'"
+260917_181750 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "{draft.finding_photo_url && <div className="mt-2 relative in…"
+260917_181339 : safesys-app/tests/patrol-ledger-records.test.mjs 수정
+260917_181321 : safesys-app/tests/fixtures/patrol-ledger-db.mjs 수정 — "const row = { project_id: IDS.ownerProject, inspection_date:…"
+260917_181244 : docs/database.md 수정 — "적용 순서는 `database/20260917-1700_순회점검대장.sql` → `database/20260…"
+260917_181240 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerDetail.tsx 수정 — "import { PATROL_LEDGER_PHOTO_KIND_LABELS, type PatrolLedgerI…"
+260917_181238 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerDetail.tsx 수정 — "<div className="p-3 bg-gray-50 rounded-lg border border-gray…"
+260917_181231 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "import { PATROL_LEDGER_PHOTO_KIND_LABELS, PATROL_LEDGER_PHOT…"
+260917_181228 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "<label className={`block text-sm font-medium ${draft.finding…"
+260917_181224 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "<div> <div className="flex flex-wrap items-center gap-2"> <p…"
+260917_181219 : safesys-app/tests/patrol-ledger-sql.test.mjs 수정
+260917_181212 : safesys-app/tests/fixtures/patrol-ledger-db.mjs 수정 — "await db.exec(readFileSync(MIGRATION_PATH, 'utf8')) await db…"
+260917_181210 : safesys-app/tests/fixtures/patrol-ledger-db.mjs 수정 — "export const MIGRATION_PATH = path.join(repoRoot, 'database'…"
+260917_181207 : safesys-app/src/lib/patrol-ledger/records.ts 수정 — "// 전경사진이면 지적사항은 없다 — DB CHECK와 같은 규칙을 저장 전에 맞춘다. finding_tex…"
+260917_181205 : safesys-app/src/lib/patrol-ledger/records.ts 수정 — "signature: '', tbm_work_summary: '', items: [], finding_text…"
+260917_181203 : safesys-app/src/lib/patrol-ledger/records.ts 수정 — "const SELECT_COLUMNS = 'id, project_id, inspection_date, con…"
+260917_181200 : safesys-app/src/lib/patrol-ledger/records.ts 수정 — "import { PATROL_LEDGER_TABLE, type PatrolLedgerAiItem, type …"
+260917_181157 : safesys-app/src/lib/patrol-ledger/records.ts 수정 — "finding_text: string finding_photo_url: string | null findin…"
+260917_181156 : safesys-app/src/lib/patrol-ledger/types.ts 수정 — "export const PATROL_LEDGER_PHOTO_KINDS = ['finding', 'overvi…"
+260917_181153 : safesys-app/src/lib/patrol-ledger/types.ts 수정 — "/** 지적사항 (여러 줄 가능). 전경사진이면 항상 빈 문자열 */ finding_text: string …"
+260917_181150 : database/20260917-1800_순회점검_사진구분.sql 추가 — "-- 순회점검대장 사진이 지적사진인지 전경(점검)사진인지 구분하는 컬럼을 추가한다. -- 배경: 양식의 사진…"
+260917_174240 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정 — "const signatureRef = cell($, 1, 2, 7).find('hp\\:run').attr(…"
+260917_174239 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정 — "const refs = new Set(cell($, t, r, c).find('hp\\:run').map((…"
+260917_174237 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정 — "const colorOf = id => header(`hh\\:charPr[id="${id}"]`).attr…"
+260917_174234 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정 — "// 파랑(19)·빨강(24)·회색(25) 칸은 채울 때 검정 복제본으로 바뀐다. 그 외 칸과 (서명) 칸은…"
+260917_174231 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정 — "// header는 원본과 같되, 채운 글자용 검정 charPr 복제본(id 26 이상)만 charPrope…"
+260917_174123 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정
+260917_174058 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정 — ": selected && project ? <> <PatrolLedgerDetail record={selec…"
+260917_174055 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerDetail.tsx 수정 — "{canDelete && <button disabled={busy} onClick={onDelete} cla…"
+260917_174052 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerDetail.tsx 수정 — "export default function PatrolLedgerDetail({ record, canEdit…"
+260917_174047 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 — "const match = new RegExp(`<hh:charPr id="${id}"[^>]*>[\\s\\S…"
+260917_174033 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정
+260917_174019 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정
+260917_173912 : .claude/rules/safesys/design-system.md 수정 — "- 사진 업로드는 점선 업로드 영역 + 공용 `components/ui/ImageEditor`(크롭·회전) …"
+260917_173912 : docs/design-system.md 수정 — "**아이콘**은 `lucide-react`만 쓴다. 기본 `h-4 w-4`(214), 섹션 제목 옆 `h-5…"
+260917_173911 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정
+260917_173841 : safesys-app/src/lib/patrol-ledger/records.ts 수정 — "const PHOTO_BUCKET = 'safety-inspection-photos' /** 원본 파일이든 …"
+260917_173322 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정
+260917_172321 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "return <form className="space-y-4" onSubmit={async event => …"
+260917_172316 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "export default function PatrolLedgerForm({ project, initialD…"
+260917_172313 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "/** 페이지 헤더(py-3 + 44px 버튼 + 1px 테두리) 아래에 폼 툴바가 붙도록 하는 sticky…"
+260917_172310 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정 — "<PatrolLedgerForm key={editingId ?? 'new'} project={project}…"
+260917_172307 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정 — "import PatrolLedgerForm from '@/components/project/patrol-le…"
+260917_172305 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정
+260917_172203 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정
+260917_172142 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정 — "{draft && project ? <PatrolLedgerForm key={editingId ?? 'new…"
+260917_172140 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정 — "{!draft && !selected && <button disabled={!project || loadin…"
+260917_172134 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정 — "import PatrolLedgerForm, { PATROL_LEDGER_FORM_ID } from '@/c…"
+260917_172132 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "export default function PatrolLedgerForm({ project, initialD…"
+260917_172129 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "/** 페이지 헤더의 저장 버튼이 form 속성으로 이 폼을 제출한다. */ export const PATR…"
+260917_172127 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "{error && <p role="alert" className="bg-white rounded-lg sha…"
+260917_172123 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "return <form id={PATROL_LEDGER_FORM_ID} className="space-y-4…"
+260917_172046 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "<div><p className="block text-sm font-medium text-gray-700">…"
+260917_172041 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "import { useEffect, useRef, useState } from 'react' import {…"
+260917_172006 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정 — "{error && <p role="alert" className="bg-white rounded-lg sha…"
+260917_171935 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정 — "if (!sessionChecked || !userId) return <div className="min-h…"
+260917_171932 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정 — "inspectorAffiliation: userProfile?.branch_division || userPr…"
+260917_171930 : safesys-app/src/lib/patrol-ledger/records.ts 수정 — "export function createPatrolLedgerDraft(init: { districtName…"
+260917_171723 : plans/20260917_AI_순회점검대장/checklist.md 수정 — "# 작업 체크리스트. - [x] 양식 hwpx 구조(표 그리드·셀 주소·그림) 추출과 기존 유사 기능(장비 …"
+260917_171715 : safesys-app/package.json 수정 — ""test:patrol-ledger": "node --test tests/patrol-ledger-recor…"
+260917_171711 : .claude/skills/hwpx-authoring/SKILL.md 수정 — "로컬에 한컴오피스 2022 있음: `C:\Program Files (x86)\Hnc\Office 2022\H…"
+260917_171333 : plans/20260917_AI_순회점검대장/report-C-ui.md 추가
+260917_171206 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정, safesys-app/src/components/project/patrol-ledger/PatrolLedgerList.tsx 수정
+260917_171139 : docs/architecture.md 수정, plans/20260917_AI_순회점검대장/report-B-hwpx.md 추가, safesys-app/src/app/project/[id]/page.tsx 수정, safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 추가, safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 추가, safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 외 1건
+260917_170655 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerDetail.tsx 추가, safesys-app/src/components/project/patrol-ledger/PatrolLedgerList.tsx 추가
+260917_170314 : database/20260917-1700_순회점검대장.sql 추가, database/20260917-1701_merge_projects_patrol_ledger.sql 추가, docs/database.md 수정, plans/20260917_AI_순회점검대장/report-A-data-ai.md 추가, safesys-app/package.json 수정, safesys-app/src/app/api/ai/patrol-ledger/route.ts 수정 외 10건
+260917_165456 : safesys-app/package.json 수정, safesys-app/src/app/api/ai/patrol-ledger/route.ts 추가, safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 추가, safesys-app/src/lib/patrol-ledger/records.ts 추가, safesys-app/src/lib/patrol-ledger/tbm-work.ts 추가, safesys-app/tests/patrol-ledger-hwpx.test.mjs 추가 외 2건
+260917_164847 : plans/20260917_AI_순회점검대장/brief-C-ui.md 추가 — "# Worker C 브리프 — 순회점검대장 화면 + 캐비닛 폴더 너는 SafeSys(Next.js 15 · …"
+260917_164721 : plans/20260917_AI_순회점검대장/brief-B-hwpx.md 추가 — "# Worker B 브리프 — 순회점검대장 HWPX 출력 (템플릿 치환) 너는 SafeSys(Next.js …"
+260917_164628 : plans/20260917_AI_순회점검대장/brief-A-data-ai.md 추가 — "# Worker A 브리프 — 순회점검대장 데이터 계층 + AI 라우트 너는 SafeSys(Next.js 1…"
+260917_164508 : plans/20260917_AI_순회점검대장/context-notes.md 추가 — "# 컨텍스트 노트. - 요청 원문. "(AI) 순회점검대장 하나 넣어주고, 입력 형태는 공사감독_순회점검.h…"
+260917_164455 : plans/20260917_AI_순회점검대장/checklist.md 추가 — "# 작업 체크리스트. - [x] 양식 hwpx 구조(표 그리드·셀 주소·그림) 추출과 기존 유사 기능(장비 …"
+260917_164450 : plans/20260917_AI_순회점검대장.md 추가 — "# (AI) 순회점검대장. 발주청 캐비닛 C(점검) 그룹에 `︵AI︶ 순회점검대장` 폴더를 추가한다. 입력 …"
+260917_164419 : safesys-app/public/순회점검 양식.hwpx 추가
+260917_164416 : safesys-app/src/lib/patrol-ledger/types.ts 추가 — "// (AI) 순회점검대장 — 작업장 순회 점검표(공사감독_순회점검.hwpx 양식)의 공용 타입과 상수. 데…"
+260917_161813 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260917_161737 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정, safesys-app/src/lib/accident-analysis-calculation.ts 수정, safesys-app/src/lib/accident-analysis.ts 수정, safesys-app/tests/accident-report-details.test.mjs 수정
+260917_161118 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정
+260917_160907 : safesys-app/src/lib/accident-analysis.ts 수정
+260917_155826 : safesys-app/tests/project-accidents-sql.test.mjs 수정
+260917_155738 : docs/database.md 수정, safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정, safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정, safesys-app/src/components/project/accident-report/prefill-merge.ts 수정, safesys-app/src/lib/accident-analysis-types.ts 수정, safesys-app/src/lib/accident-analysis.ts 수정 외 2건
+260917_155611 : database/20260917-1555_사고보고_산재신청_연도.sql 추가 — "-- 사고 이력에 산재신청 연도(workers_comp_claim_year)를 기록하는 컬럼을 추가하고 기존…"
+260917_154922 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260917_154817 : safesys-app/src/lib/accident-analysis-types.ts 수정, safesys-app/src/lib/accident-analysis.ts 수정
+260917_154124 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260917_154113 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정, safesys-app/tests/project-accident-report.test.mjs 수정
+260917_152636 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260917_144855 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260917_144709 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정, safesys-app/src/lib/accident-analysis-types.ts 수정, safesys-app/src/lib/accident-analysis.ts 수정, safesys-app/tests/project-accident-report.test.mjs 수정
+260917_142256 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260917_142037 : .claude/rules/README.md 수정, .claude/rules/common/coding-style.md 수정, .claude/rules/common/git-workflow.md 수정, .claude/rules/common/testing.md 수정, CLAUDE.md 수정, docs/conventions.md 수정 외 2건
+260917_142025 : .claude/rules/README.md 수정, .claude/rules/common/coding-style.md 수정, .claude/rules/common/git-workflow.md 수정, .claude/rules/common/testing.md 수정, CLAUDE.md 수정, docs/conventions.md 수정 외 2건
+260917_141920 : .claude/rules/README.md 수정, .claude/rules/common/coding-style.md 수정, .claude/rules/common/git-workflow.md 수정, .claude/rules/common/testing.md 수정, CLAUDE.md 수정, docs/conventions.md 수정 외 2건
+260917_141804 : safesys-app/src/lib/accident-analysis.ts 수정
+260917_141644 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정, safesys-app/src/lib/accident-analysis.ts 수정
+260917_141408 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260917_140403 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260917_125919 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260917_125805 : .claude/rules/typescript/hooks.md 삭제, .claude/rules/typescript/patterns.md 삭제
+260917_125630 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260917_124714 : CLAUDE.md 수정, docs/conventions.md 수정
+260917_092709 : .claude/rules/typescript/hooks.md 삭제, .claude/rules/typescript/patterns.md 삭제
+260917_092212 : .claude/rules/README.md 수정, .claude/rules/common/coding-style.md 수정, .claude/rules/common/git-workflow.md 수정, .claude/rules/common/testing.md 수정, CLAUDE.md 수정
+260917_091919 : .claude/rules/safesys/deploy.md 추가, .claude/rules/safesys/design-system.md 추가, .claude/rules/safesys/language.md 추가, .claude/rules/safesys/roles.md 추가, .claude/rules/safesys/signature-overlay.md 추가, .claude/rules/safesys/surgical-change.md 추가
 260916_1903 : 사고보고 한글 본문 글꼴과 자동·수동 줄바꿈 정렬을 통일하고 줄간격·장평·자간 및 14~12pt 균일 축소로 본문1쪽+사진대지1쪽을 맞췄다. 실제 저장보고서·AI개요·빈줄·200자캡션 한글2022 2쪽 검증, 부모 전체237 PASS/기존 TODO1 및 HWPX48개·타입·린트 통과.
 260916_1820 : 사고보고 업로드 시 문서 사실을 모아 사고 개요를 1~3문장으로 자동 작성하도록 AI 지시문과 스키마 설명을 변경했다. 원본 PDF·HWPX 실제 AI 및 브라우저 자동 채움, 가상 저장·한글2022 3쪽과 사진2컷 검증. 전체 235 PASS/기존 TODO 1, 타입·린트 및 부모 추출 회귀 36개 통과.
 260916_1810 : 사고보고 PDF 자동 추출과 기존 한글 출력의 작업·원인·피해현황·미신고 사유 중복을 보정했다. 파주 원본 AI 실측·브라우저·한글2022 3쪽 전체 확인 및 7개 문구 각1회, 사진2컷 보존. 전체 233 PASS/기존 TODO 1, 타입·린트 통과.

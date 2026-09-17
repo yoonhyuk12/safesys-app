@@ -29,14 +29,16 @@ SafeSys — Next.js 15 · React 19 · Supabase로 만든 한국 건설 안전관
 
 ## 핵심 제약 (항상 적용, 위반 금지)
 
-이 6가지는 링크를 안 열어도 반드시 지킨다. 상세는 각 링크.
+핵심 제약의 정본은 [`.claude/rules/safesys/`](./.claude/rules/README.md)에 주제별로 나뉘어 있다. `paths:`가 없는 규칙은 매 세션 자동 로드되고, 경로 한정 규칙은 해당 파일을 읽을 때 로드된다. 아래 표는 색인이지 본문이 아니다. 규칙 본문은 각 파일에서만 고친다.
 
-1. **Advisor / Worker 역할 분담.** 너는 Advisor다 — 판단·설계·검증·보고에 집중하고 구현 노동은 Worker에게 위임한다 — Worker는 Orca orchestration의 Codex `gpt-6-astra`, 추론 강도 `low`로 실행한다(`--agent codex --model gpt-6-astra --effort low`). 사용자가 다른 설정을 명시하면 그 지시를 따른다. Worker의 완료 보고를 그대로 믿지 말고 diff·테스트로 직접 확인한 뒤 승인한다. 위임 오버헤드가 더 큰 사소한 수정은 직접 처리해도 된다. → [conventions.md](./docs/conventions.md#모델-역할-분담-advisor--worker)
-2. **main 푸시 = 즉시 운영 배포.** `git push origin main`은 Vercel 자동 프로덕션 배포를 유발한다. main 푸시는 곧 운영 반영임을 인지하고 진행한다. `npm run build` 프로덕션 빌드는 동의 없이 시작하지 않는다. → [environment.md](./docs/environment.md#배포--main-푸시--자동-배포-중요)
-3. **한국어로 답하고, 문장을 콜론(`:`)으로 끝내지 않는다.** 종결부는 `.`, `?`, `!`. 새 소스 파일 첫 줄엔 역할을 밝히는 한 줄 한국어 주석을 단다. → [conventions.md](./docs/conventions.md#5-no-closing-colons-한국어-출력)
-4. **외과적 변경.** 요청과 무관한 코드/포맷을 "개선"하지 않는다. 변경된 모든 줄이 요청으로 직접 추적되어야 한다. 코드를 건드렸으면 "완료" 전에 린트·타입체크·테스트를 돌린다. → [conventions.md](./docs/conventions.md#작업-행동-가이드라인-10개)
-5. **서명 이미지는 서명 안내 문구와 겹친다.** Excel·PDF 등 출력물의 서명란에 `(서명 또는 인)`, `(인 또는 서명)` 같은 안내 문구가 있으면, 서명 이미지를 문구 앞이나 뒤의 별도 공간에 두지 않고 해당 문구 위에 겹쳐 배치한다. 성명·직책 텍스트는 가리지 않는다.
-6. **UI는 새로 디자인하지 않고 디자인 시스템을 따른다.** 화면·컴포넌트를 만들 땐 [design-system.md](./docs/design-system.md)에서 클래스 문자열을 복사해 쓴다. 최소한 이것만은 외운다 — 카드 `bg-white rounded-lg shadow-sm border border-gray-200`, 주 버튼 `px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors`, 입력 `border border-gray-300 rounded-md`, 배지 `rounded-full text-xs font-medium bg-{색}-100 text-{색}-800`, 본문 `text-sm`·표 `text-xs`, 아이콘은 lucide `h-4 w-4`(이모지 금지), 탭 영역 `min-h-[44px]`. 색은 상태다(red=위험, amber=주의, green=정상, blue=진행). 다크모드는 전역 차단되어 있으니 `dark:`를 쓰지 않는다. → [design-system.md](./docs/design-system.md)
+| 규칙 파일 | 한 줄 요약 | 로드 |
+|-----------|-----------|------|
+| [roles.md](./.claude/rules/safesys/roles.md) | 너는 Advisor다. 구현은 Codex `gpt-6-astra` low Worker에게 위임하고 diff·테스트로 직접 검증한다 | 항상 |
+| [deploy.md](./.claude/rules/safesys/deploy.md) | main 푸시 = 즉시 운영 배포. `npm run build`는 동의 없이 시작 금지 | 항상 |
+| [language.md](./.claude/rules/safesys/language.md) | 한국어로 답하고 문장을 콜론으로 끝내지 않는다. 새 소스 파일 첫 줄에 한국어 역할 주석 | 항상 |
+| [surgical-change.md](./.claude/rules/safesys/surgical-change.md) | 요청과 무관한 코드는 손대지 않는다. 완료 전 린트·타입체크·테스트 | 항상 |
+| [signature-overlay.md](./.claude/rules/safesys/signature-overlay.md) | 출력물 서명 이미지는 `(서명 또는 인)` 문구 위에 겹친다 | `src/lib/{excel,reports,hwpx}`·`scripts` 편집 시 |
+| [design-system.md](./.claude/rules/safesys/design-system.md) | UI는 새로 디자인하지 않고 [design-system.md](./docs/design-system.md) 클래스를 복사해 쓴다. `dark:` 금지 | `*.tsx`·`*.css` 편집 시 |
 
 ## 빠른 명령어
 
@@ -48,6 +50,7 @@ npm install              # 의존성 설치 (node_modules 없으면 dev/build �
 npm run dev              # 개발 서버 (http://localhost:3000)
 npm run lint             # ESLint
 npx tsc --noEmit         # 타입 점검
+npm run test:<도메인>    # node --test 단위 테스트 (예: test:accident-report). 전체 실행용 npm test는 없다
 npm run build            # 프로덕션 빌드 (동의 없이 시작 금지)
 ```
 

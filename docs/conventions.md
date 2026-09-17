@@ -103,7 +103,7 @@ Don't assume. Don't hide confusion. Surface tradeoffs. 구현 전에.
 
 코드를 건드렸으면 "완료" 전에 테스트를 돌려라.
 
-- `npm test`, `pytest`, `cargo test` 등 프로젝트가 쓰는 걸 돌려라.
+- SafeSys는 `npm run test:<도메인>`(node --test)을 돌려라. 다른 프로젝트라면 `npm test`, `pytest`, `cargo test` 등 그 프로젝트가 쓰는 것.
 - 통과하면 결과 보고, 실패하면 고치고 재실행.
 - 테스트 셋업이 없으면 최소한 빌드/컴파일을 확인하라.
 - "끝/완료/다 됐어" 신호 전에 선제적으로 돌려라. LLM이 가장 자주 건너뛰는 단계다.
@@ -173,7 +173,7 @@ Don't assume. Don't hide confusion. Surface tradeoffs. 구현 전에.
 
 - **최소 커버리지 80%.** 단위/통합/E2E 모두 요구.
 - **TDD**: RED(테스트 먼저·실패 확인) → GREEN(최소 구현·통과) → REFACTOR → 커버리지 검증.
-- 현재 SafeSys는 자동화 테스트 프레임워크가 없다. 린트·타입체크·수동 시나리오 검증이 필수다. [environment.md](./environment.md)의 검증 명령 참조.
+- 테스트는 Node 내장 러너(`node --test`)로 `safesys-app/tests/*.test.mjs`에 둔다. 도메인별 `npm run test:<도메인>` 스크립트(package.json)로 실행하고, 전체 실행용 `npm test`는 없다. 새 테스트를 만들면 해당 도메인 스크립트에 파일을 추가한다. 린트·타입체크는 [environment.md](./environment.md)의 검증 명령 참조.
 
 ## 계획서 (Plans)
 
