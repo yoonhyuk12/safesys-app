@@ -217,10 +217,22 @@ const toSeoulDateString = (value: string): string | null => {
   return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
 }
 
+const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'] as const
+
+/** 사고일자·보고일자 칸 표기. YY-MM-DD(요일) 형식이며 서울 날짜 기준이다. YYYY-MM-DD 문자열과 ISO 일시 모두 받는다. */
+const formatShortDate = (value?: string | null): string => {
+  if (!value) return '-'
+  const dateString = REPORT_DATE_PATTERN.test(value) ? value : toSeoulDateString(value)
+  if (!dateString) return '-'
+  const date = new Date(`${dateString}T00:00:00Z`)
+  if (Number.isNaN(date.getTime())) return '-'
+  return `${dateString.slice(2)}(${WEEKDAY_LABELS[date.getUTCDay()]})`
+}
+
 /** 보고일 표시값. 보고서를 쓰지 않았거나 형식이 어긋나면 '-'. */
 const formatReportDate = (accident: ProjectAccident): string => {
   const value = accident.report_date ?? accident.report_details?.reportDate ?? ''
-  return REPORT_DATE_PATTERN.test(value) ? formatDate(value) : '-'
+  return REPORT_DATE_PATTERN.test(value) ? formatShortDate(value) : '-'
 }
 
 /** 발생일에서 보고일까지 경과 일수. 어느 한쪽이 없거나 형식이 어긋나면 null. */
@@ -1510,10 +1522,10 @@ export default function AccidentAnalysisView({
                                 <ImageOff className="h-5 w-5" />
                               </div>
                             )}
-                            <p className="mt-1.5">{formatDate(accident.accident_at)}</p>
+                            <p className="mt-1.5 tabular-nums">{formatShortDate(accident.accident_at)}</p>
                           </td>
                           <td className="whitespace-nowrap px-3 py-3 text-center text-gray-600">
-                            <p>{formatReportDate(accident)}</p>
+                            <p className="tabular-nums">{formatReportDate(accident)}</p>
                             {isReportDelayed(accident) && (
                               <p className="mt-1 text-xs font-medium text-red-600">초과 ({reportDelayDays(accident)}일)</p>
                             )}
