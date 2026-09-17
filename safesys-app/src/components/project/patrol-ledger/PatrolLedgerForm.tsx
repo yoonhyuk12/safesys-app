@@ -15,15 +15,16 @@ import {
   validatePatrolLedgerDraft, type PatrolLedgerDraft,
 } from '@/lib/patrol-ledger/records'
 
+/** 페이지 헤더의 저장 버튼이 form 속성으로 이 폼을 제출한다. */
+export const PATROL_LEDGER_FORM_ID = 'patrol-ledger-form'
 const INPUT = 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
 const SECONDARY = 'min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50'
 
-export default function PatrolLedgerForm({ project, initialDraft, saving, onSave, onCancel }: {
+export default function PatrolLedgerForm({ project, initialDraft, saving, onSave }: {
   project: Project
   initialDraft: PatrolLedgerDraft
   saving: boolean
   onSave: (draft: PatrolLedgerDraft) => Promise<void>
-  onCancel: () => void
 }) {
   const [draft, setDraft] = useState(initialDraft)
   const [work, setWork] = useState({ summary: '', count: 0 })
@@ -100,13 +101,14 @@ export default function PatrolLedgerForm({ project, initialDraft, saving, onSave
     } finally { if (alive.current) setUploading(false) }
   }
 
-  return <form className="space-y-4" onSubmit={async event => {
+  return <form id={PATROL_LEDGER_FORM_ID} className="space-y-4" onSubmit={async event => {
     event.preventDefault()
     if (busy || loadingTbm) return
     const invalid = validatePatrolLedgerDraft(draft)
     if (invalid) { setError(invalid); return }
     await onSave(draft)
   }}>
+    {error && <p role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800">{error}</p>}
     <fieldset disabled={busy} className="space-y-4 disabled:opacity-75">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-3">
         <label className="block text-sm font-medium text-gray-700">점검일자
@@ -178,11 +180,6 @@ export default function PatrolLedgerForm({ project, initialDraft, saving, onSave
         <p className="sm:col-span-2 text-xs text-gray-500">점검자 본인이 직접 서명합니다. 내용을 고치면 서명이 지워지므로 모든 입력을 마친 뒤 서명해주세요.</p>
       </div>
     </fieldset>
-    {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
-    <div className="flex justify-end gap-2">
-      <button type="button" disabled={busy} onClick={onCancel} className={SECONDARY}>취소</button>
-      <button type="submit" disabled={busy || loadingTbm} className="min-h-[44px] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{saving ? '저장 중' : '저장'}</button>
-    </div>
     {showSignature && <SignaturePad title="점검자 서명" onSave={signature => { setDraft(current => ({ ...current, signature })); setShowSignature(false) }} onCancel={() => setShowSignature(false)} />}
   </form>
 }

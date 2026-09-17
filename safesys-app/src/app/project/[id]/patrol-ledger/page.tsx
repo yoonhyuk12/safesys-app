@@ -17,7 +17,7 @@ import { downloadPatrolLedgerHwpx } from '@/lib/hwpx/patrol-ledger-hwpx-export'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import PatrolLedgerList from '@/components/project/patrol-ledger/PatrolLedgerList'
 import PatrolLedgerDetail from '@/components/project/patrol-ledger/PatrolLedgerDetail'
-import PatrolLedgerForm from '@/components/project/patrol-ledger/PatrolLedgerForm'
+import PatrolLedgerForm, { PATROL_LEDGER_FORM_ID } from '@/components/project/patrol-ledger/PatrolLedgerForm'
 
 const message = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback
 const SECONDARY = 'min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50'
@@ -137,12 +137,16 @@ export default function PatrolLedgerPage() {
         }}><ArrowLeft className="h-4 w-4" /></button>
         <div className="min-w-0 flex-1"><h1 className="text-xl font-bold text-gray-900">(AI) 순회점검대장</h1><p className="text-sm text-gray-500 truncate">{project?.project_name}</p></div>
         {!draft && !selected && <button disabled={!project || loading || busy} onClick={start} className="min-h-[44px] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 inline-flex items-center gap-2"><Plus className="h-4 w-4" />새 점검</button>}
+        {draft && <div className="flex gap-2">
+          <button type="button" disabled={busy} className={SECONDARY} onClick={() => { setDraft(null); setEditingId(null); setError(null) }}>취소</button>
+          <button type="submit" form={PATROL_LEDGER_FORM_ID} disabled={busy} className="min-h-[44px] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{saving ? '저장 중' : '저장'}</button>
+        </div>}
       </div>
     </header>
     <main className="max-w-5xl mx-auto p-4 space-y-4">
       {error && <p role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800">{error}</p>}
       {loadError &&<div role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800"><p>{loadError}</p><button onClick={load} className={SECONDARY}>다시 불러오기</button></div>}
-      {draft && project ? <PatrolLedgerForm key={editingId ?? 'new'} project={project} initialDraft={draft} saving={saving} onSave={save} onCancel={() => { setDraft(null); setEditingId(null); setError(null) }} />
+      {draft && project ? <PatrolLedgerForm key={editingId ?? 'new'} project={project} initialDraft={draft} saving={saving} onSave={save} />
         : selected && project ? <>
           <button disabled={busy} className={SECONDARY} onClick={() => { setSelected(null); setError(null) }}>목록으로</button>
           <PatrolLedgerDetail record={selected} busy={busy} downloading={downloading} canEdit={selected.created_by === userId}
