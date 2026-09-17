@@ -614,7 +614,8 @@ export default function AccidentEntryModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            {/* 부상자·사망자·휴업일수는 숫자 몇 자리라 좁게 두고, 남는 폭은 산재신청 연도·여부에 준다. */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[6rem_6rem_6rem_minmax(0,1fr)_minmax(0,1fr)]">
               <div>
                 <label htmlFor="accident-injured-count" className={labelClassName}>부상자 수</label>
                 <input id="accident-injured-count" type="number" min="0" step="1" value={draft.injuredCount} onChange={(event) => updateDraft('injuredCount', event.target.value)} disabled={submitting} className={inputClassName} inputMode="numeric" />
