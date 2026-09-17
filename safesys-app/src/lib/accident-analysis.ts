@@ -407,21 +407,23 @@ export async function getAccidentAnalysisAccidents(
   }
 
   try {
-    const externalAccidentRowsPromise = fetchExternalAccidents()
-    const accidentRows = scopedProjectIds.length === 0
-      ? []
-      : await fetchRowsInBatches(
-        scopedProjectIds,
-        (batchIds) => (supabase as any)
-          .from('project_accidents')
-          .select(PROJECT_ACCIDENT_LIST_COLUMNS)
-          .in('project_id', batchIds)
-          .gte('accident_at', `${startDate}T00:00:00+09:00`)
-          .lt('accident_at', `${accidentEndExclusive}T00:00:00+09:00`)
-          .order('accident_at', { ascending: false }),
-        '사고 이력'
-      )
-    const externalAccidentRows = await externalAccidentRowsPromise
+    // 두 조회를 함께 기다린다. 따로 await하면 먼저 실패한 쪽 때문에 다른 쪽의 거부가 처리되지 않은 채 남는다.
+    const [accidentRows, externalAccidentRows] = await Promise.all([
+      scopedProjectIds.length === 0
+        ? Promise.resolve([] as unknown[])
+        : fetchRowsInBatches(
+          scopedProjectIds,
+          (batchIds) => (supabase as any)
+            .from('project_accidents')
+            .select(PROJECT_ACCIDENT_LIST_COLUMNS)
+            .in('project_id', batchIds)
+            .gte('accident_at', `${startDate}T00:00:00+09:00`)
+            .lt('accident_at', `${accidentEndExclusive}T00:00:00+09:00`)
+            .order('accident_at', { ascending: false }),
+          '사고 이력'
+        ),
+      fetchExternalAccidents(),
+    ])
 
     const accidents = [
       ...accidentRows
