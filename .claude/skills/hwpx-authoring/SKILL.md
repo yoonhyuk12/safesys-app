@@ -60,7 +60,7 @@ BinData/imageN.jpg|png    ← 이미지 바이트. 섹션의 binaryItemIDRef="im
 
 ## 검증 루프 (필수 — 이거 없이 "완료" 금지)
 
-로컬에 한컴오피스 2020 있음: `C:\Program Files (x86)\Hnc\Office 2020\HOffice110\Bin\Hwp.exe`
+로컬에 한컴오피스 2022 있음: `C:\Program Files (x86)\Hnc\Office 2022\HOffice120\Bin\Hwp.exe` (2026-09-17 확인. 2020 경로는 더 이상 없다)
 
 ```powershell
 # 1) 크래시 테스트 — 프로세스가 사라지면 크래시(오류창 없음)
