@@ -226,6 +226,11 @@ function StatusContent({ initialHq, initialBranch, onBack, profile, userId }: Pr
               {(level === 'project' ? ['사업명', 'TBM 금주', '점검 건수', '미흡 항목 수', '사진', '마지막 점검일', '점검자', '주요 테마'] : [level === 'hq' ? '본부' : '지사', '등록 프로젝트 수', `${quarter}분기 점검 대상`, 'TBM(등록건수) 금주', '순회점검 건수', '비고']).map(label => <th key={label} scope="col" className={TH}>{label}</th>)}
             </tr></thead>
             <tbody className="bg-white divide-y divide-gray-200">
+              {/* 소계는 제목 행 바로 아래에 둔다. 스크롤 없이 합계를 먼저 보게 하기 위함이다. */}
+              <tr className="bg-gray-50 font-semibold">
+                <td className={`${TD} text-left`}>소계{level === 'project' ? ` (${totals.targetCount}개 현장)` : ''}</td>
+                {level === 'project' ? <><td className={TD}>{count(totals.tbmCount)}</td><td className={TD}>{count(totals.inspectionCount)}</td><td className={TD}>{count(totals.poorCount)}</td><td className={TD}>{count(totals.photoCount)}</td><td colSpan={3} className={TD}>{totals.uninspectedCount === 0 ? '-' : `미점검 ${totals.uninspectedCount}개 현장`}</td></> : <TotalCells totals={totals} />}
+              </tr>
               {(level === 'project' ? projectRows : rows).length === 0 ? <tr><td colSpan={level === 'project' ? 8 : 6} className="px-4 py-8 text-center text-sm text-gray-500">{level === 'project' ? '선택 주에 공사중인 현장이 없습니다.' : '관할에 등록된 현장이 없습니다.'}</td></tr> : level === 'project' ? projectRows.map(row =>
                 <tr key={row.id}>
                   <td className="px-3 py-3 text-sm text-left font-medium text-gray-900">{row.name}</td>
@@ -243,10 +248,6 @@ function StatusContent({ initialHq, initialBranch, onBack, profile, userId }: Pr
                   </tr>
                 })}
             </tbody>
-            <tfoot className="bg-gray-50 border-t border-gray-200 font-semibold"><tr>
-              <td className={TD}>합계{level === 'project' ? ` (${totals.targetCount}개 현장)` : ''}</td>
-              {level === 'project' ? <><td className={TD}>{count(totals.tbmCount)}</td><td className={TD}>{count(totals.inspectionCount)}</td><td className={TD}>{count(totals.poorCount)}</td><td className={TD}>{count(totals.photoCount)}</td><td colSpan={3} className={TD}>{totals.uninspectedCount === 0 ? '-' : `미점검 ${totals.uninspectedCount}개 현장`}</td></> : <TotalCells totals={totals} />}
-            </tr></tfoot>
           </table>
         </div>}
     </div>
