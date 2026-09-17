@@ -51,6 +51,8 @@ export interface PatrolLedgerInspection {
   finding_photo_url: string | null
   /** 사진 구분. finding=지적사진(지적사항 동반), overview=전경·점검사진(지적사항 없음) */
   finding_photo_kind: PatrolLedgerPhotoKind
+  /** 점검항목 생성에 쓴 주요 테마 (한 줄, 200자 이하). 없으면 빈 문자열 */
+  theme: string
   created_by: string | null
   created_at: string
   updated_at: string
@@ -63,6 +65,19 @@ export interface PatrolLedgerAiRequest {
   inspectionDate: string
   /** TBM이 없거나 사용자가 직접 고쳐 쓴 작업내용. 있으면 TBM 대신 이 내용을 쓴다 */
   workDescription?: string
+  /** 주요 테마 (한 줄, 200자 이하). 있으면 뒤 5건 "테마" 항목을 이 테마에 맞춰 만든다 */
+  theme?: string
+}
+
+/** 최대 테마 길이 — DB CHECK, 라우트 검증, 입력칸 maxLength가 같은 값을 쓴다 */
+export const PATROL_LEDGER_THEME_MAX = 200
+
+/** patrol_ledger_weekly_themes 한 행. 회사 공통, week_start는 그 주 월요일(YYYY-MM-DD) */
+export interface PatrolLedgerWeeklyTheme {
+  week_start: string
+  theme: string
+  updated_by: string | null
+  updated_at: string
 }
 
 export interface PatrolLedgerAiItem {

@@ -4,6 +4,9 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { createDb, IDS, ITEMS, SIGNATURE, MIGRATION_PATH, signIn, signOut, insertInspection, scalar } from './fixtures/patrol-ledger-db.mjs'
 const table = 'public.patrol_ledger_inspections'
+const themeTable = 'public.patrol_ledger_weekly_themes'
+const upsertTheme = (db, theme, userId, week = '2026-09-14') => db.query(`INSERT INTO ${themeTable} (week_start, theme, updated_by)
+  VALUES ($1::date, $2, $3::uuid) ON CONFLICT (week_start) DO UPDATE SET theme = EXCLUDED.theme, updated_by = EXCLUDED.updated_by RETURNING theme, updated_by`, [week, theme, userId])
 async function open(t) { const db = await createDb(); t.after(() => db.close()); return db }
 test('재실행 안전성과 관할 조회·작성자 INSERT', async t => {
   const db = await open(t)
@@ -62,4 +65,43 @@ test('사진 구분은 finding·overview만 허용하고 전경사진이면 지�
   await assert.rejects(insertInspection(db, { finding_photo_kind: 'overview', finding_text: '지적' }), /check constraint/i)
   await assert.rejects(insertInspection(db, { finding_photo_kind: 'panorama' }), /check constraint/i)
   assert.equal((await db.query(`UPDATE ${table} SET finding_photo_kind = 'finding', finding_text = '지적', updated_at = now() RETURNING id`)).rows.length, 1)
+})
+
+test('주간 테마는 지사 발주청·시공사 INSERT를 거부하고 본부 발주청 upsert만 허용한다', async t => {
+  const db = await open(t)
+  for (const user of [IDS.client, IDS.owner]) {
+    await signIn(db, user)
+    await assert.rejects(upsertTheme(db, '추락 예방', user), /row-level security/i)
+  }
+  await signIn(db, IDS.hqClient)
+  assert.deepEqual((await upsertTheme(db, '추락 예방', IDS.hqClient)).rows, [{ theme: '추락 예방', updated_by: IDS.hqClient }])
+  assert.deepEqual((await upsertTheme(db, '낙하물 예방', IDS.hqClient)).rows, [{ theme: '낙하물 예방', updated_by: IDS.hqClient }])
+  for (const week of ['2026-09-14', '2026-09-21']) await assert.rejects(upsertTheme(db, '위조', IDS.owner, week), /row-level security/i)
+  assert.equal(await scalar(db, `SELECT theme FROM ${themeTable}`), '낙하물 예방')
+})
+
+test('회사 공통 주간 테마는 모든 로그인 사용자가 읽는다', async t => {
+  const db = await open(t)
+  await signIn(db, IDS.hqClient); await upsertTheme(db, '추락 예방', IDS.hqClient)
+  for (const user of [IDS.owner, IDS.sharedUser, IDS.outsider, IDS.client, IDS.otherClient, IDS.hqClient]) {
+    await signIn(db, user)
+    assert.equal(await scalar(db, `SELECT theme FROM ${themeTable}`), '추락 예방')
+  }
+})
+
+test('주간 테마 CHECK는 빈 문자열·201자·줄바꿈을 거부한다', async t => {
+  const db = await open(t); await signIn(db, IDS.hqClient)
+  for (const theme of ['', '  ', '가'.repeat(201), '추락\n예방', '추락\r예방']) await assert.rejects(upsertTheme(db, theme, IDS.hqClient), /check constraint/i)
+  assert.equal((await upsertTheme(db, '가'.repeat(200), IDS.hqClient)).rows[0].theme.length, 200)
+})
+
+test('기록 테마는 빈 값·200자를 허용하고 작성자 UPDATE와 한 줄 CHECK를 적용한다', async t => {
+  const db = await open(t); await signIn(db, IDS.owner)
+  await insertInspection(db)
+  assert.equal(await scalar(db, `SELECT theme FROM ${table}`), '')
+  for (const theme of ['가'.repeat(201), '추락\n예방', '추락\r예방']) {
+    await assert.rejects(insertInspection(db, { theme }), /check constraint/i)
+    await assert.rejects(db.query(`UPDATE ${table} SET theme = $1`, [theme]), /check constraint/i)
+  }
+  assert.deepEqual((await db.query(`UPDATE ${table} SET theme = $1 RETURNING theme`, ['가'.repeat(200)])).rows, [{ theme: '가'.repeat(200) }])
 })

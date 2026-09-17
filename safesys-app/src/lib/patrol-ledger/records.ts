@@ -15,11 +15,12 @@ export interface PatrolLedgerDraft {
   finding_text: string
   finding_photo_url: string | null
   finding_photo_kind: PatrolLedgerPhotoKind
+  theme: string
 }
 
 export const PATROL_LEDGER_MISSING_TABLE = '순회점검대장이 아직 개설되지 않았습니다. 시스템 관리자에게 문의해주세요.'
 export const PATROL_LEDGER_UPDATE_DENIED = '이 점검을 수정할 권한이 없습니다. 본인이 제출한 점검만 수정할 수 있습니다.'
-const SELECT_COLUMNS = 'id, project_id, inspection_date, contractor_name, district_name, inspector_affiliation, inspector_position, inspector_name, signature, tbm_work_summary, items, finding_text, finding_photo_url, finding_photo_kind, created_by, created_at, updated_at'
+const SELECT_COLUMNS = 'id, project_id, inspection_date, contractor_name, district_name, inspector_affiliation, inspector_position, inspector_name, signature, tbm_work_summary, items, finding_text, finding_photo_url, finding_photo_kind, theme, created_by, created_at, updated_at'
 
 function toError(error: { code?: string; message?: string }, fallback: string): Error {
   if (error.code === 'PGRST205' || error.code === '42P01' || /does not exist/i.test(error.message ?? '')) return new Error(PATROL_LEDGER_MISSING_TABLE)
@@ -34,7 +35,7 @@ export function createPatrolLedgerDraft(init: { districtName: string; contractor
   return {
     inspection_date: patrolLedgerToday(), contractor_name: init.contractorName, district_name: init.districtName,
     inspector_affiliation: init.inspectorAffiliation, inspector_position: init.inspectorPosition ?? '', inspector_name: init.inspectorName,
-    signature: '', tbm_work_summary: '', items: [], finding_text: '', finding_photo_url: null, finding_photo_kind: 'finding',
+    signature: '', tbm_work_summary: '', items: [], finding_text: '', finding_photo_url: null, finding_photo_kind: 'finding', theme: '',
   }
 }
 
@@ -76,6 +77,7 @@ function copyDraft(record: PatrolLedgerDraft): PatrolLedgerDraft {
     finding_text: record.finding_photo_kind === 'overview' ? '' : record.finding_text,
     finding_photo_url: record.finding_photo_url,
     finding_photo_kind: record.finding_photo_kind,
+    theme: record.theme,
   }
 }
 export function patrolLedgerToDraft(record: PatrolLedgerInspection): PatrolLedgerDraft {

@@ -10,6 +10,7 @@ const repoRoot = path.resolve(here, '../../..')
 export const MIGRATION_PATH = path.join(repoRoot, 'database', '20260917-1700_순회점검대장.sql')
 /** 사진 구분(지적/전경) 컬럼은 대장 생성 뒤에 얹는다. 운영에서도 1700 → 1701 → 1800 순서다. */
 export const PHOTO_KIND_PATH = path.join(repoRoot, 'database', '20260917-1800_순회점검_사진구분.sql')
+export const THEME_PATH = path.join(repoRoot, 'database', '20260917-1900_순회점검_주간테마.sql')
 const SCHEMA_PATH = path.join(here, 'equipment-inspection-schema.sql')
 
 export const IDS = {
@@ -22,6 +23,7 @@ export const IDS = {
   outsider: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
   client: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
   otherClient: 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee',
+  hqClient: 'ffffffff-ffff-ffff-ffff-ffffffffffff',
 }
 
 export const ITEMS = [{ no: 1, category: '작업장 공통', text: '안전통로는 확보되어 있는가', result: '' }]
@@ -36,6 +38,7 @@ export async function createDb() {
     await db.exec(readFileSync(SCHEMA_PATH, 'utf8'))
     await db.exec(readFileSync(MIGRATION_PATH, 'utf8'))
     await db.exec(readFileSync(PHOTO_KIND_PATH, 'utf8'))
+    await db.exec(readFileSync(THEME_PATH, 'utf8'))
     await seed(db)
   } catch (error) {
     await db.close()
@@ -45,22 +48,24 @@ export async function createDb() {
 }
 
 /**
- * 현장 세 곳과 사용자 다섯 명을 만든다.
+ * 현장 세 곳과 사용자 여섯 명을 만든다.
  * - owner는 ownerProject의 시공사 소유자, sharedUser는 공유받은 감리단, outsider는 무관한 시공사.
  * - client는 ownerProject 관할 발주청, otherClient는 다른 본부 발주청이다.
+ * - hqClient는 회사 공통 주간 테마를 편집할 수 있는 본부급 발주청이다.
  * - ownerSecondProject는 owner의 또 다른 현장이라 owner에게 보인다.
  */
 async function seed(db) {
   await db.exec(`
     INSERT INTO auth.users (id) VALUES
-      ('${IDS.owner}'), ('${IDS.sharedUser}'), ('${IDS.outsider}'), ('${IDS.client}'), ('${IDS.otherClient}');
+      ('${IDS.owner}'), ('${IDS.sharedUser}'), ('${IDS.outsider}'), ('${IDS.client}'), ('${IDS.otherClient}'), ('${IDS.hqClient}');
 
     INSERT INTO public.user_profiles (id, email, full_name, role, hq_division, branch_division) VALUES
       ('${IDS.owner}', 'owner@example.com', '현장소장', '시공사', NULL, NULL),
       ('${IDS.sharedUser}', 'shared@example.com', '감리단장', '감리단', NULL, NULL),
       ('${IDS.outsider}', 'outsider@example.com', '타현장소장', '시공사', NULL, NULL),
       ('${IDS.client}', 'client@example.com', '관할발주청', '발주청', '서울본부', '강남지사'),
-      ('${IDS.otherClient}', 'other-client@example.com', '타본부발주청', '발주청', '부산본부', '해운대지사');
+      ('${IDS.otherClient}', 'other-client@example.com', '타본부발주청', '발주청', '부산본부', '해운대지사'),
+      ('${IDS.hqClient}', 'hq-client@example.com', '본부발주청', '발주청', '서울본부', '서울본부');
 
     INSERT INTO public.projects (id, project_name, managing_hq, managing_branch, created_by) VALUES
       ('${IDS.ownerProject}', '가나교 보수공사', '서울본부', '강남지사', '${IDS.owner}'),
@@ -87,10 +92,10 @@ export async function signOut(db) {
 
 /** 점검 한 건을 넣는다. 기본값은 현재 로그인 사용자가 자기 현장에 남기는 정상 제출이다. */
 export function insertInspection(db, overrides = {}) {
-  const row = { project_id: IDS.ownerProject, inspection_date: '2026-09-17', inspector_name: '홍길동', signature: SIGNATURE, items: JSON.stringify(ITEMS), created_by: IDS.owner, finding_text: '', finding_photo_kind: 'finding', ...overrides }
-  return db.query(`INSERT INTO public.patrol_ledger_inspections (project_id, inspection_date, inspector_name, signature, items, created_by, finding_text, finding_photo_kind)
-    VALUES ($1::uuid, $2::date, $3, $4, $5::jsonb, $6::uuid, $7, $8) RETURNING id`,
-    [row.project_id, row.inspection_date, row.inspector_name, row.signature, row.items, row.created_by, row.finding_text, row.finding_photo_kind])
+  const row = { project_id: IDS.ownerProject, inspection_date: '2026-09-17', inspector_name: '홍길동', signature: SIGNATURE, items: JSON.stringify(ITEMS), created_by: IDS.owner, finding_text: '', finding_photo_kind: 'finding', theme: '', ...overrides }
+  return db.query(`INSERT INTO public.patrol_ledger_inspections (project_id, inspection_date, inspector_name, signature, items, created_by, finding_text, finding_photo_kind, theme)
+    VALUES ($1::uuid, $2::date, $3, $4, $5::jsonb, $6::uuid, $7, $8, $9) RETURNING id`,
+    [row.project_id, row.inspection_date, row.inspector_name, row.signature, row.items, row.created_by, row.finding_text, row.finding_photo_kind, row.theme])
 }
 
 /** 단일 값 조회 도우미. */
