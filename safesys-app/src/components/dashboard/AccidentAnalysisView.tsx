@@ -275,6 +275,14 @@ const treatmentDays = (accident: ProjectAccident): number | null => {
 
 const isCompApproved = (accident: ProjectAccident): boolean => (treatmentDays(accident) ?? 0) > 0
 
+/** 산재승인 건의 요양일수 구간. 상한은 포함이며 마지막 구간은 상한이 없다. */
+const TREATMENT_DAY_BUCKETS: ReadonlyArray<{ key: string; label: string; max: number }> = [
+  { key: 'under29', label: '29일 미만', max: 28 },
+  { key: 'to90', label: '29~90일', max: 90 },
+  { key: 'to180', label: '91~180일', max: 180 },
+  { key: 'over180', label: '180일 초과', max: Number.POSITIVE_INFINITY },
+]
+
 export default function AccidentAnalysisView({
   projects,
   userProfile,
@@ -972,6 +980,16 @@ export default function AccidentAnalysisView({
   // 지연보고 건수 = 필터된 사고 중 발생일로부터 2일 이상 지나 보고한 건 (목록의 보고일자 초과 표시와 같은 판정)
   const delayedReportCount = analysis.accidentDetails.filter((detail) => isReportDelayed(detail.accident)).length
 
+  // 요양일수 구간별 건수 = 산재승인 건(요양일수 1일 이상)을 구간에 하나씩 넣는다.
+  const treatmentDayBuckets = TREATMENT_DAY_BUCKETS.map((bucket, index) => {
+    const min = index === 0 ? 1 : TREATMENT_DAY_BUCKETS[index - 1].max + 1
+    const count = analysis.accidentDetails.filter((detail) => {
+      const days = treatmentDays(detail.accident)
+      return days !== null && days >= min && days <= bucket.max
+    }).length
+    return { key: bucket.key, label: bucket.label, count }
+  })
+
   const kpiItems = [
     { key: 'projects', label: '관측 프로젝트', value: `${analysis.kpis.observedProjectCount.toLocaleString()}개` },
     { key: 'accidents', label: '사고', value: `${analysis.kpis.accidentCount.toLocaleString()}건` },
@@ -1169,11 +1187,26 @@ export default function AccidentAnalysisView({
         <div className="rounded-lg border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">선택한 조건에 해당하는 프로젝트가 없습니다.</div>
       ) : (
         <>
-          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-8" aria-label="사고 분석 핵심 지표">
+          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-10" aria-label="사고 분석 핵심 지표">
             {kpiItems.map((item) => (
-              <div key={item.key} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                <p className="text-xs font-medium text-gray-500">{item.label}</p>
-                <p className="mt-2 text-lg font-semibold tabular-nums text-gray-900">{item.value}</p>
+              <div key={item.key} className="contents">
+                <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                  <p className="text-xs font-medium text-gray-500">{item.label}</p>
+                  <p className="mt-2 text-lg font-semibold tabular-nums text-gray-900">{item.value}</p>
+                </div>
+                {item.key === 'compApproved' && (
+                  <div className="col-span-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm" aria-label="산재승인 요양일수별 건수">
+                    <p className="text-xs font-medium text-gray-500">요양일수별 (산재승인)</p>
+                    <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1">
+                      {treatmentDayBuckets.map((bucket) => (
+                        <div key={bucket.key} className="flex items-baseline justify-between gap-2">
+                          <dt className="text-[11px] text-gray-500">{bucket.label}</dt>
+                          <dd className="text-sm font-semibold tabular-nums text-gray-900">{bucket.count.toLocaleString()}건</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
+                )}
               </div>
             ))}
           </section>
