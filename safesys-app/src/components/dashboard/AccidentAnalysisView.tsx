@@ -14,6 +14,7 @@ import {
   RefreshCw,
   Trash2,
   TriangleAlert,
+  X,
 } from 'lucide-react'
 import AccidentEntryModal from '@/components/dashboard/AccidentEntryModal'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -290,6 +291,8 @@ export default function AccidentAnalysisView({
   const [deleteError, setDeleteError] = useState('')
   /** 사고 이력 표 썸네일. 사고 id → 첫 사진 data URL, 사진이 없으면 null. 목록을 다시 읽으면 비운다. */
   const [photoById, setPhotoById] = useState<Map<string, string | null>>(new Map())
+  /** 크게 보기로 연 사진. { src, alt } 이며 null이면 닫힌 상태다. */
+  const [enlargedPhoto, setEnlargedPhoto] = useState<{ src: string; alt: string } | null>(null)
   /** 썸네일을 읽는 중이거나 읽기를 마친 사고 id. 같은 사고를 두 번 요청하지 않는다. */
   const photoRequestedIds = useRef<Set<string>>(new Set())
   /** 수정을 열기 전에 보고서 항목을 읽는 중인 사고 id */
@@ -674,6 +677,16 @@ export default function AccidentAnalysisView({
       active = false
     }
   }, [analysis.accidentDetails])
+
+  // 크게 보기는 Esc로도 닫는다.
+  useEffect(() => {
+    if (!enlargedPhoto) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setEnlargedPhoto(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [enlargedPhoto])
 
   const openCreateModal = () => {
     setEditingAccident(null)
@@ -1444,12 +1457,19 @@ export default function AccidentAnalysisView({
                           </td>
                           <td className="whitespace-nowrap px-3 py-3 text-center text-gray-600">
                             {photoById.get(accident.id) ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={photoById.get(accident.id) ?? ''}
-                                alt={`${projectName} 사고 사진`}
-                                className="mx-auto h-16 w-20 rounded-md border border-gray-200 bg-gray-50 object-cover"
-                              />
+                              <button
+                                type="button"
+                                onClick={() => setEnlargedPhoto({ src: photoById.get(accident.id) ?? '', alt: `${projectName} 사고 사진` })}
+                                aria-label={`${projectName} 사고 사진 크게 보기`}
+                                className="mx-auto block rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={photoById.get(accident.id) ?? ''}
+                                  alt={`${projectName} 사고 사진`}
+                                  className="h-16 w-20 rounded-md border border-gray-200 bg-gray-50 object-cover hover:opacity-90"
+                                />
+                              </button>
                             ) : (
                               <div className="mx-auto flex h-16 w-20 items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-gray-300" aria-hidden="true">
                                 <ImageOff className="h-5 w-5" />
@@ -1542,6 +1562,16 @@ export default function AccidentAnalysisView({
         onClose={closeModal}
         onSubmit={handleSubmit}
       />
+
+      {enlargedPhoto && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60]" onClick={() => setEnlargedPhoto(null)} role="dialog" aria-modal="true" aria-label="사고 사진 크게 보기">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={enlargedPhoto.src} alt={enlargedPhoto.alt} className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg" />
+          <button type="button" onClick={() => setEnlargedPhoto(null)} aria-label="닫기" className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full">
+            <X className="h-6 w-6 text-white" />
+          </button>
+        </div>
+      )}
 
       {deleteTarget && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="presentation">
