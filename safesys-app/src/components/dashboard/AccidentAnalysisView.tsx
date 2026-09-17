@@ -1566,7 +1566,8 @@ export default function AccidentAnalysisView({
       {enlargedPhoto && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60]" onClick={() => setEnlargedPhoto(null)} role="dialog" aria-modal="true" aria-label="사고 사진 크게 보기">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={enlargedPhoto.src} alt={enlargedPhoto.alt} className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg" />
+          {/* 작은 사진도 화면에 맞춰 키운다. 비율은 유지한다. */}
+          <img src={enlargedPhoto.src} alt={enlargedPhoto.alt} className="h-[90vh] w-[90vw] object-contain" />
           <button type="button" onClick={() => setEnlargedPhoto(null)} aria-label="닫기" className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/40 rounded-full">
             <X className="h-6 w-6 text-white" />
           </button>
