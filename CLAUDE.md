@@ -27,6 +27,10 @@ SafeSys — Next.js 15 · React 19 · Supabase로 만든 한국 건설 안전관
 
 `plans/` — 계획서(일급 아티팩트, `YYYYMMDD_주제.md`). `database/*.sql` — 마이그레이션(`YYYYMMDD-HHMM_설명.sql`). `wiki/검사기준/` — 공종단계별 검사 기준 LLM 위키(구조·규칙은 그 안의 CLAUDE.md 참조).
 
+`.claude/skills/` — 프로젝트 전용 스킬. 비자명 기능은 [`feature-workflow`](./.claude/skills/feature-workflow/SKILL.md)로 착수하고, HWPX 생성은 [`hwpx-authoring`](./.claude/skills/hwpx-authoring/SKILL.md), 작업 로그 장치는 [`worklog`](./.claude/skills/worklog/SKILL.md)를 연다.
+
+루트 `log.md` — PostToolUse 훅(`.claude/hooks/log_change.py`)이 파일 변경을 자동 기록하고 SessionStart 훅(`session_brief.py`)이 최근 25건을 세션 브리프로 넣는다. 손으로 고치지 않는다. 더 거슬러 올라가려면 직접 읽는다.
+
 ## 핵심 제약 (항상 적용, 위반 금지)
 
 핵심 제약의 정본은 [`.claude/rules/safesys/`](./.claude/rules/README.md)에 주제별로 나뉘어 있다. `paths:`가 없는 규칙은 매 세션 자동 로드되고, 경로 한정 규칙은 해당 파일을 읽을 때 로드된다. 아래 표는 색인이지 본문이 아니다. 규칙 본문은 각 파일에서만 고친다.
@@ -51,6 +55,7 @@ npm run dev              # 개발 서버 (http://localhost:3000)
 npm run lint             # ESLint
 npx tsc --noEmit         # 타입 점검
 npm run test:<도메인>    # node --test 단위 테스트 (예: test:accident-report). 전체 실행용 npm test는 없다
+npm run                  # 사용 가능한 test:<도메인> 스크립트 전체 목록 확인
 npm run build            # 프로덕션 빌드 (동의 없이 시작 금지)
 ```
 

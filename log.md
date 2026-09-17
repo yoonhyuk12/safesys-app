@@ -1,6 +1,10 @@
 # 작업 로그
 
 <!-- worklog -->
+260918_003030 : docs/현행시스템_정의서.md 수정
+260918_003013 : plans/20260227_텔레그램_발주청_알림_확장.md 이름변경
+260918_002941 : .claude/docs/ECC-plugin-reference.md 이름변경, .claude/examples/project-CLAUDE.template.md 이름변경
+260918_002932 : CLAUDE.md 수정
 260917_193153 : safesys-app/src/app/project/[id]/patrol-ledger/page.tsx 수정, safesys-app/src/components/project/patrol-ledger/PatrolLedgerDetail.tsx 수정, safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정, safesys-app/src/components/project/patrol-ledger/PatrolLedgerList.tsx 수정
 260917_192654 : plans/20260917_AI_순회점검대장/brief-G-design-align.md 추가 — "# Worker G 브리프 — 순회점검대장 화면을 다른 점검 서류철과 같은 디자인·색상으로 통일 너는 Saf…"
 260917_192418 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정, safesys-app/tests/patrol-ledger-records.test.mjs 수정
