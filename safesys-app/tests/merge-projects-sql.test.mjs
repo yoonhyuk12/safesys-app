@@ -44,7 +44,7 @@ async function expectError(promise) {
   throw new Error('예외가 발생하지 않았습니다.')
 }
 
-test('28개 자식과 간접 자식이 target으로 이전되고 source 프로젝트만 삭제된다', async (t) => {
+test('29개 자식과 간접 자식이 target으로 이전되고 source 프로젝트만 삭제된다', async (t) => {
   const db = await openDb(t)
   await seedProjects(db)
   await seedChildren(db)
@@ -591,7 +591,7 @@ test('같은 연월 품질 월간보고서가 있으면 MERGE_REPORT_CONFLICT로
   assert.deepEqual(sourceMonthly.rows[0].report_rows, [{ item: '압축강도' }])
 })
 
-test('FK 자식 테이블 수가 28과 다르면 병합을 중단한다', async (t) => {
+test('FK 자식 테이블 수가 29와 다르면 병합을 중단한다', async (t) => {
   const db = await openDb(t)
   await seedProjects(db)
   await seedChildren(db)
@@ -756,4 +756,15 @@ test('병합 함수 실행 권한은 service_role에만 있다', async (t) => {
   for (const row of searchPaths.rows) {
     assert.match(row.config ?? '', /search_path=public/, `${row.proname}에 고정 search_path가 없다`)
   }
+})
+
+test('순회점검대장 항목·개인 서명·사진은 병합 후 보존된다', async (t) => {
+  const db = await createDb()
+  t.after(() => db.close())
+  await seedProjects(db)
+  await seedChildren(db)
+  const before = await db.query('SELECT id, signature, items, finding_photo_url FROM patrol_ledger_inspections WHERE project_id = $1', [IDS.source])
+  await db.query('SELECT public.merge_projects($1::uuid, $2::uuid)', [IDS.source, IDS.target])
+  const after = await db.query('SELECT id, signature, items, finding_photo_url FROM patrol_ledger_inspections WHERE project_id = $1', [IDS.target])
+  assert.deepEqual(after.rows, before.rows)
 })

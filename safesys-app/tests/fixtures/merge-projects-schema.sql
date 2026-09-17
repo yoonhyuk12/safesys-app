@@ -1,4 +1,4 @@
--- 프로젝트 병합 SQL 회귀 테스트용 최소 스키마. 운영 DB 구조(projects + FK 자식 28개 + 간접 자식)를 PGlite에 재현한다.
+-- 프로젝트 병합 SQL 회귀 테스트용 최소 스키마. 운영 DB 구조(projects + FK 자식 29개 + 간접 자식)를 PGlite에 재현한다.
 
 -- 마이그레이션의 GRANT/REVOKE 대상이 되는 Supabase 기본 역할.
 CREATE ROLE anon;
@@ -271,4 +271,13 @@ CREATE TABLE workers (
   project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
   name TEXT,
   signature TEXT
+);
+
+-- FK 자식 29: 순회점검대장. 병합 시 항목·서명·사진을 보존한다.
+CREATE TABLE patrol_ledger_inspections (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  signature TEXT NOT NULL,
+  items JSONB NOT NULL,
+  finding_photo_url TEXT
 );

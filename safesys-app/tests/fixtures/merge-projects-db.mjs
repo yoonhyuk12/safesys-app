@@ -11,6 +11,7 @@ const repoRoot = path.resolve(here, '../../..')
 export const MIGRATION_PATHS = [
   path.join(repoRoot, 'database', '20260907-1525_merge_projects_preserve_data.sql'),
   path.join(repoRoot, 'database', '20260914-2246_merge_projects_equipment_daily_inspections.sql'),
+  path.join(repoRoot, 'database', '20260917-1701_merge_projects_patrol_ledger.sql'),
 ]
 const SCHEMA_PATH = path.join(here, 'merge-projects-schema.sql')
 
@@ -29,11 +30,12 @@ export const IDS = {
   sourceTbm: '77777777-7777-7777-7777-777777777777',
 }
 
-// 실제 FK 자식 28개. 병합 후 source 잔여 행이 없어야 한다.
+// 실제 FK 자식 29개. 병합 후 source 잔여 행이 없어야 한다.
 export const CHILD_TABLES = [
   'ai_usage_logs',
   'corrective_action_issues',
   'equipment_daily_inspections',
+  'patrol_ledger_inspections',
   'headquarters_inspections',
   'heat_wave_checks',
   'inspection_requests',
@@ -139,7 +141,7 @@ export async function seedProjects(db, { source = {}, target = {} } = {}) {
   await db.query(targetInsert.text, targetInsert.values)
 }
 
-/** 28개 자식 테이블과 간접 자식(서명·첨부 URL 포함)에 source 행을 만든다. */
+/** 29개 자식 테이블과 간접 자식(서명·첨부 URL 포함)에 source 행을 만든다. */
 export async function seedChildren(db) {
   const memoInserts = MEMO_TABLES
     .map((table) => `INSERT INTO ${table} (project_id, memo) VALUES ('${IDS.source}', 'source-${table}');`)
@@ -154,6 +156,8 @@ export async function seedChildren(db) {
       VALUES ('${IDS.source}', 'equipment-01', '타워크레인', DATE '2026-03-02', '홍길동',
               'data:image/png;base64,EQUIPMENT',
               '[{"id":"equipment-01-01","category":"기본사항","text":"운전원의 자격여부는 적정한가?","result":"pass","note":""}]'::jsonb);
+    INSERT INTO patrol_ledger_inspections (project_id, signature, items, finding_photo_url)
+      VALUES ('${IDS.source}', 'data:image/png;base64,PATROL', '[{"no":1,"category":"작업장 공통","text":"통로는 양호한가","result":"양호"}]'::jsonb, 'https://example.com/patrol.jpg');
     INSERT INTO ptw_permits (project_id, signatures)
       VALUES ('${IDS.source}', '{"permitter":"data:image/png;base64,PERMITTER"}'::jsonb);
     INSERT INTO quality_verification_requests (project_id, supervisor_signature)
