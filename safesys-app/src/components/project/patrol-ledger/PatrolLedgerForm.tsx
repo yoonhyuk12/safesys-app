@@ -15,16 +15,18 @@ import {
   validatePatrolLedgerDraft, type PatrolLedgerDraft,
 } from '@/lib/patrol-ledger/records'
 
-/** 페이지 헤더의 저장 버튼이 form 속성으로 이 폼을 제출한다. */
-export const PATROL_LEDGER_FORM_ID = 'patrol-ledger-form'
+/** 페이지 헤더(py-3 + 44px 버튼 + 1px 테두리) 아래에 폼 툴바가 붙도록 하는 sticky 오프셋. */
+const TOOLBAR_TOP = 'top-[69px]'
 const INPUT = 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
 const SECONDARY = 'min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50'
 
-export default function PatrolLedgerForm({ project, initialDraft, saving, onSave }: {
+export default function PatrolLedgerForm({ project, initialDraft, editing, saving, onSave, onCancel }: {
   project: Project
   initialDraft: PatrolLedgerDraft
+  editing: boolean
   saving: boolean
   onSave: (draft: PatrolLedgerDraft) => Promise<void>
+  onCancel: () => void
 }) {
   const [draft, setDraft] = useState(initialDraft)
   const [work, setWork] = useState({ summary: '', count: 0 })
@@ -101,14 +103,21 @@ export default function PatrolLedgerForm({ project, initialDraft, saving, onSave
     } finally { if (alive.current) setUploading(false) }
   }
 
-  return <form id={PATROL_LEDGER_FORM_ID} className="space-y-4" onSubmit={async event => {
+  return <form className="space-y-4" onSubmit={async event => {
     event.preventDefault()
     if (busy || loadingTbm) return
     const invalid = validatePatrolLedgerDraft(draft)
     if (invalid) { setError(invalid); return }
     await onSave(draft)
   }}>
-    {error && <p role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800">{error}</p>}
+    <div className={`sticky ${TOOLBAR_TOP} z-10 bg-white rounded-lg shadow-sm border border-gray-200 px-4 py-2 flex items-center justify-between gap-2`}>
+      <h2 className="text-sm font-semibold text-gray-900">{editing ? '점검 수정' : '새 점검 작성'}</h2>
+      <div className="flex gap-2">
+        <button type="button" disabled={busy} onClick={onCancel} className={SECONDARY}>취소</button>
+        <button type="submit" disabled={busy || loadingTbm} className="min-h-[44px] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{saving ? '저장 중' : '저장'}</button>
+      </div>
+    </div>
+    {error &&<p role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800">{error}</p>}
     <fieldset disabled={busy} className="space-y-4 disabled:opacity-75">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 space-y-3">
         <label className="block text-sm font-medium text-gray-700">점검일자
