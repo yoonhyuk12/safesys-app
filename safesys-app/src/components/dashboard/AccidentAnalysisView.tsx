@@ -280,6 +280,9 @@ export default function AccidentAnalysisView({
   const [editingAccident, setEditingAccident] = useState<ProjectAccident | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  /** 삭제 확인 모달이 가리키는 사고. null이면 모달을 닫는다. */
+  const [deleteTarget, setDeleteTarget] = useState<ProjectAccident | null>(null)
+  const [deleteError, setDeleteError] = useState('')
   /** 수정을 열기 전에 보고서 항목을 읽는 중인 사고 id */
   const [editOpeningId, setEditOpeningId] = useState<string | null>(null)
   const [visibleMonthlySeries, setVisibleMonthlySeries] =
@@ -696,29 +699,39 @@ export default function AccidentAnalysisView({
     }
   }
 
-  const handleDelete = async (accident: ProjectAccident) => {
+  const askDelete = (accident: ProjectAccident) => {
     if (!canManageAccidents || deletingId) return
-    const projectName = (accident.project_id ? projectMap.get(accident.project_id)?.project_name : null)
-      ?? accident.external_project_name
-      ?? '선택한 프로젝트'
-    if (!window.confirm(`${projectName}의 ${formatDate(accident.accident_at)} 사고 이력을 삭제하시겠습니까?`)) return
+    setDeleteError('')
+    setDeleteTarget(accident)
+  }
 
-    setDeletingId(accident.id)
-    setActionError('')
+  const handleDelete = async () => {
+    const target = deleteTarget
+    if (!target || !canManageAccidents || deletingId) return
+    setDeletingId(target.id)
+    setDeleteError('')
     try {
-      const result = await deleteProjectAccident(accident.id)
+      const result = await deleteProjectAccident(target.id)
       if (!result.success) {
-        setActionError(result.error || '사고 이력을 삭제하지 못했습니다.')
+        // 확인 모달이 오류 문구를 가리므로 모달 안에 그대로 남긴다.
+        setDeleteError(result.error || '사고 이력을 삭제하지 못했습니다.')
         return
       }
+      setDeleteTarget(null)
       await loadData()
     } catch (caught) {
       console.error('사고 이력 삭제 실패', caught)
-      setActionError('사고 이력을 삭제하는 중 오류가 발생했습니다.')
+      setDeleteError('사고 이력을 삭제하는 중 오류가 발생했습니다.')
     } finally {
       setDeletingId(null)
     }
   }
+
+  const deleteTargetProjectName = deleteTarget
+    ? (deleteTarget.project_id ? projectMap.get(deleteTarget.project_id)?.project_name : null)
+      ?? deleteTarget.external_project_name
+      ?? '선택한 프로젝트'
+    : ''
 
   const resetFilters = () => {
     applyDatePreset('year_to_date')
@@ -1446,7 +1459,7 @@ export default function AccidentAnalysisView({
                                 <button type="button" onClick={() => void openEditModal(accident)} disabled={editOpeningId !== null} aria-label={`${project?.project_name ?? ''} 사고 이력 수정`} className="rounded-md p-2 text-indigo-600 hover:bg-indigo-50 disabled:opacity-50">
                                   {editOpeningId === accident.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
                                 </button>
-                                <button type="button" onClick={() => void handleDelete(accident)} disabled={deletingId === accident.id} aria-label={`${project?.project_name ?? ''} 사고 이력 삭제`} className="rounded-md p-2 text-red-600 hover:bg-red-50 disabled:opacity-50">
+                                <button type="button" onClick={() => askDelete(accident)} disabled={deletingId === accident.id} aria-label={`${project?.project_name ?? ''} 사고 이력 삭제`} className="rounded-md p-2 text-red-600 hover:bg-red-50 disabled:opacity-50">
                                   {deletingId === accident.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
                                 </button>
                               </div>
@@ -1473,6 +1486,42 @@ export default function AccidentAnalysisView({
         onClose={closeModal}
         onSubmit={handleSubmit}
       />
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" role="presentation">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6" role="dialog" aria-modal="true" aria-labelledby="accident-analysis-delete-title">
+            <h2 id="accident-analysis-delete-title" className="text-lg font-semibold text-gray-900">사고 이력 삭제</h2>
+            <p className="mt-2 text-sm text-gray-600">
+              {deleteTargetProjectName}의 {formatDate(deleteTarget.accident_at)} {deleteTarget.accident_type} 사고를 삭제합니다. 삭제한 기록은 되돌릴 수 없습니다.
+            </p>
+            {deleteError && (
+              <div className="mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700" role="alert">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deletingId !== null}
+                className="flex-1 min-h-[44px] px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDelete()}
+                disabled={deletingId !== null}
+                className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deletingId !== null && <Loader2 className="h-4 w-4 animate-spin" />}
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
