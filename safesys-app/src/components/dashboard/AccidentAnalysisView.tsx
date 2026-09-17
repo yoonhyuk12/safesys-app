@@ -214,13 +214,16 @@ const severityBadgeClass = (severity: string): string => {
 const severityLabel = (severity: string): string =>
   severityOptions.find((option) => option.value === severity)?.label ?? severity
 
-const isCompApproved = (accident: ProjectAccident): boolean => {
+/** 산재요양 예상 일수. 기록이 없거나 숫자가 아니면 null. */
+const treatmentDays = (accident: ProjectAccident): number | null => {
   const value = accident.expected_treatment_days === undefined
     ? accident.report_details?.expectedTreatmentDays
     : accident.expected_treatment_days
-  return typeof value === 'string' && /^\d+$/.test(value)
-    && Number.isSafeInteger(Number(value)) && Number(value) > 0
+  if (typeof value !== 'string' || !/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) return null
+  return Number(value)
 }
+
+const isCompApproved = (accident: ProjectAccident): boolean => (treatmentDays(accident) ?? 0) > 0
 
 export default function AccidentAnalysisView({
   projects,
@@ -1416,6 +1419,9 @@ export default function AccidentAnalysisView({
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${compApproved ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                               {compApproved ? '승인' : '미확인'}
                             </span>
+                            {compApproved && (
+                              <p className="mt-1 text-xs tabular-nums text-gray-600">요양 {treatmentDays(accident)?.toLocaleString()}일</p>
+                            )}
                           </td>
                           <td className="max-w-sm px-3 py-3 text-gray-700">
                             <p className="line-clamp-3 whitespace-pre-line">{accident.description}</p>
