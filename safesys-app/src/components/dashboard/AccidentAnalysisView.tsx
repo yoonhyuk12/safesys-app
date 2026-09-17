@@ -625,12 +625,33 @@ export default function AccidentAnalysisView({
     setEndDate(range.endDate)
   }
 
+  /** 차트 컨테이너의 실제 가로폭. 차트가 카드 폭 전체를 쓰게 하려고 ResizeObserver로 잰다. */
+  const [chartContainerWidth, setChartContainerWidth] = useState(0)
+  const chartResizeObserverRef = useRef<ResizeObserver | null>(null)
+  const chartContainerRef = useCallback((node: HTMLDivElement | null) => {
+    chartResizeObserverRef.current?.disconnect()
+    chartResizeObserverRef.current = null
+    if (!node || typeof ResizeObserver === 'undefined') return
+    setChartContainerWidth(node.clientWidth)
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width ?? 0
+      setChartContainerWidth(Math.floor(width))
+    })
+    observer.observe(node)
+    chartResizeObserverRef.current = observer
+  }, [])
+
   const monthlyChart = useMemo(() => {
     const trend = chartAnalysis.monthlyTrend
     const count = trend.length
     if (count === 0) return null
 
-    const width = Math.max(MONTHLY_CHART.minWidth, count * 64 + MONTHLY_CHART.padLeft + MONTHLY_CHART.padRight)
+    // 월 수에 따른 최소 폭과 컨테이너 폭 중 큰 쪽을 쓴다. 넓은 화면에서는 카드 폭 전체에 펼치고, 좁으면 가로 스크롤한다.
+    const width = Math.max(
+      MONTHLY_CHART.minWidth,
+      count * 64 + MONTHLY_CHART.padLeft + MONTHLY_CHART.padRight,
+      chartContainerWidth,
+    )
     const plotWidth = width - MONTHLY_CHART.padLeft - MONTHLY_CHART.padRight
     const plotHeight = MONTHLY_CHART.height - MONTHLY_CHART.padTop - MONTHLY_CHART.padBottom
     const maxInspection = niceCeil(Math.max(
@@ -760,7 +781,7 @@ export default function AccidentAnalysisView({
       bars,
       trend,
     }
-  }, [chartAnalysis.monthlyTrend])
+  }, [chartAnalysis.monthlyTrend, chartContainerWidth])
 
   // 표에 보이는 사고만 썸네일을 읽는다. 실패해도 표는 그대로 두고 빈 자리로 보여준다.
   useEffect(() => {
@@ -1323,7 +1344,7 @@ export default function AccidentAnalysisView({
               </div>
             </div>
             {inspectionsLoading || inspectionError ? renderInspectionPending('월별 추이') : monthlyChart ? (
-              <div className="mt-4 overflow-x-auto">
+              <div ref={chartContainerRef} className="mt-4 overflow-x-auto">
                 <svg
                   role="img"
                   aria-labelledby="monthly-trend-title"
