@@ -2,21 +2,25 @@
 import type { PatrolLedgerInspection } from '@/lib/patrol-ledger/types'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
-export default function PatrolLedgerDetail({ record, canEdit, canDelete, busy, downloading, onEdit, onDelete, onDownload }: {
+export default function PatrolLedgerDetail({ record, canEdit, canDelete, busy, downloading, onBack, onEdit, onDelete, onDownload }: {
   record: PatrolLedgerInspection
   canEdit: boolean
   canDelete: boolean
   busy: boolean
   downloading: boolean
+  onBack: () => void
   onEdit: () => void
   onDelete: () => void
   onDownload: () => void
 }) {
   return <div className="space-y-4">
-    <div className="flex flex-wrap justify-end gap-2">
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <button disabled={busy} onClick={onBack} className="min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50">목록으로</button>
+      <div className="flex flex-wrap gap-2">
       <button disabled={busy} onClick={onDownload} className="min-h-[44px] px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50">HWPX 다운로드</button>
       {canEdit && <button disabled={busy} onClick={onEdit} className="min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50">수정</button>}
       {canDelete && <button disabled={busy} onClick={onDelete} className="min-h-[44px] px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50">삭제</button>}
+      </div>
     </div>
     {downloading && <LoadingSpinner />}
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

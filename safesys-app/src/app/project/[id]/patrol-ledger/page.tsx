@@ -143,8 +143,8 @@ export default function PatrolLedgerPage() {
       {loadError &&<div role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800"><p>{loadError}</p><button onClick={load} className={SECONDARY}>다시 불러오기</button></div>}
       {draft && project ? <PatrolLedgerForm key={editingId ?? 'new'} project={project} initialDraft={draft} editing={editingId !== null} saving={saving} onSave={save} onCancel={() => { setDraft(null); setEditingId(null); setError(null) }} />
         : selected && project ? <>
-          <button disabled={busy} className={SECONDARY} onClick={() => { setSelected(null); setError(null) }}>목록으로</button>
           <PatrolLedgerDetail record={selected} busy={busy} downloading={downloading} canEdit={selected.created_by === userId}
+            onBack={() => { setSelected(null); setError(null) }}
             canDelete={selected.created_by === userId || project.created_by === userId || userProfile?.role === '발주청'}
             onDownload={download} onDelete={() => setConfirmDelete(true)} onEdit={() => {
               if (selected.created_by !== userId) return
