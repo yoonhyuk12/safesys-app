@@ -1,6 +1,6 @@
 // 순회점검대장의 초안·입력 검증·불변 편집과 데이터 저장을 담당한다.
 import { supabase } from '@/lib/supabase'
-import { PATROL_LEDGER_TABLE, type PatrolLedgerAiItem, type PatrolLedgerInspection, type PatrolLedgerItem, type PatrolLedgerResult } from '@/lib/patrol-ledger/types'
+import { PATROL_LEDGER_TABLE, type PatrolLedgerAiItem, type PatrolLedgerInspection, type PatrolLedgerItem, type PatrolLedgerPhotoKind, type PatrolLedgerResult } from '@/lib/patrol-ledger/types'
 
 export interface PatrolLedgerDraft {
   inspection_date: string
@@ -14,11 +14,12 @@ export interface PatrolLedgerDraft {
   items: PatrolLedgerItem[]
   finding_text: string
   finding_photo_url: string | null
+  finding_photo_kind: PatrolLedgerPhotoKind
 }
 
 export const PATROL_LEDGER_MISSING_TABLE = '순회점검대장이 아직 개설되지 않았습니다. 시스템 관리자에게 문의해주세요.'
 export const PATROL_LEDGER_UPDATE_DENIED = '이 점검을 수정할 권한이 없습니다. 본인이 제출한 점검만 수정할 수 있습니다.'
-const SELECT_COLUMNS = 'id, project_id, inspection_date, contractor_name, district_name, inspector_affiliation, inspector_position, inspector_name, signature, tbm_work_summary, items, finding_text, finding_photo_url, created_by, created_at, updated_at'
+const SELECT_COLUMNS = 'id, project_id, inspection_date, contractor_name, district_name, inspector_affiliation, inspector_position, inspector_name, signature, tbm_work_summary, items, finding_text, finding_photo_url, finding_photo_kind, created_by, created_at, updated_at'
 
 function toError(error: { code?: string; message?: string }, fallback: string): Error {
   if (error.code === 'PGRST205' || error.code === '42P01' || /does not exist/i.test(error.message ?? '')) return new Error(PATROL_LEDGER_MISSING_TABLE)
@@ -33,7 +34,7 @@ export function createPatrolLedgerDraft(init: { districtName: string; contractor
   return {
     inspection_date: patrolLedgerToday(), contractor_name: init.contractorName, district_name: init.districtName,
     inspector_affiliation: init.inspectorAffiliation, inspector_position: init.inspectorPosition ?? '', inspector_name: init.inspectorName,
-    signature: '', tbm_work_summary: '', items: [], finding_text: '', finding_photo_url: null,
+    signature: '', tbm_work_summary: '', items: [], finding_text: '', finding_photo_url: null, finding_photo_kind: 'finding',
   }
 }
 
@@ -71,7 +72,10 @@ function copyDraft(record: PatrolLedgerDraft): PatrolLedgerDraft {
     inspection_date: record.inspection_date, contractor_name: record.contractor_name, district_name: record.district_name,
     inspector_affiliation: record.inspector_affiliation, inspector_position: record.inspector_position, inspector_name: record.inspector_name,
     signature: record.signature, tbm_work_summary: record.tbm_work_summary, items: record.items.map(item => ({ ...item })),
-    finding_text: record.finding_text, finding_photo_url: record.finding_photo_url,
+    // 전경사진이면 지적사항은 없다 — DB CHECK와 같은 규칙을 저장 전에 맞춘다.
+    finding_text: record.finding_photo_kind === 'overview' ? '' : record.finding_text,
+    finding_photo_url: record.finding_photo_url,
+    finding_photo_kind: record.finding_photo_kind,
   }
 }
 export function patrolLedgerToDraft(record: PatrolLedgerInspection): PatrolLedgerDraft {

@@ -14,6 +14,10 @@ export type PatrolLedgerCategory = (typeof PATROL_LEDGER_CATEGORIES)[number]
 export const PATROL_LEDGER_RESULTS = ['양호', '미흡'] as const
 export type PatrolLedgerResult = (typeof PATROL_LEDGER_RESULTS)[number] | ''
 
+export const PATROL_LEDGER_PHOTO_KINDS = ['finding', 'overview'] as const
+export type PatrolLedgerPhotoKind = (typeof PATROL_LEDGER_PHOTO_KINDS)[number]
+export const PATROL_LEDGER_PHOTO_KIND_LABELS: Record<PatrolLedgerPhotoKind, string> = { finding: '지적사진', overview: '전경사진' }
+
 export interface PatrolLedgerItem {
   /** 1부터 10까지의 행 번호 */
   no: number
@@ -41,10 +45,12 @@ export interface PatrolLedgerInspection {
   /** AI 입력으로 쓴 당일 TBM 작업내용 요약 스냅샷 (직접 입력한 경우 그 내용) */
   tbm_work_summary: string
   items: PatrolLedgerItem[]
-  /** 지적사항 (여러 줄 가능) */
+  /** 지적사항 (여러 줄 가능). 전경사진이면 항상 빈 문자열 */
   finding_text: string
   /** 지적사진(없으면 점검사진) 공개 URL. 없으면 null */
   finding_photo_url: string | null
+  /** 사진 구분. finding=지적사진(지적사항 동반), overview=전경·점검사진(지적사항 없음) */
+  finding_photo_kind: PatrolLedgerPhotoKind
   created_by: string | null
   created_at: string
   updated_at: string

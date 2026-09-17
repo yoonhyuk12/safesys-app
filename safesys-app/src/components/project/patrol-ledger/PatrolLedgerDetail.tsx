@@ -1,5 +1,5 @@
 // 순회점검 양식 순서로 저장한 항목·지적사항·점검자 서명을 보여준다.
-import type { PatrolLedgerInspection } from '@/lib/patrol-ledger/types'
+import { PATROL_LEDGER_PHOTO_KIND_LABELS, type PatrolLedgerInspection } from '@/lib/patrol-ledger/types'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 export default function PatrolLedgerDetail({ record, canEdit, canDelete, busy, downloading, onBack, onEdit, onDelete, onDownload }: {
@@ -37,11 +37,11 @@ export default function PatrolLedgerDetail({ record, canEdit, canDelete, busy, d
         })}</tbody>
       </table>
       <div className="grid sm:grid-cols-2 gap-4 p-4 border-t border-gray-200">
-        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200"><h3 className="pb-2 border-b border-gray-200 text-sm font-medium text-gray-700 mb-2">지적사진 (없는 경우 점검사진)</h3>
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200"><h3 className="pb-2 border-b border-gray-200 text-sm font-medium text-gray-700 mb-2">{PATROL_LEDGER_PHOTO_KIND_LABELS[record.finding_photo_kind] ?? '지적사진'}</h3>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          {record.finding_photo_url ? <img src={record.finding_photo_url} alt="지적사진 또는 점검사진" className="max-h-64 max-w-full object-contain" /> : <p className="text-sm text-gray-500">사진 없음</p>}
+          {record.finding_photo_url ? <img src={record.finding_photo_url} alt={PATROL_LEDGER_PHOTO_KIND_LABELS[record.finding_photo_kind] ?? '점검사진'} className="max-h-64 max-w-full object-contain" /> : <p className="text-sm text-gray-500">사진 없음</p>}
         </div>
-        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200"><h3 className="pb-2 border-b border-gray-200 text-sm font-medium text-gray-700 mb-2">지적사항</h3><p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{record.finding_text || '없음'}</p></div>
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200"><h3 className="pb-2 border-b border-gray-200 text-sm font-medium text-gray-700 mb-2">지적사항</h3><p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{record.finding_photo_kind === 'overview' ? '전경사진 (지적사항 없음)' : record.finding_text || '없음'}</p></div>
       </div>
       <dl className="grid grid-cols-2 sm:grid-cols-3 gap-px border-t border-gray-200 bg-gray-200">
         {[

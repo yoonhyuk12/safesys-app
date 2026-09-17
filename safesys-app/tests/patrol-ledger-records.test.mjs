@@ -122,3 +122,10 @@ test('사진 업로드는 기존 버킷의 현장 경로와 안전한 파일명�
   assert.match(uploaded.path, /^patrol-ledger\/project\/\d+_[A-Za-z0-9._-]+$/)
   assert.equal(uploaded.file, file); assert.equal(url, `https://example.com/${uploaded.path}`)
 })
+
+test('전경사진 기록은 초안으로 바꿀 때 지적사항을 비운다', () => {
+  const base = { ...records.createPatrolLedgerDraft(init), id: 'r', project_id: 'p', created_by: null, created_at: '', updated_at: '', items: records.buildPatrolLedgerItems(aiItems) }
+  assert.equal(records.patrolLedgerToDraft({ ...base, finding_photo_kind: 'overview', finding_text: '지적' }).finding_text, '')
+  assert.equal(records.patrolLedgerToDraft({ ...base, finding_photo_kind: 'finding', finding_text: '지적' }).finding_text, '지적')
+  assert.equal(records.createPatrolLedgerDraft(init).finding_photo_kind, 'finding')
+})

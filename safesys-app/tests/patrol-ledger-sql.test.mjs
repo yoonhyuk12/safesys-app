@@ -55,3 +55,11 @@ test('계정 삭제는 기록을 보존하고 프로젝트 삭제는 CASCADE한�
   await db.query('DELETE FROM projects WHERE id = $1', [IDS.ownerProject])
   assert.equal(Number(await scalar(db, `SELECT count(*) FROM ${table}`)), 0)
 })
+
+test('사진 구분은 finding·overview만 허용하고 전경사진이면 지적사항이 비어 있어야 한다', async t => {
+  const db = await open(t); await signIn(db, IDS.owner)
+  await insertInspection(db, { finding_photo_kind: 'overview', finding_text: '' })
+  await assert.rejects(insertInspection(db, { finding_photo_kind: 'overview', finding_text: '지적' }), /check constraint/i)
+  await assert.rejects(insertInspection(db, { finding_photo_kind: 'panorama' }), /check constraint/i)
+  assert.equal((await db.query(`UPDATE ${table} SET finding_photo_kind = 'finding', finding_text = '지적', updated_at = now() RETURNING id`)).rows.length, 1)
+})

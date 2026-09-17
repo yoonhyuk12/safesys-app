@@ -8,7 +8,7 @@ import SignaturePad from '@/components/ui/SignaturePad'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { supabase } from '@/lib/supabase'
 import type { Project } from '@/lib/projects'
-import type { PatrolLedgerAiRequest, PatrolLedgerAiResponse } from '@/lib/patrol-ledger/types'
+import { PATROL_LEDGER_PHOTO_KIND_LABELS, PATROL_LEDGER_PHOTO_KINDS, type PatrolLedgerAiRequest, type PatrolLedgerAiResponse } from '@/lib/patrol-ledger/types'
 import { loadTbmWorkForDate } from '@/lib/patrol-ledger/tbm-work'
 import {
   buildPatrolLedgerItems, isBlankPatrolLedgerSignature, setAllPatrolLedgerResults,
@@ -172,7 +172,16 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 grid sm:grid-cols-2 gap-4">
-        <div><p className="block text-sm font-medium text-gray-700">지적사진 (없는 경우 점검사진)</p>
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-medium text-gray-700">사진 구분</p>
+            <div className="inline-flex rounded-lg border border-gray-300 overflow-hidden" role="radiogroup" aria-label="사진 구분">
+              {PATROL_LEDGER_PHOTO_KINDS.map(kind => <button type="button" key={kind} role="radio" aria-checked={draft.finding_photo_kind === kind}
+                onClick={() => edit(kind === 'overview' ? { finding_photo_kind: kind, finding_text: '' } : { finding_photo_kind: kind })}
+                className={`min-h-[44px] px-4 py-2 text-sm font-medium transition-colors ${draft.finding_photo_kind === kind ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{PATROL_LEDGER_PHOTO_KIND_LABELS[kind]}</button>)}
+            </div>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">{draft.finding_photo_kind === 'overview' ? '전경사진은 지적사항 없이 점검 현황만 남깁니다.' : '지적사진은 아래 지적사항과 함께 출력됩니다.'}</p>
           <label className="mt-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg h-24 bg-white hover:bg-gray-50 cursor-pointer transition-colors">
             {uploading ? <span className="text-xs text-gray-500">업로드중...</span> : <>
               <Upload className="h-5 w-5 text-gray-400 mb-1" />
@@ -189,7 +198,8 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
             </div>
           </div>}
         </div>
-        <label className="block text-sm font-medium text-gray-700">지적사항<textarea value={draft.finding_text} rows={5} className={INPUT} onChange={event => edit({ finding_text: event.target.value })} /></label>
+        <label className={`block text-sm font-medium ${draft.finding_photo_kind === 'overview' ? 'text-gray-400' : 'text-gray-700'}`}>지적사항{draft.finding_photo_kind === 'overview' && <span className="ml-1 text-xs font-normal">(전경사진에서는 입력하지 않습니다)</span>}
+          <textarea value={draft.finding_text} rows={5} disabled={draft.finding_photo_kind === 'overview'} className={`${INPUT} disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed`} onChange={event => edit({ finding_text: event.target.value })} /></label>
       </div>
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 grid sm:grid-cols-2 gap-3">
         {([

@@ -8,6 +8,8 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(here, '../../..')
 
 export const MIGRATION_PATH = path.join(repoRoot, 'database', '20260917-1700_순회점검대장.sql')
+/** 사진 구분(지적/전경) 컬럼은 대장 생성 뒤에 얹는다. 운영에서도 1700 → 1701 → 1800 순서다. */
+export const PHOTO_KIND_PATH = path.join(repoRoot, 'database', '20260917-1800_순회점검_사진구분.sql')
 const SCHEMA_PATH = path.join(here, 'equipment-inspection-schema.sql')
 
 export const IDS = {
@@ -33,6 +35,7 @@ export async function createDb() {
   try {
     await db.exec(readFileSync(SCHEMA_PATH, 'utf8'))
     await db.exec(readFileSync(MIGRATION_PATH, 'utf8'))
+    await db.exec(readFileSync(PHOTO_KIND_PATH, 'utf8'))
     await seed(db)
   } catch (error) {
     await db.close()
@@ -84,10 +87,10 @@ export async function signOut(db) {
 
 /** 점검 한 건을 넣는다. 기본값은 현재 로그인 사용자가 자기 현장에 남기는 정상 제출이다. */
 export function insertInspection(db, overrides = {}) {
-  const row = { project_id: IDS.ownerProject, inspection_date: '2026-09-17', inspector_name: '홍길동', signature: SIGNATURE, items: JSON.stringify(ITEMS), created_by: IDS.owner, ...overrides }
-  return db.query(`INSERT INTO public.patrol_ledger_inspections (project_id, inspection_date, inspector_name, signature, items, created_by)
-    VALUES ($1::uuid, $2::date, $3, $4, $5::jsonb, $6::uuid) RETURNING id`,
-    [row.project_id, row.inspection_date, row.inspector_name, row.signature, row.items, row.created_by])
+  const row = { project_id: IDS.ownerProject, inspection_date: '2026-09-17', inspector_name: '홍길동', signature: SIGNATURE, items: JSON.stringify(ITEMS), created_by: IDS.owner, finding_text: '', finding_photo_kind: 'finding', ...overrides }
+  return db.query(`INSERT INTO public.patrol_ledger_inspections (project_id, inspection_date, inspector_name, signature, items, created_by, finding_text, finding_photo_kind)
+    VALUES ($1::uuid, $2::date, $3, $4, $5::jsonb, $6::uuid, $7, $8) RETURNING id`,
+    [row.project_id, row.inspection_date, row.inspector_name, row.signature, row.items, row.created_by, row.finding_text, row.finding_photo_kind])
 }
 
 /** 단일 값 조회 도우미. */
