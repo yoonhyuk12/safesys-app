@@ -31,7 +31,8 @@ import {
   calculateAccidentAnalysis,
   createProjectAccident,
   deleteProjectAccident,
-  getAccidentAnalysisData,
+  getAccidentAnalysisAccidents,
+  getAccidentAnalysisInspections,
   getProjectAccidentDetail,
   getProjectAccidentFirstPhotos,
   updateProjectAccident,
@@ -327,6 +328,9 @@ export default function AccidentAnalysisView({
   const [inspections, setInspections] = useState<NormalizedSafetyInspection[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  /** 3종 점검 조회 상태. 사고 목록·지표는 점검을 기다리지 않고 먼저 그린다. */
+  const [inspectionsLoading, setInspectionsLoading] = useState(true)
+  const [inspectionError, setInspectionError] = useState('')
   const [actionError, setActionError] = useState('')
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingAccident, setEditingAccident] = useState<ProjectAccident | null>(null)
@@ -438,21 +442,37 @@ export default function AccidentAnalysisView({
 
     setLoading(true)
     setError('')
-    const result = await getAccidentAnalysisData(queryProjectIds, dataStart, dataEnd)
-    if (requestSequence.current !== requestId) return
+    setInspectionsLoading(true)
+    setInspectionError('')
 
-    if (!result.success) {
+    // 사고(가벼움)와 점검(무거움)을 동시에 시작하되 따로 기다린다.
+    // 사고가 오면 목록·지표를 먼저 그리고, 점검이 오면 그래프·순위·최근 점검 칸을 채운다.
+    const accidentsPromise = getAccidentAnalysisAccidents(queryProjectIds, dataStart, dataEnd)
+    const inspectionsPromise = getAccidentAnalysisInspections(queryProjectIds, dataStart, dataEnd)
+
+    const accidentResult = await accidentsPromise
+    if (requestSequence.current !== requestId) return
+    if (!accidentResult.success) {
       setAccidents([])
       setInspections([])
-      setError(result.error || '사고 통계 분석 데이터를 불러오지 못했습니다.')
+      setError(accidentResult.error || '사고 통계 분석 데이터를 불러오지 못했습니다.')
     } else {
-      setAccidents(result.accidents ?? [])
-      setInspections(result.inspections ?? [])
+      setAccidents(accidentResult.accidents ?? [])
     }
     // 사진이 바뀌었을 수 있으므로 썸네일 캐시는 목록과 함께 버린다.
     photoRequestedIds.current = new Set()
     setPhotoById(new Map())
     setLoading(false)
+
+    const inspectionResult = await inspectionsPromise
+    if (requestSequence.current !== requestId) return
+    if (!inspectionResult.success) {
+      setInspections([])
+      setInspectionError(inspectionResult.error || '안전점검 데이터를 불러오지 못했습니다.')
+    } else {
+      setInspections(inspectionResult.inspections ?? [])
+    }
+    setInspectionsLoading(false)
   }, [endDate, queryProjectIds, startDate])
 
   useEffect(() => {
@@ -810,6 +830,24 @@ export default function AccidentAnalysisView({
     openDetail(accident)
   }
 
+  /** 점검 조회를 기다리는 동안 그래프·순위 자리에 두는 안내. 실패했으면 오류와 다시 시도를 보여준다. */
+  const renderInspectionPending = (label: string) => (
+    <div className="mt-4 flex min-h-40 flex-col items-center justify-center gap-2 rounded-md bg-gray-50 text-sm text-gray-500" role="status">
+      {inspectionError ? (
+        <>
+          <AlertCircle className="h-5 w-5 text-red-500" />
+          <span className="text-red-700">{inspectionError}</span>
+          <button type="button" onClick={() => void loadData()} className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">다시 시도</button>
+        </>
+      ) : (
+        <>
+          <Loader2 className="h-5 w-5 animate-spin text-indigo-500" />
+          <span>{label}을 불러오는 중…</span>
+        </>
+      )}
+    </div>
+  )
+
   const openCreateModal = () => {
     setEditingAccident(null)
     setActionError('')
@@ -941,7 +979,7 @@ export default function AccidentAnalysisView({
     { key: 'delayedReport', label: '지연보고', value: `${delayedReportCount.toLocaleString()}건` },
     { key: 'injured', label: '부상자', value: `${analysis.kpis.injuredCount.toLocaleString()}명` },
     { key: 'fatal', label: '사망자', value: `${analysis.kpis.fatalCount.toLocaleString()}명` },
-    { key: 'inspections', label: '안전점검', value: `${analysis.kpis.inspectionCount.toLocaleString()}건` },
+    { key: 'inspections', label: '안전점검', value: inspectionsLoading ? '집계 중…' : `${analysis.kpis.inspectionCount.toLocaleString()}건` },
     { key: 'latest', label: '마지막 사고일', value: formatDate(analysis.kpis.latestAccidentAt) },
   ]
 
@@ -1204,7 +1242,7 @@ export default function AccidentAnalysisView({
                 })}
               </div>
             </div>
-            {monthlyChart ? (
+            {inspectionsLoading || inspectionError ? renderInspectionPending('월별 추이') : monthlyChart ? (
               <div className="mt-4 overflow-x-auto">
                 <svg
                   role="img"
@@ -1373,7 +1411,7 @@ export default function AccidentAnalysisView({
                 총 {analysis.accidentDetails.length.toLocaleString()}건
               </span>
             </div>
-            {accidentTypeRanking.length === 0 ? (
+            {inspectionsLoading || inspectionError ? renderInspectionPending('사고 유형별 순위') : accidentTypeRanking.length === 0 ? (
               <p className="mt-6 text-center text-sm text-gray-500">표시할 사고 유형 데이터가 없습니다.</p>
             ) : (
               <div className="mt-4 space-y-3">
@@ -1442,7 +1480,7 @@ export default function AccidentAnalysisView({
                 </span>
               </span>
             </div>
-            {analysis.findingClassification.rows.length === 0 ? (
+            {inspectionsLoading || inspectionError ? renderInspectionPending('지적사항 분류 순위') : analysis.findingClassification.rows.length === 0 ? (
               <p className="mt-6 text-center text-sm text-gray-500">표시할 지적 데이터가 없습니다.</p>
             ) : (
               <div className="mt-4 space-y-3">
@@ -1669,12 +1707,16 @@ export default function AccidentAnalysisView({
                             )}
                           </td>
                           <td className="px-3 py-3 text-right font-medium tabular-nums text-indigo-700">
-                            {detail.daysSinceLatestInspection !== null
-                              ? `${detail.daysSinceLatestInspection.toLocaleString()}일`
-                              : <span className="text-xs font-normal text-gray-400">-</span>}
+                            {inspectionsLoading
+                              ? <Loader2 className="ml-auto h-4 w-4 animate-spin text-gray-300" aria-label="점검 조회 중" />
+                              : detail.daysSinceLatestInspection !== null
+                                ? `${detail.daysSinceLatestInspection.toLocaleString()}일`
+                                : <span className="text-xs font-normal text-gray-400">-</span>}
                           </td>
                           <td className="max-w-sm px-3 py-3 text-gray-600">
-                            {detail.latestInspection ? (
+                            {inspectionsLoading ? (
+                              <span className="text-xs text-gray-400">점검 조회 중…</span>
+                            ) : detail.latestInspection ? (
                               <>
                                 <p className="font-medium text-gray-700">{detail.latestInspection.source_label} · {formatDate(detail.latestInspection.inspected_at)}</p>
                                 <p className="mt-1 line-clamp-2 text-xs">{detail.latestInspection.summary || '기록된 점검 내용 없음'}</p>

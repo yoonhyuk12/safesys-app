@@ -174,6 +174,20 @@ export interface AccidentAnalysisDataResponse {
   error?: string
 }
 
+/** 사고 이력만 읽은 응답. 화면이 목록·지표를 먼저 그릴 때 쓴다. */
+export interface AccidentAnalysisAccidentsResponse {
+  success: boolean
+  accidents: ProjectAccident[]
+  error?: string
+}
+
+/** 3종 안전점검만 읽은 응답. 그래프·순위·최근 점검 칸이 기다리는 쪽이다. */
+export interface AccidentAnalysisInspectionsResponse {
+  success: boolean
+  inspections: NormalizedSafetyInspection[]
+  error?: string
+}
+
 export interface AccidentValidationResult {
   valid: boolean
   errors: Partial<Record<keyof AccidentFormInput, string>>

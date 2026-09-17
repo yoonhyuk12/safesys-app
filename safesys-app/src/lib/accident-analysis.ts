@@ -4,7 +4,9 @@ import { classifyAccidentMutationError } from '@/lib/accident-mutation-error'
 import {
   ACCIDENT_COMP_CLAIM_OPTIONS,
   ACCIDENT_SEVERITY_OPTIONS,
+  type AccidentAnalysisAccidentsResponse,
   type AccidentAnalysisDataResponse,
+  type AccidentAnalysisInspectionsResponse,
   type AccidentFormInput,
   type AccidentMutationResult,
   type AccidentSeverity,
@@ -354,19 +356,32 @@ const fetchSignedIds = async (
   return new Set(rows.map(asRecord).filter((row): row is UnknownRecord => row !== null).map((row) => textValue(row.id)).filter(Boolean))
 }
 
-export async function getAccidentAnalysisData(
+/** 조회 기간을 검증하고 배치 조회에 쓸 프로젝트 id 목록을 정리한다. 기간이 어긋나면 null. */
+const prepareAnalysisScope = (
   projectIds: string[],
   startDate: string,
   endDate: string
-): Promise<AccidentAnalysisDataResponse> {
+): { scopedProjectIds: string[] } | null => {
   const startTimestamp = parseCalendarDay(startDate)
   const endTimestamp = parseCalendarDay(endDate)
-  if (startTimestamp === null || endTimestamp === null || startTimestamp > endTimestamp) {
-    return { success: false, accidents: [], inspections: [], error: '조회 기간이 올바르지 않습니다.' }
-  }
+  if (startTimestamp === null || endTimestamp === null || startTimestamp > endTimestamp) return null
+  return { scopedProjectIds: Array.from(new Set(projectIds.map((id) => id.trim()).filter(Boolean))) }
+}
 
-  const scopedProjectIds = Array.from(new Set(projectIds.map((id) => id.trim()).filter(Boolean)))
-  const inspectionStartDate = addCalendarDays(startDate, -90)
+const INVALID_RANGE_MESSAGE = '조회 기간이 올바르지 않습니다.'
+
+/**
+ * 사고 이력만 읽는다. 등록 현장은 배치로, 미등록 현장은 별도로 읽어 최신순으로 합친다.
+ * 점검 조회보다 훨씬 가벼워 화면이 목록·지표를 먼저 그릴 수 있게 따로 둔다.
+ */
+export async function getAccidentAnalysisAccidents(
+  projectIds: string[],
+  startDate: string,
+  endDate: string
+): Promise<AccidentAnalysisAccidentsResponse> {
+  const scope = prepareAnalysisScope(projectIds, startDate, endDate)
+  if (!scope) return { success: false, accidents: [], error: INVALID_RANGE_MESSAGE }
+  const { scopedProjectIds } = scope
   const accidentEndExclusive = addCalendarDays(endDate, 1)
 
   // 미등록 현장 사고는 project_id가 없어 배치 조회에 포함되지 않으므로 별도 조회한다. RLS가 관할을 제한한다.
@@ -385,36 +400,55 @@ export async function getAccidentAnalysisData(
     return (data ?? []) as ProjectAccident[]
   }
 
-  if (scopedProjectIds.length === 0) {
-    try {
-      const externalAccidents = await fetchExternalAccidents()
-      return { success: true, accidents: externalAccidents, inspections: [] }
-    } catch (error) {
-      console.error('미등록 현장 사고 이력 조회 실패:', error)
-      return {
-        success: false,
-        accidents: [],
-        inspections: [],
-        error: error instanceof Error ? error.message : '미등록 현장 사고 이력을 불러오지 못했습니다.',
-      }
-    }
+  try {
+    const externalAccidentRowsPromise = fetchExternalAccidents()
+    const accidentRows = scopedProjectIds.length === 0
+      ? []
+      : await fetchRowsInBatches(
+        scopedProjectIds,
+        (batchIds) => (supabase as any)
+          .from('project_accidents')
+          .select(PROJECT_ACCIDENT_LIST_COLUMNS)
+          .in('project_id', batchIds)
+          .gte('accident_at', `${startDate}T00:00:00+09:00`)
+          .lt('accident_at', `${accidentEndExclusive}T00:00:00+09:00`)
+          .order('accident_at', { ascending: false }),
+        '사고 이력'
+      )
+    const externalAccidentRows = await externalAccidentRowsPromise
+
+    const accidents = [
+      ...accidentRows
+        .map(asRecord)
+        .filter((row): row is UnknownRecord => row !== null)
+        .map((row) => row as unknown as ProjectAccident),
+      ...externalAccidentRows,
+    ].sort((left, right) =>
+      (toInstantTimestamp(right.accident_at) ?? 0) - (toInstantTimestamp(left.accident_at) ?? 0)
+    )
+    return { success: true, accidents }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '사고 이력을 불러오지 못했습니다.'
+    return { success: false, accidents: [], error: message }
   }
+}
+
+/**
+ * 3종 안전점검만 읽는다. 사고 전 90일 점검까지 보려고 시작일을 앞당긴다.
+ * 프로젝트가 없으면 조회 없이 빈 목록을 돌려준다.
+ */
+export async function getAccidentAnalysisInspections(
+  projectIds: string[],
+  startDate: string,
+  endDate: string
+): Promise<AccidentAnalysisInspectionsResponse> {
+  const scope = prepareAnalysisScope(projectIds, startDate, endDate)
+  if (!scope) return { success: false, inspections: [], error: INVALID_RANGE_MESSAGE }
+  const { scopedProjectIds } = scope
+  if (scopedProjectIds.length === 0) return { success: true, inspections: [] }
+  const inspectionStartDate = addCalendarDays(startDate, -90)
 
   try {
-    const accidentRowsPromise = fetchRowsInBatches(
-      scopedProjectIds,
-      (batchIds) => (supabase as any)
-        .from('project_accidents')
-        .select(PROJECT_ACCIDENT_LIST_COLUMNS)
-        .in('project_id', batchIds)
-        .gte('accident_at', `${startDate}T00:00:00+09:00`)
-        .lt('accident_at', `${accidentEndExclusive}T00:00:00+09:00`)
-        .order('accident_at', { ascending: false }),
-      '사고 이력'
-    )
-
-    const externalAccidentRowsPromise = fetchExternalAccidents()
-
     const safetyRowsPromise = fetchRowsInBatches(
       scopedProjectIds,
       (batchIds) => (supabase as any)
@@ -479,17 +513,7 @@ export async function getAccidentAnalysisData(
     const headquartersSignedIdsPromise = fetchSignedIds(
       'headquarters_inspections', scopedProjectIds, inspectionStartDate, endDate, '본부불시점검 서명'
     )
-    const [
-      accidentRows,
-      externalAccidentRows,
-      safetyRows,
-      managerRows,
-      headquartersRows,
-      managerSignedIds,
-      headquartersSignedIds,
-    ] = await Promise.all([
-      accidentRowsPromise,
-      externalAccidentRowsPromise,
+    const [safetyRows, managerRows, headquartersRows, managerSignedIds, headquartersSignedIds] = await Promise.all([
       safetyRowsPromise,
       managerRowsPromise,
       headquartersRowsPromise,
@@ -497,15 +521,6 @@ export async function getAccidentAnalysisData(
       headquartersSignedIdsPromise,
     ])
 
-    const accidents = [
-      ...accidentRows
-        .map(asRecord)
-        .filter((row): row is UnknownRecord => row !== null)
-        .map((row) => row as unknown as ProjectAccident),
-      ...externalAccidentRows,
-    ].sort((left, right) =>
-      (toInstantTimestamp(right.accident_at) ?? 0) - (toInstantTimestamp(left.accident_at) ?? 0)
-    )
     const inspections = [
       ...safetyRows
         .map(asRecord)
@@ -520,12 +535,30 @@ export async function getAccidentAnalysisData(
         .filter((row): row is UnknownRecord => row !== null)
         .map((row) => normalizeHeadquartersInspection(row as RawHeadquartersInspection, headquartersSignedIds)),
     ].sort((left, right) => right.inspected_at.localeCompare(left.inspected_at))
-
-    return { success: true, accidents, inspections }
+    return { success: true, inspections }
   } catch (error) {
-    const message = error instanceof Error ? error.message : '사고 통계 분석 데이터를 불러오지 못했습니다.'
-    return { success: false, accidents: [], inspections: [], error: message }
+    const message = error instanceof Error ? error.message : '안전점검 데이터를 불러오지 못했습니다.'
+    return { success: false, inspections: [], error: message }
   }
+}
+
+/** 사고와 점검을 한 번에 읽는다. 둘 중 하나라도 실패하면 실패로 돌려준다. */
+export async function getAccidentAnalysisData(
+  projectIds: string[],
+  startDate: string,
+  endDate: string
+): Promise<AccidentAnalysisDataResponse> {
+  const [accidentResult, inspectionResult] = await Promise.all([
+    getAccidentAnalysisAccidents(projectIds, startDate, endDate),
+    getAccidentAnalysisInspections(projectIds, startDate, endDate),
+  ])
+  if (!accidentResult.success) {
+    return { success: false, accidents: [], inspections: [], error: accidentResult.error }
+  }
+  if (!inspectionResult.success) {
+    return { success: false, accidents: [], inspections: [], error: inspectionResult.error }
+  }
+  return { success: true, accidents: accidentResult.accidents, inspections: inspectionResult.inspections }
 }
 
 /** 한 프로젝트 사고 이력을 넘겨 읽는 단위. 기본 조회 한도에 걸려 뒤쪽 사고가 조용히 빠지는 것을 막는다. */
