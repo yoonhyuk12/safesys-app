@@ -36,6 +36,7 @@ interface ProjectCardProps {
   hqPendingCount?: number // 본부 불시점검 미조치 건수
   safetyPendingCount?: number // 안전점검 관리대장 미조치 건수
   managerPendingCount?: number // 관리자점검 미완료(서명/사진) 건수
+  ledgerPendingCount?: number // 지적사항 관리대장 미조치(순회점검·직접등록) 건수
   tbmReportedToday?: boolean // 금일 TBM 보고 완료 여부 (작업없음 제출은 제외)
   mergeSelectionMode?: 'source' | 'target'
   mergeSelectionState?: 'source' | 'target'
@@ -69,6 +70,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
   hqPendingCount,
   safetyPendingCount,
   managerPendingCount,
+  ledgerPendingCount,
   tbmReportedToday = false,
   mergeSelectionMode,
   mergeSelectionState,
@@ -718,10 +720,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({
         </div>
       )}
 
-      {/* 미조치 합산 뱃지 (본부 불시점검 + 관리자점검 + 안전점검 관리대장) */}
-      {((hqPendingCount || 0) + (managerPendingCount || 0) + (safetyPendingCount || 0)) > 0 && (
-        <div className="absolute -top-2 -right-2 z-20 flex items-center justify-center min-w-6 h-6 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full shadow-lg border-2 border-white" title="미조치 항목 (본부 불시점검 + 관리자점검 + 안전점검 관리대장)">
-          {(hqPendingCount || 0) + (managerPendingCount || 0) + (safetyPendingCount || 0)}
+      {/* 미조치 합산 뱃지 (본부 불시점검 + 관리자점검 + 안전점검 관리대장 + 순회점검·직접등록 지적) */}
+      {((hqPendingCount || 0) + (managerPendingCount || 0) + (safetyPendingCount || 0) + (ledgerPendingCount || 0)) > 0 && (
+        <div className="absolute -top-2 -right-2 z-20 flex items-center justify-center min-w-6 h-6 px-1.5 bg-red-500 text-white text-xs font-bold rounded-full shadow-lg border-2 border-white" title="미조치 항목 (본부 불시점검 + 관리자점검 + 안전점검 관리대장 + 순회점검·직접등록 지적)">
+          {(hqPendingCount || 0) + (managerPendingCount || 0) + (safetyPendingCount || 0) + (ledgerPendingCount || 0)}
         </div>
       )}
 

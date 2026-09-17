@@ -27,6 +27,7 @@ interface ContractorDashboardProps {
   hqPendingCounts?: Record<string, number>
   safetyPendingCounts?: Record<string, number>
   managerPendingCounts?: Record<string, number>
+  ledgerPendingCounts?: Record<string, number>
   tbmReportedProjectIds?: Set<string>
 }
 
@@ -50,6 +51,7 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
   hqPendingCounts,
   safetyPendingCounts,
   managerPendingCounts,
+  ledgerPendingCounts,
   tbmReportedProjectIds,
 }) => {
   if (loading) {
@@ -135,7 +137,7 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
                 editableQuarters={getEditableQuartersForProject?.(project) ?? null}
                 onIsActiveChange={onProjectIsActiveJsonChange}
                 hqPendingCount={hqPendingCounts?.[project.id]}
-                safetyPendingCount={safetyPendingCounts?.[project.id]} managerPendingCount={managerPendingCounts?.[project.id]}
+                safetyPendingCount={safetyPendingCounts?.[project.id]} managerPendingCount={managerPendingCounts?.[project.id]} ledgerPendingCount={ledgerPendingCounts?.[project.id]}
                 tbmReportedToday={tbmReportedProjectIds?.has(project.id)}
               />
             ))}
@@ -172,7 +174,7 @@ const ContractorDashboard: React.FC<ContractorDashboardProps> = ({
                 onIsActiveChange={onProjectIsActiveJsonChange}
                 onStatusChange={onProjectStatusChange}
                 hqPendingCount={hqPendingCounts?.[project.id]}
-                safetyPendingCount={safetyPendingCounts?.[project.id]} managerPendingCount={managerPendingCounts?.[project.id]}
+                safetyPendingCount={safetyPendingCounts?.[project.id]} managerPendingCount={managerPendingCounts?.[project.id]} ledgerPendingCount={ledgerPendingCounts?.[project.id]}
                 tbmReportedToday={tbmReportedProjectIds?.has(project.id)}
               />
             ))}

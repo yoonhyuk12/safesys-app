@@ -95,6 +95,8 @@ const Dashboard: React.FC = () => {
   const [hqPendingCounts, setHqPendingCounts] = useState<Record<string, number>>({})
   const [safetyPendingCounts, setSafetyPendingCounts] = useState<Record<string, number>>({})
   const [managerPendingCounts, setManagerPendingCounts] = useState<Record<string, number>>({})
+  /** 지적사항 관리대장에서만 조치하는 순회점검·직접등록 미조치 건수(현장별) */
+  const [ledgerPendingCounts, setLedgerPendingCounts] = useState<Record<string, number>>({})
   // 금일 TBM 보고가 올라온 프로젝트 id 집합 (카드 상단 액센트 띠 표시용)
   const [tbmReportedProjectIds, setTbmReportedProjectIds] = useState<Set<string>>(new Set())
   const [heatWaveChecks, setHeatWaveChecks] = useState<HeatWaveCheck[]>([])
@@ -1594,6 +1596,28 @@ const Dashboard: React.FC = () => {
         })
         setSafetyPendingCounts(sCounts)
       }
+
+      // 순회점검 지적(지적사진 구분 + 지적사항)과 직접등록건 중 조치사진도 '해당없음'도 없는 건 — 관리대장 조치대기와 같은 기준
+      const isOpenAction = (after: unknown) => !(typeof after === 'string' && after.trim() !== '')
+      const lCounts: Record<string, number> = {}
+      const { data: patrolIssues } = await (supabase as any)
+        .from('patrol_ledger_inspections')
+        .select('project_id, finding_text, finding_photo_kind, action_photo_url')
+        .in('project_id', projectIds)
+        .eq('finding_photo_kind', 'finding')
+      ;(patrolIssues || []).forEach((r: any) => {
+        if (typeof r.finding_text !== 'string' || r.finding_text.trim() === '' || !isOpenAction(r.action_photo_url)) return
+        lCounts[r.project_id] = (lCounts[r.project_id] || 0) + 1
+      })
+      const { data: directIssues } = await (supabase as any)
+        .from('corrective_action_issues')
+        .select('project_id, after_photo_url')
+        .in('project_id', projectIds)
+      ;(directIssues || []).forEach((d: any) => {
+        if (!isOpenAction(d.after_photo_url)) return
+        lCounts[d.project_id] = (lCounts[d.project_id] || 0) + 1
+      })
+      setLedgerPendingCounts(lCounts)
 
       const dpTargetById: Record<string, boolean> = {}
       projectList.forEach((p: any) => { dpTargetById[p.id] = !!p.disaster_prevention_target })
@@ -4713,7 +4737,7 @@ const Dashboard: React.FC = () => {
                                     onDrop={(e) => handleProjectDrop(e, project.id, displayItems)}
                                     isDragOver={dragOverProjectId === project.id}
                                     hqPendingCount={hqPendingCounts[project.id]}
-                                    safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
+                                    safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]} ledgerPendingCount={ledgerPendingCounts[project.id]}
                                     tbmReportedToday={tbmReportedProjectIds.has(project.id)}
                                     mergeSelectionMode={mergeSelectionStep ?? undefined}
                                     mergeSelectionState={project.id === mergeSource?.id ? 'source' : project.id === mergeTarget?.id ? 'target' : undefined}
@@ -4850,7 +4874,7 @@ const Dashboard: React.FC = () => {
                                     onDrop={(e) => handleProjectDrop(e, project.id, displayItems)}
                                     isDragOver={dragOverProjectId === project.id}
                                     hqPendingCount={hqPendingCounts[project.id]}
-                                    safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
+                                    safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]} ledgerPendingCount={ledgerPendingCounts[project.id]}
                                     tbmReportedToday={tbmReportedProjectIds.has(project.id)}
                                     mergeSelectionMode={mergeSelectionStep ?? undefined}
                                     mergeSelectionState={project.id === mergeSource?.id ? 'source' : project.id === mergeTarget?.id ? 'target' : undefined}
@@ -5011,7 +5035,7 @@ const Dashboard: React.FC = () => {
                                       isDragging={draggedProjectId === project.id}
                                       isDragOver={dragOverProjectId === project.id}
                                       hqPendingCount={hqPendingCounts[project.id]}
-                                      safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
+                                      safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]} ledgerPendingCount={ledgerPendingCounts[project.id]}
                                       tbmReportedToday={tbmReportedProjectIds.has(project.id)}
                                       mergeSelectionMode={mergeSelectionStep ?? undefined}
                                       mergeSelectionState={project.id === mergeSource?.id ? 'source' : project.id === mergeTarget?.id ? 'target' : undefined}
@@ -5072,7 +5096,7 @@ const Dashboard: React.FC = () => {
                         isDragging={draggedProjectId === project.id}
                         isDragOver={dragOverProjectId === project.id}
                         hqPendingCount={hqPendingCounts[project.id]}
-                        safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]}
+                        safetyPendingCount={safetyPendingCounts[project.id]} managerPendingCount={managerPendingCounts[project.id]} ledgerPendingCount={ledgerPendingCounts[project.id]}
                         tbmReportedToday={tbmReportedProjectIds.has(project.id)}
                         mergeSelectionMode={mergeSelectionStep ?? undefined}
                         mergeSelectionState={project.id === mergeSource?.id ? 'source' : project.id === mergeTarget?.id ? 'target' : undefined}
@@ -5112,6 +5136,7 @@ const Dashboard: React.FC = () => {
       hqPendingCounts={hqPendingCounts}
       safetyPendingCounts={safetyPendingCounts}
       managerPendingCounts={managerPendingCounts}
+      ledgerPendingCounts={ledgerPendingCounts}
       tbmReportedProjectIds={tbmReportedProjectIds}
     />
   )
