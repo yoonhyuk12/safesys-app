@@ -75,7 +75,7 @@ const [selectedSafetyBranch, setSelectedSafetyBranch] = useState<string | null>(
 모든 `/safe` 페이지 컴포넌트는 동일 구조 — `<Dashboard />`를 렌더링하고 URL pathname으로 상태를 결정한다.
 
 **프로젝트 상세 라우트 (`/project/[id]/`):**
-accident-report, daily-inspection, edit, equipment-inspection, headquarters-inspection, heatwave, holiday-work, issue-management, manager-inspection, material-ledger, new-worker-orientation, ptw, risk-assessment, safe-documents, safety-inspection-ledger, supervisor-diary, tbm-safety-inspection, tbm-submission, worker-management, work-plan
+accident-report, daily-inspection, edit, equipment-inspection, headquarters-inspection, heatwave, holiday-work, issue-management, manager-inspection, material-ledger, new-worker-orientation, patrol-ledger, ptw, risk-assessment, safe-documents, safety-inspection-ledger, supervisor-diary, tbm-safety-inspection, tbm-submission, worker-management, work-plan
 
 ## API 라우트 (`src/app/api/`)
 
@@ -90,6 +90,7 @@ accident-report, daily-inspection, edit, equipment-inspection, headquarters-insp
 - `/api/ai/translate` — 번역
 - `/api/ai/tts` — 텍스트 음성 변환
 - `/api/ai/write-risk-analysis` — AI 위험분석 작성
+- `/api/ai/patrol-ledger` — (AI) 순회점검대장 점검항목 생성 (Bearer 인증·프로젝트 RLS, gpt-5.6-luna 고정)
 - `/api/ai/patrol-inspection` — KRC 패트롤 점검 엑셀용 재발방지대책·재해유형 작성 (Bearer 인증·관할 검증, gpt-5.6-luna)
 
 **외부 서비스 연동:**

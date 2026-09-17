@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { countPatrolLedgerInspections } from '@/lib/patrol-ledger/records'
 import { ArrowLeft, Phone, MoreVertical, Copy, Check, FileText, RefreshCw, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react'
 import { Project, deleteProject } from '@/lib/projects'
 import { computeProgressRate, ProgressAnchor } from '@/lib/work-daily-report/work-daily-report-types'
@@ -112,6 +113,7 @@ export default function ProjectDetailPage() {
   const [qualityMonthlyReportCount, setQualityMonthlyReportCount] = useState<number | null>(null)
   const [qualityTestRecordCount, setQualityTestRecordCount] = useState<number | null>(null)
   const [legalComplianceCount, setLegalComplianceCount] = useState<number | null>(null)
+  const [patrolLedgerCount, setPatrolLedgerCount] = useState<number | null>(null)
   const [cardCounts, setCardCounts] = useState<Record<string, number>>({})
   const [riskAssessmentChooserOpen, setRiskAssessmentChooserOpen] = useState(false)
   const [openCabinet, setOpenCabinet] = useState<'시공' | '안전' | '품질' | '기타' | '발주청' | null>(null)
@@ -345,6 +347,12 @@ export default function ProjectDetailPage() {
         .select('id', { count: 'exact', head: true })
         .eq('project_id', projectId)
       if (!countError) setLegalComplianceCount(count ?? 0)
+      try {
+        setPatrolLedgerCount(await countPatrolLedgerInspections(projectId))
+      } catch (error) {
+        console.error('순회점검대장 건수 조회 실패', error)
+        setPatrolLedgerCount(null)
+      }
     }
     loadLegalComplianceCount()
   }, [user, projectId])
@@ -1763,6 +1771,17 @@ export default function ProjectDetailPage() {
                   isActive={false}
                   projectId={projectId}
                   onClick={() => router.push(`/project/${projectId}/supervisor-diary`)}
+                  pdcaCategory="C"
+                  bottomLabel="감독"
+                />
+                <DocumentFolder
+                  title="︵AI︶
+순회점검대장"
+                  year={new Date().getFullYear().toString()}
+                  isActive={false}
+                  projectId={projectId}
+                  onClick={() => router.push(`/project/${projectId}/patrol-ledger`)}
+                  docCount={patrolLedgerCount ?? undefined}
                   pdcaCategory="C"
                   bottomLabel="감독"
                 />
