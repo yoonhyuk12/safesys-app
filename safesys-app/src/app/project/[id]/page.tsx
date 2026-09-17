@@ -106,6 +106,8 @@ export default function ProjectDetailPage() {
   const [safetyLedgerCount, setSafetyLedgerCount] = useState<number | null>(null)
   const [managerCount, setManagerCount] = useState<number | null>(null)
   const [issueLedgerCount, setIssueLedgerCount] = useState<number | null>(null)
+  /** 지적사항 관리대장 미조치 건수 — 본부·정기·순회점검·직접등록 지적 중 조치사진(또는 해당없음)이 없는 건 */
+  const [issueLedgerPendingCount, setIssueLedgerPendingCount] = useState<number | null>(null)
   const [ptwCount, setPtwCount] = useState<number | null>(null)
   const [inspectionRequestCount, setInspectionRequestCount] = useState<number | null>(null)
   const [visitLogCount, setVisitLogCount] = useState<number | null>(null)
@@ -394,6 +396,7 @@ export default function ProjectDetailPage() {
 
       // 본부 불시점검 미조치 건수 조회 (+ 카드 표시용 등록·지적 건수)
       let hqIssueTotal = 0
+      let hqIssuePending = 0
       const { data: hqInspections } = await supabase
         .from('headquarters_inspections')
         .select('action_photo_issue1, action_photo_issue2, issue_content1, issue_content2, site_photo_issue2, issue1_status, issue2_status')
@@ -409,10 +412,18 @@ export default function ProjectDetailPage() {
         setHqPendingCount(pendingCount)
         setHqCount(hqInspections.length)
         hqIssueTotal = (hqInspections as any[]).reduce((sum: number, ins: any) => sum + countHqIssues(ins), 0)
+        // 지적 건 단위 미조치 수 — 관리대장 뱃지용(점검 단위 pendingCount와 다르다)
+        hqIssuePending = (hqInspections as any[]).reduce((sum: number, ins: any) => {
+          const issue1Open = Boolean(ins.issue_content1 && ins.issue_content1.trim()) && !(Boolean(ins.action_photo_issue1) || ins.issue1_status === 'completed')
+          const hasIssue2 = Boolean((ins.issue_content2 && ins.issue_content2.trim()) || ins.site_photo_issue2)
+          const issue2Open = hasIssue2 && !(Boolean(ins.action_photo_issue2) || ins.issue2_status === 'completed')
+          return sum + (issue1Open ? 1 : 0) + (issue2Open ? 1 : 0)
+        }, 0)
       }
 
       // 안전점검 관리대장 조치 후 사진 미등록 건수 조회 (+ 카드 표시용 등록·지적 건수)
       let safetyFindingTotal = 0
+      let safetyFindingPending = 0
       const { data: safetyInspections } = await supabase
         .from('safety_inspections')
         .select('id, inspection_type, additional_items, safety_inspection_results(id, findings, photo_url, after_photo_url)')
@@ -439,6 +450,7 @@ export default function ProjectDetailPage() {
           return count + pending
         }, 0)
         setSafetyLedgerPendingCount(pendingPhotoCount)
+        safetyFindingPending = pendingPhotoCount
         setSafetyLedgerCount(safetyInspections.length)
         safetyFindingTotal = (safetyInspections as any[]).reduce((sum: number, ins: any) => {
           const results = Array.isArray(ins.safety_inspection_results) ? ins.safety_inspection_results : []
@@ -447,12 +459,24 @@ export default function ProjectDetailPage() {
         }, 0)
       }
 
-      // 지적사항 관리대장 건수 = 본부 지적 + 정기점검 지적 + 직접 등록건
-      const { count: directIssueCount } = await (supabase as any)
+      // 지적사항 관리대장 건수 = 본부 지적 + 정기점검 지적 + 순회점검 지적 + 직접 등록건
+      // 미조치 뱃지 = 그중 조치사진도 '해당없음' 표시도 없는 건
+      const isOpenAction = (after: unknown) => !(typeof after === 'string' && after.trim() !== '')
+      const { data: directIssues } = await (supabase as any)
         .from('corrective_action_issues')
-        .select('id', { count: 'exact', head: true })
+        .select('id, after_photo_url')
         .eq('project_id', projectId)
-      setIssueLedgerCount(hqIssueTotal + safetyFindingTotal + (directIssueCount ?? 0))
+      const directIssueCount = Array.isArray(directIssues) ? directIssues.length : 0
+      const directIssuePending = Array.isArray(directIssues) ? directIssues.filter((d: any) => isOpenAction(d.after_photo_url)).length : 0
+      const { data: patrolIssues } = await (supabase as any)
+        .from('patrol_ledger_inspections')
+        .select('id, finding_text, finding_photo_kind, action_photo_url')
+        .eq('project_id', projectId)
+        .eq('finding_photo_kind', 'finding')
+      const patrolFindings = Array.isArray(patrolIssues) ? patrolIssues.filter((r: any) => typeof r.finding_text === 'string' && r.finding_text.trim() !== '') : []
+      const patrolIssuePending = patrolFindings.filter((r: any) => isOpenAction(r.action_photo_url)).length
+      setIssueLedgerCount(hqIssueTotal + safetyFindingTotal + patrolFindings.length + directIssueCount)
+      setIssueLedgerPendingCount(hqIssuePending + safetyFindingPending + patrolIssuePending + directIssuePending)
 
       // 관리자점검(지사 안전점검) 미완료 건수 조회 — 미완성 열과 동일 기준
       // 1) 서명 없음, 2) 위험성평가 사진 없음, 3) 재해예방 대상에서 내용·보고서 사진 중 하나만 있음(불일치)
@@ -1649,6 +1673,7 @@ export default function ProjectDetailPage() {
                   isActive={false}
                   projectId={projectId}
                   onClick={() => router.push(`/project/${projectId}/issue-management`)}
+                  badgeCount={issueLedgerPendingCount ?? undefined}
                   docCount={issueLedgerCount ?? undefined}
                   pdcaCategory="C"
                 />
@@ -1792,6 +1817,7 @@ export default function ProjectDetailPage() {
                   isActive={false}
                   projectId={projectId}
                   onClick={() => router.push(`/project/${projectId}/issue-management`)}
+                  badgeCount={issueLedgerPendingCount ?? undefined}
                   docCount={issueLedgerCount ?? undefined}
                   pdcaCategory="C"
                 />
