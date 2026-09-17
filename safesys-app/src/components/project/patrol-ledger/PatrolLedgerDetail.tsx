@@ -43,6 +43,15 @@ export default function PatrolLedgerDetail({ record, canEdit, canDelete, busy, d
         </div>
         <div className="p-3 bg-gray-50 rounded-lg border border-gray-200"><h3 className="pb-2 border-b border-gray-200 text-sm font-medium text-gray-700 mb-2">지적사항</h3><p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{record.finding_photo_kind === 'overview' ? '전경사진 (지적사항 없음)' : record.finding_text || '없음'}</p></div>
       </div>
+      {record.finding_photo_kind === 'finding' && record.finding_text.trim() && <div className="grid sm:grid-cols-2 gap-4 px-4 pb-4">
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200"><h3 className="pb-2 border-b border-gray-200 text-sm font-medium text-gray-700 mb-2">조치사진 (지적사항 관리대장)</h3>
+          {record.action_photo_url && record.action_photo_url !== 'N/A'
+            /* eslint-disable-next-line @next/next/no-img-element */
+            ? <img src={record.action_photo_url} alt="조치사진" className="max-h-64 max-w-full object-contain" />
+            : <p className="text-sm text-gray-500">{record.action_photo_url === 'N/A' ? '해당없음' : '조치대기'}</p>}
+        </div>
+        <div className="p-3 bg-gray-50 rounded-lg border border-gray-200"><h3 className="pb-2 border-b border-gray-200 text-sm font-medium text-gray-700 mb-2">조치내용{record.action_date ? ` (${record.action_date})` : ''}</h3><p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{record.action_text || '없음'}</p></div>
+      </div>}
       <dl className="grid grid-cols-2 sm:grid-cols-3 gap-px border-t border-gray-200 bg-gray-200">
         {[
           ['점검일자', record.inspection_date], ['지구명', record.district_name], ['점검자 소속', record.inspector_affiliation],

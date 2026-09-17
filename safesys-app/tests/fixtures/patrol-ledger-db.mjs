@@ -11,6 +11,8 @@ export const MIGRATION_PATH = path.join(repoRoot, 'database', '20260917-1700_순
 /** 사진 구분(지적/전경) 컬럼은 대장 생성 뒤에 얹는다. 운영에서도 1700 → 1701 → 1800 순서다. */
 export const PHOTO_KIND_PATH = path.join(repoRoot, 'database', '20260917-1800_순회점검_사진구분.sql')
 export const THEME_PATH = path.join(repoRoot, 'database', '20260917-1900_순회점검_주간테마.sql')
+/** 조치 칸(작성자 외 현장 사용자 수정 허용 + 내용 변경 차단 트리거)은 주간 테마 뒤에 얹는다. */
+export const ACTION_PATH = path.join(repoRoot, 'database', '20260917-2000_순회점검_조치사항.sql')
 const SCHEMA_PATH = path.join(here, 'equipment-inspection-schema.sql')
 
 export const IDS = {
@@ -39,6 +41,7 @@ export async function createDb() {
     await db.exec(readFileSync(MIGRATION_PATH, 'utf8'))
     await db.exec(readFileSync(PHOTO_KIND_PATH, 'utf8'))
     await db.exec(readFileSync(THEME_PATH, 'utf8'))
+    await db.exec(readFileSync(ACTION_PATH, 'utf8'))
     await seed(db)
   } catch (error) {
     await db.close()

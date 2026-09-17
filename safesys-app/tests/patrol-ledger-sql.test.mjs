@@ -24,10 +24,13 @@ test('재실행 안전성과 관할 조회·작성자 INSERT', async t => {
 test('작성자만 내용 UPDATE 가능하고 신원 열은 고칠 수 없다', async t => {
   const db = await open(t); await signIn(db, IDS.sharedUser); await insertInspection(db, { created_by: IDS.sharedUser })
   assert.equal((await db.query(`UPDATE ${table} SET finding_text = '수정', updated_at = now() RETURNING id`)).rows.length, 1)
-  for (const user of [IDS.owner, IDS.client, IDS.outsider]) {
+  // 현장을 보는 비작성자(소유자·관할 발주청)는 행이 보여도 트리거가 내용 변경을 거부하고, 관할 밖은 행 자체가 안 보인다.
+  for (const user of [IDS.owner, IDS.client]) {
     await signIn(db, user)
-    assert.equal((await db.query(`UPDATE ${table} SET finding_text = '거부' RETURNING id`)).rows.length, 0)
+    await assert.rejects(db.query(`UPDATE ${table} SET finding_text = '거부' RETURNING id`), /작성자만 수정/)
   }
+  await signIn(db, IDS.outsider)
+  assert.equal((await db.query(`UPDATE ${table} SET finding_text = '거부' RETURNING id`)).rows.length, 0)
   await signIn(db, IDS.sharedUser)
   for (const assignment of [`created_by = '${IDS.owner}'`, `project_id = '${IDS.ownerSecondProject}'`, 'created_at = now()', 'id = gen_random_uuid()']) await assert.rejects(db.query(`UPDATE ${table} SET ${assignment}`), /permission denied/i)
 })
@@ -104,4 +107,28 @@ test('기록 테마는 빈 값·200자를 허용하고 작성자 UPDATE와 한 �
     await assert.rejects(db.query(`UPDATE ${table} SET theme = $1`, [theme]), /check constraint/i)
   }
   assert.deepEqual((await db.query(`UPDATE ${table} SET theme = $1 RETURNING theme`, ['가'.repeat(200)])).rows, [{ theme: '가'.repeat(200) }])
+})
+
+test('조치 칸은 현장을 보는 누구나 고치고, 점검 내용은 작성자만 고친다', async t => {
+  const db = await open(t); await signIn(db, IDS.owner)
+  await insertInspection(db, { finding_text: '안전난간 미설치' })
+  // 공유받은 감리단(작성자 아님)은 조치 칸만 고칠 수 있다.
+  await signIn(db, IDS.sharedUser)
+  assert.equal((await db.query(`UPDATE ${table} SET action_text = '난간 설치 완료', action_photo_url = 'https://x/after.jpg', action_date = '2026-09-18', updated_at = now() RETURNING id`)).rows.length, 1)
+  assert.equal((await db.query(`UPDATE ${table} SET action_photo_url = 'N/A', action_date = NULL RETURNING id`)).rows.length, 1)
+  await assert.rejects(db.query(`UPDATE ${table} SET finding_text = '변경'`), /작성자만 수정/)
+  await assert.rejects(db.query(`UPDATE ${table} SET items = '[]'::jsonb`), /작성자만 수정|check constraint/)
+  await assert.rejects(db.query(`UPDATE ${table} SET created_by = '${IDS.sharedUser}'`), /permission denied|작성자만 수정/)
+  // 관할 발주청도 조치 칸은 고칠 수 있고 내용은 못 고친다.
+  await signIn(db, IDS.client)
+  assert.equal((await db.query(`UPDATE ${table} SET action_text = '발주청 확인' RETURNING id`)).rows.length, 1)
+  await assert.rejects(db.query(`UPDATE ${table} SET inspector_name = '타인'`), /작성자만 수정/)
+  // 관할 밖 사용자는 행이 보이지 않아 아무것도 못 고친다.
+  await signIn(db, IDS.outsider)
+  assert.equal((await db.query(`UPDATE ${table} SET action_text = '침입' RETURNING id`)).rows.length, 0)
+  // 작성자는 여전히 내용과 조치를 모두 고친다.
+  await signIn(db, IDS.owner)
+  assert.equal((await db.query(`UPDATE ${table} SET finding_text = '작성자 수정', action_text = '작성자 조치' RETURNING id`)).rows.length, 1)
+  await signOut(db)
+  assert.equal(await scalar(db, `SELECT action_text FROM ${table}`), '작성자 조치')
 })

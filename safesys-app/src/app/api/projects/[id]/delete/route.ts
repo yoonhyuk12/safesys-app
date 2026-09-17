@@ -116,9 +116,9 @@ export async function POST(
 
   const { data: patrolLedger } = await supabaseAdmin
     .from('patrol_ledger_inspections')
-    .select('finding_photo_url')
+    .select('finding_photo_url, action_photo_url')
     .eq('project_id', id)
-  patrolLedger?.forEach((r: { finding_photo_url: unknown }) => push(r.finding_photo_url))
+  patrolLedger?.forEach((r: { finding_photo_url: unknown; action_photo_url: unknown }) => push(r.finding_photo_url, r.action_photo_url))
 
   const { data: workPlans } = await supabaseAdmin
     .from('work_plans')

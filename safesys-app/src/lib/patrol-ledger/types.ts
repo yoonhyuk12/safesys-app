@@ -53,6 +53,12 @@ export interface PatrolLedgerInspection {
   finding_photo_kind: PatrolLedgerPhotoKind
   /** 점검항목 생성에 쓴 주요 테마 (한 줄, 200자 이하). 없으면 빈 문자열 */
   theme: string
+  /** 지적사항 관리대장에서 등록한 조치내용. 없으면 빈 문자열 */
+  action_text: string
+  /** 조치사진 공개 URL. 'N/A'는 해당없음. 없으면 null */
+  action_photo_url: string | null
+  /** 조치사진을 올린 날(YYYY-MM-DD). 없으면 null */
+  action_date: string | null
   created_by: string | null
   created_at: string
   updated_at: string

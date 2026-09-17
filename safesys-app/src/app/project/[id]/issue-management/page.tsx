@@ -37,12 +37,13 @@ type IssueSource =
   | { kind: 'hq'; inspectionId: string; issueNo: 1 | 2 }
   | { kind: 'safety_result'; resultId: string }
   | { kind: 'safety_additional'; inspectionId: string; itemIndex: number }
+  | { kind: 'patrol'; inspectionId: string }
   | { kind: 'direct'; entry: DirectIssue }
 
 interface LedgerIssue {
   key: string
   source: IssueSource
-  sourceLabel: string // 본부점검 | 해빙기 | 우기 | 종합 | 특별점검 | 직접등록
+  sourceLabel: string // 본부점검 | 해빙기 | 우기 | 종합 | 특별점검 | 순회점검 | 직접등록
   inspectionDate: string | null
   inspectorName: string | null
   location: string | null // 부위/항목
@@ -237,7 +238,36 @@ export default function IssueManagementPage() {
         })
       })
 
-      // 3) 직접 등록건
+      // 3) (AI) 순회점검대장 — 지적사진 구분이고 지적사항이 있는 기록만 지적으로 본다
+      const { data: patrolData } = await supabase
+        .from('patrol_ledger_inspections')
+        .select('id, inspection_date, inspector_name, theme, finding_text, finding_photo_url, finding_photo_kind, action_text, action_photo_url, action_date')
+        .eq('project_id', projectId)
+        .eq('finding_photo_kind', 'finding')
+      patrolData?.forEach((ins: any) => {
+        const content = (ins.finding_text || '').trim()
+        if (!content) return
+        list.push({
+          key: `pl-${ins.id}`,
+          source: { kind: 'patrol', inspectionId: ins.id },
+          sourceLabel: '순회점검',
+          inspectionDate: ins.inspection_date,
+          inspectorName: ins.inspector_name,
+          location: ins.theme || null,
+          findingText: content,
+          beforePhotoUrl: ins.finding_photo_url || null,
+          actionText: ins.action_text || null,
+          afterPhotoUrl: ins.action_photo_url || null,
+          contractor: null,
+          writerName: null,
+          confirmerName: null,
+          contractorSignature: null,
+          supervisorSignature: null,
+          actionDate: ins.action_date,
+        })
+      })
+
+      // 4) 직접 등록건
       const { data: directData } = await supabase
         .from('corrective_action_issues')
         .select('*')
@@ -313,6 +343,16 @@ export default function IssueManagementPage() {
       await (supabase.from('safety_inspections') as any)
         .update({ additional_items: items })
         .eq('id', src.inspectionId)
+    } else if (src.kind === 'patrol') {
+      // 순회점검 기록의 조치 칸만 고친다. 작성자가 아니어도 DB 트리거가 조치 칸 변경은 허용한다.
+      const { error } = await (supabase.from('patrol_ledger_inspections') as any)
+        .update({
+          action_photo_url: afterPhotoUrl,
+          action_date: afterPhotoUrl && afterPhotoUrl !== 'N/A' ? new Date().toISOString().split('T')[0] : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', src.inspectionId)
+      if (error) throw error
     } else {
       await (supabase.from('corrective_action_issues') as any)
         .update({
@@ -347,6 +387,8 @@ export default function IssueManagementPage() {
       } else if (src.kind === 'safety_additional') {
         const safeName = resized.name.replace(/[^a-zA-Z0-9.-]/g, '_')
         url = await uploadToStorage(resized, 'safety-inspection-photos', `${projectId}/${Date.now()}_special_after_${src.itemIndex}_${encodeURIComponent(safeName)}`)
+      } else if (src.kind === 'patrol') {
+        url = await uploadToStorage(resized, 'safety-inspection-photos', `patrol-ledger/${projectId}/${Date.now()}_after_${src.inspectionId}.jpg`)
       } else {
         url = await uploadToStorage(resized, 'inspection-photos', `issue-direct/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`)
       }
@@ -382,7 +424,7 @@ export default function IssueManagementPage() {
       // 정기점검·직접등록 사진은 Storage에서도 제거 (원본 페이지 관례)
       const url = issue.afterPhotoUrl
       const kind = issue.source.kind
-      if (kind === 'safety_result' || kind === 'safety_additional') {
+      if (kind === 'safety_result' || kind === 'safety_additional' || kind === 'patrol') {
         const path = url.split('/safety-inspection-photos/')[1]
         if (path) await supabase.storage.from('safety-inspection-photos').remove([decodeURIComponent(path)])
       } else if (kind === 'direct') {
@@ -407,6 +449,11 @@ export default function IssueManagementPage() {
         await (supabase.from('safety_inspection_results') as any)
           .update({ action_items: tempActionText })
           .eq('id', issue.source.resultId)
+      } else if (issue.source.kind === 'patrol') {
+        const { error } = await (supabase.from('patrol_ledger_inspections') as any)
+          .update({ action_text: tempActionText, updated_at: new Date().toISOString() })
+          .eq('id', issue.source.inspectionId)
+        if (error) throw error
       } else if (issue.source.kind === 'direct') {
         await (supabase.from('corrective_action_issues') as any)
           .update({ action_content: tempActionText, updated_at: new Date().toISOString() })
@@ -774,6 +821,8 @@ export default function IssueManagementPage() {
                               className={`inline-block px-2 py-0.5 rounded text-xs ${
                                 issue.sourceLabel === '본부점검'
                                   ? 'bg-purple-100 text-purple-700'
+                                  : issue.sourceLabel === '순회점검'
+                                    ? 'bg-amber-100 text-amber-800'
                                   : issue.sourceLabel === '직접등록'
                                     ? 'bg-blue-100 text-blue-700'
                                     : 'bg-teal-100 text-teal-700'
@@ -824,7 +873,7 @@ export default function IssueManagementPage() {
                             ) : (
                               <div className="flex items-start gap-1">
                                 <span className="flex-1">{issue.actionText || '-'}</span>
-                                {(issue.source.kind === 'safety_result' || issue.source.kind === 'direct') && (
+                                {(issue.source.kind === 'safety_result' || issue.source.kind === 'patrol' || issue.source.kind === 'direct') && (
                                   <button
                                     onClick={() => {
                                       setEditingActionKey(issue.key)
