@@ -8,6 +8,7 @@ import {
   BarChart3,
   CalendarDays,
   Edit,
+  ImageOff,
   Loader2,
   Plus,
   RefreshCw,
@@ -28,6 +29,7 @@ import {
   deleteProjectAccident,
   getAccidentAnalysisData,
   getProjectAccidentDetail,
+  getProjectAccidentFirstPhotos,
   updateProjectAccident,
   type AccidentFormInput,
   type NormalizedSafetyInspection,
@@ -286,6 +288,10 @@ export default function AccidentAnalysisView({
   /** 삭제 확인 모달이 가리키는 사고. null이면 모달을 닫는다. */
   const [deleteTarget, setDeleteTarget] = useState<ProjectAccident | null>(null)
   const [deleteError, setDeleteError] = useState('')
+  /** 사고 이력 표 썸네일. 사고 id → 첫 사진 data URL, 사진이 없으면 null. 목록을 다시 읽으면 비운다. */
+  const [photoById, setPhotoById] = useState<Map<string, string | null>>(new Map())
+  /** 썸네일을 읽는 중이거나 읽기를 마친 사고 id. 같은 사고를 두 번 요청하지 않는다. */
+  const photoRequestedIds = useRef<Set<string>>(new Set())
   /** 수정을 열기 전에 보고서 항목을 읽는 중인 사고 id */
   const [editOpeningId, setEditOpeningId] = useState<string | null>(null)
   const [visibleMonthlySeries, setVisibleMonthlySeries] =
@@ -386,6 +392,9 @@ export default function AccidentAnalysisView({
       setAccidents(result.accidents ?? [])
       setInspections(result.inspections ?? [])
     }
+    // 사진이 바뀌었을 수 있으므로 썸네일 캐시는 목록과 함께 버린다.
+    photoRequestedIds.current = new Set()
+    setPhotoById(new Map())
     setLoading(false)
   }, [endDate, queryProjectIds, startDate])
 
@@ -642,6 +651,29 @@ export default function AccidentAnalysisView({
       trend,
     }
   }, [chartAnalysis.monthlyTrend])
+
+  // 표에 보이는 사고만 썸네일을 읽는다. 실패해도 표는 그대로 두고 빈 자리로 보여준다.
+  useEffect(() => {
+    const missingIds = analysis.accidentDetails
+      .map((detail) => detail.accident.id)
+      .filter((id) => !photoRequestedIds.current.has(id))
+    if (missingIds.length === 0) return
+    missingIds.forEach((id) => photoRequestedIds.current.add(id))
+    let active = true
+    getProjectAccidentFirstPhotos(missingIds)
+      .then((loaded) => {
+        if (!active) return
+        setPhotoById((current) => new Map([...current, ...loaded]))
+      })
+      .catch((caught) => {
+        console.error('사고 사진 썸네일 조회 실패', caught)
+        if (!active) return
+        missingIds.forEach((id) => photoRequestedIds.current.delete(id))
+      })
+    return () => {
+      active = false
+    }
+  }, [analysis.accidentDetails])
 
   const openCreateModal = () => {
     setEditingAccident(null)
@@ -1410,7 +1442,21 @@ export default function AccidentAnalysisView({
                               {[managingHq, managingBranch].filter(Boolean).join(' · ') || '-'}
                             </p>
                           </td>
-                          <td className="whitespace-nowrap px-3 py-3 text-center text-gray-600">{formatDate(accident.accident_at)}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-center text-gray-600">
+                            {photoById.get(accident.id) ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={photoById.get(accident.id) ?? ''}
+                                alt={`${projectName} 사고 사진`}
+                                className="mx-auto h-16 w-20 rounded-md border border-gray-200 bg-gray-50 object-cover"
+                              />
+                            ) : (
+                              <div className="mx-auto flex h-16 w-20 items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-gray-300" aria-hidden="true">
+                                <ImageOff className="h-5 w-5" />
+                              </div>
+                            )}
+                            <p className="mt-1.5">{formatDate(accident.accident_at)}</p>
+                          </td>
                           <td className="px-3 py-3 text-center">
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${severityBadgeClass(accident.severity)}`}>{severityLabel(accident.severity)}</span>
                             <p className="mt-1 text-xs text-gray-600">{accident.accident_type}</p>

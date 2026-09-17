@@ -16,6 +16,7 @@ import {
 } from '@/lib/accident-analysis-types'
 import {
   isAccidentReportDetailsEmpty,
+  isValidAccidentReportPhotoDataUrl,
   normalizeAccidentReportDetails,
   validateAccidentReportDetails,
 } from '@/lib/accident-report'
@@ -581,6 +582,33 @@ const mutationResultColumns = (input: AccidentFormInput): string =>
     : `${PROJECT_ACCIDENT_LIST_COLUMNS}, report_details`
 
 /** 사고 한 건을 보고서 항목(report_details)까지 읽는다. 상세·수정·HWPX 다운로드 직전에만 부른다. */
+/**
+ * 사고 이력 표의 썸네일용 첫 사진(data URL). 목록 조회는 사진 JSON을 읽지 않으므로
+ * 화면에 보이는 사고 id만 따로 읽는다. 사진이 없거나 형태가 어긋나면 null을 담는다.
+ */
+export async function getProjectAccidentFirstPhotos(ids: string[]): Promise<Map<string, string | null>> {
+  const scopedIds = Array.from(new Set(ids.map((id) => id.trim()).filter(Boolean)))
+  const photos = new Map<string, string | null>()
+  if (scopedIds.length === 0) return photos
+
+  const rows = await fetchRowsInBatches(
+    scopedIds,
+    (batchIds) => (supabase as any)
+      .from('project_accidents')
+      .select('id, first_photo:report_details->photos->0->>dataUrl')
+      .in('id', batchIds),
+    '사고 사진'
+  )
+  for (const row of rows.map(asRecord)) {
+    if (!row) continue
+    const id = textValue(row.id)
+    if (!id) continue
+    const dataUrl = textValue(row.first_photo)
+    photos.set(id, isValidAccidentReportPhotoDataUrl(dataUrl) ? dataUrl : null)
+  }
+  return photos
+}
+
 export async function getProjectAccidentDetail(id: string): Promise<ProjectAccident> {
   const scopedId = id.trim()
   if (!scopedId) throw new Error('사고 상세를 불러오지 못했습니다.')
