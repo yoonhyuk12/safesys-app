@@ -781,7 +781,23 @@ export default function AccidentAnalysisView({
       }
       setIsModalOpen(false)
       setEditingAccident(null)
-      await loadData()
+      const saved = result.accident
+      if (!saved) {
+        // 저장 응답에 행이 없으면 그때만 전체를 다시 읽는다.
+        await loadData()
+        return
+      }
+      // 전체를 다시 읽지 않고 저장된 그 사고 한 건만 목록에 반영한다. 통계·표는 accidents에서 다시 계산된다.
+      setAccidents((current) => {
+        const exists = current.some((accident) => accident.id === saved.id)
+        return exists
+          ? current.map((accident) => (accident.id === saved.id ? saved : accident))
+          : [saved, ...current]
+      })
+      // 썸네일은 저장 응답의 사진(보고서 모드는 report_details를 되받는다)으로 바로 갱신한다.
+      const firstPhoto = saved.report_details?.photos?.[0]?.dataUrl ?? null
+      photoRequestedIds.current.add(saved.id)
+      setPhotoById((current) => new Map([...current, [saved.id, firstPhoto]]))
     } catch (caught) {
       console.error('사고 이력 저장 실패', caught)
       setActionError('사고 이력을 저장하는 중 오류가 발생했습니다.')
