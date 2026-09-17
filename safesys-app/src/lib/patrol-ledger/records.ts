@@ -29,10 +29,10 @@ export function patrolLedgerToday(now: Date = new Date()): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
-export function createPatrolLedgerDraft(init: { districtName: string; contractorName: string; inspectorName: string; inspectorAffiliation: string }): PatrolLedgerDraft {
+export function createPatrolLedgerDraft(init: { districtName: string; contractorName: string; inspectorName: string; inspectorAffiliation: string; inspectorPosition?: string }): PatrolLedgerDraft {
   return {
     inspection_date: patrolLedgerToday(), contractor_name: init.contractorName, district_name: init.districtName,
-    inspector_affiliation: init.inspectorAffiliation, inspector_position: '', inspector_name: init.inspectorName,
+    inspector_affiliation: init.inspectorAffiliation, inspector_position: init.inspectorPosition ?? '', inspector_name: init.inspectorName,
     signature: '', tbm_work_summary: '', items: [], finding_text: '', finding_photo_url: null,
   }
 }

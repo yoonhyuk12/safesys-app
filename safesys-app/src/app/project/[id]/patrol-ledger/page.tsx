@@ -86,6 +86,7 @@ export default function PatrolLedgerPage() {
       contractorName: project.g2b_corp_nm ?? '',
       inspectorName: userProfile?.full_name ?? '',
       inspectorAffiliation: userProfile?.branch_division || userProfile?.hq_division || userProfile?.company_name || '',
+      inspectorPosition: userProfile?.position ?? '',
     }))
   }
   const save = async (value: PatrolLedgerDraft) => {
@@ -126,8 +127,8 @@ export default function PatrolLedgerPage() {
     finally { setDownloading(false) }
   }
 
-  if (!sessionChecked || !userId) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><LoadingSpinner /></div>
-  return <div className="min-h-screen bg-gray-50">
+  if (!sessionChecked || !userId) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>
+  return <div className="min-h-screen relative bg-gradient-to-b from-blue-950 via-blue-900 to-slate-900">
     <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-10">
       <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
         <button disabled={busy} aria-label="프로젝트로 돌아가기" className={SECONDARY} onClick={() => {
@@ -139,8 +140,8 @@ export default function PatrolLedgerPage() {
       </div>
     </header>
     <main className="max-w-5xl mx-auto p-4 space-y-4">
-      {error && <p role="alert" className="text-sm text-red-800">{error}</p>}
-      {loadError && <div role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800"><p>{loadError}</p><button onClick={load} className={SECONDARY}>다시 불러오기</button></div>}
+      {error && <p role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800">{error}</p>}
+      {loadError &&<div role="alert" className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 text-sm text-red-800"><p>{loadError}</p><button onClick={load} className={SECONDARY}>다시 불러오기</button></div>}
       {draft && project ? <PatrolLedgerForm key={editingId ?? 'new'} project={project} initialDraft={draft} saving={saving} onSave={save} onCancel={() => { setDraft(null); setEditingId(null); setError(null) }} />
         : selected && project ? <>
           <button disabled={busy} className={SECONDARY} onClick={() => { setSelected(null); setError(null) }}>목록으로</button>
