@@ -635,7 +635,7 @@ export default function AccidentEntryModal({
                     onClick={() => stepClaimYear(-1)}
                     disabled={submitting}
                     aria-label="산재신청 연도 한 해 앞으로"
-                    className="inline-flex min-w-[44px] items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="inline-flex w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                   >
                     <Minus className="h-4 w-4" />
                   </button>
@@ -648,7 +648,7 @@ export default function AccidentEntryModal({
                     value={draft.workersCompClaimYear}
                     onChange={(event) => updateDraft('workersCompClaimYear', event.target.value)}
                     disabled={submitting}
-                    className={`${inputClassName} text-center tabular-nums`}
+                    className={`${inputClassName} min-w-0 flex-1 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
                     inputMode="numeric"
                     placeholder="미입력"
                   />
@@ -657,7 +657,7 @@ export default function AccidentEntryModal({
                     onClick={() => stepClaimYear(1)}
                     disabled={submitting}
                     aria-label="산재신청 연도 한 해 뒤로"
-                    className="inline-flex min-w-[44px] items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                    className="inline-flex w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
