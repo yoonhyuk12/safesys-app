@@ -205,6 +205,37 @@ const chartDateRange = (): { startDate: string; endDate: string } => dateRangeFo
 const formatDate = (value?: string | null): string =>
   value ? new Date(value).toLocaleDateString('ko-KR') : '-'
 
+/** 보고 지연 판정 기준(일). 사고 발생일로부터 이 일수 이상 지나 보고하면 초과로 본다. */
+const REPORT_DELAY_LIMIT_DAYS = 2
+
+const REPORT_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+
+/** 서울 기준 YYYY-MM-DD. 사고일시는 서울 00:00으로 저장되므로 날짜만 뽑는다. */
+const toSeoulDateString = (value: string): string | null => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' })
+}
+
+/** 보고일 표시값. 보고서를 쓰지 않았거나 형식이 어긋나면 '-'. */
+const formatReportDate = (accident: ProjectAccident): string => {
+  const value = accident.report_date ?? accident.report_details?.reportDate ?? ''
+  return REPORT_DATE_PATTERN.test(value) ? formatDate(value) : '-'
+}
+
+/** 발생일에서 보고일까지 경과 일수. 어느 한쪽이 없거나 형식이 어긋나면 null. */
+const reportDelayDays = (accident: ProjectAccident): number | null => {
+  const reportDate = accident.report_date ?? accident.report_details?.reportDate ?? ''
+  if (!REPORT_DATE_PATTERN.test(reportDate)) return null
+  const accidentDate = toSeoulDateString(accident.accident_at)
+  if (!accidentDate) return null
+  const elapsed = (Date.parse(`${reportDate}T00:00:00Z`) - Date.parse(`${accidentDate}T00:00:00Z`)) / 86_400_000
+  return Number.isFinite(elapsed) ? Math.round(elapsed) : null
+}
+
+const isReportDelayed = (accident: ProjectAccident): boolean =>
+  (reportDelayDays(accident) ?? 0) >= REPORT_DELAY_LIMIT_DAYS
+
 const formatRate = (value: number): string => `${value.toFixed(1)}%`
 
 const severityBadgeClass = (severity: string): string => {
@@ -1421,6 +1452,7 @@ export default function AccidentAnalysisView({
                     <tr>
                       <th className="px-3 py-3 text-center font-medium">프로젝트</th>
                       <th className="px-3 py-3 text-center font-medium">사고일자</th>
+                      <th className="px-3 py-3 text-center font-medium">보고일자</th>
                       <th className="px-3 py-3 text-center font-medium">중대도·유형</th>
                       <th className="px-3 py-3 text-center font-medium">산재승인</th>
                       <th className="px-3 py-3 text-center font-medium">사고 개요</th>
@@ -1476,6 +1508,12 @@ export default function AccidentAnalysisView({
                               </div>
                             )}
                             <p className="mt-1.5">{formatDate(accident.accident_at)}</p>
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-3 text-center text-gray-600">
+                            <p>{formatReportDate(accident)}</p>
+                            {isReportDelayed(accident) && (
+                              <p className="mt-1 text-xs font-medium text-red-600">초과 ({reportDelayDays(accident)}일)</p>
+                            )}
                           </td>
                           <td className="px-3 py-3 text-center">
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${severityBadgeClass(accident.severity)}`}>{severityLabel(accident.severity)}</span>

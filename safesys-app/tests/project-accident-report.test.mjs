@@ -429,7 +429,7 @@ test('사고 분석 산재승인은 양의 유효 요양일만 승인으로 표�
     assert.doesNotMatch(markup, /<th[^>]*>산재신청<\/th>/)
     const row = markup.match(/<tr[^>]*class="align-top"[^>]*>(.*?)<\/tr>/)?.[1] ?? ''
     const cells = [...row.matchAll(/<td\b[^>]*>(.*?)<\/td>/g)].map((match) => match[1])
-    assert.match(cells[3] ?? '', approved ? /bg-green-100 text-green-800[^>]*>승인<\/span>/ : /bg-gray-100 text-gray-800[^>]*>미확인<\/span>/, String(value))
+    assert.match(cells[4] ?? '', approved ? /bg-green-100 text-green-800[^>]*>승인<\/span>/ : /bg-gray-100 text-gray-800[^>]*>미확인<\/span>/, String(value))
   }
 })
 

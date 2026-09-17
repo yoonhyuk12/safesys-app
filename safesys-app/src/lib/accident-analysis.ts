@@ -40,7 +40,7 @@ export * from '@/lib/accident-analysis-types'
 export { calculateAccidentAnalysis } from '@/lib/accident-analysis-calculation'
 
 /** 목록·집계용 컬럼. report_details(사진 JSON)는 상세·수정·다운로드에서만 따로 읽는다. */
-export const PROJECT_ACCIDENT_LIST_COLUMNS = 'id, project_id, external_project_name, external_managing_hq, external_managing_branch, accident_at, severity, accident_type, location, work_description, description, cause, prevention_action, injured_count, fatal_count, lost_workdays, workers_comp_claim, created_by, created_at, updated_at, expected_treatment_days:report_details->>expectedTreatmentDays'
+export const PROJECT_ACCIDENT_LIST_COLUMNS = 'id, project_id, external_project_name, external_managing_hq, external_managing_branch, accident_at, severity, accident_type, location, work_description, description, cause, prevention_action, injured_count, fatal_count, lost_workdays, workers_comp_claim, created_by, created_at, updated_at, expected_treatment_days:report_details->>expectedTreatmentDays, report_date:report_details->>reportDate'
 
 const SEVERITIES = new Set<AccidentSeverity>(ACCIDENT_SEVERITY_OPTIONS.map((option) => option.value))
 const COMP_CLAIMS = new Set<WorkersCompClaim | ''>(ACCIDENT_COMP_CLAIM_OPTIONS.map((option) => option.value))
@@ -581,7 +581,6 @@ const mutationResultColumns = (input: AccidentFormInput): string =>
     ? PROJECT_ACCIDENT_LIST_COLUMNS
     : `${PROJECT_ACCIDENT_LIST_COLUMNS}, report_details`
 
-/** 사고 한 건을 보고서 항목(report_details)까지 읽는다. 상세·수정·HWPX 다운로드 직전에만 부른다. */
 /**
  * 사고 이력 표의 썸네일용 첫 사진(data URL). 목록 조회는 사진 JSON을 읽지 않으므로
  * 화면에 보이는 사고 id만 따로 읽는다. 사진이 없거나 형태가 어긋나면 null을 담는다.
@@ -609,6 +608,7 @@ export async function getProjectAccidentFirstPhotos(ids: string[]): Promise<Map<
   return photos
 }
 
+/** 사고 한 건을 보고서 항목(report_details)까지 읽는다. 상세·수정·HWPX 다운로드 직전에만 부른다. */
 export async function getProjectAccidentDetail(id: string): Promise<ProjectAccident> {
   const scopedId = id.trim()
   if (!scopedId) throw new Error('사고 상세를 불러오지 못했습니다.')
