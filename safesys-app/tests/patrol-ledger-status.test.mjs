@@ -14,10 +14,10 @@ async function transpile(relativePath) {
   return module.exports
 }
 
-const { patrolStatusWeekRange, isPatrolStatusProjectActive, aggregatePatrolStatus, groupPatrolStatus, sumPatrolStatus } =
+const { patrolStatusWeekRange, patrolStatusQuarter, patrolStatusRemark, isPatrolStatusProjectActive, aggregatePatrolStatus, groupPatrolStatus, sumPatrolStatus } =
   await transpile('../src/lib/patrol-ledger/status-aggregate.ts')
 
-const project = (id, hq, branch) => ({ id, project_name: id, managing_hq: hq, managing_branch: branch })
+const project = (id, hq, branch, is_active = true) => ({ id, project_name: id, managing_hq: hq, managing_branch: branch, is_active })
 const record = (id, projectId, date, overrides = {}) => ({
   id, project_id: projectId, inspection_date: date, inspector_name: '점검자',
   items: [{ result: '미흡' }, { result: '양호' }, { result: '미흡' }],
@@ -74,10 +74,10 @@ test('본부·지사 합계는 동명 지사를 본부별로 구분하고 미점
   const branches = groupPatrolStatus(rows, 'branch')
   assert.equal(hqs.length, 2)
   assert.equal(branches.length, 2)
-  assert.equal(branches.find(row => row.hq === '경기').projectCount, 2)
-  assert.deepEqual(sumPatrolStatus(hqs), { projectCount: 3, inspectionCount: 1, poorCount: 2, photoCount: 1, uninspectedCount: 2 })
+  assert.equal(branches.find(row => row.hq === '경기').registeredCount, 2)
+  assert.deepEqual(sumPatrolStatus(hqs), { registeredCount: 3, targetCount: 3, tbmCount: 0, inspectionCount: 1, poorCount: 2, photoCount: 1, uninspectedCount: 2 })
   assert.deepEqual(sumPatrolStatus(branches), sumPatrolStatus(rows))
-  assert.deepEqual(sumPatrolStatus([]), { projectCount: 0, inspectionCount: 0, poorCount: 0, photoCount: 0, uninspectedCount: 0 })
+  assert.deepEqual(sumPatrolStatus([]), { registeredCount: 0, targetCount: 0, tbmCount: 0, inspectionCount: 0, poorCount: 0, photoCount: 0, uninspectedCount: 0 })
 })
 
 test('본부·지사 표는 직제 순서로 나열하고 목록에 없는 조직은 뒤에 가나다순으로 둔다', () => {
@@ -89,4 +89,21 @@ test('본부·지사 표는 직제 순서로 나열하고 목록에 없는 조�
   const order = { hqs: ['본사', '경기', '충남'], branches: { '경기': ['경기본부', '여주이천지사'], '충남': ['충남본부', '충남서부지사'] } }
   assert.deepEqual(groupPatrolStatus(rows, 'hq', order).map(g => g.name), ['경기', '충남', '가나본부', '기타본부'])
   assert.deepEqual(groupPatrolStatus(rows, 'branch', order).map(g => g.name), ['경기본부', '여주이천지사', '충남본부', '충남서부지사', '가나지사', '기타지사'])
+})
+
+test('등록 수는 전체, 점검 대상은 공사중 현장, TBM 건수는 현장별 맵에서 오고 비고는 미점검·미흡만 적는다', () => {
+  const range = patrolStatusWeekRange('2026-09-14')
+  const rows = aggregatePatrolStatus([
+    project('a', '경기', 'A'), project('b', '경기', 'A', { q3: false }), project('c', '경기', 'B', { q3: true }),
+  ], [record('1', 'a', '2026-09-15'), record('2', 'b', '2026-09-15', { items: [] })], range, new Map([['a', 3], ['b', 1]]))
+  assert.deepEqual(rows.map(row => [row.isTarget, row.registeredCount, row.targetCount, row.tbmCount, row.inspectionCount, row.uninspectedCount]),
+    [[true, 1, 1, 3, 1, 0], [false, 1, 0, 1, 1, 0], [true, 1, 1, 0, 0, 1]])
+  const [group] = groupPatrolStatus(rows, 'hq')
+  assert.deepEqual([group.registeredCount, group.targetCount, group.tbmCount, group.inspectionCount, group.uninspectedCount], [3, 2, 4, 2, 1])
+  assert.equal(patrolStatusRemark(group), '미점검 1 · 미흡 2')
+  assert.equal(patrolStatusRemark({ ...group, uninspectedCount: 0, poorCount: 0 }), '-')
+  assert.equal(patrolStatusQuarter(range), 3)
+  assert.equal(patrolStatusQuarter(patrolStatusWeekRange('2026-12-28')), 4)
+  assert.equal(patrolStatusQuarter(patrolStatusWeekRange('2026-03-30')), 1)
+  assert.equal(patrolStatusQuarter(patrolStatusWeekRange('2026-04-06')), 2)
 })

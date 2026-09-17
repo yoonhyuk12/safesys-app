@@ -12,7 +12,7 @@ import { seoulToday } from '@/lib/patrol-inspection-utils'
 import { canEditPatrolLedgerTheme, getPatrolLedgerWeeklyTheme, patrolLedgerWeekStart, savePatrolLedgerWeeklyTheme } from '@/lib/patrol-ledger/themes'
 import { PATROL_LEDGER_TABLE, PATROL_LEDGER_THEME_MAX } from '@/lib/patrol-ledger/types'
 import {
-  aggregatePatrolStatus, groupPatrolStatus, isPatrolStatusProjectActive,
+  aggregatePatrolStatus, groupPatrolStatus, patrolStatusQuarter, patrolStatusRemark,
   patrolStatusWeekRange, sumPatrolStatus,
   type PatrolStatusInspection, type PatrolStatusRow, type PatrolStatusTotals,
 } from '@/lib/patrol-ledger/status-aggregate'
@@ -29,14 +29,32 @@ const TH = 'px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tr
 const TD = 'px-3 py-3 text-sm text-center'
 const shortDate = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
 
+/** 본부·지사 표의 숫자 열 — 등록 프로젝트 수 / 분기 점검 대상 / TBM 금주 / 순회점검 건수 / 비고 */
 function TotalCells({ totals }: { totals: PatrolStatusTotals }) {
   return <>
-    <td className={TD}>{totals.projectCount}</td>
+    <td className={TD}>{totals.registeredCount}</td>
+    <td className={TD}>{totals.targetCount}</td>
+    <td className={TD}>{totals.tbmCount}</td>
     <td className={TD}>{totals.inspectionCount}</td>
-    <td className={TD}>{totals.poorCount}</td>
-    <td className={TD}>{totals.photoCount}</td>
-    <td className={TD}>{totals.uninspectedCount}</td>
+    <td className={`${TD} whitespace-nowrap`}>{patrolStatusRemark(totals)}</td>
   </>
+}
+
+/** 현장 id 목록을 100개씩 나눠 조회하고 1000행씩 끝까지 받는다. 기본 응답 제한으로 실적이 잘리지 않게 한다. */
+async function fetchAllByProjects<T>(ids: string[], query: (batch: string[], from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>, isCancelled: () => boolean): Promise<T[]> {
+  const rows: T[] = []
+  for (let batch = 0; batch < ids.length; batch += 100) {
+    const chunk = ids.slice(batch, batch + 100)
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await query(chunk, from, from + 999)
+      if (isCancelled()) return rows
+      if (error) throw error
+      const page = data ?? []
+      rows.push(...page)
+      if (page.length < 1000) break
+    }
+  }
+  return rows
 }
 
 function StatusContent({ initialHq, initialBranch, onBack, profile, userId }: Props & { profile: UserProfile; userId: string }) {
@@ -80,38 +98,39 @@ function StatusContent({ initialHq, initialBranch, onBack, profile, userId }: Pr
     return () => { cancelled = true }
   }, [profile])
 
-  const activeProjects = useMemo(() => projects.filter(project => isPatrolStatusProjectActive(project, range)), [projects, range])
-  const resultKey = JSON.stringify([weekStart, activeProjects.map(project => project.id)])
+  // 등록 프로젝트 수는 관할 전체가 기준이라 활성 여부와 무관하게 모든 현장을 조회 대상으로 삼는다.
+  const projectIds = useMemo(() => projects.map(project => project.id), [projects])
+  const resultKey = JSON.stringify([weekStart, projectIds])
   useEffect(() => {
     if (projectsLoading || projectError) return
     let cancelled = false
     setResult(null)
     const load = async () => {
       try {
-        const inspections: PatrolStatusInspection[] = []
-        // 현장 100개씩 조회하고 응답도 페이지를 나눠 1000행 기본 제한으로 실적이 잘리지 않게 한다.
-        for (let batch = 0; batch < activeProjects.length; batch += 100) {
-          const ids = activeProjects.slice(batch, batch + 100).map(project => project.id)
-          for (let from = 0; ; from += 1000) {
-            const { data, error } = await supabase.from(PATROL_LEDGER_TABLE)
-              .select('id, project_id, inspection_date, inspector_name, items, finding_photo_kind, finding_photo_url, theme')
-              .in('project_id', ids).gte('inspection_date', range.start).lte('inspection_date', range.end)
-              .order('id', { ascending: true }).range(from, from + 999)
-            if (cancelled) return
-            if (error) throw error
-            const page = (data ?? []) as PatrolStatusInspection[]
-            inspections.push(...page)
-            if (page.length < 1000) break
-          }
-        }
-        if (!cancelled) setResult({ key: resultKey, rows: aggregatePatrolStatus(activeProjects, inspections, range), error: '' })
+        const isCancelled = () => cancelled
+        const inspections = await fetchAllByProjects<PatrolStatusInspection>(projectIds, (ids, from, to) =>
+          supabase.from(PATROL_LEDGER_TABLE)
+            .select('id, project_id, inspection_date, inspector_name, items, finding_photo_kind, finding_photo_url, theme')
+            .in('project_id', ids).gte('inspection_date', range.start).lte('inspection_date', range.end)
+            .order('id', { ascending: true }).range(from, to), isCancelled)
+        if (cancelled) return
+        // TBM(등록건수) 금주 — 최종 제출된 TBM만 센다(다른 TBM 통계와 같은 기준). 구형 project_id 없는 제출은 제외된다.
+        const tbmRows = await fetchAllByProjects<{ id: string; project_id: string }>(projectIds, (ids, from, to) =>
+          supabase.from('tbm_submissions').select('id, project_id')
+            .in('project_id', ids).eq('status', 'submitted')
+            .gte('meeting_date', range.start).lte('meeting_date', `${range.end}T23:59:59`)
+            .order('id', { ascending: true }).range(from, to), isCancelled)
+        if (cancelled) return
+        const tbmCounts = new Map<string, number>()
+        for (const row of tbmRows) tbmCounts.set(row.project_id, (tbmCounts.get(row.project_id) ?? 0) + 1)
+        setResult({ key: resultKey, rows: aggregatePatrolStatus(projects, inspections, range, tbmCounts), error: '' })
       } catch {
         if (!cancelled) setResult({ key: resultKey, rows: [], error: '순회점검 현황을 불러오지 못했습니다.' })
       }
     }
     void load()
     return () => { cancelled = true }
-  }, [activeProjects, range, resultKey, projectsLoading, projectError])
+  }, [projects, projectIds, range, resultKey, projectsLoading, projectError])
 
   useEffect(() => {
     let cancelled = false
@@ -150,7 +169,10 @@ function StatusContent({ initialHq, initialBranch, onBack, profile, userId }: Pr
     (selectedHq === null || row.hq === selectedHq) && (selectedBranch === null || row.branch === selectedBranch))
   // 본부·지사 표는 직제 순서(BRANCH_OPTIONS의 본부 순서와 본부별 지사 순서)로 나열한다.
   const groups = groupPatrolStatus(rows, level === 'hq' ? 'hq' : 'branch', ORG_ORDER)
+  // 프로젝트별 표는 분기 점검 대상(공사중) 현장만 보여 준다. 등록 수·합계는 관할 전체 기준이다.
+  const projectRows = rows.filter(row => row.isTarget)
   const totals = sumPatrolStatus(rows)
+  const quarter = patrolStatusQuarter(range)
   const canGoUp = rootLevel === 'hq' ? level !== 'hq' : rootLevel === 'branch' && level === 'project'
   const goUp = () => {
     if (level === 'project') {
@@ -194,18 +216,18 @@ function StatusContent({ initialHq, initialBranch, onBack, profile, userId }: Pr
           <button disabled={saving} onClick={() => setWeekStart(patrolStatusWeekRange(weekStart, 1).start)} className={BUTTON}>다음 주 ▶</button>
         </div>
       </div>
-      <p className="px-4 pt-3 text-xs text-gray-500">선택 주의 공사중 현장 기준 · 사진은 지적사진 건수입니다.</p>
+      <p className="px-4 pt-3 text-xs text-gray-500">{level === 'project' ? `선택 주의 ${quarter}분기 점검 대상(공사중) 현장 · 사진은 지적사진 건수입니다.` : `등록 프로젝트 수는 관할 전체, 점검 대상은 ${quarter}분기 공사중 현장, TBM·순회점검은 선택 주 건수입니다.`}</p>
       {loading ? <div className="flex justify-center py-12"><LoadingSpinner /></div> : dataError ? <p role="alert" className="p-4 text-sm text-red-800">{dataError}</p> :
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead className="bg-gray-50 border-b border-gray-200"><tr>
-              {(level === 'project' ? ['사업명', '점검 건수', '미흡 항목 수', '사진', '마지막 점검일', '점검자', '주요 테마'] : [level === 'hq' ? '본부' : '지사', '현장 수', '점검 건수', '미흡 항목 수', '지적사진 건수', '미점검 현장 수']).map(label => <th key={label} scope="col" className={TH}>{label}</th>)}
+              {(level === 'project' ? ['사업명', 'TBM 금주', '점검 건수', '미흡 항목 수', '사진', '마지막 점검일', '점검자', '주요 테마'] : [level === 'hq' ? '본부' : '지사', '등록 프로젝트 수', `${quarter}분기 점검 대상`, 'TBM(등록건수) 금주', '순회점검 건수', '비고']).map(label => <th key={label} scope="col" className={TH}>{label}</th>)}
             </tr></thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {rows.length === 0 ? <tr><td colSpan={level === 'project' ? 7 : 6} className="px-4 py-8 text-center text-sm text-gray-500">선택 주에 공사중인 현장이 없습니다.</td></tr> : level === 'project' ? rows.map(row =>
+              {(level === 'project' ? projectRows : rows).length === 0 ? <tr><td colSpan={level === 'project' ? 8 : 6} className="px-4 py-8 text-center text-sm text-gray-500">{level === 'project' ? '선택 주에 공사중인 현장이 없습니다.' : '관할에 등록된 현장이 없습니다.'}</td></tr> : level === 'project' ? projectRows.map(row =>
                 <tr key={row.id}>
                   <td className="px-3 py-3 text-sm text-left font-medium text-gray-900">{row.name}</td>
-                  <td className={TD}>{row.inspectionCount}</td><td className={TD}>{row.poorCount}</td><td className={TD}>{row.photoCount}</td>
+                  <td className={TD}>{row.tbmCount}</td><td className={TD}>{row.inspectionCount}</td><td className={TD}>{row.poorCount}</td><td className={TD}>{row.photoCount}</td>
                   <td className={`${TD} whitespace-nowrap`}>{row.lastInspectionDate || '-'}</td><td className={TD}>{row.inspectorName || '-'}</td><td className={TD}>{row.themes || '-'}</td>
                 </tr>) : groups.map(group => {
                   const selectGroup = () => {
@@ -220,8 +242,8 @@ function StatusContent({ initialHq, initialBranch, onBack, profile, userId }: Pr
                 })}
             </tbody>
             <tfoot className="bg-gray-50 border-t border-gray-200 font-semibold"><tr>
-              <td className={TD}>합계{level === 'project' ? ` (${totals.projectCount}개 현장)` : ''}</td>
-              {level === 'project' ? <><td className={TD}>{totals.inspectionCount}</td><td className={TD}>{totals.poorCount}</td><td className={TD}>{totals.photoCount}</td><td colSpan={3} className={TD}>미점검 {totals.uninspectedCount}개 현장</td></> : <TotalCells totals={totals} />}
+              <td className={TD}>합계{level === 'project' ? ` (${totals.targetCount}개 현장)` : ''}</td>
+              {level === 'project' ? <><td className={TD}>{totals.tbmCount}</td><td className={TD}>{totals.inspectionCount}</td><td className={TD}>{totals.poorCount}</td><td className={TD}>{totals.photoCount}</td><td colSpan={3} className={TD}>미점검 {totals.uninspectedCount}개 현장</td></> : <TotalCells totals={totals} />}
             </tr></tfoot>
           </table>
         </div>}
