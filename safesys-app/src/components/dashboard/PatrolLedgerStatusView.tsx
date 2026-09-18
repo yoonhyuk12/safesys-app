@@ -2,7 +2,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ClipboardList } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardList } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useAuth } from '@/contexts/AuthContext'
 import { BRANCH_OPTIONS } from '@/lib/constants'
@@ -24,21 +24,33 @@ interface Props {
 }
 type Level = 'hq' | 'branch' | 'project'
 const ORG_ORDER = { hqs: Object.keys(BRANCH_OPTIONS), branches: BRANCH_OPTIONS }
-const BUTTON = 'min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed'
-const TH = 'px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider'
-const TD = 'px-3 py-3 text-sm text-center'
+const TH = 'px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-r border-gray-200 last:border-r-0'
+const TD = 'px-3 py-3 text-sm text-center border-r border-gray-200 last:border-r-0'
+const SUBTOTAL_TD = 'px-3 py-2 text-sm text-center text-blue-900 font-semibold border-r border-gray-200 last:border-r-0'
+const BADGE = 'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium'
 const shortDate = (date: string) => `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`
 /** 표의 건수 칸. 0건은 숫자 대신 '-'로 보여 비어 있음을 한눈에 알게 한다. */
-const count = (value: number) => (value === 0 ? '-' : value)
+const count = (value: number) => (value === 0 ? <span className="text-gray-400">-</span> : value)
+const hqDisplay = (hq: string) => {
+  return hq === '본사' || hq === '기타' || hq.endsWith('본부') ? hq : `${hq}본부`
+}
+const badge = (n: number, cls: string, suffix = '건') => n > 0
+  ? <span className={`${BADGE} ${cls}`}>{n}{suffix}</span>
+  : <span className="text-gray-400">-</span>
 
 /** 본부·지사 표의 숫자 열 — 등록 프로젝트 수 / 분기 점검 대상 / TBM 금주 / 순회점검 건수 / 비고 */
-function TotalCells({ totals }: { totals: PatrolStatusTotals }) {
+function TotalCells({ totals, subtotal = false }: { totals: PatrolStatusTotals; subtotal?: boolean }) {
+  const cell = subtotal ? SUBTOTAL_TD : TD
   return <>
-    <td className={TD}>{count(totals.registeredCount)}</td>
-    <td className={TD}>{count(totals.targetCount)}</td>
-    <td className={TD}>{count(totals.tbmCount)}</td>
-    <td className={TD}>{count(totals.inspectionCount)}</td>
-    <td className={`${TD} whitespace-nowrap`}>{patrolStatusRemark(totals)}</td>
+    <td className={`${cell} tabular-nums`}>{count(totals.registeredCount)}</td>
+    <td className={`${cell} tabular-nums`}>{count(totals.targetCount)}</td>
+    <td className={`${cell} tabular-nums`}>{count(totals.tbmCount)}</td>
+    <td className={`${cell} tabular-nums`}>{subtotal ? count(totals.inspectionCount) : badge(totals.inspectionCount, 'bg-blue-100 text-blue-800')}</td>
+    <td className={cell}>{subtotal ? patrolStatusRemark(totals) : totals.uninspectedCount > 0 || totals.poorCount > 0 ?
+      <span className="inline-flex flex-wrap justify-center gap-1">
+        {totals.uninspectedCount > 0 && <span className={`${BADGE} bg-red-100 text-red-800`}>미점검 {totals.uninspectedCount}</span>}
+        {totals.poorCount > 0 && <span className={`${BADGE} bg-amber-100 text-amber-800`}>미흡 {totals.poorCount}</span>}
+      </span> : <span className="text-gray-400">-</span>}</td>
   </>
 }
 
@@ -187,63 +199,65 @@ function StatusContent({ initialHq, initialBranch, onBack, profile, userId }: Pr
   }
   const weekLabel = `${shortDate(range.start)} ~ ${shortDate(range.end)}`
 
-  return <div className="space-y-4">
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2"><ClipboardList className="h-4 w-4 text-blue-600" />공사감독 순회점검 현황</h3>
-        <button onClick={onBack} className="inline-flex min-h-[44px] items-center gap-1 text-sm text-gray-600 transition-colors hover:text-gray-900"><ArrowLeft className="h-4 w-4" />뒤로가기</button>
+  return <div className="min-w-0 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    <div className="px-2 py-2 sm:px-6 sm:py-4 border-b border-gray-200">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <button onClick={canGoUp ? goUp : onBack} className="inline-flex min-h-[44px] items-center gap-1 self-start text-sm text-gray-600 hover:text-gray-900 transition-colors">
+          <ArrowLeft className="h-4 w-4" />{canGoUp ? `${level === 'project' ? '지사별' : '본부별'} 통계로 돌아가기` : '안전현황으로 돌아가기'}
+        </button>
+        <div className="flex items-center gap-1 self-end sm:self-auto rounded-md border border-gray-300 bg-white py-0.5 px-1">
+          <button aria-label="이전 주" disabled={saving} onClick={() => setWeekStart(patrolStatusWeekRange(weekStart, -1).start)} className="min-h-[44px] px-2 text-gray-500 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"><ChevronLeft className="h-4 w-4" /></button>
+          <span className="min-w-[44px] text-center text-sm tabular-nums text-gray-900">{range.start.slice(0, 4)}년 {weekLabel}</span>
+          <button aria-label="다음 주" disabled={saving} onClick={() => setWeekStart(patrolStatusWeekRange(weekStart, 1).start)} className="min-h-[44px] px-2 text-gray-500 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"><ChevronRight className="h-4 w-4" /></button>
+        </div>
       </div>
-      <div className="mt-4">
-        <h4 className="text-sm font-semibold text-gray-900 mb-2">{weekStart === currentWeek ? '금주' : '선택 주'} 점검 테마 ({weekLabel})</h4>
-        {themeLoading ? <LoadingSpinner /> : themeState.error ? <p role="alert" className="text-sm text-red-800">{themeState.error}</p> : canEdit ?
-          <form onSubmit={event => { event.preventDefault(); void saveTheme() }} className="flex items-center gap-2">
+    </div>
+    <div className="min-w-0 p-3 sm:p-6">
+      <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-gray-900">
+        <ClipboardList className="h-5 w-5 shrink-0 text-blue-600" />
+        {level === 'hq' ? '본부별 공사감독 순회점검' : level === 'branch' ? `${selectedHq ? `${hqDisplay(selectedHq)} - ` : ''}지사별 공사감독 순회점검` : `${selectedBranch} - 프로젝트별 공사감독 순회점검`}
+      </h3>
+      <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 p-3 sm:p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{weekStart === currentWeek ? '금주' : '선택 주'} 점검 테마</span>
+          <span className="text-xs text-gray-500">{weekLabel}</span>
+        </div>
+        {themeLoading ? <div className="flex justify-center items-center py-4"><LoadingSpinner /></div> : themeState.error ? <p role="alert" className="mt-2 text-sm text-red-800">{themeState.error}</p> : canEdit ?
+          <form onSubmit={event => { event.preventDefault(); void saveTheme() }} className="mt-2 flex items-center gap-2">
             <input aria-label="금주 점검 테마" value={themeState.value} maxLength={PATROL_LEDGER_THEME_MAX} disabled={saving}
               onChange={event => { setThemeState({ ...themeState, value: event.target.value }); setSaveMessage(''); setSaveError('') }}
               className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
             <button type="submit" disabled={saving || !themeState.value.trim()} className="min-h-[44px] shrink-0 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">{saving ? '저장 중' : '저장'}</button>
-          </form> : <p className={`text-sm ${themeState.value ? 'text-gray-900' : 'text-gray-500'}`}>{themeState.value || '아직 등록되지 않았습니다.'}</p>}
+          </form> : <p className={`mt-2 break-words text-sm ${themeState.value ? 'font-medium text-gray-900' : 'text-gray-500'}`}>{themeState.value || '아직 등록되지 않았습니다.'}</p>}
         {saveMessage && <p role="status" className="mt-2 text-sm text-green-800">{saveMessage}</p>}
         {saveError && <p role="alert" className="mt-2 text-sm text-red-800">{saveError}</p>}
       </div>
-    </div>
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      <div className="p-4 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h4 className="text-sm font-semibold text-gray-900">{[selectedHq, selectedBranch].filter(Boolean).join(' / ') || '전체 본부'} · {level === 'hq' ? '본부별' : level === 'branch' ? '지사별' : '프로젝트별'} 현황</h4>
-          {canGoUp && <button onClick={goUp} className="inline-flex min-h-[44px] items-center gap-1 text-sm text-blue-600 hover:text-blue-800"><ArrowLeft className="h-4 w-4" />{level === 'project' ? '지사별' : '본부별'} 통계로 돌아가기</button>}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button disabled={saving} onClick={() => setWeekStart(patrolStatusWeekRange(weekStart, -1).start)} className={BUTTON}>◀ 이전 주</button>
-          <span className="text-sm text-gray-900">{range.start.slice(0, 4)}년 {weekLabel}</span>
-          <button disabled={saving} onClick={() => setWeekStart(patrolStatusWeekRange(weekStart, 1).start)} className={BUTTON}>다음 주 ▶</button>
-        </div>
-      </div>
-      <p className="px-4 pt-3 text-xs text-gray-500">{level === 'project' ? `선택 주의 ${quarter}분기 점검 대상(공사중) 현장 · 사진은 지적사진 건수입니다.` : `등록 프로젝트 수는 관할 전체, 점검 대상은 ${quarter}분기 공사중 현장, TBM·순회점검은 선택 주 건수입니다.`}</p>
-      {loading ? <div className="flex justify-center py-12"><LoadingSpinner /></div> : dataError ? <p role="alert" className="p-4 text-sm text-red-800">{dataError}</p> :
+      <p className="mb-2 text-xs text-gray-500">{level === 'project' ? `선택 주의 ${quarter}분기 점검 대상(공사중) 현장 · 사진은 지적사진 건수입니다.` : `등록 프로젝트 수는 관할 전체, 점검 대상은 ${quarter}분기 공사중 현장, TBM·순회점검은 선택 주 건수입니다.`}</p>
+      {loading ? <div className="flex justify-center items-center py-12"><LoadingSpinner /></div> : dataError ? <p role="alert" className="py-10 text-center text-sm text-red-600">{dataError}</p> :
         <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-gray-50 border-b border-gray-200"><tr>
+          <table className="w-full min-w-[800px] divide-y divide-gray-200">
+            <thead className="bg-gray-50"><tr>
               {(level === 'project' ? ['사업명', 'TBM 금주', '점검 건수', '미흡 항목 수', '사진', '마지막 점검일', '점검자', '주요 테마'] : [level === 'hq' ? '본부' : '지사', '등록 프로젝트 수', `${quarter}분기 점검 대상`, 'TBM(등록건수) 금주', '순회점검 건수', '비고']).map(label => <th key={label} scope="col" className={TH}>{label}</th>)}
             </tr></thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="divide-y divide-gray-200">
               {/* 소계는 제목 행 바로 아래에 둔다. 스크롤 없이 합계를 먼저 보게 하기 위함이다. */}
-              <tr className="bg-gray-50 font-semibold">
-                <td className={`${TD} text-left`}>소계{level === 'project' ? ` (${totals.targetCount}개 현장)` : ''}</td>
-                {level === 'project' ? <><td className={TD}>{count(totals.tbmCount)}</td><td className={TD}>{count(totals.inspectionCount)}</td><td className={TD}>{count(totals.poorCount)}</td><td className={TD}>{count(totals.photoCount)}</td><td colSpan={3} className={TD}>{totals.uninspectedCount === 0 ? '-' : `미점검 ${totals.uninspectedCount}개 현장`}</td></> : <TotalCells totals={totals} />}
+              <tr className="bg-blue-50/70 border-b-2 border-blue-200">
+                <td className={SUBTOTAL_TD}>소계{level === 'project' ? ` (${totals.targetCount}개 현장)` : ''}</td>
+                {level === 'project' ? <><td className={`${SUBTOTAL_TD} tabular-nums`}>{count(totals.tbmCount)}</td><td className={`${SUBTOTAL_TD} tabular-nums`}>{count(totals.inspectionCount)}</td><td className={`${SUBTOTAL_TD} tabular-nums`}>{count(totals.poorCount)}</td><td className={`${SUBTOTAL_TD} tabular-nums`}>{count(totals.photoCount)}</td><td colSpan={3} className={SUBTOTAL_TD}>{totals.uninspectedCount === 0 ? <span className="text-gray-400">-</span> : `미점검 ${totals.uninspectedCount}개 현장`}</td></> : <TotalCells totals={totals} subtotal />}
               </tr>
               {(level === 'project' ? projectRows : rows).length === 0 ? <tr><td colSpan={level === 'project' ? 8 : 6} className="px-4 py-8 text-center text-sm text-gray-500">{level === 'project' ? '선택 주에 공사중인 현장이 없습니다.' : '관할에 등록된 현장이 없습니다.'}</td></tr> : level === 'project' ? projectRows.map(row =>
-                <tr key={row.id}>
-                  <td className="px-3 py-3 text-sm text-left font-medium text-gray-900">{row.name}</td>
-                  <td className={TD}>{count(row.tbmCount)}</td><td className={TD}>{count(row.inspectionCount)}</td><td className={TD}>{count(row.poorCount)}</td><td className={TD}>{count(row.photoCount)}</td>
-                  <td className={`${TD} whitespace-nowrap`}>{row.lastInspectionDate || '-'}</td><td className={TD}>{row.inspectorName || '-'}</td><td className={TD}>{row.themes || '-'}</td>
+                <tr key={row.id} className="hover:bg-blue-50/50 transition-colors">
+                  <td className={`${TD} text-left font-medium text-gray-900`}>{row.name}</td>
+                  <td className={`${TD} tabular-nums`}>{count(row.tbmCount)}</td><td className={TD}>{row.inspectionCount > 0 ? badge(row.inspectionCount, 'bg-blue-100 text-blue-800') : <span className={`${BADGE} bg-red-100 text-red-800`}>미점검</span>}</td><td className={TD}>{badge(row.poorCount, 'bg-amber-100 text-amber-800', '')}</td><td className={`${TD} tabular-nums`}>{count(row.photoCount)}</td>
+                  <td className={`${TD} whitespace-nowrap`}>{row.lastInspectionDate || <span className="text-gray-400">-</span>}</td><td className={TD}>{row.inspectorName || <span className="text-gray-400">-</span>}</td><td className={TD}>{row.themes || <span className="text-gray-400">-</span>}</td>
                 </tr>) : groups.map(group => {
                   const selectGroup = () => {
                     setSelectedHq(group.hq)
                     if (level === 'hq') { setSelectedBranch(null); setLevel('branch') }
                     else { setSelectedBranch(group.branch); setLevel('project') }
                   }
-                  return <tr key={group.id} onClick={selectGroup} className="hover:bg-gray-50 cursor-pointer">
-                    <td className={TD}><button onClick={event => { event.stopPropagation(); selectGroup() }} className="min-h-[44px] text-blue-600 hover:text-blue-800 font-medium">{group.name}</button></td>
+                  return <tr key={group.id} onClick={selectGroup} className="hover:bg-blue-50/50 cursor-pointer transition-colors">
+                    <td className={TD}><button onClick={event => { event.stopPropagation(); selectGroup() }} className="min-h-[44px] text-sm font-medium text-blue-700 hover:text-blue-900">{group.name}</button></td>
                     <TotalCells totals={group} />
                   </tr>
                 })}

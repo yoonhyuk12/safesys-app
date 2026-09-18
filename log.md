@@ -1,6 +1,11 @@
 # 작업 로그
 
 <!-- worklog -->
+260918_132313 : safesys-app/src/components/dashboard/PatrolLedgerStatusView.tsx 수정
+260918_132147 : plans/20260918_순회점검현황_디자인/report-codex-design.md 수정, safesys-app/src/components/dashboard/PatrolLedgerStatusView.tsx 수정
+260918_131214 : plans/20260918_순회점검현황_디자인/codex-stderr.log 수정, plans/20260918_순회점검현황_디자인/report-codex-design.md 수정
+260918_131136 : plans/20260918_순회점검현황_디자인/codex-stderr.log 추가, plans/20260918_순회점검현황_디자인/report-codex-design.md 추가
+260918_131126 : plans/20260918_순회점검현황_디자인/brief-codex-design.md 추가
 260918_003030 : docs/현행시스템_정의서.md 수정
 260918_003013 : plans/20260227_텔레그램_발주청_알림_확장.md 이름변경
 260918_002941 : .claude/docs/ECC-plugin-reference.md 이름변경, .claude/examples/project-CLAUDE.template.md 이름변경
