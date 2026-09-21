@@ -1,6 +1,18 @@
 # 작업 로그
 
 <!-- worklog -->
+260921_110000 : safesys-app/tests/patrol-ledger-records.test.mjs 수정
+260921_105940 : safesys-app/tests/patrol-ledger-sql.test.mjs 수정
+260921_105933 : safesys-app/tests/fixtures/patrol-ledger-db.mjs 수정
+260921_105926 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerDetail.tsx 수정
+260921_105920 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정
+260921_105903 : safesys-app/src/lib/patrol-ledger/records.ts 수정
+260921_105859 : safesys-app/src/lib/patrol-ledger/records.ts 수정, safesys-app/src/lib/patrol-ledger/types.ts 수정
+260921_105848 : database/20260921-1000_순회점검_해당없음.sql 추가
+260921_103546 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정, safesys-app/src/components/project/accident-report/AccidentReportFormSections.tsx 수정
+260921_103241 : safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정
+260921_103225 : safesys-app/src/components/project/accident-report/AccidentReportFormSections.tsx 수정
+260918_133053 : plans/20260918_순회점검현황_디자인/codex-stderr.log 삭제
 260918_132313 : safesys-app/src/components/dashboard/PatrolLedgerStatusView.tsx 수정
 260918_132147 : plans/20260918_순회점검현황_디자인/report-codex-design.md 수정, safesys-app/src/components/dashboard/PatrolLedgerStatusView.tsx 수정
 260918_131214 : plans/20260918_순회점검현황_디자인/codex-stderr.log 수정, plans/20260918_순회점검현황_디자인/report-codex-design.md 수정
