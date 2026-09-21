@@ -614,8 +614,8 @@ export default function AccidentEntryModal({
               </div>
             </div>
 
-            {/* 부상자·사망자·휴업일수는 숫자 몇 자리라 좁게 두고, 남는 폭은 산재신청 연도·여부에 준다. */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-[6rem_6rem_6rem_minmax(0,1fr)_minmax(0,1fr)]">
+            {/* 부상자·사망자·휴업일수는 숫자 몇 자리라 좁게 두고, 남는 폭은 산재신청 연도·여부·요양 예상 일수에 준다. */}
+            <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${reportMode ? 'lg:grid-cols-[6rem_6rem_6rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]' : 'lg:grid-cols-[6rem_6rem_6rem_minmax(0,1fr)_minmax(0,1fr)]'}`}>
               <div>
                 <label htmlFor="accident-injured-count" className={labelClassName}>부상자 수</label>
                 <input id="accident-injured-count" type="number" min="0" step="1" value={draft.injuredCount} onChange={(event) => updateDraft('injuredCount', event.target.value)} disabled={submitting} className={inputClassName} inputMode="numeric" />
@@ -678,6 +678,29 @@ export default function AccidentEntryModal({
                   {compClaimOptions.map((option) => <option key={option.value || 'unknown'} value={option.value}>{option.label}</option>)}
                 </select>
               </div>
+              {/* 산재요양 예상 일수는 산재신청 여부와 같이 보는 값이라 보고서 섹션이 아니라 여기에 둔다. */}
+              {reportMode && (
+                <div>
+                  <label htmlFor="accident-report-expectedTreatmentDays" className={labelClassName}>산재요양 예상 일수</label>
+                  <input
+                    id="accident-report-expectedTreatmentDays"
+                    type="number"
+                    min="0"
+                    step="1"
+                    max={Number.MAX_SAFE_INTEGER}
+                    value={draft.reportDetails.expectedTreatmentDays}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      setDraft((current) => ({ ...current, reportDetails: { ...current.reportDetails, expectedTreatmentDays: value } }))
+                    }}
+                    disabled={submitting}
+                    className={inputClassName}
+                    inputMode="numeric"
+                    aria-describedby="accident-report-expectedTreatmentDays-unit"
+                  />
+                  <p id="accident-report-expectedTreatmentDays-unit" className="mt-1 text-xs text-gray-500">일 단위 · 휴업일수와 별도로 입력합니다.</p>
+                </div>
+              )}
             </div>
 
             {reportMode && (

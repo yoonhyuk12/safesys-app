@@ -179,7 +179,7 @@ export default function AccidentReportFormSections({ details, disabled, onChange
 
       <Section title="사고 시각·피해">
         <div className="grid gap-4 sm:grid-cols-2">
-          {renderFields(['accidentTime', 'victimDetails', 'expectedTreatmentDays', 'damageDetails', 'propertyDamage'])}
+          {renderFields(['accidentTime', 'victimDetails', 'damageDetails', 'propertyDamage'])}
           <CheckboxGroup<AccidentVictimAction>
             name="victimActions"
             legend="피해자 조치"
