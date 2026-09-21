@@ -1,6 +1,6 @@
 // 순회점검대장의 초안·입력 검증·불변 편집과 데이터 저장을 담당한다.
 import { supabase } from '@/lib/supabase'
-import { PATROL_LEDGER_TABLE, type PatrolLedgerAiItem, type PatrolLedgerInspection, type PatrolLedgerItem, type PatrolLedgerPhotoKind, type PatrolLedgerResult } from '@/lib/patrol-ledger/types'
+import { PATROL_LEDGER_RESULTS, PATROL_LEDGER_TABLE, type PatrolLedgerAiItem, type PatrolLedgerInspection, type PatrolLedgerItem, type PatrolLedgerPhotoKind, type PatrolLedgerResult } from '@/lib/patrol-ledger/types'
 
 export interface PatrolLedgerDraft {
   inspection_date: string
@@ -64,7 +64,7 @@ export function validatePatrolLedgerDraft(draft: PatrolLedgerDraft, options: { s
   if (!Array.isArray(draft.items) || draft.items.length < 1 || draft.items.length > 10) return '점검항목은 1~10건이어야 합니다.'
   for (const item of draft.items) {
     if (!item || typeof item.text !== 'string' || !item.text.trim()) return '점검항목 문구를 비워둘 수 없습니다.'
-    if (!Number.isInteger(item.no) || item.no < 1 || item.no > 10 || !['작업장 공통', '테마'].includes(item.category) || !['양호', '미흡', ''].includes(item.result)) return '점검항목 형식이 올바르지 않습니다.'
+    if (!Number.isInteger(item.no) || item.no < 1 || item.no > 10 || !['작업장 공통', '테마'].includes(item.category) || !([...PATROL_LEDGER_RESULTS, ''] as string[]).includes(item.result)) return '점검항목 형식이 올바르지 않습니다.'
   }
   return null
 }

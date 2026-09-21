@@ -8,7 +8,7 @@ import SignaturePad from '@/components/ui/SignaturePad'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { supabase } from '@/lib/supabase'
 import type { Project } from '@/lib/projects'
-import { PATROL_LEDGER_PHOTO_KIND_LABELS, PATROL_LEDGER_PHOTO_KINDS, PATROL_LEDGER_THEME_MAX, type PatrolLedgerAiRequest, type PatrolLedgerAiResponse } from '@/lib/patrol-ledger/types'
+import { PATROL_LEDGER_PHOTO_KIND_LABELS, PATROL_LEDGER_PHOTO_KINDS, PATROL_LEDGER_RESULTS, PATROL_LEDGER_THEME_MAX, type PatrolLedgerAiRequest, type PatrolLedgerAiResponse, type PatrolLedgerResult } from '@/lib/patrol-ledger/types'
 import { loadTbmWorkForDate } from '@/lib/patrol-ledger/tbm-work'
 import { getPatrolLedgerWeeklyTheme, patrolLedgerWeekStart } from '@/lib/patrol-ledger/themes'
 import {
@@ -21,6 +21,14 @@ import {
 const TOOLBAR_TOP = 'top-0'
 const INPUT = 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
 const SECONDARY = 'min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50'
+/** AI 점검항목 생성처럼 그 화면에서 먼저 눌러야 하는 버튼. */
+const PRIMARY = 'min-h-[44px] px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50'
+/** 선택된 점검결과의 배지 색. 선택 전에는 회색 테두리 버튼이다. */
+const RESULT_SELECTED: Record<Exclude<PatrolLedgerResult, ''>, string> = {
+  '양호': 'border-green-600 bg-green-50 text-green-800',
+  '미흡': 'border-red-600 bg-red-50 text-red-800',
+  '해당없음': 'border-gray-600 bg-gray-200 text-gray-900',
+}
 
 export default function PatrolLedgerForm({ project, initialDraft, editing, saving, onSave, onCancel }: {
   project: Project
@@ -190,7 +198,7 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
           <label className="block min-w-0 flex-1 basis-64 text-sm font-medium text-gray-700">주요 테마
             <input value={draft.theme} maxLength={PATROL_LEDGER_THEME_MAX} placeholder="금주 점검 테마가 자동으로 채워집니다" className={INPUT} onChange={event => edit({ theme: event.target.value })} />
           </label>
-          <button type="button" disabled={loadingTbm || (manual ? !manualText.trim() : !work.summary)} onClick={generate} className={SECONDARY}>AI 점검항목 생성</button>
+          <button type="button" disabled={loadingTbm || (manual ? !manualText.trim() : !work.summary)} onClick={generate} className={PRIMARY}>AI 점검항목 생성</button>
         </div>
         <p className="text-xs text-gray-500">테마 항목 5건은 주요 테마와 당일 작업내용을 결합해 만듭니다.</p>
         {generating && <LoadingSpinner />}
@@ -200,7 +208,7 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
         <div className="bg-gray-50 border-b border-gray-200 px-3 py-2 flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-medium text-gray-700">점검사항</h2><button type="button" disabled={!draft.items.length} className={SECONDARY} onClick={() => edit({ items: setAllPatrolLedgerResults(draft.items, '양호') })}>전체 양호</button></div>
         {!draft.items.length ? <p className="px-4 py-8 text-center text-sm text-gray-500">작업내용을 확인한 뒤 AI 점검항목을 생성해주세요.</p> : <ul className="divide-y divide-gray-200">{draft.items.map((item, index) => <li key={item.no} className="px-3 py-2.5 flex flex-col sm:flex-row sm:items-end gap-2">
           <label className="block min-w-0 flex-1 text-sm font-medium text-gray-700">{item.no}. ({item.category})<input aria-label={`${item.no}번 점검사항`} value={item.text} className={INPUT} onChange={event => edit({ items: setPatrolLedgerItemText(draft.items, index, event.target.value) })} /></label>
-          <div className="flex flex-wrap gap-2 shrink-0">{(['양호', '미흡'] as const).map(result => <button type="button" key={result} aria-pressed={item.result === result} aria-label={`${item.no}번 ${result}`} onClick={() => edit({ items: setPatrolLedgerItemResult(draft.items, index, item.result === result ? '' : result) })} className={`min-h-[44px] flex-1 sm:flex-none px-4 py-2 text-sm rounded-lg border transition-colors whitespace-nowrap ${item.result === result ? result === '양호' ? 'border-green-600 bg-green-50 text-green-800' : 'border-red-600 bg-red-50 text-red-800' : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}>{result}</button>)}</div>
+          <div className="flex flex-wrap gap-2 shrink-0">{PATROL_LEDGER_RESULTS.map(result => <button type="button" key={result} aria-pressed={item.result === result} aria-label={`${item.no}번 ${result}`} onClick={() => edit({ items: setPatrolLedgerItemResult(draft.items, index, item.result === result ? '' : result) })} className={`min-h-[44px] flex-1 sm:flex-none px-4 py-2 text-sm rounded-lg border transition-colors whitespace-nowrap ${item.result === result ? RESULT_SELECTED[result] : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'}`}>{result}</button>)}</div>
         </li>)}</ul>}
       </div>
 

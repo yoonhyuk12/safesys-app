@@ -11,7 +11,7 @@ export const PATROL_LEDGER_CATEGORIES = ['작업장 공통', '테마'] as const
 export type PatrolLedgerCategory = (typeof PATROL_LEDGER_CATEGORIES)[number]
 
 /** 점검결과 칸에 그대로 인쇄되는 값. 빈 문자열은 미점검이다. */
-export const PATROL_LEDGER_RESULTS = ['양호', '미흡'] as const
+export const PATROL_LEDGER_RESULTS = ['양호', '미흡', '해당없음'] as const
 export type PatrolLedgerResult = (typeof PATROL_LEDGER_RESULTS)[number] | ''
 
 export const PATROL_LEDGER_PHOTO_KINDS = ['finding', 'overview'] as const

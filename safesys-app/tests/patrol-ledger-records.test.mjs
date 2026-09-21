@@ -42,6 +42,10 @@ test('개별·전체 편집은 원본 배열과 항목을 바꾸지 않는다', 
 })
 test('검증은 날짜·성명·서명·항목의 잘못된 값을 거부한다', () => {
   assert.equal(records.validatePatrolLedgerDraft(valid()), null)
+  // 점검결과는 양호·미흡·해당없음·미점검('')만 통과한다.
+  for (const result of [...types.PATROL_LEDGER_RESULTS, '']) {
+    assert.equal(records.validatePatrolLedgerDraft({ ...valid(), items: [{ ...valid().items[0], result }] }), null, result)
+  }
   for (const patch of [
     { inspection_date: '2026-02-30' }, { inspection_date: 'bad' },
     { inspector_name: '' }, { inspector_name: '홍\n길동' }, { inspector_name: '가'.repeat(101) },

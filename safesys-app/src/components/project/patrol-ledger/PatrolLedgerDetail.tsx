@@ -35,7 +35,7 @@ export default function PatrolLedgerDetail({ record, canEdit, canDelete, busy, d
           return <tr key={index} className="hover:bg-gray-50">
             <td className="w-12 px-3 py-3 text-xs text-center font-medium text-gray-500">{item?.no ?? index + 1}</td>
             <td className="px-3 py-3 text-xs text-left text-gray-900">{item ? `(${item.category}) ${item.text}` : '—'}</td>
-            <td className="w-24 px-3 py-3 text-xs text-center"><span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${item?.result === '미흡' ? 'bg-red-100 text-red-800' : item?.result === '양호' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>{item?.result || '미점검'}</span></td>
+            <td className="w-24 px-3 py-3 text-xs text-center"><span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${item?.result === '미흡' ? 'bg-red-100 text-red-800' : item?.result === '양호' ? 'bg-green-100 text-green-800' : item?.result === '해당없음' ? 'bg-gray-200 text-gray-900' : 'bg-gray-100 text-gray-800'}`}>{item?.result || '미점검'}</span></td>
           </tr>
         })}</tbody>
       </table>

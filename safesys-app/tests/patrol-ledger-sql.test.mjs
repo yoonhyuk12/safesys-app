@@ -39,6 +39,12 @@ test('items CHECK는 잘못된 배열·번호·문자·분류·결과를 거부�
   for (const items of [null, {}, [], Array(11).fill(ITEMS[0]), [null], ['항목'], ...[{ no: 0 }, { no: 11 }, { no: 1.5 }, { no: '1' }, { no: null }, { text: '' }, { text: '  ' }, { text: 1 }, { category: '오류' }, { result: '오류' }, { result: null }].map(patch => [{ ...ITEMS[0], ...patch }])]) await assert.rejects(insertInspection(db, { items: JSON.stringify(items) }), /check constraint/i)
   await insertInspection(db)
   assert.deepEqual(await scalar(db, `SELECT items FROM ${table}`), ITEMS)
+  // 점검결과는 양호·미흡·해당없음·미점검('')만 통과한다.
+  for (const result of ['양호', '미흡', '해당없음', '']) {
+    await db.query(`DELETE FROM ${table}`)
+    await insertInspection(db, { items: JSON.stringify([{ ...ITEMS[0], result }]) })
+    assert.equal((await scalar(db, `SELECT items FROM ${table}`))[0].result, result)
+  }
 })
 test('서명과 성명 CHECK는 장비 대장과 같은 규칙이다', async t => {
   const db = await open(t); await signIn(db, IDS.owner)
