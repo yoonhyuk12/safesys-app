@@ -89,11 +89,12 @@ function ModelCombobox({
   onRefresh: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
   const [activeIndex, setActiveIndex] = useState(-1)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const listId = useId()
 
-  const keyword = value.trim().toLowerCase()
+  const keyword = search.trim().toLowerCase()
   const filtered = keyword
     ? candidates.filter((model) => model.toLowerCase().includes(keyword))
     : candidates
@@ -116,6 +117,7 @@ function ModelCombobox({
 
   const selectModel = (model: string) => {
     onChange(model)
+    setSearch('')
     setOpen(false)
     setActiveIndex(-1)
   }
@@ -130,14 +132,15 @@ function ModelCombobox({
     }
 
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      if (filtered.length === 0) return
       event.preventDefault()
 
       if (!open) {
+        setSearch('')
         setOpen(true)
-        setActiveIndex(0)
+        setActiveIndex(candidates.length === 0 ? -1 : event.key === 'ArrowDown' ? 0 : candidates.length - 1)
         return
       }
+      if (filtered.length === 0) return
 
       const step = event.key === 'ArrowDown' ? 1 : -1
       setActiveIndex((current) => {
@@ -164,16 +167,32 @@ function ModelCombobox({
           value={value}
           onChange={(event) => {
             onChange(event.target.value)
+            setSearch(event.target.value)
             setOpen(true)
             setActiveIndex(-1)
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            setSearch('')
+            setOpen(true)
+            setActiveIndex(-1)
+          }}
+          onClick={() => {
+            if (!open) {
+              setSearch('')
+              setOpen(true)
+              setActiveIndex(-1)
+            }
+          }}
+          onBlur={() => {
+            setOpen(false)
+            setActiveIndex(-1)
+          }}
           onKeyDown={handleKeyDown}
           aria-label="모델명"
           aria-expanded={open}
           aria-controls={listId}
           aria-autocomplete="list"
-          aria-activedescendant={open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
+          aria-activedescendant={open && activeIndex >= 0 && activeIndex < filtered.length ? `${listId}-${activeIndex}` : undefined}
           autoComplete="off"
           placeholder="모델명을 고르거나 직접 입력합니다"
           className={`${inputClass} font-mono`}
@@ -250,6 +269,7 @@ function EditFields({
       </select>
 
       <ModelCombobox
+        key={draft.provider}
         provider={draft.provider}
         value={draft.model}
         onChange={(model) => onChange({ ...draft, model })}
@@ -260,27 +280,32 @@ function EditFields({
       />
 
       <div className="grid grid-cols-2 gap-2">
-        <input
-          type="number"
-          min="0"
-          step="any"
-          value={draft.inputPricePer1m}
-          onChange={(event) => onChange({ ...draft, inputPricePer1m: event.target.value })}
-          aria-label="입력 단가"
-          placeholder="입력 단가 (원/100만 토큰)"
-          className={inputClass}
-        />
-        <input
-          type="number"
-          min="0"
-          step="any"
-          value={draft.outputPricePer1m}
-          onChange={(event) => onChange({ ...draft, outputPricePer1m: event.target.value })}
-          aria-label="출력 단가"
-          placeholder="출력 단가 (원/100만 토큰)"
-          className={inputClass}
-        />
+        <label className="grid gap-1 text-xs font-medium text-gray-700">
+          입력 단가 (원/100만 토큰)
+          <input
+            type="number"
+            min="0"
+            step="any"
+            value={draft.inputPricePer1m}
+            onChange={(event) => onChange({ ...draft, inputPricePer1m: event.target.value })}
+            placeholder="입력 단가 (원/100만 토큰)"
+            className={inputClass}
+          />
+        </label>
+        <label className="grid gap-1 text-xs font-medium text-gray-700">
+          출력 단가 (원/100만 토큰)
+          <input
+            type="number"
+            min="0"
+            step="any"
+            value={draft.outputPricePer1m}
+            onChange={(event) => onChange({ ...draft, outputPricePer1m: event.target.value })}
+            placeholder="출력 단가 (원/100만 토큰)"
+            className={inputClass}
+          />
+        </label>
       </div>
+      <p className="text-xs text-gray-500">비용 추정용 단가이며, 토큰 한도가 아닙니다.</p>
 
       <input
         type="text"
@@ -606,13 +631,13 @@ export default function AdminAiUsagePage() {
     setModelsError(null)
   }
 
-  const loadModels = useCallback(async (provider: AiProvider) => {
+  const loadModels = useCallback(async (provider: AiProvider, refresh = false) => {
     setModelsError(null)
     setModelsLoading(true)
 
     try {
       const token = await requireAccessToken()
-      const response = await fetch(`/api/admin/ai-models/available?provider=${provider}`, {
+      const response = await fetch(`/api/admin/ai-models/available?provider=${provider}${refresh ? '&refresh=true' : ''}`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       const result = (await response.json()) as AvailableResponse
@@ -693,7 +718,7 @@ export default function AdminAiUsagePage() {
     modelsLoading,
     modelsError,
     onDraftChange: setDraft,
-    onRefreshModels: () => { if (draft) void loadModels(draft.provider) },
+    onRefreshModels: () => { if (draft) void loadModels(draft.provider, true) },
     onEdit: handleEdit,
     onSave: () => void handleSave(),
     onCancel: handleCancel,

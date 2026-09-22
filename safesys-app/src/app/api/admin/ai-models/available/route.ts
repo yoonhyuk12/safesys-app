@@ -43,6 +43,7 @@ async function fetchOpenAiModels(): Promise<string[]> {
   if (!apiKey) throw new Error('OPENAI_API_KEY가 설정되지 않았습니다.')
 
   const response = await fetch('https://api.openai.com/v1/models', {
+    cache: 'no-store',
     headers: { Authorization: `Bearer ${apiKey}` },
   })
   if (!response.ok) {
@@ -62,6 +63,7 @@ async function fetchGeminiModels(): Promise<string[]> {
   if (!apiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다.')
 
   const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {
+    cache: 'no-store',
     headers: { 'x-goog-api-key': apiKey },
   })
   if (!response.ok) {
@@ -85,9 +87,9 @@ async function fetchGeminiModels(): Promise<string[]> {
   return sortByPriority(ids, (id) => generative.has(id))
 }
 
-async function loadModels(provider: AiProvider): Promise<string[]> {
+async function loadModels(provider: AiProvider, refresh: boolean): Promise<string[]> {
   const cached = cache.get(provider)
-  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return cached.models
+  if (!refresh && cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return cached.models
 
   const models = provider === 'OpenAI' ? await fetchOpenAiModels() : await fetchGeminiModels()
   cache.set(provider, { models, fetchedAt: Date.now() })
@@ -109,7 +111,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    return NextResponse.json({ success: true, provider, models: await loadModels(provider) })
+    const refresh = request.nextUrl.searchParams.get('refresh') === 'true'
+    return NextResponse.json({ success: true, provider, models: await loadModels(provider, refresh) })
   } catch (error) {
     console.error('AI 모델 목록 조회 오류', error)
     return NextResponse.json(
