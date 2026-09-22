@@ -1,6 +1,35 @@
 # 작업 로그
 
 <!-- worklog -->
+260922_181844 : plans/20260922_순회점검_TBM대책행/checklist.md 수정 — "- [x] 코드 리뷰 반영 (MEDIUM 파일 역할 주석, LOW 조회 실패 시 안내 숨김) - [x] DB…"
+260922_181810 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "{!loadingTbm && !tbmError && <p className="text-xs text-gray…"
+260922_181806 : safesys-app/src/lib/patrol-ledger/tbm-work.ts 수정 — "// 사용자 권한으로 TBM 작업내용(당일)과 대책(당일 없으면 최근)을 조회해 순회점검 AI 입력과 뒤 3…"
+260922_180908 : plans/20260922_순회점검_TBM대책행/checklist.md 수정
+260922_180718 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "{solutions.solutions.length ? `TBM 대책 ${solutions.solutions.…"
+260922_180712 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 — "// 사진 행은 항목 13행을 넣으며 18750에서 15870으로 줄었다. 셀보다 큰 사진은 행을 키워 2쪽…"
+260922_180509 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정
+260922_180438 : docs/database.md 수정
+260922_180432 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정
+260922_180418 : database/20260922-1100_순회점검_TBM대책행.sql 추가 — "-- 순회점검대장 점검항목을 13행으로 늘리고 분류 'TBM 대책'을 허용한다. 앞 10행은 AI, 뒤 3행…"
+260922_180404 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerDetail.tsx 수정, safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정, safesys-app/src/lib/patrol-ledger/records.ts 수정
+260922_180351 : safesys-app/src/lib/patrol-ledger/tbm-work.ts 수정, safesys-app/tests/patrol-ledger-records.test.mjs 수정
+260922_180338 : safesys-app/src/lib/patrol-ledger/tbm-work.ts 수정
+260922_180323 : safesys-app/src/lib/patrol-ledger/types.ts 수정
+260922_180242 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정
+260922_180222 : safesys-app/tests/patrol-ledger-records.test.mjs 수정
+260922_180158 : safesys-app/tests/patrol-ledger-sql.test.mjs 수정
+260922_180143 : safesys-app/tests/fixtures/patrol-ledger-db.mjs 수정
+260922_175703 : plans/20260922_순회점검_TBM대책행/brief-codex.md 추가 — "# Codex Worker 브리프 — 순회점검 점검사항에 TBM 대책 이행 여부 3행 추가 너는 SafeSy…"
+260922_175536 : safesys-app/public/순회점검 양식.hwpx 수정
+260922_175525 : safesys-app/scripts/patrol-ledger-template-add-rows.mjs 수정 — "const retarget = (row, from, to) => row.replaceAll(`rowAddr=…"
+260922_175458 : safesys-app/scripts/patrol-ledger-template-add-rows.mjs 추가 — "// 순회점검 양식(public/순회점검 양식.hwpx) 표1의 점검사항을 10행에서 13행으로 늘린다. 표…"
+260922_175435 : plans/20260922_순회점검_TBM대책행/context-notes.md 추가 — "# 컨텍스트 노트 — 순회점검 TBM 대책 3행 - 양식 표1 높이 합 56291 = 2751 + 1045 …"
+260922_175424 : plans/20260922_순회점검_TBM대책행/checklist.md 추가 — "# 체크리스트 — 순회점검 TBM 대책 3행 - [ ] 양식 hwpx 표1을 17행(항목 13)으로 변환하고…"
+260922_175415 : plans/20260922_순회점검_TBM대책행.md 추가 — "# 순회점검 점검사항에 TBM 대책 이행 여부 3행 추가 작성일 2026-09-22. 요청자 피드백 — 순회…"
+260922_172703 : safesys-app/package.json 수정
+260922_172556 : safesys-app/src/components/project/TBMStatus.tsx 수정, safesys-app/src/lib/tbm-refresh-policy.ts 추가
+260922_172531 : safesys-app/tests/tbm-refresh-policy.test.mjs 추가
+260922_172041 : safesys-app/package-lock.json 수정
 260921_110000 : safesys-app/tests/patrol-ledger-records.test.mjs 수정
 260921_105940 : safesys-app/tests/patrol-ledger-sql.test.mjs 수정
 260921_105933 : safesys-app/tests/fixtures/patrol-ledger-db.mjs 수정
@@ -1032,6 +1061,8 @@
 260909_111933 : safesys-app/tests/fixtures/csi-sample-seal-list.html 수정, safesys-app/tests/fixtures/csi-sample-seal-login-required.html 수정, safesys-app/tests/fixtures/csi-sample-seal-view.html 수정
 260909_111911 : safesys-app/tests/fixtures/csi-sample-seal-list.html 추가, safesys-app/tests/fixtures/csi-sample-seal-login-required.html 추가, safesys-app/tests/fixtures/csi-sample-seal-view.html 추가
 260909_111451 : plans/20260909_CSI시료봉인_로그인가져오기.md 추가, plans/20260909_CSI시료봉인_로그인가져오기_checklist.md 추가, plans/20260909_CSI시료봉인_로그인가져오기_context-notes.md 추가
+260908_152816 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "className="w-28 p-2 text-sm border border-gray-300 rounded-l…"
+260908_152804 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정 — "import { ArrowLeft, Plus, Minus, Calendar, FileText, Chevron…"
 260907_155410 : docs/database.md 수정
 260907_155336 : safesys-app/tests/merge-projects-api.test.mjs 수정 — "test('충돌 안내 문구는 0건 항목을 빼고 마지막 낱말에 맞는 조사를 붙인다', () => { asser…"
 260907_155326 : safesys-app/tests/merge-projects-api.test.mjs 수정 — "const mergeConflicts = await transpile('../src/lib/merge-con…"
