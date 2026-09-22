@@ -39,6 +39,11 @@ function mount(overrides = {}) {
     return result
   }
   return {
+    company: () => {
+      const field = all(render()).find(node => node.props?.label === '회사')
+      return all(field.type(field.props)).find(node => node.type === 'input')
+    },
+    role: value => all(render()).find(node => node.type === 'select' && node.props.value === states[0].role).props.onChange({ target: { value } }),
     select,
     options: label => all(select(label)).filter(node => node.type === 'option').map(node => node.props.value),
     change: (label, value) => select(label).props.onChange({ target: { value } }),
@@ -58,6 +63,22 @@ test('본부와 지사는 공용 옵션·빈 값·기존 스타일을 사용하�
     assert.equal(modal.select(label).props.className, 'existing-field-class')
     assert.ok(!modal.select(label).props.required)
   }
+})
+
+test('발주청 회사는 한국농어촌공사로 고정 표시하고 다른 역할은 편집 가능하다', () => {
+  const modal = mount({ company_name: '시공 회사' })
+  assert.equal(modal.company().props.value, '한국농어촌공사')
+  assert.equal(modal.company().props.readOnly, true)
+  modal.role('시공사')
+  assert.equal(modal.company().props.value, '시공 회사')
+  assert.equal(modal.company().props.readOnly, false)
+  modal.company().props.onChange({ target: { value: '새 회사' } })
+  assert.equal(modal.company().props.value, '새 회사')
+  modal.role('발주청')
+  assert.equal(modal.company().props.value, '한국농어촌공사')
+  modal.role('감리단')
+  assert.equal(modal.company().props.readOnly, false)
+  assert.equal(modal.company().props.value, '새 회사')
 })
 
 test('본부 변경은 부적합 지사를 비우고 호환 지사는 유지한다', () => {

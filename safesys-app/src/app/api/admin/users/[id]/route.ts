@@ -36,7 +36,8 @@ function parseProfileUpdate(body: unknown): ProfileUpdate | string {
     if (typeof value !== 'string' && value !== null) {
       return '프로필 항목은 문자열 또는 빈 값이어야 합니다.'
     }
-    update[field] = value
+    const trimmed = typeof value === 'string' ? value.trim() : value
+    update[field] = field === 'company_name' ? trimmed || null : trimmed
     hasField = true
   }
 
@@ -82,6 +83,37 @@ export async function PATCH(
     )
   }
 
+  const { data: current, error: readError } = await supabaseAdmin
+    .from('user_profiles')
+    .select('role, company_name')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (readError) {
+    console.error('관리자 가입자 프로필 조회 오류', { code: readError.code })
+    return NextResponse.json(
+      { success: false, error: '가입자 정보를 확인하지 못했습니다.' },
+      { status: 500 }
+    )
+  }
+  if (!current) {
+    return NextResponse.json(
+      { success: false, error: '수정할 가입자 프로필을 찾을 수 없습니다.' },
+      { status: 404 }
+    )
+  }
+
+  const role = update.role ?? current.role
+  const companyName = 'company_name' in update ? update.company_name : current.company_name
+  if (role === '발주청') {
+    update.company_name = null
+  } else if ((role === '시공사' || role === '감리단') && !companyName?.trim()) {
+    return NextResponse.json(
+      { success: false, error: '시공사와 감리단은 회사명을 입력해 주세요.' },
+      { status: 400 }
+    )
+  }
+
   const { data, error } = await supabaseAdmin
     .from('user_profiles')
     .update(update)
@@ -90,10 +122,14 @@ export async function PATCH(
     .maybeSingle()
 
   if (error) {
-    console.error('관리자 가입자 프로필 수정 오류', error)
+    const companyConstraint = error.code === '23514' &&
+      error.message.includes('check_company_name_by_role')
+    console.error('관리자 가입자 프로필 수정 오류', { code: error.code })
     return NextResponse.json(
-      { success: false, error: '가입자 정보를 수정하지 못했습니다.' },
-      { status: 500 }
+      { success: false, error: companyConstraint
+        ? '역할과 회사명을 확인해 주세요. 발주청 회사는 한국농어촌공사로 고정되며 시공사와 감리단은 회사명이 필요합니다.'
+        : '가입자 정보를 수정하지 못했습니다.' },
+      { status: companyConstraint ? 400 : 500 }
     )
   }
   if (!data) {

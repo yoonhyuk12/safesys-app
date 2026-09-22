@@ -513,13 +513,13 @@ function PaginationBar({ total, currentPage, totalPages, onPrev, onNext }: {
 
 const FIELD_CLASS = 'h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100'
 
-function ProfileField({ label, value, onChange }: {
-  label: string; value: string; onChange: (value: string) => void
+function ProfileField({ label, value, onChange, readOnly = false }: {
+  label: string; value: string; onChange: (value: string) => void; readOnly?: boolean
 }) {
   return (
     <label className="block">
       <span className="mb-1 block text-xs font-semibold text-slate-600">{label}</span>
-      <input value={value} onChange={(event) => onChange(event.target.value)} className={FIELD_CLASS} />
+      <input value={value} readOnly={readOnly} onChange={(event) => onChange(event.target.value)} className={FIELD_CLASS} />
     </label>
   )
 }
@@ -635,7 +635,7 @@ function EditUserModal({ user, onClose, onSave }: {
               </select>
             </label>
             <div className="sm:col-span-2">
-              <ProfileField label="회사" value={draft.company_name} onChange={(value) => changeField('company_name', value)} />
+              <ProfileField label="회사" value={draft.role === '발주청' ? '한국농어촌공사' : draft.company_name} readOnly={draft.role === '발주청'} onChange={(value) => changeField('company_name', value)} />
             </div>
             {error && (
               <p role="alert" className="sm:col-span-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
