@@ -21,6 +21,41 @@ import {
 const TOOLBAR_TOP = 'top-0'
 const INPUT = 'block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm'
 const SECONDARY = 'min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50'
+const PHOTO_MAX_EDGE = 1200
+const PHOTO_JPEG_QUALITY = 0.75
+
+// A4 보고서의 1/4 크기 사진에 맞춰 업로드 전에 긴 변과 JPEG 용량을 줄인다.
+function compressPatrolLedgerPhoto(file: File | Blob): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const image = new Image()
+    const objectUrl = URL.createObjectURL(file)
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl)
+      try {
+        if (!image.naturalWidth || !image.naturalHeight) throw new Error('사진 크기를 읽지 못했습니다.')
+        const scale = Math.min(1, PHOTO_MAX_EDGE / Math.max(image.naturalWidth, image.naturalHeight))
+        const canvas = document.createElement('canvas')
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+        const context = canvas.getContext('2d')
+        if (!context) throw new Error('사진을 압축하지 못했습니다.')
+        context.fillStyle = '#FFFFFF'
+        context.fillRect(0, 0, canvas.width, canvas.height)
+        context.drawImage(image, 0, 0, canvas.width, canvas.height)
+        canvas.toBlob(blob => {
+          if (!blob) { reject(new Error('사진을 압축하지 못했습니다.')); return }
+          const name = file instanceof File ? file.name.replace(/\.[^.]+$/, '') : 'edited'
+          resolve(new File([blob], `${name}.jpg`, { type: 'image/jpeg' }))
+        }, 'image/jpeg', PHOTO_JPEG_QUALITY)
+      } catch (cause) {
+        reject(cause)
+      }
+    }
+    image.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('사진을 읽지 못했습니다.')) }
+    image.src = objectUrl
+  })
+}
+
 /** AI 점검항목 생성처럼 그 화면에서 먼저 눌러야 하는 버튼. */
 const PRIMARY = 'min-h-[44px] px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50'
 /** 선택된 점검결과의 배지 색. 선택 전에는 회색 테두리 버튼이다. */
@@ -132,7 +167,8 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
     setUploading(true)
     setError(null)
     try {
-      const url = await uploadPatrolLedgerPhoto(project.id, file)
+      const compressed = await compressPatrolLedgerPhoto(file)
+      const url = await uploadPatrolLedgerPhoto(project.id, compressed)
       if (alive.current) edit({ finding_photo_url: url })
     } catch (cause) {
       if (alive.current) setError(cause instanceof Error ? cause.message : '사진 업로드에 실패했습니다.')
@@ -147,7 +183,8 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
     setUploading(true)
     setError(null)
     try {
-      const url = await uploadPatrolLedgerPhoto(project.id, blob)
+      const compressed = await compressPatrolLedgerPhoto(blob)
+      const url = await uploadPatrolLedgerPhoto(project.id, compressed)
       await removePatrolLedgerPhoto(previous).catch(() => undefined)
       if (alive.current) edit({ finding_photo_url: url })
     } catch (cause) {
