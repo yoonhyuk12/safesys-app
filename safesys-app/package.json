@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "test:admin-user-org": "node --test tests/admin-user-org-dropdown.test.mjs",
     "test:ai-models": "node --test tests/ai-models-available.test.mjs tests/ai-model-picker.test.mjs",
     "dev": "cross-env NODE_NO_WARNINGS=1 next dev",
     "build": "next build",

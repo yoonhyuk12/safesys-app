@@ -7,6 +7,7 @@ import {
   Pencil, RefreshCw, Search, Trash2, UserCheck, UsersRound, X, type LucideIcon,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
 import { nextSortState, sortRows, type SortState } from '@/lib/admin-sort'
 import {
   ADMIN_USER_SORT_OPTIONS,
@@ -532,8 +533,18 @@ function EditUserModal({ user, onClose, onSave }: {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const availableBranches = BRANCH_OPTIONS[draft.hq_division] ?? []
+
   const changeField = <K extends keyof ProfileDraft>(field: K, value: ProfileDraft[K]) => {
     setDraft((current) => ({ ...current, [field]: value }))
+  }
+
+  const changeHeadquarters = (hq: string) => {
+    setDraft((current) => ({
+      ...current,
+      hq_division: hq,
+      branch_division: BRANCH_OPTIONS[hq]?.includes(current.branch_division) ? current.branch_division : '',
+    }))
   }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -595,8 +606,34 @@ function EditUserModal({ user, onClose, onSave }: {
               </select>
             </label>
             <ProfileField label="직책" value={draft.position} onChange={(value) => changeField('position', value)} />
-            <ProfileField label="본부" value={draft.hq_division} onChange={(value) => changeField('hq_division', value)} />
-            <ProfileField label="지사" value={draft.branch_division} onChange={(value) => changeField('branch_division', value)} />
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-slate-600">본부</span>
+              <select
+                value={draft.hq_division}
+                onChange={(event) => changeHeadquarters(event.target.value)}
+                className={FIELD_CLASS}
+              >
+                <option value="">본부 선택</option>
+                {draft.hq_division && !HEADQUARTERS_OPTIONS.some((hq) => hq === draft.hq_division) && (
+                  <option value={draft.hq_division}>{draft.hq_division} (현재 값)</option>
+                )}
+                {HEADQUARTERS_OPTIONS.map((hq) => <option key={hq} value={hq}>{hq}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-semibold text-slate-600">지사</span>
+              <select
+                value={draft.branch_division}
+                onChange={(event) => changeField('branch_division', event.target.value)}
+                className={FIELD_CLASS}
+              >
+                <option value="">지사 선택</option>
+                {draft.branch_division && !availableBranches.includes(draft.branch_division) && (
+                  <option value={draft.branch_division}>{draft.branch_division} (현재 값)</option>
+                )}
+                {availableBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+              </select>
+            </label>
             <div className="sm:col-span-2">
               <ProfileField label="회사" value={draft.company_name} onChange={(value) => changeField('company_name', value)} />
             </div>
