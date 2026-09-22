@@ -1773,6 +1773,18 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                 TBM
               </h4>
               <div className="flex items-center gap-2">
+                {/* AI 텔레그램 일괄발송 버튼 - 해당 지사 당일 TBM 제출 현장(작업없음 제외) 대상 */}
+                {!deleteMode && telegramTargetRecords.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setTelegramModalOpen(true)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium shadow-sm transition-colors bg-sky-100 text-sky-700 hover:bg-sky-200"
+                    title="TBM 제출 현장 AI 분석 및 메시지 발송"
+                  >
+                    <Send className="h-4 w-4" />
+                    <span className="hidden lg:inline">AI 분석</span>
+                  </button>
+                )}
                 {/* 단체문자 버튼 - 지사 선택 시 해당 지사 TBM 소장 전원에게 */}
                 {!deleteMode && (() => {
                   const phoneNumbers = tbmRecords
