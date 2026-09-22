@@ -20,6 +20,7 @@
     "test:accident-report": "node --test tests/project-accident-report.test.mjs tests/project-accident-report-ui.test.mjs tests/project-accidents-sql.test.mjs tests/accident-report-details.test.mjs tests/project-accident-report-details-sql.test.mjs tests/accident-report-extraction.test.mjs tests/accident-report-import.test.mjs tests/accident-report-route.test.mjs tests/accident-report-hwpx.test.mjs tests/accident-report-pdf-photos.test.mjs",
     "test:accident-import": "node --test tests/accident-report-extraction.test.mjs tests/accident-report-import.test.mjs tests/accident-report-route.test.mjs tests/accident-report-pdf-photos.test.mjs",
     "test:new-district": "node --test tests/new-district-consulting.test.mjs",
+    "test:tbm-refresh": "node --test tests/tbm-refresh-policy.test.mjs",
     "test:new-district-view": "node --test tests/new-district-consulting-view.test.mjs",
     "deploy": "npm run build:no-cache && npm run start",
     "vercel-build": "npm install && next build",

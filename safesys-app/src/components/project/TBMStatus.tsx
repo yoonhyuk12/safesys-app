@@ -14,6 +14,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import type { TBMSafetyInspection } from '@/lib/projects'
 import { generateSupervisorDiaryExcel } from '@/lib/excel/supervisor-diary-export'
 import { downloadTBMStatusExcel } from '@/lib/excel/tbm-status-export'
+import { shouldRefetchOnVisible } from '@/lib/tbm-refresh-policy'
 import { isOrganizationInUserScope } from '@/lib/organization-scope'
 import TBMTelegramBroadcastModal from '@/components/project/TBMTelegramBroadcastModal'
 import WeatherWarningBadges from '@/components/project/WeatherWarningBadges'
@@ -49,7 +50,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const loadingRef = useRef(false)
-  const lastLoadedParams = useRef<{ date: string; hq?: string; branch?: string } | null>(null)
+  const lastLoadedParams = useRef<{ date: string; hq?: string; branch?: string; loadedAt: number } | null>(null)
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     const now = new Date()
     const year = now.getFullYear()
@@ -727,7 +728,7 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
       }
 
       // 로딩 완료 후 파라미터 저장
-      lastLoadedParams.current = { date: currentDate, hq: undefined, branch: undefined }
+      lastLoadedParams.current = { date: currentDate, hq: undefined, branch: undefined, loadedAt: Date.now() }
       // setIsInitialized(true) // 사용하지 않음
 
       // interval 리셋이 요청된 경우 타이머 재시작
@@ -1043,13 +1044,18 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
         console.log('페이지 활성화 - 세션 체크 후 TBM 데이터 새로고침 및 타이머 재시작')
         const hasValidSession = await checkSession()
         if (hasValidSession) {
-          // stale 데이터를 즉시 갱신 (탭 백그라운드 동안 누락된 새로고침 보정)
-          try {
-            await loadAllTBMDataRef.current?.(true, false)
-            filterTBMDataRef.current?.()
-            await loadTbmSafetyInspectionsRef.current?.()
-          } catch (error) {
-            console.error('페이지 활성화 시 새로고침 중 오류:', error)
+          // 마지막 로드가 자동 새로고침 주기(15분)보다 오래됐을 때만 갱신한다.
+          // 창을 잠깐 다녀온 것만으로 서버를 다시 읽지 않도록 하되, 오래 비웠다 돌아오면 누락분을 보정한다.
+          if (shouldRefetchOnVisible(lastLoadedParams.current?.loadedAt, Date.now())) {
+            try {
+              await loadAllTBMDataRef.current?.(true, false)
+              filterTBMDataRef.current?.()
+              await loadTbmSafetyInspectionsRef.current?.()
+            } catch (error) {
+              console.error('페이지 활성화 시 새로고침 중 오류:', error)
+            }
+          } else {
+            console.log('마지막 로드 후 15분 미경과 - 재조회 건너뜀')
           }
           startAutoRefresh()
           startProgressTimer()
