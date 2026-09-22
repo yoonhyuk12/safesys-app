@@ -51,6 +51,8 @@ export interface PatrolLedgerInspection {
   items: PatrolLedgerItem[]
   /** 지적사항 (여러 줄 가능). 전경사진이면 항상 빈 문자열 */
   finding_text: string
+  /** 전경사진과 함께 기록하는 기타사항. 지적사항과 별도로 저장한다. */
+  other_text: string
   /** 지적사진(없으면 점검사진) 공개 URL. 없으면 null */
   finding_photo_url: string | null
   /** 사진 구분. finding=지적사진(지적사항 동반), overview=전경·점검사진(지적사항 없음) */

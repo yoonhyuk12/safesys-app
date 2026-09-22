@@ -270,7 +270,7 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
                 className={`min-h-[44px] px-4 py-2 text-sm font-medium transition-colors ${draft.finding_photo_kind === kind ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>{PATROL_LEDGER_PHOTO_KIND_LABELS[kind]}</button>)}
             </div>
           </div>
-          <p className="mt-1 text-xs text-gray-500">{draft.finding_photo_kind === 'overview' ? '전경사진은 지적사항 없이 점검 현황만 남깁니다.' : '지적사진은 아래 지적사항과 함께 출력됩니다.'}</p>
+          <p className="mt-1 text-xs text-gray-500">{draft.finding_photo_kind === 'overview' ? '전경사진과 기타사항은 함께 출력됩니다.' : '지적사진은 아래 지적사항과 함께 출력됩니다.'}</p>
           <label className="mt-1 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-lg h-24 bg-white hover:bg-gray-50 cursor-pointer transition-colors">
             {uploading ? <span className="text-xs text-gray-500">업로드중...</span> : <>
               <Upload className="h-5 w-5 text-gray-400 mb-1" />
@@ -287,8 +287,8 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
             </div>
           </div>}
         </div>
-        <label className={`block text-sm font-medium ${draft.finding_photo_kind === 'overview' ? 'text-gray-400' : 'text-gray-700'}`}>지적사항{draft.finding_photo_kind === 'overview' && <span className="ml-1 text-xs font-normal">(전경사진에서는 입력하지 않습니다)</span>}
-          <textarea value={draft.finding_text} rows={5} disabled={draft.finding_photo_kind === 'overview'} className={`${INPUT} disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed`} onChange={event => edit({ finding_text: event.target.value })} /></label>
+        <label className="block text-sm font-medium text-gray-700">{draft.finding_photo_kind === 'overview' ? '기타사항' : '지적사항'}
+          <textarea value={draft.finding_photo_kind === 'overview' ? draft.other_text : draft.finding_text} rows={5} className={INPUT} onChange={event => edit(draft.finding_photo_kind === 'overview' ? { other_text: event.target.value } : { finding_text: event.target.value })} /></label>
       </div>
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
         {([

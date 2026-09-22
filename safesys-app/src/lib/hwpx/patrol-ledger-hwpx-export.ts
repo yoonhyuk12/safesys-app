@@ -195,7 +195,11 @@ export async function buildPatrolLedgerHwpxBlob(record: PatrolLedgerInspection, 
   let imageNo = Math.max(0, ...Array.from(manifest.matchAll(/id="image(\d+)"/g), match => Number(match[1])))
   const photo = record.finding_photo_url ? await collectImage(record.finding_photo_url, `image${++imageNo}`, false) : null
   const signature = record.signature ? await collectImage(record.signature, `image${++imageNo}`, true) : null
-  const values = new Map<string, string>([['16,3', record.finding_text]])
+  const values = new Map<string, string>([['16,3', record.finding_photo_kind === 'overview' ? record.other_text : record.finding_text]])
+  if (record.finding_photo_kind === 'overview') {
+    values.set('16,0', '전경사진')
+    values.set('16,2', '기타사항')
+  }
   if (record.contractor_name) values.set('0,0', `작업장 순회 점검표(${record.contractor_name})`)
   const items = [...record.items].sort((a, b) => a.no - b.no)
   for (let index = 0; index < PATROL_LEDGER_ITEM_COUNT; index++) {
@@ -215,7 +219,7 @@ export async function buildPatrolLedgerHwpxBlob(record: PatrolLedgerInspection, 
   // 점검사항 칸(3~15행 1열)은 셀 폭 38236에서 좌우 여백 510을 뺀 37216 HWPUNIT 안에 한 줄로 담는다.
   const itemKeys = new Set(Array.from({ length: PATROL_LEDGER_ITEM_COUNT }, (_, index) => `${index + 3},1`))
   section = rebuild(section, tables, [
-    fillTable(section.slice(...tables[0]), values, charPrs, { photo, cellOptions: key => (itemKeys.has(key) ? { fitWidth: 37216 } : {}) }),
+    fillTable(section.slice(...tables[0]), values, charPrs, { photo, cellOptions: key => (itemKeys.has(key) ? { fitWidth: 37216 } : record.finding_photo_kind === 'overview' && key === '16,0' ? { fitWidth: 2386 } : record.finding_photo_kind === 'overview' && key === '16,2' ? { fitWidth: 2745 } : {}) }),
     // 성명 칸은 오른쪽 정렬(24) 대신 줄간격이 같은 가운데 정렬(22) 문단을 쓴다.
     fillTable(section.slice(...tables[1]), details, charPrs, { cellOptions: key => (key === '2,6' ? { paraPr: '22' } : {}) }),
   ])

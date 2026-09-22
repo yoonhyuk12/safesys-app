@@ -45,7 +45,7 @@ export default function PatrolLedgerDetail({ record, canEdit, canDelete, busy, d
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {record.finding_photo_url ? <img src={record.finding_photo_url} alt={PATROL_LEDGER_PHOTO_KIND_LABELS[record.finding_photo_kind] ?? '점검사진'} className="max-h-64 max-w-full object-contain" /> : <p className="text-sm text-gray-500">사진 없음</p>}
         </div>
-        <div className="min-w-0 bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 className="text-xs text-gray-500 mb-1">지적사항</h3><p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{record.finding_photo_kind === 'overview' ? '전경사진 (지적사항 없음)' : record.finding_text || '없음'}</p></div>
+        <div className="min-w-0 bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 className="text-xs text-gray-500 mb-1">{record.finding_photo_kind === 'overview' ? '기타사항' : '지적사항'}</h3><p className="text-sm text-gray-600 whitespace-pre-wrap break-words">{(record.finding_photo_kind === 'overview' ? record.other_text : record.finding_text) || '없음'}</p></div>
       </div>
       {record.finding_photo_kind === 'finding' && record.finding_text.trim() && <div className="grid sm:grid-cols-2 gap-4 px-4 pb-4">
         <div className="min-w-0 bg-white rounded-lg shadow-sm border border-gray-200 p-3"><h3 className="text-xs text-gray-500 mb-1">조치사진 (지적사항 관리대장)</h3>
