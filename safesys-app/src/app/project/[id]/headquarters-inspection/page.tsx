@@ -145,7 +145,7 @@ function normalizeFiveKeyItems(items: any[]): FiveKeyItem[] {
 
 export default function HeadquartersInspectionPage() {
   const { user, userProfile, loading: authLoading } = useAuth()
-  const remarksAiModel = useAiModel('ai.headquarters-remarks', 'gpt-5.6-luna')
+  const remarksAiModel = useAiModel('ai.headquarters-remarks', 'gpt-6-luna')
   const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()

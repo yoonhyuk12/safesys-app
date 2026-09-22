@@ -44,7 +44,7 @@ test('정상 요청은 사용자 토큰 클라이언트와 고정 모델·strict
   assert.equal(response.status, 200); assert.equal(response.body.items.length, 10); assert.equal(response.body.tbmCount, 1)
   assert.equal(r.clients[0][2].global.headers.Authorization, 'Bearer token')
   const payload = r.calls[0]
-  assert.equal(payload.model, 'gpt-5.6-luna'); assert.equal(payload.reasoning_effort, 'low'); assert.equal(payload.max_completion_tokens, 6000)
+  assert.equal(payload.model, 'gpt-6-luna'); assert.equal(payload.reasoning_effort, 'low'); assert.equal(payload.max_completion_tokens, 6000)
   assert.equal(payload.response_format.type, 'json_schema'); assert.equal(payload.response_format.json_schema.strict, true)
   assert.match(payload.messages[1].content, /철근 배근/)
 })

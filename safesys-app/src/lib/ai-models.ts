@@ -19,7 +19,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'chat.project-assistant',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/chat/project-assistant/route.ts',
     feature: '현장 AI 비서 챗봇',
     remarks: '',
@@ -29,7 +29,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'chat.tbm',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/chat/tbm/route.ts',
     feature: 'TBM 현황 챗봇',
     remarks: '',
@@ -39,7 +39,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'tbm-telegram.analyze',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/tbm-telegram/analyze/route.ts',
     feature: 'TBM 텔레그램 문안 생성',
     remarks: '',
@@ -49,7 +49,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.write-risk-analysis',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/ai/write-risk-analysis/route.ts',
     feature: 'TBM 위험분석 작성',
     remarks: '',
@@ -59,7 +59,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.translate',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/ai/translate/route.ts',
     feature: '안전교육 다국어 번역',
     remarks: '',
@@ -69,7 +69,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.tts.translate',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/ai/tts/route.ts',
     feature: 'TTS용 사전 번역',
     remarks: '',
@@ -89,7 +89,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.tbm-safety-advice',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/ai/tbm-safety-advice/route.ts',
     feature: 'TBM 안전조치 확인사항',
     remarks: '',
@@ -99,7 +99,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.ptw-work-summary',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/ai/ptw-work-summary/route.ts',
     feature: '작업허가서 업무요약',
     remarks: '',
@@ -109,7 +109,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.ptw-risk-analysis',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/ai/ptw-risk-analysis/route.ts',
     feature: '작업허가서 위험분석',
     remarks: '',
@@ -119,7 +119,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.headquarters-remarks',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/ai/headquarters-remarks/route.ts',
     feature: '본부점검 의견 생성',
     remarks: '',
@@ -129,7 +129,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.extract-equipment-count',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/ai/extract-equipment-count/route.ts',
     feature: '장비 대수 추출',
     remarks: '',
@@ -139,7 +139,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.daily-inspection',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/ai/daily-inspection/route.ts',
     feature: '일일점검 체크리스트 생성',
     remarks: '',
@@ -149,7 +149,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.ocr-card',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/ai/ocr-card/route.ts',
     feature: '교육 이수증 OCR',
     remarks: '',
@@ -159,7 +159,7 @@ export const DEFAULT_AI_MODELS = [
   {
     featureKey: 'ai.supervisor-summary.remarks',
     provider: 'OpenAI',
-    model: 'gpt-5.6-luna',
+    model: 'gpt-6-luna',
     location: 'src/app/api/ai/supervisor-summary/route.ts',
     feature: '감독일지 의견·요약',
     remarks: '',

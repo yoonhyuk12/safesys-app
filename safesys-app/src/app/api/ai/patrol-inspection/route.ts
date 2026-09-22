@@ -14,7 +14,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY
 
 /** 이 기능은 모델을 고정한다 — 관리자 설정으로 바뀌지 않는다. */
-const PATROL_AI_MODEL = 'gpt-5.6-luna'
+const PATROL_AI_MODEL = 'gpt-6-luna'
 const FEATURE_KEY = 'ai.patrol-inspection'
 
 /**

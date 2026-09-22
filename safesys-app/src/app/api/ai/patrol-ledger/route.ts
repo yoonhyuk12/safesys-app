@@ -6,7 +6,7 @@ import { recordAiUsage } from '@/lib/ai-usage-log'
 import { loadTbmWorkForDate } from '@/lib/patrol-ledger/tbm-work'
 import type { PatrolLedgerAiItem, PatrolLedgerAiRequest, PatrolLedgerAiResponse } from '@/lib/patrol-ledger/types'
 
-const PATROL_LEDGER_AI_MODEL = 'gpt-5.6-luna'
+const PATROL_LEDGER_AI_MODEL = 'gpt-6-luna'
 const FEATURE_KEY = 'ai.patrol-ledger'
 const REQUEST_TIMEOUT_MS = 60_000
 const activeUsers = new Set<string>()

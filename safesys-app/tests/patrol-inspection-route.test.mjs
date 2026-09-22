@@ -263,7 +263,7 @@ test('20건 요청은 고정 모델·추론수준·건수 기반 토큰·strict 
 
   assert.equal(calls.length, 1)
   const payload = calls[0].body
-  assert.equal(payload.model, 'gpt-5.6-luna')
+  assert.equal(payload.model, 'gpt-6-luna')
   assert.ok(['low', 'none'].includes(payload.reasoning_effort))
   // low 추론 + 20건 본문이 잘리지 않도록 넉넉히 잡는다.
   assert.equal(payload.max_completion_tokens, 4000 + 20 * 600)

@@ -90,8 +90,8 @@ accident-report, daily-inspection, edit, equipment-inspection, headquarters-insp
 - `/api/ai/translate` — 번역
 - `/api/ai/tts` — 텍스트 음성 변환
 - `/api/ai/write-risk-analysis` — AI 위험분석 작성
-- `/api/ai/patrol-ledger` — (AI) 순회점검대장 점검항목 생성 (Bearer 인증·프로젝트 RLS, gpt-5.6-luna 고정)
-- `/api/ai/patrol-inspection` — KRC 패트롤 점검 엑셀용 재발방지대책·재해유형 작성 (Bearer 인증·관할 검증, gpt-5.6-luna)
+- `/api/ai/patrol-ledger` — (AI) 순회점검대장 점검항목 생성 (Bearer 인증·프로젝트 RLS, gpt-6-luna 고정)
+- `/api/ai/patrol-inspection` — KRC 패트롤 점검 엑셀용 재발방지대책·재해유형 작성 (Bearer 인증·관할 검증, gpt-6-luna)
 
 **외부 서비스 연동:**
 
@@ -100,7 +100,7 @@ accident-report, daily-inspection, edit, equipment-inspection, headquarters-insp
 - `/api/telegram/*` — Telegram 알림 (텍스트/사진)
 - `/api/hwp/*` — HWP 문서 변환/내보내기
 - `/api/chat/tbm` — TBM AI 챗봇
-- `/api/chat/project-assistant` — 프로젝트 현장 AI 비서(오늘 TBM 브리핑·감독 미서명 안내·tool calling 조회, gpt-5.6-luna)
+- `/api/chat/project-assistant` — 프로젝트 현장 AI 비서(오늘 TBM 브리핑·감독 미서명 안내·tool calling 조회, gpt-6-luna)
 - `/api/csi/quality-reports` — CSI 공개 성적서 열람 화면 스크래핑 조회 (GET, 로그인 불필요, `?source=api`면 공식 API)
 - `/api/csi/self-quality` — CSI 로그인 후 사업 목록 또는 선택 사업의 자체 품질시험 실적 조회 (POST, SafeSys Bearer 필수, 자격증명 미보관)
 - `/api/csi/self-quality/detail` — CSI 자체 품질시험 상세의 시험일·기준·결과·판정 조회 (POST, SafeSys Bearer 필수, 자격증명 미보관)
