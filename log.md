@@ -1,6 +1,20 @@
 # 작업 로그
 
 <!-- worklog -->
+260923_070118 : .codex/hooks 수정
+260923_070114 : .codex/hooks 수정
+260923_065123 : .codex/hooks 수정
+260923_065117 : .codex/hooks 수정
+260923_065058 : .codex/hooks 수정, safesys-app/src/components/project/TBMStatus.tsx 수정
+260923_064911 : .codex/hooks 수정
+260923_064859 : .codex/hooks 수정, safesys-app/src/components/ui/VworldAddressSearch.tsx 수정
+260923_064341 : .codex/hooks 수정
+260923_064332 : .codex/hooks 수정, safesys-app/src/components/project/ProjectRegistrationForm.tsx 수정
+260923_064308 : .codex/hooks 수정
+260923_064257 : .codex/hooks 수정, safesys-app/src/components/project/ProjectEditForm.tsx 수정
+260923_045343 : .codex/hooks 수정
+260923_045329 : .codex/agents 수정, .codex/commands 수정, .codex/contexts 수정, .codex/docs 수정, .codex/examples 수정, .codex/hooks 수정 외 14건
+260922_233409 : docs/troubleshooting.md 수정 — "- **빌드 캐시 문제**: `npm run build:no-cache` 사용 - **dev 서버가 모든 경…"
 260922_232321 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정
 260922_232246 : plans/20260922_순회점검_HWPX_한줄맞춤.md 수정
 260922_232238 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정 — "assert.equal(name.find('hp\\:p').first().attr('paraPrIDRef')…"
