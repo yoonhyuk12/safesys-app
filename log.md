@@ -1,6 +1,35 @@
 # 작업 로그
 
 <!-- worklog -->
+260922_232321 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정
+260922_232246 : plans/20260922_순회점검_HWPX_한줄맞춤.md 수정
+260922_232238 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정 — "assert.equal(name.find('hp\\:p').first().attr('paraPrIDRef')…"
+260922_232236 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정 — "// 추정 폭(한글 1.0·공백 0.33·기타 0.55em)에 여유 5%를 둔 값. 상수가 바뀌면 이 값도 …"
+260922_232232 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 — "return { ratio: Math.max(50, raw), spacing: raw < 50 ? -15 :…"
+260922_231739 : plans/20260922_순회점검_HWPX_한줄맞춤/checklist.md 수정, plans/20260922_순회점검_HWPX_한줄맞춤/context-notes.md 수정
+260922_231620 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정 — "assert.equal(header('hh\\:charPr').length, Number(header('hh…"
+260922_231614 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 — "// 글줄 폭을 넘는 문장은 자간 -5와 장평 축소로 한 줄에 눌러 담는다. 장평은 한글 허용 범위 50% …"
+260922_231549 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정
+260922_230740 : safesys-app/insp.cjs 삭제
+260922_230720 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 — "// 점검사항 칸(3~15행 1열)은 셀 폭 38236에서 좌우 여백 510을 뺀 37216 HWPUNIT …"
+260922_230712 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 — "// 출력물에서는 "작업장 공통"을 "작업장"으로 줄여 적는다. DB 카테고리 값은 그대로 둔다. value…"
+260922_230708 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 — "return fillCell(cell, '', charPrs, { picture: buildInlinePic…"
+260922_230703 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 — "interface FillTableOptions { photo?: Picture | null; cellOpt…"
+260922_230657 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 — "interface CharPrFit { ratio: number; spacing: number } /** *…"
+260922_230651 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 — "const CHAR_PR_LANGS"
+260922_230642 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정
+260922_230634 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 — "interface FillCellOptions { picture?: string; fitWidth?: num…"
+260922_230623 : safesys-app/src/lib/hwpx/patrol-ledger-hwpx-export.ts 수정 — "const CHAR_PR_LANGS = ['hangul', 'latin', 'hanja', 'japanese…"
+260922_230528 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정 — "const signatureRef = cell($, 1, 2, 7).find('hp\\:run').attr(…"
+260922_230516 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정
+260922_230509 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정
+260922_230456 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정
+260922_230433 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정 — "// 표2 성명 칸(2,6)만 오른쪽 정렬 24에서 가운데 정렬 22로 바뀐다. const addr = ol…"
+260922_230427 : safesys-app/tests/patrol-ledger-hwpx.test.mjs 수정 — "assert.equal(text(cell($, 0, i + 3, 1)), ` (${item.category …"
+260922_230354 : safesys-app/insp.cjs 수정
+260922_230343 : safesys-app/insp.cjs 수정
+260922_230333 : safesys-app/insp.cjs 추가
+260922_230217 : plans/20260922_순회점검_HWPX_한줄맞춤.md 추가, plans/20260922_순회점검_HWPX_한줄맞춤/checklist.md 추가, plans/20260922_순회점검_HWPX_한줄맞춤/context-notes.md 추가
 260922_181844 : plans/20260922_순회점검_TBM대책행/checklist.md 수정 — "- [x] 코드 리뷰 반영 (MEDIUM 파일 역할 주석, LOW 조회 실패 시 안내 숨김) - [x] DB…"
 260922_181810 : safesys-app/src/components/project/patrol-ledger/PatrolLedgerForm.tsx 수정 — "{!loadingTbm && !tbmError && <p className="text-xs text-gray…"
 260922_181806 : safesys-app/src/lib/patrol-ledger/tbm-work.ts 수정 — "// 사용자 권한으로 TBM 작업내용(당일)과 대책(당일 없으면 최근)을 조회해 순회점검 AI 입력과 뒤 3…"
