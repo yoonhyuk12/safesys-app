@@ -9,7 +9,7 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { supabase } from '@/lib/supabase'
 import type { Project } from '@/lib/projects'
 import { PATROL_LEDGER_PHOTO_KIND_LABELS, PATROL_LEDGER_PHOTO_KINDS, PATROL_LEDGER_RESULTS, PATROL_LEDGER_THEME_MAX, type PatrolLedgerAiRequest, type PatrolLedgerAiResponse, type PatrolLedgerResult } from '@/lib/patrol-ledger/types'
-import { loadTbmWorkForDate } from '@/lib/patrol-ledger/tbm-work'
+import { loadTbmSolutionsForDate, loadTbmWorkForDate, tbmSolutionItems } from '@/lib/patrol-ledger/tbm-work'
 import { getPatrolLedgerWeeklyTheme, patrolLedgerWeekStart } from '@/lib/patrol-ledger/themes'
 import {
   buildPatrolLedgerItems, isBlankPatrolLedgerSignature, setAllPatrolLedgerResults,
@@ -40,6 +40,7 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
 }) {
   const [draft, setDraft] = useState(initialDraft)
   const [work, setWork] = useState({ summary: '', count: 0 })
+  const [solutions, setSolutions] = useState<{ solutions: string[]; meetingDate: string | null }>({ solutions: [], meetingDate: null })
   const [manual, setManual] = useState(Boolean(initialDraft.tbm_work_summary))
   const [manualText, setManualText] = useState(initialDraft.tbm_work_summary)
   const [loadingTbm, setLoadingTbm] = useState(true)
@@ -63,9 +64,18 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
     setLoadingTbm(true)
     setTbmError(null)
     setWork({ summary: '', count: 0 })
-    loadTbmWorkForDate(supabase, project, draft.inspection_date).then(result => {
+    setSolutions({ solutions: [], meetingDate: null })
+    // 대책 조회는 점검항목 뒤 3행에만 쓰이므로 실패해도 작성을 막지 않고 조용히 비운다.
+    Promise.all([
+      loadTbmWorkForDate(supabase, project, draft.inspection_date),
+      loadTbmSolutionsForDate(supabase, project, draft.inspection_date).catch((cause: unknown) => {
+        console.error('TBM 대책을 불러오지 못했습니다.', cause)
+        return { solutions: [], meetingDate: null }
+      }),
+    ]).then(([result, solution]) => {
       if (!active) return
       setWork(result)
+      setSolutions(solution)
       if (!result.summary) setManual(true)
     }).catch((cause: unknown) => {
       if (!active) return
@@ -110,7 +120,7 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
       const result: PatrolLedgerAiResponse = await response.json()
       if (!response.ok || !result.success || !result.items) throw new Error(result.error || '점검항목 생성에 실패했습니다.')
       if (!alive.current) return
-      setDraft(current => ({ ...current, items: buildPatrolLedgerItems(result.items!), tbm_work_summary: result.workSummary ?? '', signature: '' }))
+      setDraft(current => ({ ...current, items: buildPatrolLedgerItems([...result.items!, ...tbmSolutionItems(solutions.solutions)]), tbm_work_summary: result.workSummary ?? '', signature: '' }))
     } catch (cause) {
       if (alive.current) setError(cause instanceof Error ? cause.message : '점검항목 생성에 실패했습니다.')
     } finally { if (alive.current) setGenerating(false) }
@@ -200,7 +210,8 @@ export default function PatrolLedgerForm({ project, initialDraft, editing, savin
           </label>
           <button type="button" disabled={loadingTbm || (manual ? !manualText.trim() : !work.summary)} onClick={generate} className={PRIMARY}>AI 점검항목 생성</button>
         </div>
-        <p className="text-xs text-gray-500">테마 항목 5건은 주요 테마와 당일 작업내용을 결합해 만듭니다.</p>
+        <p className="text-xs text-gray-500">테마 항목 5건은 주요 테마와 당일 작업내용을 결합해 만들고, 뒤 3건은 당일(없으면 최근) TBM의 대책 1~3 이행 여부로 채웁니다.</p>
+        {!loadingTbm && !tbmError && <p className="text-xs text-gray-500">{solutions.solutions.length ? `TBM 대책 ${solutions.solutions.length}건${solutions.meetingDate ? ` · ${solutions.meetingDate} TBM` : ''}` : '제출된 TBM 대책이 없어 항목 11~13은 만들지 않습니다.'}</p>}
         {generating && <LoadingSpinner />}
       </div>
 

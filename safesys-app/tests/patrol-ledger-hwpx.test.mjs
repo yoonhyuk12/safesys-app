@@ -12,7 +12,8 @@ async function loadModule(url) {
   const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } })
   const deps = new Map([['jszip', JSZip]])
   for (const [, name] of outputText.matchAll(/require\(["']([^"']+)["']\)/g)) {
-    if (!deps.has(name)) deps.set(name, await loadModule(new URL(`${name}.ts`, url)))
+    // '@/'는 tsconfig paths와 같게 src 루트로 돌린다.
+    if (!deps.has(name)) deps.set(name, await loadModule(name.startsWith('@/') ? new URL(`../src/${name.slice(2)}.ts`, import.meta.url) : new URL(`${name}.ts`, url)))
   }
   const module = { exports: {} }
   new Function('module', 'exports', 'require', outputText)(module, module.exports, name => deps.get(name))
@@ -62,7 +63,7 @@ const record = {
   inspector_affiliation: '농어촌공사', inspector_position: '감독', inspector_name: '홍점검',
   signature: `data:image/png;base64,${signatureBytes.toString('base64')}`, finding_photo_url: '/photo.png',
   finding_text: '안전난간 고정 확인\n통행로 정리 필요\n오후 재점검 예정',
-  items: Array.from({ length: 10 }, (_, i) => ({ no: i + 1, category: i < 5 ? '작업장 공통' : '테마', text: `안전시설 ${i + 1} 점검`, result: i === 9 ? '' : i % 2 ? '미흡' : '양호' })).reverse(),
+  items: Array.from({ length: 13 }, (_, i) => ({ no: i + 1, category: i < 5 ? '작업장 공통' : i < 10 ? '테마' : 'TBM 대책', text: `안전시설 ${i + 1} 점검`, result: i === 9 ? '' : i % 2 ? '미흡' : '양호' })).reverse(),
 }
 const cell = ($, table, row, col) => $('hp\\:tbl').eq(table).find('hp\\:tc').filter((_, el) => {
   const addr = $(el).children('hp\\:cellAddr'); return addr.attr('rowAddr') === String(row) && addr.attr('colAddr') === String(col)
@@ -79,20 +80,20 @@ async function build(data = record, options = { projectName: '안전현장' }) {
   const xml = await zip.file('Contents/section0.xml').async('string')
   return { api, bytes, zip, xml, $: load(xml, { xmlMode: true }) }
 }
-test('10행 정렬·값·서식과 사진/서명 전체 구조를 유지한다', async () => {
+test('13행 정렬·값·서식과 사진/서명 전체 구조를 유지한다', async () => {
   const { bytes, zip, $, xml } = await build()
   assert.equal(text(cell($, 0, 0, 0)), '작업장 순회 점검표(안전건설)')
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 13; i++) {
     const item = [...record.items].sort((a, b) => a.no - b.no)[i]
     assert.equal(text(cell($, 0, i + 3, 1)), ` (${item.category}) ${item.text}`)
     assert.equal(text(cell($, 0, i + 3, 4)), item.result)
   }
   for (const [r, c, value] of [[0,1,'2026년 9월 17일'],[1,1,'안전지구'],[2,2,'농어촌공사'],[2,4,'감독'],[2,6,'홍점검'],[2,7,'(서명)']]) assert.equal(text(cell($,1,r,c)), value)
-  assert.equal(cell($,0,13,3).find('hp\\:p').length, 3)
-  const photo = cell($,0,13,1).find('hp\\:pic')
+  assert.equal(cell($,0,16,3).find('hp\\:p').length, 3)
+  const photo = cell($,0,16,1).find('hp\\:pic')
   assert.equal(photo.length, 1)
   assert.equal(photo.find('hp\\:pos').attr('treatAsChar'), '1')
-  assert.equal(text(cell($,0,13,1)), '')
+  assert.equal(text(cell($,0,16,1)), '')
   const signature = $('hp\\:pic[textWrap="IN_FRONT_OF_TEXT"]').filter((_, el) => $(el).find('hc\\:img').attr('binaryItemIDRef') !== 'image1')
   assert.equal(signature.length, 1)
   assert.equal(signature.parent()[0], $('hp\\:tbl').eq(0).parent()[0])
@@ -129,10 +130,10 @@ test('사진·서명 없음, 적은 항목, 빈 시공사와 XML 특수문자를
   const { $, bytes } = await build({ ...record, signature:'', finding_photo_url:null, contractor_name:'', finding_text:'<확인>&"검토"', items:[{...record.items[0], no:1, text:'<난간>& 점검'}] }, { projectName:'현장', templateUrl:'/custom.hwpx' })
   assert.equal(requestedTemplate,'/custom.hwpx')
   assert.equal(text(cell($,0,0,0)), '작업장 순회 점검표(시공사명)')
-  assert.equal(text(cell($,0,13,1)), '(없는 경우 점검사진)')
-  assert.equal(text(cell($,0,13,3)), '<확인>&"검토"')
+  assert.equal(text(cell($,0,16,1)), '(없는 경우 점검사진)')
+  assert.equal(text(cell($,0,16,3)), '<확인>&"검토"')
   assert.equal($('hp\\:pic[textWrap="IN_FRONT_OF_TEXT"]').length,2)
-  for(let r=4;r<=12;r++) { assert.equal(text(cell($,0,r,1)),''); assert.equal(text(cell($,0,r,4)),'') }
+  for(let r=4;r<=15;r++) { assert.equal(text(cell($,0,r,1)),''); assert.equal(text(cell($,0,r,4)),'') }
   if(process.env.PATROL_LEDGER_HWPX_SAMPLES==='1') await writeFile(new URL('../scratch/patrol-ledger/no-images.hwpx',import.meta.url),bytes)
 })
 test('파일명 금지문자를 치환하고 이미지 읽기 실패를 알린다',async()=>{
@@ -170,7 +171,7 @@ test('셀 그리드·문단 서식·기존 로고는 원본과 같고 동시 생
 test('사진만·서명만 있는 문서도 각각의 이미지 자리를 유지한다', async () => {
   for (const [name, data] of [['photo-only', { ...record, signature: '' }], ['signature-only', { ...record, finding_photo_url: null }]]) {
     const { $, bytes } = await build(data)
-    assert.equal(cell($,0,13,1).find('hp\\:pic').length, name === 'photo-only' ? 1 : 0)
+    assert.equal(cell($,0,16,1).find('hp\\:pic').length, name === 'photo-only' ? 1 : 0)
     assert.equal($('hp\\:pic').length, 3)
     if (process.env.PATROL_LEDGER_HWPX_SAMPLES === '1') await writeFile(new URL(`../scratch/patrol-ledger/${name}.hwpx`, import.meta.url), bytes)
   }
@@ -182,7 +183,7 @@ test('채운 글자는 모두 검정이고 (서명) 문구만 원본 회색을 �
   const colorOf = id => header(`hh\\:charPr[id="${id}"]`).attr('textColor')
   const itemCnt = Number(header('hh\\:charProperties').attr('itemCnt'))
   assert.equal(header('hh\\:charPr').length, itemCnt)
-  const filled = [[0,0,0],[0,3,1],[0,3,4],[0,4,4],[0,13,3],[1,0,1],[1,1,1],[1,2,2],[1,2,4],[1,2,6]]
+  const filled = [[0,0,0],[0,3,1],[0,3,4],[0,4,4],[0,16,3],[1,0,1],[1,1,1],[1,2,2],[1,2,4],[1,2,6]]
   for (const [t, r, c] of filled) {
     const refs = new Set(cell($, t, r, c).find('hp\\:run').map((_, el) => $(el).attr('charPrIDRef')).get())
     assert.ok(refs.size >= 1)

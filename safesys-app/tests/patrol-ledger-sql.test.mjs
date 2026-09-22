@@ -36,9 +36,18 @@ test('작성자만 내용 UPDATE 가능하고 신원 열은 고칠 수 없다', 
 })
 test('items CHECK는 잘못된 배열·번호·문자·분류·결과를 거부한다', async t => {
   const db = await open(t); await signIn(db, IDS.owner)
-  for (const items of [null, {}, [], Array(11).fill(ITEMS[0]), [null], ['항목'], ...[{ no: 0 }, { no: 11 }, { no: 1.5 }, { no: '1' }, { no: null }, { text: '' }, { text: '  ' }, { text: 1 }, { category: '오류' }, { result: '오류' }, { result: null }].map(patch => [{ ...ITEMS[0], ...patch }])]) await assert.rejects(insertInspection(db, { items: JSON.stringify(items) }), /check constraint/i)
+  for (const items of [null, {}, [], Array(14).fill(ITEMS[0]), [null], ['항목'], ...[{ no: 0 }, { no: 14 }, { no: 1.5 }, { no: '1' }, { no: null }, { text: '' }, { text: '  ' }, { text: 1 }, { category: '오류' }, { result: '오류' }, { result: null }].map(patch => [{ ...ITEMS[0], ...patch }])]) await assert.rejects(insertInspection(db, { items: JSON.stringify(items) }), /check constraint/i)
   await insertInspection(db)
   assert.deepEqual(await scalar(db, `SELECT items FROM ${table}`), ITEMS)
+  // 13행(앞 10건 AI, 뒤 3건 TBM 대책)과 'TBM 대책' 분류는 통과한다.
+  await db.query(`DELETE FROM ${table}`)
+  const thirteen = Array.from({ length: 13 }, (_, index) => ({ ...ITEMS[0], no: index + 1, category: index < 10 ? ITEMS[0].category : 'TBM 대책' }))
+  await insertInspection(db, { items: JSON.stringify(thirteen) })
+  assert.deepEqual(await scalar(db, `SELECT items FROM ${table}`), thirteen)
+  await db.query(`DELETE FROM ${table}`)
+  await insertInspection(db, { items: JSON.stringify([{ ...ITEMS[0], category: 'TBM 대책' }]) })
+  assert.equal((await scalar(db, `SELECT items FROM ${table}`))[0].category, 'TBM 대책')
+  await db.query(`DELETE FROM ${table}`)
   // 점검결과는 양호·미흡·해당없음·미점검('')만 통과한다.
   for (const result of ['양호', '미흡', '해당없음', '']) {
     await db.query(`DELETE FROM ${table}`)

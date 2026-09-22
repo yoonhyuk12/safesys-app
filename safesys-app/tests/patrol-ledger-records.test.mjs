@@ -16,7 +16,7 @@ async function transpile(path, dependencies = {}) {
 }
 const types = await transpile('../src/lib/patrol-ledger/types.ts')
 const records = await transpile('../src/lib/patrol-ledger/records.ts', { '@/lib/supabase': { supabase: {} }, '@/lib/patrol-ledger/types': types })
-const tbm = await transpile('../src/lib/patrol-ledger/tbm-work.ts')
+const tbm = await transpile('../src/lib/patrol-ledger/tbm-work.ts', { '@/lib/patrol-ledger/types': types })
 const signature = 'data:image/png;base64,iVBORw0KGgo' + 'A'.repeat(200)
 const init = { districtName: '지구', contractorName: '시공사', inspectorName: '홍길동', inspectorAffiliation: '지사' }
 const aiItems = [{ category: '작업장 공통', text: '안전통로는 확보되어 있는가' }]
@@ -50,12 +50,16 @@ test('검증은 날짜·성명·서명·항목의 잘못된 값을 거부한다'
     { inspection_date: '2026-02-30' }, { inspection_date: 'bad' },
     { inspector_name: '' }, { inspector_name: '홍\n길동' }, { inspector_name: '가'.repeat(101) },
     { signature: '' }, { signature: 'data:image/png;base64,abc' },
-    { items: [] }, { items: Array(11).fill(valid().items[0]) },
+    { items: [] }, { items: Array(14).fill(valid().items[0]) },
     { items: [{ ...valid().items[0], text: ' ' }] },
     { items: [{ ...valid().items[0], result: '오류' }] },
   ]) assert.equal(typeof records.validatePatrolLedgerDraft({ ...valid(), ...patch }), 'string')
   assert.equal(records.isBlankPatrolLedgerSignature(signature), false)
   assert.equal(records.isBlankPatrolLedgerSignature(null), true)
+  // 13건(뒤 3건 'TBM 대책')은 통과하고 14건은 거부한다.
+  const thirteen = records.buildPatrolLedgerItems(Array.from({ length: 13 }, (_, index) => ({ category: index < 10 ? '작업장 공통' : 'TBM 대책', text: `점검 ${index + 1}` })))
+  assert.equal(records.validatePatrolLedgerDraft({ ...valid(), items: thirteen }), null)
+  assert.equal(typeof records.validatePatrolLedgerDraft({ ...valid(), items: [...thirteen, { ...thirteen[0], no: 14 }] }), 'string')
 })
 test('기록을 초안으로 바꿀 때 항목을 복사한다', () => {
   const record = { ...valid(), id: 'id', project_id: 'p', created_by: 'u', created_at: '', updated_at: '' }
@@ -138,4 +142,41 @@ test('skipSignature 옵션은 서명만 건너뛰고 나머지 검증은 그대�
   assert.equal(records.validatePatrolLedgerDraft({ ...valid(), signature: '' }, { skipSignature: true }), null)
   assert.equal(typeof records.validatePatrolLedgerDraft({ ...valid(), signature: '' }), 'string')
   assert.equal(typeof records.validatePatrolLedgerDraft({ ...valid(), signature: '', inspector_name: '' }, { skipSignature: true }), 'string')
+})
+
+test('TBM 대책은 최신 제출 1건에서 공백·빈 값·중복을 걸러 최대 3건을 고른다', () => {
+  assert.deepEqual(tbm.pickTbmSolutions([]), { solutions: [], meetingDate: null })
+  assert.deepEqual(tbm.pickTbmSolutions([
+    { meeting_date: '2026-09-15T00:00:00', created_at: '2026-09-15T09:00:00', solution_1: '옛 대책' },
+    { meeting_date: '2026-09-17T00:00:00', created_at: '2026-09-17T08:00:00', solution_1: '이른 대책' },
+    { meeting_date: '2026-09-17T00:00:00', created_at: '2026-09-17T10:00:00', solution_1: ' 안전대  착용 ', solution_2: '안전대 착용', solution_3: '  ' },
+  ]), { solutions: ['안전대 착용'], meetingDate: '2026-09-17' })
+  assert.deepEqual(tbm.pickTbmSolutions([{ meeting_date: null, created_at: null, solution_1: '가', solution_2: '나', solution_3: '다' }]), { solutions: ['가', '나', '다'], meetingDate: null })
+})
+test('대책 문구는 TBM 대책 분류의 이행 여부 점검항목이 된다', () => {
+  assert.deepEqual(tbm.tbmSolutionItems(['안전대 착용', '개구부 덮개']), [
+    { category: 'TBM 대책', text: '안전대 착용 이행 여부' },
+    { category: 'TBM 대책', text: '개구부 덮개 이행 여부' },
+  ])
+  assert.deepEqual(tbm.tbmSolutionItems([]), [])
+})
+test('대책 조회는 두 갈래에서 최신 1건씩 받고 gte는 걸지 않는다', async () => {
+  const queries = []
+  const client = { from(table) {
+    assert.equal(table, 'tbm_submissions')
+    const calls = []; queries.push(calls)
+    const chain = Object.fromEntries(['select', 'eq', 'gte', 'lte', 'order', 'limit'].map(method => [method, (...args) => { calls.push([method, ...args]); return chain }]))
+    chain.then = resolve => resolve({ data: [{ id: '1', meeting_date: '2026-09-17T00:00:00', created_at: '2026-09-17T10:00:00', solution_1: '안전대 착용', solution_2: '', solution_3: null }], error: null })
+    return chain
+  } }
+  const result = await tbm.loadTbmSolutionsForDate(client, { id: 'p', project_name: '사업', managing_hq: '본부', managing_branch: '지사' }, '2026-09-17')
+  assert.deepEqual(result, { solutions: ['안전대 착용'], meetingDate: '2026-09-17' })
+  assert.equal(queries.length, 2)
+  for (const calls of queries) {
+    assert.ok(calls.some(call => call[1] === 'status' && call[2] === 'submitted'))
+    assert.ok(calls.some(call => call[0] === 'lte' && call[2] === '2026-09-17T23:59:59'))
+    assert.ok(!calls.some(call => call[0] === 'gte'))
+    assert.deepEqual(calls.filter(call => call[0] === 'order').map(call => call[1]), ['meeting_date', 'created_at'])
+    assert.ok(calls.some(call => call[0] === 'limit' && call[1] === 1))
+  }
 })

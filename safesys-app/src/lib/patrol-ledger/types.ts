@@ -2,12 +2,16 @@
 
 export const PATROL_LEDGER_TABLE = 'patrol_ledger_inspections'
 
-/** 양식 표는 점검사항 10행으로 고정되어 있다. AI도 정확히 10건을 만들고 출력도 10행을 채운다. */
-export const PATROL_LEDGER_ITEM_COUNT = 10
-/** 앞 5행은 "(작업장 공통)", 뒤 5행은 "(테마)" — 양식 원본의 배치를 그대로 따른다. */
+/** AI가 만드는 앞 10행. 라우트는 정확히 이 건수를 강제한다. */
+export const PATROL_LEDGER_AI_ITEM_COUNT = 10
+/** 뒤 3행에 붙는 TBM 대책(solution_1~3) 건수. */
+export const PATROL_LEDGER_TBM_SOLUTION_COUNT = 3
+/** 양식 표는 점검사항 13행으로 고정되어 있다. 앞 10행은 AI, 뒤 3행은 TBM 대책 이행 여부다. */
+export const PATROL_LEDGER_ITEM_COUNT = 13
+/** AI 10행 중 앞 5행은 "(작업장 공통)", 뒤 5행은 "(테마)" — 양식 원본의 배치를 그대로 따른다. */
 export const PATROL_LEDGER_COMMON_COUNT = 5
 
-export const PATROL_LEDGER_CATEGORIES = ['작업장 공통', '테마'] as const
+export const PATROL_LEDGER_CATEGORIES = ['작업장 공통', '테마', 'TBM 대책'] as const
 export type PatrolLedgerCategory = (typeof PATROL_LEDGER_CATEGORIES)[number]
 
 /** 점검결과 칸에 그대로 인쇄되는 값. 빈 문자열은 미점검이다. */
@@ -19,7 +23,7 @@ export type PatrolLedgerPhotoKind = (typeof PATROL_LEDGER_PHOTO_KINDS)[number]
 export const PATROL_LEDGER_PHOTO_KIND_LABELS: Record<PatrolLedgerPhotoKind, string> = { finding: '지적사진', overview: '전경사진' }
 
 export interface PatrolLedgerItem {
-  /** 1부터 10까지의 행 번호 */
+  /** 1부터 13까지의 행 번호. 11~13은 TBM 대책 이행 여부다. */
   no: number
   category: PatrolLedgerCategory
   /** "(카테고리)" 접두어를 뺀 점검사항 본문. 출력 시 " (작업장 공통) 본문" 형태로 합쳐 인쇄한다. */
@@ -94,7 +98,7 @@ export interface PatrolLedgerAiItem {
 /** POST /api/ai/patrol-ledger 응답 본문 */
 export interface PatrolLedgerAiResponse {
   success: boolean
-  /** 정확히 PATROL_LEDGER_ITEM_COUNT건. 앞 PATROL_LEDGER_COMMON_COUNT건이 "작업장 공통" */
+  /** 정확히 PATROL_LEDGER_AI_ITEM_COUNT건. 앞 PATROL_LEDGER_COMMON_COUNT건이 "작업장 공통" */
   items?: PatrolLedgerAiItem[]
   /** 모델에 넣은 작업내용 요약 — 화면에 보여 주고 저장 시 tbm_work_summary로 남긴다 */
   workSummary?: string

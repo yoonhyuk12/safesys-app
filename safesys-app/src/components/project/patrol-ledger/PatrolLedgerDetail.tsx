@@ -1,5 +1,5 @@
 // 순회점검 양식 순서로 저장한 항목·지적사항·점검자 서명을 보여준다.
-import { PATROL_LEDGER_PHOTO_KIND_LABELS, type PatrolLedgerInspection } from '@/lib/patrol-ledger/types'
+import { PATROL_LEDGER_ITEM_COUNT, PATROL_LEDGER_PHOTO_KIND_LABELS, type PatrolLedgerInspection } from '@/lib/patrol-ledger/types'
 import { Download, Pencil, Trash2 } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
@@ -30,7 +30,7 @@ export default function PatrolLedgerDetail({ record, canEdit, canDelete, busy, d
       <div className="overflow-x-auto">
       <table className="min-w-full">
         <thead className="bg-gray-50 border-b border-gray-200"><tr>{['No.', '점검사항', '점검결과'].map(label => <th key={label} className="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</th>)}</tr></thead>
-        <tbody className="bg-white divide-y divide-gray-200">{Array.from({ length: 10 }, (_, index) => {
+        <tbody className="bg-white divide-y divide-gray-200">{Array.from({ length: PATROL_LEDGER_ITEM_COUNT }, (_, index) => {
           const item = record.items[index]
           return <tr key={index} className="hover:bg-gray-50">
             <td className="w-12 px-3 py-3 text-xs text-center font-medium text-gray-500">{item?.no ?? index + 1}</td>

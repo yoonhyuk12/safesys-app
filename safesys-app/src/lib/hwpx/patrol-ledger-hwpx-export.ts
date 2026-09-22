@@ -1,7 +1,7 @@
 // 순회점검 한글 양식의 셀 본문과 사진·서명을 채워 HWPX로 내려받는다.
 import JSZip from 'jszip'
 import { topLevelRanges, rebuild } from './accident-report-xml'
-import type { PatrolLedgerInspection } from '@/lib/patrol-ledger/types'
+import { PATROL_LEDGER_ITEM_COUNT, type PatrolLedgerInspection } from '@/lib/patrol-ledger/types'
 
 export const PATROL_LEDGER_TEMPLATE_PATH = '/순회점검 양식.hwpx'
 export interface PatrolLedgerHwpxOptions { projectName: string; templateUrl?: string }
@@ -126,8 +126,9 @@ function fillTable(table: string, values: Map<string, string>, photo: Picture | 
     const address = /<hp:cellAddr colAddr="(\d+)" rowAddr="(\d+)"/.exec(cell)
     if (!address) throw new Error('순회점검 양식의 셀 주소를 찾지 못했습니다.')
     const key = `${address[2]},${address[1]}`
-    if (photo && key === '13,1') {
-      const size = fit(photo, 26198 - 1020, 18750 - 282)
+    if (photo && key === '16,1') {
+      // 사진 행은 항목 13행을 넣으며 18750에서 15870으로 줄었다. 셀보다 큰 사진은 행을 키워 2쪽으로 밀린다.
+      const size = fit(photo, 26198 - 1020, 15870 - 282)
       return fillCell(cell, '', charPrs, buildInlinePicXml(photo.id, size.w, size.h))
     }
     return values.has(key) ? fillCell(cell, values.get(key)!, charPrs) : cell
@@ -148,10 +149,10 @@ export async function buildPatrolLedgerHwpxBlob(record: PatrolLedgerInspection, 
   let imageNo = Math.max(0, ...Array.from(manifest.matchAll(/id="image(\d+)"/g), match => Number(match[1])))
   const photo = record.finding_photo_url ? await collectImage(record.finding_photo_url, `image${++imageNo}`, false) : null
   const signature = record.signature ? await collectImage(record.signature, `image${++imageNo}`, true) : null
-  const values = new Map<string, string>([['13,3', record.finding_text]])
+  const values = new Map<string, string>([['16,3', record.finding_text]])
   if (record.contractor_name) values.set('0,0', `작업장 순회 점검표(${record.contractor_name})`)
   const items = [...record.items].sort((a, b) => a.no - b.no)
-  for (let index = 0; index < 10; index++) {
+  for (let index = 0; index < PATROL_LEDGER_ITEM_COUNT; index++) {
     const item = items[index]
     values.set(`${index + 3},1`, item ? ` (${item.category}) ${item.text}` : '')
     values.set(`${index + 3},4`, item?.result ?? '')

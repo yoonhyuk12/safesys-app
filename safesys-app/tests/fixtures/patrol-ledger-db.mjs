@@ -15,6 +15,8 @@ export const THEME_PATH = path.join(repoRoot, 'database', '20260917-1900_순회�
 export const ACTION_PATH = path.join(repoRoot, 'database', '20260917-2000_순회점검_조치사항.sql')
 /** 점검결과 '해당없음' 허용은 조치사항 뒤에 얹는다. */
 export const RESULT_NA_PATH = path.join(repoRoot, 'database', '20260921-1000_순회점검_해당없음.sql')
+/** 점검항목 13행(뒤 3행 TBM 대책) 허용은 '해당없음' 뒤에 얹는다. */
+export const TBM_SOLUTION_PATH = path.join(repoRoot, 'database', '20260922-1100_순회점검_TBM대책행.sql')
 const SCHEMA_PATH = path.join(here, 'equipment-inspection-schema.sql')
 
 export const IDS = {
@@ -45,6 +47,7 @@ export async function createDb() {
     await db.exec(readFileSync(THEME_PATH, 'utf8'))
     await db.exec(readFileSync(ACTION_PATH, 'utf8'))
     await db.exec(readFileSync(RESULT_NA_PATH, 'utf8'))
+    await db.exec(readFileSync(TBM_SOLUTION_PATH, 'utf8'))
     await seed(db)
   } catch (error) {
     await db.close()
