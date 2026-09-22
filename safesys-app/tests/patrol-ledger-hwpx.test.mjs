@@ -85,7 +85,7 @@ test('13행 정렬·값·서식과 사진/서명 전체 구조를 유지한다',
   assert.equal(text(cell($, 0, 0, 0)), '작업장 순회 점검표(안전건설)')
   for (let i = 0; i < 13; i++) {
     const item = [...record.items].sort((a, b) => a.no - b.no)[i]
-    assert.equal(text(cell($, 0, i + 3, 1)), ` (${item.category}) ${item.text}`)
+    assert.equal(text(cell($, 0, i + 3, 1)), ` (${item.category === '작업장 공통' ? '작업장' : item.category}) ${item.text}`)
     assert.equal(text(cell($, 0, i + 3, 4)), item.result)
   }
   for (const [r, c, value] of [[0,1,'2026년 9월 17일'],[1,1,'안전지구'],[2,2,'농어촌공사'],[2,4,'감독'],[2,6,'홍점검'],[2,7,'(서명)']]) assert.equal(text(cell($,1,r,c)), value)
@@ -156,7 +156,10 @@ test('셀 그리드·문단 서식·기존 로고는 원본과 같고 동시 생
     for (let i = 0; i < oldCells.length; i++) {
       const oldCell = original(oldCells[i]); const newCell = a.$(newCells[i])
       for (const tag of ['cellAddr', 'cellSpan', 'cellSz', 'cellMargin']) assert.deepEqual(newCell.children(`hp\\:${tag}`).attr(), oldCell.children(`hp\\:${tag}`).attr())
-      for (const attr of ['paraPrIDRef','styleIDRef']) assert.equal(newCell.find('hp\\:p').first().attr(attr),oldCell.find('hp\\:p').first().attr(attr))
+      // 표2 성명 칸(2,6)만 오른쪽 정렬 24에서 가운데 정렬 22로 바뀐다.
+      const addr = oldCell.children('hp\\:cellAddr')
+      const centered = t === 1 && addr.attr('rowAddr') === '2' && addr.attr('colAddr') === '6'
+      for (const attr of ['paraPrIDRef','styleIDRef']) assert.equal(newCell.find('hp\\:p').first().attr(attr), centered && attr === 'paraPrIDRef' ? '22' : oldCell.find('hp\\:p').first().attr(attr))
       // 파랑(19)·빨강(24)·회색(25) 칸은 채울 때 검정 복제본으로 바뀐다. 그 외 칸과 (서명) 칸은 원본 그대로여야 한다.
       const oldRef = oldCell.find('hp\\:run').first().attr('charPrIDRef')
       if (!['19', '24', '25'].includes(oldRef) || text(oldCell) === '(서명)') assert.equal(newCell.find('hp\\:run').first().attr('charPrIDRef'), oldRef)
@@ -191,4 +194,50 @@ test('채운 글자는 모두 검정이고 (서명) 문구만 원본 회색을 �
   }
   const signatureRef = cell($, 1, 2, 7).find('hp\\:run').attr('charPrIDRef')
   assert.equal(colorOf(signatureRef), '#A6A6A6')
+})
+
+test('긴 점검사항은 장평·자간을 줄인 검정 charPr로 한 줄에 맞춘다', async () => {
+  const longText = '작업장 주변 가설전선 피복 손상과 접지 상태를 확인하고 즉시 정비하였는가 여부를 확인'
+  const items = [
+    { no: 1, category: '작업장 공통', text: longText, result: '양호' },
+    { no: 2, category: '테마', text: '짧은 점검', result: '양호' },
+  ]
+  const { zip, $ } = await build({ ...record, items })
+  const header = load(await zip.file('Contents/header.xml').async('string'), { xmlMode: true })
+  assert.equal(text(cell($, 0, 3, 1)), ` (작업장) ${longText}`)
+  const longRef = cell($, 0, 3, 1).find('hp\\:run').first().attr('charPrIDRef')
+  const fitted = header(`hh\\:charPr[id="${longRef}"]`)
+  assert.equal(fitted.attr('height'), '1100')
+  assert.equal(fitted.attr('textColor'), '#000000')
+  // 추정 폭(한글 1.0·공백 0.33·기타 0.55em)에 여유 5%를 둔 값. 상수가 바뀌면 이 값도 바뀐다.
+  const ratio = Number(fitted.children('hh\\:ratio').attr('hangul'))
+  assert.equal(ratio, 72)
+  for (const lang of ['hangul', 'latin', 'hanja', 'japanese', 'other', 'symbol', 'user']) {
+    assert.equal(fitted.children('hh\\:ratio').attr(lang), String(ratio))
+    assert.equal(fitted.children('hh\\:spacing').attr(lang), '-5')
+  }
+  // 짧은 점검사항은 원본 charPr 18(장평 100·자간 0)을 그대로 쓴다.
+  const shortRef = cell($, 0, 4, 1).find('hp\\:run').first().attr('charPrIDRef')
+  assert.equal(shortRef, '18')
+  const short = header(`hh\\:charPr[id="${shortRef}"]`)
+  assert.equal(short.children('hh\\:ratio').attr('hangul'), '100')
+  assert.equal(short.children('hh\\:spacing').attr('hangul'), '0')
+  assert.equal(header('hh\\:charPr').length, Number(header('hh\\:charProperties').attr('itemCnt')))
+  // 장평 50%로도 모자라는 문장은 자간을 -15까지 내린다.
+  const veryLong = '작업장 주변 가설전선 피복 손상과 접지 상태를 확인하고 즉시 정비하였는가 여부를 확인하고 그 결과를 일지에 기록하여 관리하였는지 확인'
+  const { zip: zip2, $: $2 } = await build({ ...record, items: [{ no: 1, category: '테마', text: veryLong, result: '양호' }] })
+  const header2 = load(await zip2.file('Contents/header.xml').async('string'), { xmlMode: true })
+  const clamped = header2(`hh\\:charPr[id="${cell($2, 0, 3, 1).find('hp\\:run').first().attr('charPrIDRef')}"]`)
+  assert.equal(clamped.children('hh\\:ratio').attr('hangul'), '50')
+  assert.equal(clamped.children('hh\\:spacing').attr('hangul'), '-15')
+})
+
+test('표2 성명 칸은 가운데 정렬 문단에 검정 글자를 쓴다', async () => {
+  const { zip, $ } = await build()
+  const header = load(await zip.file('Contents/header.xml').async('string'), { xmlMode: true })
+  const name = cell($, 1, 2, 6)
+  assert.equal(name.find('hp\\:p').first().attr('paraPrIDRef'), '22')
+  assert.equal(header('hh\\:paraPr[id="22"]').children('hh\\:align').attr('horizontal'), 'CENTER')
+  assert.equal(text(name), '홍점검')
+  assert.equal(header(`hh\\:charPr[id="${name.find('hp\\:run').first().attr('charPrIDRef')}"]`).attr('textColor'), '#000000')
 })

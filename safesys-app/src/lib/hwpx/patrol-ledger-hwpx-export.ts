@@ -76,9 +76,25 @@ function buildFloatingPicXml(binItemId: string, imgW: number, imgH: number, xPap
 }
 
 
+const CHAR_PR_LANGS = ['hangul', 'latin', 'hanja', 'japanese', 'other', 'symbol', 'user'] as const
+function langAttrs(tag: 'ratio' | 'spacing', value: number): string {
+  return `<hh:${tag} ${CHAR_PR_LANGS.map(lang => `${lang}="${value}"`).join(' ')}/>`
+}
+
+// 한글·CJK는 글자 크기만큼, 공백은 그 1/3, 나머지(영문·숫자·기호)는 절반 남짓 차지한다고 본다.
+const WIDE_CHAR = /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7AF\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEF]/
+function estimateTextWidth(line: string, height: number): number {
+  let width = 0
+  for (const char of line) width += (WIDE_CHAR.test(char) ? 1 : char === ' ' ? 0.33 : 0.55) * height
+  return width
+}
+
+interface CharPrFit { ratio: number; spacing: number }
+
 /**
  * 양식의 빈 칸이 파랑·빨강·회색 글자 스타일을 물려주므로, 채워 넣는 글자는 같은 스타일의 검정 복제본을 쓴다.
  * "(서명)" 칸은 채우지 않으므로 원본 회색이 그대로 남는다. 복제본은 header.xml charProperties 끝에 덧붙인다.
+ * 장평·자간을 줄여야 하는 칸은 색이 이미 검정이라도 그 값만 바꾼 복제본을 따로 만든다.
  */
 class BlackCharPrMap {
   private readonly clones = new Map<string, string>()
@@ -88,39 +104,69 @@ class BlackCharPrMap {
     if (!count) throw new Error('순회점검 한글 양식의 글자 스타일 목록을 찾지 못했습니다.')
     this.nextId = Number(count)
   }
-  resolve(id: string): string {
-    const cached = this.clones.get(id)
+  private find(id: string): string | null {
+    return new RegExp(`<hh:charPr id="${id}"[^>]*>[\\s\\S]*?</hh:charPr>`).exec(this.header)?.[0] ?? null
+  }
+  height(id: string): number {
+    return Number(/height="(\d+)"/.exec(this.find(id) ?? '')?.[1] ?? 0)
+  }
+  resolve(id: string, fit?: CharPrFit): string {
+    const key = `${id}:${fit?.ratio ?? 100}:${fit?.spacing ?? 0}`
+    const cached = this.clones.get(key)
     if (cached) return cached
-    const match = new RegExp(`<hh:charPr id="${id}"[^>]*>[\\s\\S]*?</hh:charPr>`).exec(this.header)
-    if (!match) return id
-    const source = match[0]
-    if (/textColor="#000000"/i.test(source)) return id
+    const source = this.find(id)
+    if (!source) return id
+    if (!fit && /textColor="#000000"/i.test(source)) return id
     const cloneId = String(this.nextId++)
-    const clone = source.replace(`id="${id}"`, `id="${cloneId}"`).replace(/textColor="#[0-9A-Fa-f]{6}"/, 'textColor="#000000"')
+    let clone = source.replace(`id="${id}"`, `id="${cloneId}"`).replace(/textColor="#[0-9A-Fa-f]{6}"/, 'textColor="#000000"')
+    if (fit) {
+      clone = clone.replace(/<hh:ratio [^>]*\/>/, langAttrs('ratio', fit.ratio))
+        .replace(/<hh:spacing [^>]*\/>/, langAttrs('spacing', fit.spacing))
+    }
     this.header = this.header.replace('</hh:charProperties>', `${clone}</hh:charProperties>`)
       .replace(/<hh:charProperties itemCnt="\d+"/, `<hh:charProperties itemCnt="${this.nextId}"`)
-    this.clones.set(id, cloneId)
+    this.clones.set(key, cloneId)
     return cloneId
   }
   get xml(): string { return this.header }
 }
 
-function fillCell(cell: string, text: string, charPrs: BlackCharPrMap, picture = ''): string {
+interface FillCellOptions { picture?: string; fitWidth?: number; paraPr?: string }
+
+// 글줄 폭을 넘는 문장은 자간 -5와 장평 축소로 한 줄에 눌러 담는다. 장평은 한글 허용 범위 50% 아래로 내리지 않는다.
+// 한글 2022 실측(2026-09-22)에서 장평이 낮을수록 실제 폭이 추정보다 넓어 여유를 5% 두고, 자간 효과는 장평 계산에 넣지 않는다.
+// 50%로도 모자라면 자간을 -15까지 내린다(84자 표본).
+function fitCharPr(text: string, fitWidth: number, height: number): CharPrFit | undefined {
+  let widest = 0
+  for (const line of text.split('\n')) widest = Math.max(widest, estimateTextWidth(line, height))
+  if (!widest || widest <= fitWidth) return undefined
+  const raw = Math.floor(fitWidth * 0.95 / widest * 100)
+  return { ratio: Math.max(50, raw), spacing: raw < 50 ? -15 : -5 }
+}
+
+function fillCell(cell: string, text: string, charPrs: BlackCharPrMap, options: FillCellOptions = {}): string {
   const sub = topLevelRanges(cell, 'hp:subList')[0]
   if (!sub) throw new Error('순회점검 양식의 셀 본문을 찾지 못했습니다.')
   const source = cell.slice(...sub)
-  const paragraph = /<hp:p\s[^>]*>/.exec(source)?.[0]
+  let paragraph = /<hp:p\s[^>]*>/.exec(source)?.[0]
   const sourceCharPr = /<hp:run\s[^>]*charPrIDRef="([^"]+)"/.exec(source)?.[1]
   if (!paragraph || !sourceCharPr) throw new Error('순회점검 양식의 문단 서식을 찾지 못했습니다.')
-  const charPr = charPrs.resolve(sourceCharPr)
-  const content = text.replace(/\r\n?/g, '\n').split('\n').map((line, index) =>
+  if (options.paraPr) paragraph = paragraph.replace(/paraPrIDRef="[^"]*"/, `paraPrIDRef="${options.paraPr}"`)
+  const normalized = text.replace(/\r\n?/g, '\n')
+  const fitted = options.fitWidth ? fitCharPr(normalized, options.fitWidth, charPrs.height(sourceCharPr)) : undefined
+  const charPr = charPrs.resolve(sourceCharPr, fitted)
+  const picture = options.picture ?? ''
+  const content = normalized.split('\n').map((line, index) =>
     `${paragraph}<hp:run charPrIDRef="${charPr}">${index === 0 ? picture : ''}<hp:t>${esc(line)}</hp:t></hp:run></hp:p>`).join('')
   const openEnd = source.indexOf('>') + 1
   return rebuild(cell, [sub], [source.slice(0, openEnd) + content + '</hp:subList>'])
 }
 
-function fillTable(table: string, values: Map<string, string>, photo: Picture | null, charPrs: BlackCharPrMap): string {
+interface FillTableOptions { photo?: Picture | null; cellOptions?: (key: string) => FillCellOptions }
+
+function fillTable(table: string, values: Map<string, string>, charPrs: BlackCharPrMap, options: FillTableOptions = {}): string {
   const ranges = topLevelRanges(table, 'hp:tc')
+  const photo = options.photo ?? null
   return rebuild(table, ranges, ranges.map(range => {
     const cell = table.slice(...range)
     const address = /<hp:cellAddr colAddr="(\d+)" rowAddr="(\d+)"/.exec(cell)
@@ -129,9 +175,9 @@ function fillTable(table: string, values: Map<string, string>, photo: Picture | 
     if (photo && key === '16,1') {
       // 사진 행은 항목 13행을 넣으며 18750에서 15870으로 줄었다. 셀보다 큰 사진은 행을 키워 2쪽으로 밀린다.
       const size = fit(photo, 26198 - 1020, 15870 - 282)
-      return fillCell(cell, '', charPrs, buildInlinePicXml(photo.id, size.w, size.h))
+      return fillCell(cell, '', charPrs, { picture: buildInlinePicXml(photo.id, size.w, size.h) })
     }
-    return values.has(key) ? fillCell(cell, values.get(key)!, charPrs) : cell
+    return values.has(key) ? fillCell(cell, values.get(key)!, charPrs, options.cellOptions?.(key) ?? {}) : cell
   }))
 }
 
@@ -154,7 +200,8 @@ export async function buildPatrolLedgerHwpxBlob(record: PatrolLedgerInspection, 
   const items = [...record.items].sort((a, b) => a.no - b.no)
   for (let index = 0; index < PATROL_LEDGER_ITEM_COUNT; index++) {
     const item = items[index]
-    values.set(`${index + 3},1`, item ? ` (${item.category}) ${item.text}` : '')
+    // 출력물에서는 "작업장 공통"을 "작업장"으로 줄여 적는다. DB 카테고리 값은 그대로 둔다.
+    values.set(`${index + 3},1`, item ? ` (${item.category === '작업장 공통' ? '작업장' : item.category}) ${item.text}` : '')
     values.set(`${index + 3},4`, item?.result ?? '')
   }
   const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(record.inspection_date)
@@ -165,7 +212,13 @@ export async function buildPatrolLedgerHwpxBlob(record: PatrolLedgerInspection, 
   ])
   const tables = topLevelRanges(section, 'hp:tbl')
   if (tables.length !== 2) throw new Error('순회점검 한글 양식의 표 구성이 다릅니다.')
-  section = rebuild(section, tables, [fillTable(section.slice(...tables[0]), values, photo, charPrs), fillTable(section.slice(...tables[1]), details, null, charPrs)])
+  // 점검사항 칸(3~15행 1열)은 셀 폭 38236에서 좌우 여백 510을 뺀 37216 HWPUNIT 안에 한 줄로 담는다.
+  const itemKeys = new Set(Array.from({ length: PATROL_LEDGER_ITEM_COUNT }, (_, index) => `${index + 3},1`))
+  section = rebuild(section, tables, [
+    fillTable(section.slice(...tables[0]), values, charPrs, { photo, cellOptions: key => (itemKeys.has(key) ? { fitWidth: 37216 } : {}) }),
+    // 성명 칸은 오른쪽 정렬(24) 대신 줄간격이 같은 가운데 정렬(22) 문단을 쓴다.
+    fillTable(section.slice(...tables[1]), details, charPrs, { cellOptions: key => (key === '2,6' ? { paraPr: '22' } : {}) }),
+  ])
   if (signature) {
     const size = fit(signature, 6441 - 1020, 3589 - 282)
     // PAPER 좌표 = 여백 + 앞 열/행 합계. 한글 2022 PDF 실측에서 (서명) 중심은 (521.67, 742.81)pt.
