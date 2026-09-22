@@ -900,6 +900,9 @@ const ProjectEditForm: React.FC<ProjectEditFormProps> = ({ project, onCancel }) 
                 텔레그램 챗 ID(숫자)와 알림앱 개인코드(영문 포함)를 함께 입력할 수 있으며 형식으로 자동 구분됩니다 (복수 입력 시 쉼표로 구분)
               </p>
               <div className="mt-1 flex flex-col gap-1">
+                <a href="https://play.google.com/store/apps/details?id=com.aicctvalert.app&pcampaignid=web_share" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                  📱 알림 전용 앱 받기 (안드로이드)
+                </a>
                 <a href="https://t.me/KRCSafe_bot" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:text-blue-800 hover:underline">
                   🔔 안전알림 봇 등록하기 (t.me/KRCSafe_bot) — 사전에 텔레그램 설치 필요
                 </a>
