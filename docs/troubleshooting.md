@@ -4,6 +4,7 @@
 - **`'cross-env' is not recognized` / `'next' is not recognized`**: `npm run dev` 첫 줄에서 바로 실패하면 `safesys-app/node_modules`가 없는 것이다. `cd safesys-app && npm install` 실행 (2026-09-02 확인). 스크립트 이름 문제가 아니므로 package.json을 고치지 않는다.
   - 설치 후 `npm warn install-scripts`로 `sharp`·`supabase`·`core-js`·`unrs-resolver`의 install 스크립트가 보류될 수 있다. dev 서버 구동에는 지장이 없고, 이미지 최적화나 Supabase CLI에서 오류가 나면 `npm install-scripts approve <패키지>`로 승인한다.
 - **빌드 캐시 문제**: `npm run build:no-cache` 사용
+- **dev 서버가 모든 경로에 `Internal Server Error`(500)를 주거나 소스와 다른 옛 코드가 실행될 때**: 오래 켜 둔 `next dev`의 webpack 컴파일러가 멈춘 것이다. `.next/static/webpack/**/*.hot-update.js`의 최신 시각이 소스 mtime보다 앞서면 확정이며, 마지막으로 컴파일된 편집 중간 상태(예: 함수 시그니처는 바뀌고 호출부는 안 바뀐 번들)가 그대로 서빙돼 `x.resolve is not a function` 같은 엉뚱한 런타임 오류가 난다. 코드가 아니라 서버 문제이므로 dev 서버를 재시작한다 (2026-09-22 확인).
 - **프로필 미동기화**: `refreshProfile()` 호출
 - **중복 요청**: Dashboard.tsx의 ref 기반 캐시 확인
 - **권한 오류**: RLS 정책 및 `hq_division`/`branch_division` 값 확인
