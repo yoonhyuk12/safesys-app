@@ -30,7 +30,7 @@ const VworldAddressSearch: React.FC<VworldAddressSearchProps> = ({
   const [searchResults, setSearchResults] = useState<AddressResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [showResults, setShowResults] = useState(false)
-  const [isAddressSelected, setIsAddressSelected] = useState(false) // 주소 선택 상태 추가
+  const [isAddressSelected, setIsAddressSelected] = useState(!!value) // 저장된 주소로 시작하면 선택된 상태로 보고 자동 검색하지 않는다
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
 
