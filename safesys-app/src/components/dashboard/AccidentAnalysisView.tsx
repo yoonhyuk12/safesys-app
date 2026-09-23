@@ -21,7 +21,7 @@ import AccidentReportDetail from '@/components/project/accident-report/AccidentR
 import { formatAccidentDate } from '@/lib/accident-report-format'
 import { downloadAccidentReportHwpx } from '@/lib/hwpx/accident-report-hwpx-export'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
-import { BRANCH_OPTIONS } from '@/lib/constants'
+import { BRANCH_OPTIONS, PROJECT_CATEGORY_OPTIONS } from '@/lib/constants'
 import { isOrganizationInUserScope } from '@/lib/organization-scope'
 import type { Project } from '@/lib/projects'
 import type { UserProfile } from '@/lib/supabase'
@@ -337,6 +337,8 @@ export default function AccidentAnalysisView({
   const [dateBasis, setDateBasis] = useState<DateBasis>('accident')
   const [selectedHq, setSelectedHq] = useState(defaultHq)
   const [selectedBranch, setSelectedBranch] = useState(defaultBranch)
+  /** 사업유형(projects.project_category) 필터. 빈 문자열이면 전체 */
+  const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedProjectId, setSelectedProjectId] = useState('')
   const [selectedAccidentType, setSelectedAccidentType] = useState('')
   const [selectedSeverity, setSelectedSeverity] = useState('')
@@ -424,12 +426,21 @@ export default function AccidentAnalysisView({
     })
   }, [accessibleProjects, selectedHq])
 
+  // 사업유형 드롭다운은 소속 범위 프로젝트에 실제 있는 값만, 사업분류 목차 순서로 보여준다.
+  const categoryOptions = useMemo(() => {
+    const order = PROJECT_CATEGORY_OPTIONS as readonly string[]
+    const rank = (category: string) => (order.includes(category) ? order.indexOf(category) : order.length)
+    return Array.from(new Set(accessibleProjects.map((project) => project.project_category || '').filter(Boolean)))
+      .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b, 'ko'))
+  }, [accessibleProjects])
+
   const organizationProjects = useMemo(
     () => accessibleProjects.filter((project) =>
       (!selectedHq || project.managing_hq === selectedHq) &&
-      (!selectedBranch || project.managing_branch === selectedBranch)
+      (!selectedBranch || project.managing_branch === selectedBranch) &&
+      (!selectedCategory || project.project_category === selectedCategory)
     ),
-    [accessibleProjects, selectedBranch, selectedHq],
+    [accessibleProjects, selectedBranch, selectedCategory, selectedHq],
   )
 
   const filteredProjects = useMemo(
@@ -535,8 +546,8 @@ export default function AccidentAnalysisView({
       if (accident.project_id) {
         return filteredProjectIds.has(accident.project_id)
       }
-      // 미등록 현장: 특정 프로젝트 필터가 켜져 있으면 제외하고, 본부·지사 필터로 매칭한다.
-      if (selectedProjectId) return false
+      // 미등록 현장: 사업유형이 없으므로 특정 프로젝트·사업유형 필터가 켜져 있으면 제외하고, 본부·지사 필터로 매칭한다.
+      if (selectedProjectId || selectedCategory) return false
       if (selectedHq && accident.external_managing_hq !== selectedHq) return false
       if (selectedBranch && accident.external_managing_branch !== selectedBranch) return false
       return true
@@ -547,6 +558,7 @@ export default function AccidentAnalysisView({
       onlyWorkersCompApplied,
       selectedAccidentType,
       selectedBranch,
+      selectedCategory,
       selectedHq,
       selectedProjectId,
       selectedSeverity,
@@ -1015,6 +1027,7 @@ export default function AccidentAnalysisView({
     applyDatePreset('year_to_date')
     setSelectedHq(defaultHq)
     setSelectedBranch(defaultBranch)
+    setSelectedCategory('')
     setSelectedProjectId('')
     setSelectedAccidentType('')
     setSelectedSeverity('')
@@ -1050,10 +1063,10 @@ export default function AccidentAnalysisView({
 
   // 재해자 = 부상자 + 사망자. 재해율(%) = 재해자 ÷ 상시근로자 × 100 (분석 필터 범위)
   // 분모는 등록 프로젝트 + 미등록 현장 합산. 미등록 현장은 사고(분자) 필터와 같은 규칙으로
-  // 특정 프로젝트 선택 시 제외하고, 사용자 범위·본부·지사 필터로 매칭한다.
+  // 특정 프로젝트·사업유형 선택 시 제외하고, 사용자 범위·본부·지사 필터로 매칭한다.
   const regularWorkerCount = useMemo(() => {
     const registered = filteredProjects.reduce((sum, project) => sum + (regularByProject.get(project.id) || 0), 0)
-    if (selectedProjectId) return registered
+    if (selectedProjectId || selectedCategory) return registered
     let unregistered = 0
     regularUnregistered.forEach((value, key) => {
       const [hq, branch] = key.split('||')
@@ -1063,7 +1076,7 @@ export default function AccidentAnalysisView({
       unregistered += value
     })
     return registered + unregistered
-  }, [filteredProjects, regularByProject, regularUnregistered, selectedBranch, selectedHq, selectedProjectId, userProfile])
+  }, [filteredProjects, regularByProject, regularUnregistered, selectedBranch, selectedCategory, selectedHq, selectedProjectId, userProfile])
   const casualtyCount = analysis.kpis.injuredCount + analysis.kpis.fatalCount
   const accidentRatePercent = regularWorkerCount > 0 ? (casualtyCount / regularWorkerCount) * 100 : 0
   const regularWorkerDisplay = Math.round(regularWorkerCount)
@@ -1188,6 +1201,13 @@ export default function AccidentAnalysisView({
             <select id="analysis-branch" value={selectedBranch} onChange={(event) => { setSelectedBranch(event.target.value); setSelectedProjectId('') }} className={selectClassName}>
               <option value="">전체 지사</option>
               {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="analysis-category" className={filterLabelClassName}>사업유형</label>
+            <select id="analysis-category" value={selectedCategory} onChange={(event) => { setSelectedCategory(event.target.value); setSelectedProjectId('') }} className={selectClassName}>
+              <option value="">전체 사업유형</option>
+              {categoryOptions.map((category) => <option key={category} value={category}>{category}</option>)}
             </select>
           </div>
           <div>
