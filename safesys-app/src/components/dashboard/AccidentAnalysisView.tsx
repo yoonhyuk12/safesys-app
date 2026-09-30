@@ -539,9 +539,9 @@ export default function AccidentAnalysisView({
 
   const filteredProjectIds = useMemo(() => new Set(filteredProjects.map((project) => project.id)), [filteredProjects])
 
-  const filteredAccidents = useMemo(
-    () => accidents.filter((accident) => {
-      if (selectedAccidentType && accident.accident_type !== selectedAccidentType) return false
+  /** 사고 유형을 뺀 나머지 필터(중대도·산재신청·프로젝트·조직) 판정. 유형별 건수는 이 조건으로 센다. */
+  const matchesAccidentFiltersExceptType = useCallback(
+    (accident: ProjectAccident) => {
       if (selectedSeverity && accident.severity !== selectedSeverity) return false
       if (onlyWorkersCompApplied && accident.workers_comp_claim !== 'applied') return false
       if (accident.project_id) {
@@ -552,18 +552,21 @@ export default function AccidentAnalysisView({
       if (selectedHq && accident.external_managing_hq !== selectedHq) return false
       if (selectedBranch && accident.external_managing_branch !== selectedBranch) return false
       return true
-    }),
-    [
-      accidents,
-      filteredProjectIds,
-      onlyWorkersCompApplied,
-      selectedAccidentType,
-      selectedBranch,
-      selectedCategory,
-      selectedHq,
-      selectedProjectId,
-      selectedSeverity,
-    ],
+    },
+    [filteredProjectIds, onlyWorkersCompApplied, selectedBranch, selectedCategory, selectedHq, selectedProjectId, selectedSeverity],
+  )
+
+  /** 유형 필터를 뺀 사고 집합. 유형 드롭다운의 건수 표시에 쓴다. */
+  const accidentsExceptType = useMemo(
+    () => accidents.filter(matchesAccidentFiltersExceptType),
+    [accidents, matchesAccidentFiltersExceptType],
+  )
+
+  const filteredAccidents = useMemo(
+    () => (selectedAccidentType
+      ? accidentsExceptType.filter((accident) => accident.accident_type === selectedAccidentType)
+      : accidentsExceptType),
+    [accidentsExceptType, selectedAccidentType],
   )
 
   const filteredInspections = useMemo(
@@ -591,6 +594,22 @@ export default function AccidentAnalysisView({
     () => calculateAccidentAnalysis(filteredProjects, filteredAccidents, filteredInspections, startDate, endDate, analysisOptions),
     [analysisOptions, endDate, filteredAccidents, filteredInspections, filteredProjects, startDate],
   )
+
+  /**
+   * 사고 유형 드롭다운에 붙일 유형별 건수. 유형 필터만 빼고 나머지 필터·조회 기간·기간 기준을 그대로 적용해
+   * 어떤 유형을 고르든 다른 유형의 건수가 그대로 보이게 한다. 유형을 안 골랐으면 위 분석 결과를 재사용한다.
+   */
+  const accidentTypeCounts = useMemo(() => {
+    const details = selectedAccidentType
+      ? calculateAccidentAnalysis(filteredProjects, accidentsExceptType, filteredInspections, startDate, endDate, analysisOptions).accidentDetails
+      : analysis.accidentDetails
+    const countByType = new Map<string, number>()
+    for (const detail of details) {
+      const type = detail.accident.accident_type
+      countByType.set(type, (countByType.get(type) || 0) + 1)
+    }
+    return { total: details.length, byType: countByType }
+  }, [accidentsExceptType, analysis.accidentDetails, analysisOptions, endDate, filteredInspections, filteredProjects, selectedAccidentType, startDate])
 
   /** 분석 필터 기간 기준 사고 유형별 순위 (건수 내림차순) */
   const accidentTypeRanking = useMemo(() => {
@@ -1229,8 +1248,12 @@ export default function AccidentAnalysisView({
           <div>
             <label htmlFor="analysis-accident-type" className={filterLabelClassName}>사고 유형</label>
             <select id="analysis-accident-type" value={selectedAccidentType} onChange={(event) => setSelectedAccidentType(event.target.value)} className={selectClassName}>
-              <option value="">전체 유형</option>
-              {accidentTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              <option value="">전체 유형 ({accidentTypeCounts.total.toLocaleString()})</option>
+              {accidentTypeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label} ({(accidentTypeCounts.byType.get(option.value) || 0).toLocaleString()})
+                </option>
+              ))}
             </select>
           </div>
           <div>
