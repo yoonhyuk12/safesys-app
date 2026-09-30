@@ -611,6 +611,14 @@ export default function AccidentAnalysisView({
     return { total: details.length, byType: countByType }
   }, [accidentsExceptType, analysis.accidentDetails, analysisOptions, endDate, filteredInspections, filteredProjects, selectedAccidentType, startDate])
 
+  /** 드롭다운용 유형 목록. 건수 내림차순이며 같은 건수는 정의 순서를 유지한다. */
+  const sortedAccidentTypeOptions = useMemo(
+    () => accidentTypeOptions
+      .map((option) => ({ ...option, count: accidentTypeCounts.byType.get(option.value) || 0 }))
+      .sort((left, right) => right.count - left.count),
+    [accidentTypeCounts],
+  )
+
   /** 분석 필터 기간 기준 사고 유형별 순위 (건수 내림차순) */
   const accidentTypeRanking = useMemo(() => {
     const countByType = new Map<string, number>()
@@ -1249,9 +1257,9 @@ export default function AccidentAnalysisView({
             <label htmlFor="analysis-accident-type" className={filterLabelClassName}>사고 유형</label>
             <select id="analysis-accident-type" value={selectedAccidentType} onChange={(event) => setSelectedAccidentType(event.target.value)} className={selectClassName}>
               <option value="">전체 유형 ({accidentTypeCounts.total.toLocaleString()})</option>
-              {accidentTypeOptions.map((option) => (
+              {sortedAccidentTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label} ({(accidentTypeCounts.byType.get(option.value) || 0).toLocaleString()})
+                  {option.label} ({option.count.toLocaleString()})
                 </option>
               ))}
             </select>
