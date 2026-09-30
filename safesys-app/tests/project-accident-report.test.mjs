@@ -407,7 +407,7 @@ async function renderDetail(props) {
   }))
 }
 
-test('사고 분석 산재승인은 양의 유효 요양일만 승인으로 표시한다', async () => {
+test('사고 분석 산재 신청 열은 양의 유효 요양일만 신청으로 표시한다', async () => {
   for (const [value, approved] of [['14', true], ['1', true], [undefined, false], [null, false], ['', false], ['0', false], ['-1', false], ['1.5', false], ['NaN', false], ['Infinity', false], ['9007199254740992', false]]) {
     let arrayStateIndex = 0
     const accident = { ...OWN_ACCIDENT, accident_at: new Date().toISOString(), expected_treatment_days: value }
@@ -425,11 +425,11 @@ test('사고 분석 산재승인은 양의 유효 요양일만 승인으로 표�
     const markup = renderToStaticMarkup(React.createElement(View, {
       projects: [PROJECT], userProfile: { role: '발주청', hq_division: '본사' }, canManageAccidents: false, initialBranch: null, onBack: () => {},
     }))
-    assert.match(markup, /<th[^>]*>산재승인<\/th>/)
+    assert.match(markup, /<th[^>]*>산재 신청<\/th>/)
     assert.doesNotMatch(markup, /<th[^>]*>산재신청<\/th>/)
     const row = markup.match(/<tr[^>]*class="align-top[^"]*"[^>]*>(.*?)<\/tr>/)?.[1] ?? ''
     const cells = [...row.matchAll(/<td\b[^>]*>(.*?)<\/td>/g)].map((match) => match[1])
-    assert.match(cells[4] ?? '', approved ? /bg-green-100 text-green-800[^>]*>승인<\/span>/ : /bg-gray-100 text-gray-800[^>]*>미확인<\/span>/, String(value))
+    assert.match(cells[4] ?? '', approved ? /bg-green-100 text-green-800[^>]*>신청<\/span>/ : /bg-gray-100 text-gray-800[^>]*>미신청<\/span>/, String(value))
   }
 })
 

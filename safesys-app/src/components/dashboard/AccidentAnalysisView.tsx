@@ -1733,7 +1733,7 @@ export default function AccidentAnalysisView({
                       <th className="px-3 py-3 text-center font-medium">사고일자</th>
                       <th className="px-3 py-3 text-center font-medium">보고일자</th>
                       <th className="px-3 py-3 text-center font-medium">중대도·유형</th>
-                      <th className="px-3 py-3 text-center font-medium">산재승인</th>
+                      <th className="px-3 py-3 text-center font-medium">산재 신청</th>
                       <th className="px-3 py-3 text-center font-medium">사고 개요</th>
                       <th className="px-3 py-3 text-center font-medium">점검 후 경과일</th>
                       <th className="px-3 py-3 text-center font-medium">최근 점검</th>
@@ -1804,7 +1804,7 @@ export default function AccidentAnalysisView({
                           </td>
                           <td className="whitespace-nowrap px-3 py-3 text-center">
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${compApproved ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                              {compApproved ? '승인' : '미확인'}
+                              {compApproved ? '신청' : '미신청'}
                             </span>
                             {compApproved && (
                               <p className="mt-1 text-xs tabular-nums text-gray-600">요양 {treatmentDays(accident)?.toLocaleString()}일</p>
