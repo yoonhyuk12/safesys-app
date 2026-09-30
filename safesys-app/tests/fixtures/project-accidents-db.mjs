@@ -18,6 +18,7 @@ export const MIGRATION_PATHS = [
   path.join(repoRoot, 'database', '20260916-1418_사고보고_보고서_항목.sql'),
   path.join(repoRoot, 'database', '20260916-1720_사고보고_산재요양_예상일수.sql'),
   path.join(repoRoot, 'database', '20260917-1555_사고보고_산재신청_연도.sql'),
+  path.join(repoRoot, 'database', '20261001-0556_사고보고_신규근로자_외국인_여부.sql'),
 ]
 
 export const IDS = {

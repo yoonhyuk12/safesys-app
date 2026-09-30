@@ -508,3 +508,19 @@ test('산재신청 연도는 2000~2100만 받고 새 등록은 비워 둔다', a
   await db.query('UPDATE public.project_accidents SET workers_comp_claim_year = NULL')
   assert.equal(await scalar(db, 'SELECT workers_comp_claim_year FROM public.project_accidents'), null)
 })
+
+test('신규근로자·외국인 여부는 기본 false이고 true로 바꿀 수 있다', async (t) => {
+  const db = await openDb(t)
+  await signIn(db, IDS.owner)
+  await insertAccident(db)
+  // 값을 주지 않은 새 행은 둘 다 false(미체크)다.
+  assert.equal(await scalar(db, 'SELECT is_new_worker FROM public.project_accidents'), false)
+  assert.equal(await scalar(db, 'SELECT is_foreign_worker FROM public.project_accidents'), false)
+  await db.query('UPDATE public.project_accidents SET is_new_worker = true, is_foreign_worker = true')
+  assert.equal(await scalar(db, 'SELECT is_new_worker FROM public.project_accidents'), true)
+  assert.equal(await scalar(db, 'SELECT is_foreign_worker FROM public.project_accidents'), true)
+  for (const column of ['is_new_worker', 'is_foreign_worker']) {
+    const error = await expectError(db.query(`UPDATE public.project_accidents SET ${column} = NULL`))
+    assert.match(error.message, /null value in column|not-null constraint/i, column)
+  }
+})

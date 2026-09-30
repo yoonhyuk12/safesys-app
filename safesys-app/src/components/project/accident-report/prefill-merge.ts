@@ -37,6 +37,10 @@ export interface AccidentDraft {
   workersCompClaim: AccidentFormInput['workers_comp_claim']
   /** 산재신청 연도 입력값. 빈 문자열이면 미입력이다. */
   workersCompClaimYear: string
+  /** 신규근로자 여부(출근 일주일 이내). */
+  isNewWorker: boolean
+  /** 외국인 근로자 여부. */
+  isForeignWorker: boolean
   /** 사고발생보고서 추가 항목. 보고서 모드에서만 화면에 나온다. */
   reportDetails: AccidentReportDetails
 }

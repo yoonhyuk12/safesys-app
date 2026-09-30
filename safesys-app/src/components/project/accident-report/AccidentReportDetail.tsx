@@ -159,6 +159,8 @@ export default function AccidentReportDetail({
         <DetailField label="산재신청 연도">
           {typeof accident.workers_comp_claim_year === 'number' ? `${accident.workers_comp_claim_year}년` : '-'}
         </DetailField>
+        <DetailField label="신규근로자">{accident.is_new_worker ? '예' : '아니오'}</DetailField>
+        <DetailField label="외국인">{accident.is_foreign_worker ? '예' : '아니오'}</DetailField>
       </dl>
 
       <section className="border-t border-gray-100 pt-4 space-y-3">

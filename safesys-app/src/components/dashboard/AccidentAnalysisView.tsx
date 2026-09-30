@@ -19,6 +19,7 @@ import {
 import AccidentEntryModal from '@/components/dashboard/AccidentEntryModal'
 import AccidentReportDetail from '@/components/project/accident-report/AccidentReportDetail'
 import { formatAccidentDate } from '@/lib/accident-report-format'
+import { countWorkerFlags, formatWorkerFlags } from '@/lib/accident-worker-flags'
 import { downloadAccidentReportHwpx } from '@/lib/hwpx/accident-report-hwpx-export'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { BRANCH_OPTIONS, PROJECT_CATEGORY_OPTIONS } from '@/lib/constants'
@@ -1050,13 +1051,21 @@ export default function AccidentAnalysisView({
     return { key: bucket.key, label: bucket.label, count }
   })
 
-  const kpiItems = [
+  // KPI 보조 문구 = 같은 범위(scopedAccidents)의 사고 중 신규근로자·외국인 건수(부상자·사망자는 인원 합)
+  const scopedAccidentList = analysis.accidentDetails.map((detail) => detail.accident)
+  const accidentFlagsSub = formatWorkerFlags(countWorkerFlags(scopedAccidentList))
+  const compApprovedFlagsSub = formatWorkerFlags(countWorkerFlags(scopedAccidentList.filter(isCompApproved)))
+  const delayedReportFlagsSub = formatWorkerFlags(countWorkerFlags(scopedAccidentList.filter(isReportDelayed)))
+  const injuredFlagsSub = formatWorkerFlags(countWorkerFlags(scopedAccidentList, (accident) => accident.injured_count))
+  const fatalFlagsSub = formatWorkerFlags(countWorkerFlags(scopedAccidentList, (accident) => accident.fatal_count))
+
+  const kpiItems: ReadonlyArray<{ key: string; label: string; value: string; sub?: string }> = [
     { key: 'projects', label: '관측 프로젝트', value: `${analysis.kpis.observedProjectCount.toLocaleString()}개` },
-    { key: 'accidents', label: '사고', value: `${analysis.kpis.accidentCount.toLocaleString()}건` },
-    { key: 'compApproved', label: '산재승인', value: `${compApprovedCount.toLocaleString()}건` },
-    { key: 'delayedReport', label: '지연보고', value: `${delayedReportCount.toLocaleString()}건` },
-    { key: 'injured', label: '부상자', value: `${analysis.kpis.injuredCount.toLocaleString()}명` },
-    { key: 'fatal', label: '사망자', value: `${analysis.kpis.fatalCount.toLocaleString()}명` },
+    { key: 'accidents', label: '사고', value: `${analysis.kpis.accidentCount.toLocaleString()}건`, sub: accidentFlagsSub },
+    { key: 'compApproved', label: '산재승인', value: `${compApprovedCount.toLocaleString()}건`, sub: compApprovedFlagsSub },
+    { key: 'delayedReport', label: '지연보고', value: `${delayedReportCount.toLocaleString()}건`, sub: delayedReportFlagsSub },
+    { key: 'injured', label: '부상자', value: `${analysis.kpis.injuredCount.toLocaleString()}명`, sub: injuredFlagsSub },
+    { key: 'fatal', label: '사망자', value: `${analysis.kpis.fatalCount.toLocaleString()}명`, sub: fatalFlagsSub },
     { key: 'inspections', label: '안전점검', value: inspectionsLoading ? '집계 중…' : `${analysis.kpis.inspectionCount.toLocaleString()}건` },
     { key: 'latest', label: '마지막 사고일', value: formatDate(analysis.kpis.latestAccidentAt) },
   ]
@@ -1281,6 +1290,7 @@ export default function AccidentAnalysisView({
                 <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                   <p className="text-xs font-medium text-gray-500">{item.label}</p>
                   <p className="mt-2 text-lg font-semibold tabular-nums text-gray-900">{item.value}</p>
+                  {item.sub && <p className="mt-1 text-[11px] tabular-nums text-gray-500">{item.sub}</p>}
                 </div>
                 {item.key === 'compApproved' && (
                   <div className="col-span-2 rounded-lg border border-gray-200 bg-white p-4 shadow-sm" aria-label="산재승인 요양일수별 건수">

@@ -229,6 +229,26 @@ test('보고서 모드 모달은 저장된 보고서 항목을 입력에 채워 
   assert.match(markup, /value="사고 현장"/)
 })
 
+test('모달은 신규근로자·외국인 체크박스를 내놓고 저장된 true를 체크해 채운다', async () => {
+  const blank = await renderModal({ reportMode: true })
+  const blankNew = blank.match(/<input[^>]*id="accident-new-worker"[^>]*>/)?.[0]
+  const blankForeign = blank.match(/<input[^>]*id="accident-foreign-worker"[^>]*>/)?.[0]
+  assert.ok(blankNew, '신규근로자 체크박스가 없다')
+  assert.ok(blankForeign, '외국인 체크박스가 없다')
+  assert.match(blankNew, /type="checkbox"/)
+  assert.doesNotMatch(blankNew, /checked/)
+  assert.doesNotMatch(blankForeign, /checked/)
+  assert.match(blank, /신규근로자 여부 \(출근 일주일 이내\)/)
+  assert.match(blank, /외국인 여부/)
+
+  const filled = await renderModal({
+    reportMode: true,
+    accident: { ...ACCIDENT, is_new_worker: true, is_foreign_worker: false },
+  })
+  assert.match(filled.match(/<input[^>]*id="accident-new-worker"[^>]*>/)?.[0] ?? '', /checked=""/)
+  assert.doesNotMatch(filled.match(/<input[^>]*id="accident-foreign-worker"[^>]*>/)?.[0] ?? '', /checked/)
+})
+
 test('사진 필드는 두 장이 차면 파일 입력을 감추고 한도를 안내한다', async () => {
   const empty = await renderPhotoField({})
   const full = await renderPhotoField({

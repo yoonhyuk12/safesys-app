@@ -30,6 +30,10 @@ export interface ProjectAccident {
   workers_comp_claim: WorkersCompClaim | null
   /** 산재신청 연도(2000~2100). 미입력이면 null. 컬럼 도입 전 등록분은 마이그레이션이 2026으로 채웠다. */
   workers_comp_claim_year: number | null
+  /** 신규근로자 여부(출근 일주일 이내). 컬럼 도입 전 등록분은 false(미체크)다. */
+  is_new_worker: boolean
+  /** 외국인 근로자 여부. 컬럼 도입 전 등록분은 false(미체크)다. */
+  is_foreign_worker: boolean
   /** 사고 목록·분석 조회에서 읽는 요양일 scalar. 사진 JSON의 미조회 상태와 별개다. */
   expected_treatment_days?: string | null
   /** 사고 목록·분석 조회에서 읽는 보고일(YYYY-MM-DD) scalar. 보고서 미작성이면 null. */
@@ -66,6 +70,10 @@ export interface AccidentFormInput {
   workers_comp_claim: WorkersCompClaim | ''
   /** 산재신청 연도(2000~2100). 넘기지 않거나 null이면 미입력으로 저장한다. */
   workers_comp_claim_year?: number | null
+  /** 신규근로자 여부(출근 일주일 이내). 넘기지 않으면 false로 저장한다. */
+  is_new_worker?: boolean
+  /** 외국인 근로자 여부. 넘기지 않으면 false로 저장한다. */
+  is_foreign_worker?: boolean
   /**
    * 사고발생보고서 추가 항목. 넘기지 않으면(undefined) 저장 시 기존 report_details를 건드리지 않는다 —
    * 대시보드 간단 수정이 현장이 작성한 보고서를 지우지 않게 하려는 것이다.

@@ -42,7 +42,7 @@ export * from '@/lib/accident-analysis-types'
 export { calculateAccidentAnalysis } from '@/lib/accident-analysis-calculation'
 
 /** 목록·집계용 컬럼. report_details(사진 JSON)는 상세·수정·다운로드에서만 따로 읽는다. */
-export const PROJECT_ACCIDENT_LIST_COLUMNS = 'id, project_id, external_project_name, external_managing_hq, external_managing_branch, accident_at, severity, accident_type, location, work_description, description, cause, prevention_action, injured_count, fatal_count, lost_workdays, workers_comp_claim, workers_comp_claim_year, created_by, created_at, updated_at, expected_treatment_days:report_details->>expectedTreatmentDays, report_date:report_details->>reportDate'
+export const PROJECT_ACCIDENT_LIST_COLUMNS = 'id, project_id, external_project_name, external_managing_hq, external_managing_branch, accident_at, severity, accident_type, location, work_description, description, cause, prevention_action, injured_count, fatal_count, lost_workdays, workers_comp_claim, workers_comp_claim_year, is_new_worker, is_foreign_worker, created_by, created_at, updated_at, expected_treatment_days:report_details->>expectedTreatmentDays, report_date:report_details->>reportDate'
 
 /** 산재신청 연도 허용 범위. DB CHECK(project_accidents_workers_comp_claim_year_check)와 같다. */
 export const CLAIM_YEAR_MIN = 2000
@@ -785,6 +785,8 @@ const normalizeAccidentInput = (input: AccidentFormInput): AccidentFormInput => 
     lost_workdays: input.lost_workdays,
     workers_comp_claim: input.workers_comp_claim,
     workers_comp_claim_year: input.workers_comp_claim_year ?? null,
+    is_new_worker: input.is_new_worker === true,
+    is_foreign_worker: input.is_foreign_worker === true,
     // 넘기지 않은 보고서는 키 자체를 만들지 않는다. 대시보드 간단 수정이 현장 보고서를 지우면 안 된다.
     ...(input.report_details === undefined
       ? {}
@@ -814,6 +816,8 @@ const toAccidentDbPayload = (input: AccidentFormInput) => {
     lost_workdays: normalized.lost_workdays,
     workers_comp_claim: normalized.workers_comp_claim || null,
     workers_comp_claim_year: normalized.workers_comp_claim_year ?? null,
+    is_new_worker: normalized.is_new_worker === true,
+    is_foreign_worker: normalized.is_foreign_worker === true,
     // 키가 없으면 DB의 기존 보고서가 그대로 남고, 빈 보고서는 NULL로 지운다.
     ...(normalized.report_details === undefined
       ? {}

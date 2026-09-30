@@ -94,6 +94,8 @@ const createDraft = (
     lostWorkdays: String(accident?.lost_workdays ?? 0),
     workersCompClaim: accident?.workers_comp_claim ?? '',
     workersCompClaimYear: toClaimYearInput(accident),
+    isNewWorker: accident?.is_new_worker ?? false,
+    isForeignWorker: accident?.is_foreign_worker ?? false,
     reportDetails: normalizeAccidentReportDetails(accident?.report_details ?? null),
   }
 }
@@ -397,6 +399,8 @@ export default function AccidentEntryModal({
       lost_workdays: lostWorkdays,
       workers_comp_claim: draft.workersCompClaim,
       workers_comp_claim_year: claimYear,
+      is_new_worker: draft.isNewWorker,
+      is_foreign_worker: draft.isForeignWorker,
       // 보고서 모드가 아니면 키 자체를 넣지 않아 저장된 report_details를 건드리지 않는다.
       ...(reportMode ? { report_details: normalizedReportDetails } : {}),
     }
@@ -614,8 +618,8 @@ export default function AccidentEntryModal({
               </div>
             </div>
 
-            {/* 부상자·사망자·휴업일수는 숫자 몇 자리라 좁게 두고, 남는 폭은 산재신청 연도·여부·요양 예상 일수에 준다. */}
-            <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${reportMode ? 'lg:grid-cols-[6rem_6rem_6rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)]' : 'lg:grid-cols-[6rem_6rem_6rem_minmax(0,1fr)_minmax(0,1fr)]'}`}>
+            {/* 1행. 부상자·사망자·휴업일수는 숫자 몇 자리라 좁게 두고, 남는 폭은 산재신청 여부·요양 예상 일수에 준다. */}
+            <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${reportMode ? 'lg:grid-cols-[6rem_6rem_6rem_minmax(0,1fr)_minmax(0,1fr)]' : 'lg:grid-cols-[6rem_6rem_6rem_minmax(0,1fr)]'}`}>
               <div>
                 <label htmlFor="accident-injured-count" className={labelClassName}>부상자 수</label>
                 <input id="accident-injured-count" type="number" min="0" step="1" value={draft.injuredCount} onChange={(event) => updateDraft('injuredCount', event.target.value)} disabled={submitting} className={inputClassName} inputMode="numeric" />
@@ -627,42 +631,6 @@ export default function AccidentEntryModal({
               <div>
                 <label htmlFor="accident-lost-workdays" className={labelClassName}>휴업일수</label>
                 <input id="accident-lost-workdays" type="number" min="0" step="1" value={draft.lostWorkdays} onChange={(event) => updateDraft('lostWorkdays', event.target.value)} disabled={submitting} className={inputClassName} inputMode="numeric" />
-              </div>
-              <div>
-                <label htmlFor="accident-comp-claim-year" className={labelClassName}>산재신청 연도</label>
-                <div className="flex items-stretch gap-1">
-                  <button
-                    type="button"
-                    onClick={() => stepClaimYear(-1)}
-                    disabled={submitting}
-                    aria-label="산재신청 연도 한 해 앞으로"
-                    className="inline-flex w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </button>
-                  <input
-                    id="accident-comp-claim-year"
-                    type="number"
-                    min={CLAIM_YEAR_MIN}
-                    max={CLAIM_YEAR_MAX}
-                    step="1"
-                    value={draft.workersCompClaimYear}
-                    onChange={(event) => updateDraft('workersCompClaimYear', event.target.value)}
-                    disabled={submitting}
-                    className={`${inputClassName} min-w-0 flex-1 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
-                    inputMode="numeric"
-                    placeholder="미입력"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => stepClaimYear(1)}
-                    disabled={submitting}
-                    aria-label="산재신청 연도 한 해 뒤로"
-                    className="inline-flex w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
               </div>
               <div>
                 <label htmlFor="accident-comp-claim" className={labelClassName}>산재신청 여부</label>
@@ -701,6 +669,68 @@ export default function AccidentEntryModal({
                   <p id="accident-report-expectedTreatmentDays-unit" className="mt-1 text-xs text-gray-500">일 단위 · 휴업일수와 별도로 입력합니다.</p>
                 </div>
               )}
+            </div>
+
+            {/* 2행. 산재신청 연도는 ± 버튼과 네 자리 연도가 다 보이도록 고정 폭을 주고, 근로자 구분 체크박스를 옆에 둔다. */}
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+              <div className="w-full sm:w-56">
+                <label htmlFor="accident-comp-claim-year" className={labelClassName}>산재신청 연도</label>
+                <div className="flex items-stretch gap-1">
+                  <button
+                    type="button"
+                    onClick={() => stepClaimYear(-1)}
+                    disabled={submitting}
+                    aria-label="산재신청 연도 한 해 앞으로"
+                    className="inline-flex w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <input
+                    id="accident-comp-claim-year"
+                    type="number"
+                    min={CLAIM_YEAR_MIN}
+                    max={CLAIM_YEAR_MAX}
+                    step="1"
+                    value={draft.workersCompClaimYear}
+                    onChange={(event) => updateDraft('workersCompClaimYear', event.target.value)}
+                    disabled={submitting}
+                    className={`${inputClassName} min-w-0 flex-1 text-center tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                    inputMode="numeric"
+                    placeholder="미입력"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => stepClaimYear(1)}
+                    disabled={submitting}
+                    aria-label="산재신청 연도 한 해 뒤로"
+                    className="inline-flex w-10 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              <label className="inline-flex h-10 items-center gap-2 text-sm text-gray-700">
+                <input
+                  id="accident-new-worker"
+                  type="checkbox"
+                  checked={draft.isNewWorker}
+                  onChange={(event) => updateDraft('isNewWorker', event.target.checked)}
+                  disabled={submitting}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                신규근로자 여부 (출근 일주일 이내)
+              </label>
+              <label className="inline-flex h-10 items-center gap-2 text-sm text-gray-700">
+                <input
+                  id="accident-foreign-worker"
+                  type="checkbox"
+                  checked={draft.isForeignWorker}
+                  onChange={(event) => updateDraft('isForeignWorker', event.target.checked)}
+                  disabled={submitting}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                외국인 여부
+              </label>
             </div>
 
             {reportMode && (
