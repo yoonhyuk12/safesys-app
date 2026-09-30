@@ -1086,6 +1086,19 @@ export default function AccidentAnalysisView({
   const injuredFlagsSub = formatWorkerFlags(countWorkerFlags(scopedAccidentList, (accident) => accident.injured_count))
   const fatalFlagsSub = formatWorkerFlags(countWorkerFlags(scopedAccidentList, (accident) => accident.fatal_count))
 
+  // 사고 이력 표 소계. 경과일 평균은 사고 전 점검이 있는 건만으로 낸다.
+  const historySubtotal = useMemo(() => {
+    const details = analysis.accidentDetails
+    const elapsedDays = details
+      .map((detail) => detail.daysSinceLatestInspection)
+      .filter((days): days is number => days !== null)
+    return {
+      lostWorkdays: details.reduce((sum, detail) => sum + detail.accident.lost_workdays, 0),
+      elapsedCount: elapsedDays.length,
+      elapsedAverage: elapsedDays.length > 0 ? elapsedDays.reduce((sum, days) => sum + days, 0) / elapsedDays.length : null,
+    }
+  }, [analysis.accidentDetails])
+
   const kpiItems: ReadonlyArray<{ key: string; label: string; value: string; sub?: string }> = [
     { key: 'projects', label: '관측 프로젝트', value: `${analysis.kpis.observedProjectCount.toLocaleString()}개` },
     { key: 'accidents', label: '사고', value: `${analysis.kpis.accidentCount.toLocaleString()}건`, sub: accidentFlagsSub },
@@ -1361,6 +1374,196 @@ export default function AccidentAnalysisView({
               <span><strong>표본 부족.</strong> {analysis.sampleSize.message}</span>
             </div>
           )}
+
+          <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm" aria-labelledby="accident-history-title">
+            <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
+              <div>
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <h3 id="accident-history-title" className="text-sm font-semibold text-gray-900">사고 이력</h3>
+                  <span className="text-[11px] tabular-nums text-gray-400" aria-label="조회 기간">
+                    {startDate} ~ {endDate}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">최근 점검으로부터 사고일까지 경과 일수와 점검 내용을 함께 표시합니다.</p>
+              </div>
+              <span className="text-xs text-gray-500">{analysis.accidentDetails.length.toLocaleString()}건</span>
+            </div>
+            {analysis.accidentDetails.length === 0 ? (
+              <div className="p-10 text-center">
+                <CalendarDays className="mx-auto h-8 w-8 text-gray-300" />
+                <p className="mt-3 text-sm text-gray-500">선택한 조건에 등록된 사고 이력이 없습니다.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1200px] text-sm">
+                  <thead className="bg-gray-50 text-xs text-gray-500">
+                    <tr>
+                      <th className="px-3 py-3 text-center font-medium">프로젝트</th>
+                      <th className="px-3 py-3 text-center font-medium">사고일자</th>
+                      <th className="px-3 py-3 text-center font-medium">보고일자</th>
+                      <th className="px-3 py-3 text-center font-medium">중대도·유형</th>
+                      <th className="px-3 py-3 text-center font-medium">산재 신청</th>
+                      <th className="px-3 py-3 text-center font-medium">사고 개요</th>
+                      <th className="px-3 py-3 text-center font-medium">점검 후 경과일</th>
+                      <th className="px-3 py-3 text-center font-medium">최근 점검</th>
+                      {canManageAccidents && <th className="px-3 py-3 text-center font-medium">관리</th>}
+                    </tr>
+                    <tr className="border-t border-gray-200 bg-gray-100 font-medium text-gray-700" aria-label="사고 이력 소계">
+                      <td className="px-3 py-2">소계 {analysis.accidentDetails.length.toLocaleString()}건</td>
+                      <td className="px-3 py-2" />
+                      <td className="px-3 py-2 text-center tabular-nums">지연 {delayedReportCount.toLocaleString()}건</td>
+                      <td className="px-3 py-2" />
+                      <td className="px-3 py-2 text-center tabular-nums">신청 {compApprovedCount.toLocaleString()}건</td>
+                      <td className="px-3 py-2 tabular-nums">부상 {analysis.kpis.injuredCount.toLocaleString()}명 · 사망 {analysis.kpis.fatalCount.toLocaleString()}명 · 휴업 {historySubtotal.lostWorkdays.toLocaleString()}일</td>
+                      <td className="px-3 py-2 text-right tabular-nums text-indigo-700">
+                        {inspectionsLoading
+                          ? <span className="text-gray-400">집계 중…</span>
+                          : historySubtotal.elapsedAverage !== null
+                            ? `평균 ${historySubtotal.elapsedAverage.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}일`
+                            : <span className="font-normal text-gray-400">-</span>}
+                      </td>
+                      <td className="px-3 py-2 text-xs font-normal text-gray-500">
+                        {!inspectionsLoading && historySubtotal.elapsedCount < analysis.accidentDetails.length
+                          ? `경과일 평균은 사고 전 점검이 있는 ${historySubtotal.elapsedCount.toLocaleString()}건 기준`
+                          : ''}
+                      </td>
+                      {canManageAccidents && <td className="px-3 py-2" />}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {analysis.accidentDetails.map((detail) => {
+                      const accident = detail.accident
+                      const project = accident.project_id ? projectMap.get(accident.project_id) : undefined
+                      const projectName = project?.project_name
+                        ?? accident.external_project_name
+                        ?? '프로젝트 미상'
+                      const managingHq = project?.managing_hq ?? accident.external_managing_hq ?? ''
+                      const managingBranch = project?.managing_branch ?? accident.external_managing_branch ?? ''
+                      const isExternalSite = !accident.project_id
+                      const compApproved = isCompApproved(accident)
+                      return (
+                        <tr
+                          key={accident.id}
+                          onClick={(event) => handleRowClick(event, accident)}
+                          className="align-top cursor-pointer hover:bg-gray-50"
+                        >
+                          <td className="px-3 py-3">
+                            <p className="font-medium text-gray-900">
+                              {projectName}
+                              {isExternalSite && (
+                                <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                                  미등록
+                                </span>
+                              )}
+                            </p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {[managingHq, managingBranch].filter(Boolean).join(' · ') || '-'}
+                            </p>
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-3 text-center text-gray-600">
+                            {photoById.get(accident.id) ? (
+                              <button
+                                type="button"
+                                onClick={() => setEnlargedPhoto({ src: photoById.get(accident.id) ?? '', alt: `${projectName} 사고 사진` })}
+                                aria-label={`${projectName} 사고 사진 크게 보기`}
+                                className="mx-auto block rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={photoById.get(accident.id) ?? ''}
+                                  alt={`${projectName} 사고 사진`}
+                                  className="h-16 w-20 rounded-md border border-gray-200 bg-gray-50 object-cover hover:opacity-90"
+                                />
+                              </button>
+                            ) : (
+                              <div className="mx-auto flex h-16 w-20 items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-gray-300" aria-hidden="true">
+                                <ImageOff className="h-5 w-5" />
+                              </div>
+                            )}
+                            <p className="mt-1.5 tabular-nums">{formatShortDate(accident.accident_at)}</p>
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-3 text-center text-gray-600">
+                            <p className="tabular-nums">{formatReportDate(accident)}</p>
+                            {isReportDelayed(accident) && (
+                              <p className="mt-1 text-xs font-medium text-red-600">초과 ({reportDelayDays(accident)}일)</p>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${severityBadgeClass(accident.severity)}`}>{severityLabel(accident.severity)}</span>
+                            <p className="mt-1 text-xs text-gray-600">{accident.accident_type}</p>
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-3 text-center">
+                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${compApproved ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                              {compApproved ? '신청' : '미신청'}
+                            </span>
+                            {compApproved && (
+                              <p className="mt-1 text-xs tabular-nums text-gray-600">요양 {treatmentDays(accident)?.toLocaleString()}일</p>
+                            )}
+                          </td>
+                          <td className="max-w-sm px-3 py-3 text-gray-700">
+                            <p className="line-clamp-3 whitespace-pre-line">{accident.description}</p>
+                            <details className="mt-2 rounded-md bg-gray-50 px-2.5 py-2 text-xs">
+                              <summary className="cursor-pointer font-medium text-indigo-700">장소·작업·원인·재발방지 대책 보기</summary>
+                              <dl className="mt-2 space-y-2 text-gray-600">
+                                <div>
+                                  <dt className="font-medium text-gray-700">사고 장소</dt>
+                                  <dd className="mt-0.5 whitespace-pre-wrap break-words">{accident.location}</dd>
+                                </div>
+                                <div>
+                                  <dt className="font-medium text-gray-700">사고 당시 작업</dt>
+                                  <dd className="mt-0.5 whitespace-pre-wrap break-words">{accident.work_description}</dd>
+                                </div>
+                                <div>
+                                  <dt className="font-medium text-gray-700">사고 원인</dt>
+                                  <dd className="mt-0.5 whitespace-pre-wrap break-words">{accident.cause}</dd>
+                                </div>
+                                <div>
+                                  <dt className="font-medium text-gray-700">재발방지 대책</dt>
+                                  <dd className="mt-0.5 whitespace-pre-wrap break-words">{accident.prevention_action}</dd>
+                                </div>
+                              </dl>
+                            </details>
+                            {(accident.injured_count > 0 || accident.fatal_count > 0 || accident.lost_workdays > 0) && (
+                              <p className="mt-1 text-xs text-gray-500">부상 {accident.injured_count}명 · 사망 {accident.fatal_count}명 · 휴업 {accident.lost_workdays}일</p>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-right font-medium tabular-nums text-indigo-700">
+                            {inspectionsLoading
+                              ? <Loader2 className="ml-auto h-4 w-4 animate-spin text-gray-300" aria-label="점검 조회 중" />
+                              : detail.daysSinceLatestInspection !== null
+                                ? `${detail.daysSinceLatestInspection.toLocaleString()}일`
+                                : <span className="text-xs font-normal text-gray-400">-</span>}
+                          </td>
+                          <td className="max-w-sm px-3 py-3 text-gray-600">
+                            {inspectionsLoading ? (
+                              <span className="text-xs text-gray-400">점검 조회 중…</span>
+                            ) : detail.latestInspection ? (
+                              <>
+                                <p className="font-medium text-gray-700">{detail.latestInspection.source_label} · {formatDate(detail.latestInspection.inspected_at)}</p>
+                                <p className="mt-1 line-clamp-2 text-xs">{detail.latestInspection.summary || '기록된 점검 내용 없음'}</p>
+                              </>
+                            ) : <span className="text-xs text-gray-400">사고 전 점검 이력 없음</span>}
+                          </td>
+                          {canManageAccidents && (
+                            <td className="px-3 py-3 text-center">
+                              <div className="inline-flex gap-1">
+                                <button type="button" onClick={() => void openEditModal(accident)} disabled={editOpeningId !== null} aria-label={`${project?.project_name ?? ''} 사고 이력 수정`} className="rounded-md p-2 text-indigo-600 hover:bg-indigo-50 disabled:opacity-50">
+                                  {editOpeningId === accident.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
+                                </button>
+                                <button type="button" onClick={() => askDelete(accident)} disabled={deletingId === accident.id} aria-label={`${project?.project_name ?? ''} 사고 이력 삭제`} className="rounded-md p-2 text-red-600 hover:bg-red-50 disabled:opacity-50">
+                                  {deletingId === accident.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                                </button>
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
 
           <section className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm" aria-labelledby="monthly-trend-title">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1736,175 +1939,6 @@ export default function AccidentAnalysisView({
               </div>
             </section>
           )}
-
-          <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm" aria-labelledby="accident-history-title">
-            <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
-              <div>
-                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <h3 id="accident-history-title" className="text-sm font-semibold text-gray-900">사고 이력</h3>
-                  <span className="text-[11px] tabular-nums text-gray-400" aria-label="조회 기간">
-                    {startDate} ~ {endDate}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-gray-500">최근 점검으로부터 사고일까지 경과 일수와 점검 내용을 함께 표시합니다.</p>
-              </div>
-              <span className="text-xs text-gray-500">{analysis.accidentDetails.length.toLocaleString()}건</span>
-            </div>
-            {analysis.accidentDetails.length === 0 ? (
-              <div className="p-10 text-center">
-                <CalendarDays className="mx-auto h-8 w-8 text-gray-300" />
-                <p className="mt-3 text-sm text-gray-500">선택한 조건에 등록된 사고 이력이 없습니다.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1200px] text-sm">
-                  <thead className="bg-gray-50 text-xs text-gray-500">
-                    <tr>
-                      <th className="px-3 py-3 text-center font-medium">프로젝트</th>
-                      <th className="px-3 py-3 text-center font-medium">사고일자</th>
-                      <th className="px-3 py-3 text-center font-medium">보고일자</th>
-                      <th className="px-3 py-3 text-center font-medium">중대도·유형</th>
-                      <th className="px-3 py-3 text-center font-medium">산재 신청</th>
-                      <th className="px-3 py-3 text-center font-medium">사고 개요</th>
-                      <th className="px-3 py-3 text-center font-medium">점검 후 경과일</th>
-                      <th className="px-3 py-3 text-center font-medium">최근 점검</th>
-                      {canManageAccidents && <th className="px-3 py-3 text-center font-medium">관리</th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {analysis.accidentDetails.map((detail) => {
-                      const accident = detail.accident
-                      const project = accident.project_id ? projectMap.get(accident.project_id) : undefined
-                      const projectName = project?.project_name
-                        ?? accident.external_project_name
-                        ?? '프로젝트 미상'
-                      const managingHq = project?.managing_hq ?? accident.external_managing_hq ?? ''
-                      const managingBranch = project?.managing_branch ?? accident.external_managing_branch ?? ''
-                      const isExternalSite = !accident.project_id
-                      const compApproved = isCompApproved(accident)
-                      return (
-                        <tr
-                          key={accident.id}
-                          onClick={(event) => handleRowClick(event, accident)}
-                          className="align-top cursor-pointer hover:bg-gray-50"
-                        >
-                          <td className="px-3 py-3">
-                            <p className="font-medium text-gray-900">
-                              {projectName}
-                              {isExternalSite && (
-                                <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
-                                  미등록
-                                </span>
-                              )}
-                            </p>
-                            <p className="mt-1 text-xs text-gray-500">
-                              {[managingHq, managingBranch].filter(Boolean).join(' · ') || '-'}
-                            </p>
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-3 text-center text-gray-600">
-                            {photoById.get(accident.id) ? (
-                              <button
-                                type="button"
-                                onClick={() => setEnlargedPhoto({ src: photoById.get(accident.id) ?? '', alt: `${projectName} 사고 사진` })}
-                                aria-label={`${projectName} 사고 사진 크게 보기`}
-                                className="mx-auto block rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={photoById.get(accident.id) ?? ''}
-                                  alt={`${projectName} 사고 사진`}
-                                  className="h-16 w-20 rounded-md border border-gray-200 bg-gray-50 object-cover hover:opacity-90"
-                                />
-                              </button>
-                            ) : (
-                              <div className="mx-auto flex h-16 w-20 items-center justify-center rounded-md border border-dashed border-gray-200 bg-gray-50 text-gray-300" aria-hidden="true">
-                                <ImageOff className="h-5 w-5" />
-                              </div>
-                            )}
-                            <p className="mt-1.5 tabular-nums">{formatShortDate(accident.accident_at)}</p>
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-3 text-center text-gray-600">
-                            <p className="tabular-nums">{formatReportDate(accident)}</p>
-                            {isReportDelayed(accident) && (
-                              <p className="mt-1 text-xs font-medium text-red-600">초과 ({reportDelayDays(accident)}일)</p>
-                            )}
-                          </td>
-                          <td className="px-3 py-3 text-center">
-                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${severityBadgeClass(accident.severity)}`}>{severityLabel(accident.severity)}</span>
-                            <p className="mt-1 text-xs text-gray-600">{accident.accident_type}</p>
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-3 text-center">
-                            <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${compApproved ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                              {compApproved ? '신청' : '미신청'}
-                            </span>
-                            {compApproved && (
-                              <p className="mt-1 text-xs tabular-nums text-gray-600">요양 {treatmentDays(accident)?.toLocaleString()}일</p>
-                            )}
-                          </td>
-                          <td className="max-w-sm px-3 py-3 text-gray-700">
-                            <p className="line-clamp-3 whitespace-pre-line">{accident.description}</p>
-                            <details className="mt-2 rounded-md bg-gray-50 px-2.5 py-2 text-xs">
-                              <summary className="cursor-pointer font-medium text-indigo-700">장소·작업·원인·재발방지 대책 보기</summary>
-                              <dl className="mt-2 space-y-2 text-gray-600">
-                                <div>
-                                  <dt className="font-medium text-gray-700">사고 장소</dt>
-                                  <dd className="mt-0.5 whitespace-pre-wrap break-words">{accident.location}</dd>
-                                </div>
-                                <div>
-                                  <dt className="font-medium text-gray-700">사고 당시 작업</dt>
-                                  <dd className="mt-0.5 whitespace-pre-wrap break-words">{accident.work_description}</dd>
-                                </div>
-                                <div>
-                                  <dt className="font-medium text-gray-700">사고 원인</dt>
-                                  <dd className="mt-0.5 whitespace-pre-wrap break-words">{accident.cause}</dd>
-                                </div>
-                                <div>
-                                  <dt className="font-medium text-gray-700">재발방지 대책</dt>
-                                  <dd className="mt-0.5 whitespace-pre-wrap break-words">{accident.prevention_action}</dd>
-                                </div>
-                              </dl>
-                            </details>
-                            {(accident.injured_count > 0 || accident.fatal_count > 0 || accident.lost_workdays > 0) && (
-                              <p className="mt-1 text-xs text-gray-500">부상 {accident.injured_count}명 · 사망 {accident.fatal_count}명 · 휴업 {accident.lost_workdays}일</p>
-                            )}
-                          </td>
-                          <td className="px-3 py-3 text-right font-medium tabular-nums text-indigo-700">
-                            {inspectionsLoading
-                              ? <Loader2 className="ml-auto h-4 w-4 animate-spin text-gray-300" aria-label="점검 조회 중" />
-                              : detail.daysSinceLatestInspection !== null
-                                ? `${detail.daysSinceLatestInspection.toLocaleString()}일`
-                                : <span className="text-xs font-normal text-gray-400">-</span>}
-                          </td>
-                          <td className="max-w-sm px-3 py-3 text-gray-600">
-                            {inspectionsLoading ? (
-                              <span className="text-xs text-gray-400">점검 조회 중…</span>
-                            ) : detail.latestInspection ? (
-                              <>
-                                <p className="font-medium text-gray-700">{detail.latestInspection.source_label} · {formatDate(detail.latestInspection.inspected_at)}</p>
-                                <p className="mt-1 line-clamp-2 text-xs">{detail.latestInspection.summary || '기록된 점검 내용 없음'}</p>
-                              </>
-                            ) : <span className="text-xs text-gray-400">사고 전 점검 이력 없음</span>}
-                          </td>
-                          {canManageAccidents && (
-                            <td className="px-3 py-3 text-center">
-                              <div className="inline-flex gap-1">
-                                <button type="button" onClick={() => void openEditModal(accident)} disabled={editOpeningId !== null} aria-label={`${project?.project_name ?? ''} 사고 이력 수정`} className="rounded-md p-2 text-indigo-600 hover:bg-indigo-50 disabled:opacity-50">
-                                  {editOpeningId === accident.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Edit className="h-4 w-4" />}
-                                </button>
-                                <button type="button" onClick={() => askDelete(accident)} disabled={deletingId === accident.id} aria-label={`${project?.project_name ?? ''} 사고 이력 삭제`} className="rounded-md p-2 text-red-600 hover:bg-red-50 disabled:opacity-50">
-                                  {deletingId === accident.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                                </button>
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
         </>
       )}
 
