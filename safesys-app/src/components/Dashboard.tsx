@@ -3189,6 +3189,8 @@ const Dashboard: React.FC = () => {
             tbmLoading={tbmLoadingForMap}
             onLoadTBM={loadTBMDataForMap}
             onProjectClick={handleMapProjectClick}
+            quarter={selectedQuarter}
+            onQuarterChange={handleQuarterChange}
           />
         ) : viewMode === 'safety' ? (
           <div className="space-y-6">

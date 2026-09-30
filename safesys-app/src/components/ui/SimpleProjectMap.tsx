@@ -38,6 +38,8 @@ interface SimpleProjectMapProps {
   tbmLoading?: boolean
   onLoadTBM?: () => Promise<void> // TBM 데이터 로드 콜백
   onProjectClick?: (project: SimpleProjectMarker) => void
+  quarter?: string // 상위에서 분기를 관리할 때 전달 (점검 데이터 조회 분기와 일치시키기 위함)
+  onQuarterChange?: (quarter: string) => void
   height?: string
   className?: string
 }
@@ -244,6 +246,8 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
   tbmLoading = false,
   onLoadTBM,
   onProjectClick,
+  quarter,
+  onQuarterChange,
   height = '500px',
   className = ''
 }) => {
@@ -277,12 +281,13 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
     return `${year}Q${quarter}`
   }
 
-  const [selectedQuarter, setSelectedQuarter] = useState<string>(() => {
+  const [localQuarter, setLocalQuarter] = useState<string>(() => {
     const quarter = getCurrentQuarter()
     console.log(`🎯 초기 선택된 분기: ${quarter}`)
     console.log(`📋 사용 가능한 분기 옵션:`, getCurrentYearQuarterOptions())
     return quarter
   })
+  const selectedQuarter = quarter ?? localQuarter
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
 
@@ -612,8 +617,11 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
     const startMonth = (q - 1) * 3 + 1
     const endMonth = startMonth + 2
 
-    const startDate = new Date(year, startMonth - 1, 1)
-    const endDate = new Date(year, endMonth, 0) // 마지막 날
+    // inspection_date(YYYY-MM-DD)를 new Date()로 파싱하면 UTC 자정(한국 09시)이 되어 분기 마지막 날이 빠지므로 날짜 문자열로 비교한다
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const lastDay = new Date(year, endMonth, 0).getDate()
+    const startDate = `${year}-${pad(startMonth)}-01`
+    const endDate = `${year}-${pad(endMonth)}-${pad(lastDay)}`
 
     return { startDate, endDate }
   }, [])
@@ -629,7 +637,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
 
     const hasInspection = inspections.headquartersInspections.some(inspection => {
       if (inspection.project_id !== projectId) return false
-      const inspectionDate = new Date(inspection.inspection_date)
+      const inspectionDate = (inspection.inspection_date || '').slice(0, 10)
       const isInRange = inspectionDate >= startDate && inspectionDate <= endDate
       if (isInRange) {
         console.log(`✅ 본부점검 발견: ${projectId} - ${inspection.inspection_date}`)
@@ -651,7 +659,7 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
 
     const hasInspection = inspections.managerInspections.some(inspection => {
       if (inspection.project_id !== projectId) return false
-      const inspectionDate = new Date(inspection.inspection_date)
+      const inspectionDate = (inspection.inspection_date || '').slice(0, 10)
       const isInRange = inspectionDate >= startDate && inspectionDate <= endDate
       if (isInRange) {
         console.log(`✅ 지사점검 발견: ${projectId} - ${inspection.inspection_date}`)
@@ -1612,7 +1620,8 @@ const SimpleProjectMap: React.FC<SimpleProjectMapProps> = ({
             onChange={(e) => {
               const newQuarter = e.target.value
               console.log(`🔄 분기 변경: ${selectedQuarter} → ${newQuarter}`)
-              setSelectedQuarter(newQuarter)
+              setLocalQuarter(newQuarter)
+              onQuarterChange?.(newQuarter)
             }}
             className="bg-white rounded-lg shadow-lg border border-gray-300 px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >

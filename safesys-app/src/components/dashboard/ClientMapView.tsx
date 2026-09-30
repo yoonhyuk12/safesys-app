@@ -36,9 +36,11 @@ interface ClientMapViewProps {
   tbmLoading?: boolean
   onLoadTBM?: () => Promise<void>
   onProjectClick: (project: any) => void
+  quarter?: string
+  onQuarterChange?: (quarter: string) => void
 }
 
-const ClientMapView: React.FC<ClientMapViewProps> = ({ containerRef, heightPx, projects, offices = [], inspections, tbmRecords = [], tbmLoading = false, onLoadTBM, onProjectClick }) => {
+const ClientMapView: React.FC<ClientMapViewProps> = ({ containerRef, heightPx, projects, offices = [], inspections, tbmRecords = [], tbmLoading = false, onLoadTBM, onProjectClick, quarter, onQuarterChange }) => {
   const markerProjects: SimpleProjectMarker[] = React.useMemo(() => (
     (projects || []).map((p) => {
       return {
@@ -69,6 +71,8 @@ const ClientMapView: React.FC<ClientMapViewProps> = ({ containerRef, heightPx, p
         tbmLoading={tbmLoading}
         onLoadTBM={onLoadTBM}
         onProjectClick={onProjectClick}
+        quarter={quarter}
+        onQuarterChange={onQuarterChange}
         height={`${heightPx}px`}
         className="w-full"
       />
