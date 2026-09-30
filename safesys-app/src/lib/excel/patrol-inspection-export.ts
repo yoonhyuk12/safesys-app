@@ -252,7 +252,14 @@ export async function downloadPatrolInspectionExcel(
   }
   headerRow.height = 30
 
-  inspections.forEach((inspection, index) => {
+  // 지적일 오름차순으로 적어 최신 지적일이 맨 마지막 행이 되게 한다. 같은 날은 등록 순서를 따른다.
+  const orderedInspections = [...inspections].sort(
+    (a, b) =>
+      (a.inspection_date ?? '').localeCompare(b.inspection_date ?? '') ||
+      (a.created_at ?? '').localeCompare(b.created_at ?? '')
+  )
+
+  orderedInspections.forEach((inspection, index) => {
     const fields = projectFieldsOf(inspection, projectMap)
     const state = getPatrolActionState(inspection, today)
     const ai = results.get(inspection.id)

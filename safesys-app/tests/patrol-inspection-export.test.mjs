@@ -168,6 +168,28 @@ test('성공하면 18열 헤더가 계약 순서대로 만들어진다', async (
   assert.equal(sheet.actualRowCount, 2)
 })
 
+test('행은 지적일 오름차순이라 최신 지적일이 맨 마지막 행이다', async () => {
+  const stubs = installBrowserStubs()
+  const items = [
+    inspection({ id: '11111111-2222-4333-8444-000000000001', inspection_date: '2026-08-15' }),
+    inspection({ id: '11111111-2222-4333-8444-000000000002', inspection_date: '2026-07-01' }),
+    inspection({ id: '11111111-2222-4333-8444-000000000003', inspection_date: '2026-09-20' }),
+    inspection({ id: '11111111-2222-4333-8444-000000000004', inspection_date: '2026-07-10' }),
+  ]
+  const { downloadPatrolInspectionExcel } = await loadExport(async () => aiOkResponse(items))
+
+  await downloadPatrolInspectionExcel([], items, '2026Q3')
+
+  const sheet = await readWorkbook(stubs.blobs[0])
+  const dateColumn = EXPECTED_HEADERS.indexOf('지적일(점검일)') + 1
+  const dates = [2, 3, 4, 5].map((rowNumber) => sheet.getRow(rowNumber).getCell(dateColumn).value)
+  assert.deepEqual(dates, ['2026-07-01', '2026-07-10', '2026-08-15', '2026-09-20'])
+  // 순번은 정렬된 순서대로 1부터 매긴다.
+  assert.deepEqual([2, 3, 4, 5].map((rowNumber) => sheet.getRow(rowNumber).getCell(1).value), [1, 2, 3, 4])
+  // 입력 배열은 건드리지 않는다.
+  assert.equal(items[0].inspection_date, '2026-08-15')
+})
+
 test('지적 2건은 한 셀에 번호와 줄바꿈으로 들어간다', async () => {
   const stubs = installBrowserStubs()
   const items = [inspection({ issue_content2: '개구부 덮개 미고정' })]
