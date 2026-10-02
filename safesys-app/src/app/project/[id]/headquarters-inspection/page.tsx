@@ -1726,12 +1726,12 @@ export default function HeadquartersInspectionPage() {
                                     <div className="text-gray-700 break-words leading-relaxed">{inspection.issue_content1}</div>
                                   </div>
                                 </td>
-                                <td className="border border-gray-200 p-0 text-center">
+                                <td className="border border-gray-200 p-0 text-center relative h-32">
                                   {inspection.site_photo_issue1 && (
                                     <img
                                       src={inspection.site_photo_issue1}
                                       alt="지적사진 1"
-                                      className="w-full h-32 object-fill cursor-pointer hover:scale-105 transition-transform block"
+                                      className="absolute inset-0 w-full h-full object-fill cursor-pointer hover:scale-105 transition-transform block"
                                       onClick={(e) => {
                                         e.stopPropagation()
                                         window.open(inspection.site_photo_issue1, '_blank')
@@ -1740,7 +1740,7 @@ export default function HeadquartersInspectionPage() {
                                   )}
                                 </td>
                                 <td 
-                                  className="border border-gray-200 p-0 text-center"
+                                  className="border border-gray-200 p-0 text-center relative h-32"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   {inspection.action_photo_issue1 ? (
@@ -1760,11 +1760,11 @@ export default function HeadquartersInspectionPage() {
                                         </button>
                                       </div>
                                     ) : (
-                                      <div className="relative group">
+                                      <div className="absolute inset-0 group">
                                         <img
                                           src={inspection.action_photo_issue1}
                                           alt="조치사진 1"
-                                          className="w-full h-32 object-fill cursor-pointer hover:scale-105 transition-transform block"
+                                          className="w-full h-full object-fill cursor-pointer hover:scale-105 transition-transform block"
                                           onClick={(e) => {
                                             e.stopPropagation()
                                             handleEditImage(inspection.action_photo_issue1, inspection.id, 1)
@@ -1916,12 +1916,12 @@ export default function HeadquartersInspectionPage() {
                                       <div className="text-gray-700 break-words leading-relaxed">{inspection.issue_content2}</div>
                                     </div>
                                   </td>
-                                  <td className="border border-gray-200 p-0 text-center">
+                                  <td className="border border-gray-200 p-0 text-center relative h-32">
                                     {inspection.site_photo_issue2 && (
                                       <img
                                         src={inspection.site_photo_issue2}
                                         alt="지적사진 2"
-                                        className="w-full h-32 object-fill cursor-pointer hover:scale-105 transition-transform block"
+                                        className="absolute inset-0 w-full h-full object-fill cursor-pointer hover:scale-105 transition-transform block"
                                         onClick={(e) => {
                                           e.stopPropagation()
                                           window.open(inspection.site_photo_issue2, '_blank')
@@ -1930,7 +1930,7 @@ export default function HeadquartersInspectionPage() {
                                     )}
                                   </td>
                                   <td 
-                                    className="border border-gray-200 p-0 text-center"
+                                    className="border border-gray-200 p-0 text-center relative h-32"
                                     onClick={(e) => e.stopPropagation()}
                                   >
                                     {inspection.action_photo_issue2 ? (
@@ -1950,11 +1950,11 @@ export default function HeadquartersInspectionPage() {
                                           </button>
                                         </div>
                                       ) : (
-                                        <div className="relative group">
+                                        <div className="absolute inset-0 group">
                                           <img
                                             src={inspection.action_photo_issue2}
                                             alt="조치사진 2"
-                                            className="w-full h-32 object-fill cursor-pointer hover:scale-105 transition-transform block"
+                                            className="w-full h-full object-fill cursor-pointer hover:scale-105 transition-transform block"
                                             onClick={(e) => {
                                               e.stopPropagation()
                                               handleEditImage(inspection.action_photo_issue2, inspection.id, 2)
@@ -2191,11 +2191,11 @@ export default function HeadquartersInspectionPage() {
                                   </button>
                                   {(newRecord.site_photo_overview || newRecord.site_photo_overview_preview) && (
                                     <div className="mt-2">
-                                      <div className="w-full h-40 border rounded overflow-hidden bg-white relative">
+                                      <div className="relative inline-block max-w-full align-top border rounded overflow-hidden bg-white">
                                         <img
                                           src={newRecord.site_photo_overview ? URL.createObjectURL(newRecord.site_photo_overview) : newRecord.site_photo_overview_preview}
                                           alt="전경사진 미리보기"
-                                          className="w-full h-full object-contain"
+                                          className="block max-w-full max-h-40 w-auto h-auto"
                                         />
                                         <div className="absolute top-1 right-1 flex gap-1">
                                           <button
@@ -2325,11 +2325,11 @@ export default function HeadquartersInspectionPage() {
                                     </button>
                                     {(newRecord.site_photo_issue1 || newRecord.site_photo_issue1_preview) && (
                                       <div className="mt-2">
-                                        <div className="w-full h-40 border rounded overflow-hidden bg-white relative">
+                                        <div className="relative inline-block max-w-full align-top border rounded overflow-hidden bg-white">
                                           <img
                                             src={newRecord.site_photo_issue1 ? URL.createObjectURL(newRecord.site_photo_issue1) : newRecord.site_photo_issue1_preview}
                                             alt="지적사항 사진1 미리보기"
-                                            className="w-full h-full object-contain"
+                                            className="block max-w-full max-h-40 w-auto h-auto"
                                           />
                                           <div className="absolute top-1 right-1 flex gap-1">
                                             <button
@@ -2452,11 +2452,11 @@ export default function HeadquartersInspectionPage() {
                                     </button>
                                     {(newRecord.site_photo_issue2 || newRecord.site_photo_issue2_preview) && (
                                       <div className="mt-2">
-                                        <div className="w-full h-40 border rounded overflow-hidden bg-white relative">
+                                        <div className="relative inline-block max-w-full align-top border rounded overflow-hidden bg-white">
                                           <img
                                             src={newRecord.site_photo_issue2 ? URL.createObjectURL(newRecord.site_photo_issue2) : newRecord.site_photo_issue2_preview}
                                             alt="지적사항 사진2 미리보기"
-                                            className="w-full h-full object-contain"
+                                            className="block max-w-full max-h-40 w-auto h-auto"
                                           />
                                           <div className="absolute top-1 right-1 flex gap-1">
                                             <button

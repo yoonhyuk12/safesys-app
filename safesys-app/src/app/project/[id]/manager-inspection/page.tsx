@@ -1751,8 +1751,8 @@ export default function ManagerInspectionPage() {
         </label>
         {preview && (
           <div className="mt-2">
-            <div className="w-full h-40 border rounded overflow-hidden bg-white relative">
-              <img src={preview} alt={`주요위험요인 #${index + 1} 사진 ${slot}`} className="w-full h-full object-contain" />
+            <div className="w-full border rounded overflow-hidden bg-white relative">
+              <img src={preview} alt={`주요위험요인 #${index + 1} 사진 ${slot}`} className="block w-full h-auto" />
               <div className="absolute top-1 right-1 flex gap-1">
                 <button
                   type="button"
@@ -2679,8 +2679,8 @@ export default function ManagerInspectionPage() {
                                     </button>
                                     {newRecord.inspection_photo_preview && (
                                       <div className="mt-2">
-                                        <div className="w-full h-40 border rounded overflow-hidden bg-white relative">
-                                          <img src={newRecord.inspection_photo_preview} alt="점검사진 미리보기" className="w-full h-full object-contain" />
+                                        <div className="w-full border rounded overflow-hidden bg-white relative">
+                                          <img src={newRecord.inspection_photo_preview} alt="점검사진 미리보기" className="block w-full h-auto" />
                                           <div className="absolute top-1 right-1 flex gap-1">
                                             <button
                                               type="button"
@@ -2801,8 +2801,8 @@ export default function ManagerInspectionPage() {
                                     </button>
                                     {newRecord.risk_assessment_photo_preview && (
                                       <div className="mt-2">
-                                        <div className="w-full h-40 border rounded overflow-hidden bg-white relative">
-                                          <img src={newRecord.risk_assessment_photo_preview} alt="위험성평가 사진 미리보기" className="w-full h-full object-contain" />
+                                        <div className="w-full border rounded overflow-hidden bg-white relative">
+                                          <img src={newRecord.risk_assessment_photo_preview} alt="위험성평가 사진 미리보기" className="block w-full h-auto" />
                                           <div className="absolute top-1 right-1 flex gap-1">
                                             <button
                                               type="button"
@@ -2921,8 +2921,8 @@ export default function ManagerInspectionPage() {
                                     <p className="text-xs text-gray-500 mt-1">※기술지도 결과보고서의 유해·위험요인 및 예방대책</p>
                                     {newRecord.disaster_prevention_report_photo_preview && (
                                       <div className="mt-2">
-                                        <div className="w-full h-40 border rounded overflow-hidden bg-white relative">
-                                          <img src={newRecord.disaster_prevention_report_photo_preview} alt="재해예방기술지도 보고서 사진 미리보기" className="w-full h-full object-contain" />
+                                        <div className="w-full border rounded overflow-hidden bg-white relative">
+                                          <img src={newRecord.disaster_prevention_report_photo_preview} alt="재해예방기술지도 보고서 사진 미리보기" className="block w-full h-auto" />
                                           <div className="absolute top-1 right-1 flex gap-1">
                                             <button
                                               type="button"
