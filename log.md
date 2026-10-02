@@ -1,6 +1,21 @@
 # 작업 로그
 
 <!-- worklog -->
+261002_102628 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+261002_102609 : safesys-app/src/lib/excel/accident-history-export.ts 수정
+261002_102606 : safesys-app/src/lib/excel/accident-history-export.ts 수정
+261002_102603 : safesys-app/src/lib/excel/accident-history-export.ts 수정
+261002_102559 : safesys-app/src/lib/excel/accident-history-export.ts 수정
+261002_102551 : safesys-app/src/lib/excel/accident-history-export.ts 추가 — "// 사고 분석 화면의 사고 이력 표를 화면 표기 그대로 엑셀로 내려받는 모듈 import ExcelJS f…"
+261002_102520 : safesys-app/package.json 수정
+261002_102509 : safesys-app/tests/accident-history-export.test.mjs 추가 — "// 사고 이력 엑셀 워크북을 ExcelJS로 직접 만들어 제목·헤더·데이터 셀·지연 음영·소계 행·빈 목록…"
+261002_102417 : safesys-app/src/components/project/TBMStatus.tsx 수정
+261002_101945 : safesys-app/src/components/project/TBMStatus.tsx 수정
+261002_101655 : safesys-app/src/components/project/TBMStatus.tsx 수정
+261002_101647 : safesys-app/src/components/project/TBMStatus.tsx 수정
+261002_101402 : plans/20261002_사고이력_엑셀다운로드/brief-worker.md 추가 — "# Worker 브리프 — 사고 이력 엑셀 다운로드 버튼 ## 목표 `/safe/accident-analys…"
+260930_130418 : safesys-app/src/lib/excel/patrol-inspection-export.ts 수정 — "// 지적일 오름차순으로 적어 최신 지적일이 맨 마지막 행이 되게 한다. 같은 날은 등록 순서를 따른다. c…"
+260930_130401 : safesys-app/tests/patrol-inspection-export.test.mjs 수정 — "test('행은 지적일 오름차순이라 최신 지적일이 맨 마지막 행이다', async () => { const …"
 260923_073854 : .codex/hooks 수정
 260923_073850 : .codex/hooks 수정
 260923_070131 : .codex/hooks 수정
