@@ -33,9 +33,15 @@ export function normalizePatrolLedgerTheme(value: string): { theme: string } | {
   return { theme }
 }
 
-/** 특정 주의 테마 한 건. 없으면 null. 어떤 클라이언트(브라우저·서버 토큰)로든 읽을 수 있다. */
+/** 특정 주에 적용되는 테마 한 건. 그 주에 저장된 테마가 없으면 직전 주들 중 가장 최근 테마를 이어받고, 한 번도 없으면 null. 어떤 클라이언트(브라우저·서버 토큰)로든 읽을 수 있다. */
 export async function getPatrolLedgerWeeklyTheme(weekStart: string, client: SupabaseClient = supabase): Promise<PatrolLedgerWeeklyTheme | null> {
-  const { data, error } = await client.from(PATROL_LEDGER_THEME_TABLE).select('week_start, theme, updated_by, updated_at').eq('week_start', weekStart).maybeSingle()
+  const { data, error } = await client
+    .from(PATROL_LEDGER_THEME_TABLE)
+    .select('week_start, theme, updated_by, updated_at')
+    .lte('week_start', weekStart)
+    .order('week_start', { ascending: false })
+    .limit(1)
+    .maybeSingle()
   if (error) throw new Error(error.message || '금주 점검 테마를 불러오지 못했습니다.')
   return (data as PatrolLedgerWeeklyTheme | null) ?? null
 }

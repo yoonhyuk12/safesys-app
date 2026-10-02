@@ -19,7 +19,7 @@ async function transpile(relativePath, dependencies = {}) {
 }
 
 const types = await transpile('../src/lib/patrol-ledger/types.ts')
-const { patrolLedgerWeekStart, canEditPatrolLedgerTheme, normalizePatrolLedgerTheme } = await transpile('../src/lib/patrol-ledger/themes.ts', {
+const { patrolLedgerWeekStart, canEditPatrolLedgerTheme, normalizePatrolLedgerTheme, getPatrolLedgerWeeklyTheme } = await transpile('../src/lib/patrol-ledger/themes.ts', {
   '@/lib/supabase': { supabase: {} },
   '@/lib/patrol-ledger/types': types,
 })
@@ -57,4 +57,34 @@ test('테마 정규화는 공백을 합치며 빈 값과 201자를 거부한다'
   for (const value of ['', ' \n\t ']) assert.deepEqual(normalizePatrolLedgerTheme(value), { error: '점검 테마를 입력해주세요.' })
   assert.deepEqual(normalizePatrolLedgerTheme('가'.repeat(201)), { error: '점검 테마는 200자 이하로 입력해주세요.' })
   assert.deepEqual(normalizePatrolLedgerTheme(` ${'가'.repeat(200)} `), { theme: '가'.repeat(200) })
+})
+
+// 쿼리 체인 호출을 기록하고 정해진 행을 돌려주는 가짜 Supabase 클라이언트
+function fakeThemeClient(row) {
+  const calls = []
+  const chain = {
+    select: (...args) => { calls.push(['select', ...args]); return chain },
+    eq: (...args) => { calls.push(['eq', ...args]); return chain },
+    lte: (...args) => { calls.push(['lte', ...args]); return chain },
+    order: (...args) => { calls.push(['order', ...args]); return chain },
+    limit: (...args) => { calls.push(['limit', ...args]); return chain },
+    maybeSingle: async () => ({ data: row, error: null }),
+  }
+  return { calls, client: { from: (table) => { calls.push(['from', table]); return chain } } }
+}
+
+test('주간 테마는 그 주에 없으면 직전 주들 중 가장 최근 테마를 이어받는다', async () => {
+  const row = { week_start: '2026-09-21', theme: '굴삭기 안전핀 체결', updated_by: 'u1', updated_at: '2026-09-21T00:00:00Z' }
+  const { calls, client } = fakeThemeClient(row)
+  assert.deepEqual(await getPatrolLedgerWeeklyTheme('2026-09-28', client), row)
+  assert.deepEqual(calls.filter(([name]) => name !== 'from' && name !== 'select'), [
+    ['lte', 'week_start', '2026-09-28'],
+    ['order', 'week_start', { ascending: false }],
+    ['limit', 1],
+  ])
+})
+
+test('주간 테마가 한 번도 등록되지 않았으면 null이다', async () => {
+  const { client } = fakeThemeClient(null)
+  assert.equal(await getPatrolLedgerWeeklyTheme('2026-09-28', client), null)
 })
