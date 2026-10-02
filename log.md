@@ -1,6 +1,19 @@
 # 작업 로그
 
 <!-- worklog -->
+261002_175550 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정
+261002_175147 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정
+261002_175034 : safesys-app/src/app/project/[id]/manager-inspection/page.tsx 수정
+261002_174754 : safesys-app/src/app/project/[id]/manager-inspection/page.tsx 수정
+261002_174507 : safesys-app/src/app/project/[id]/manager-inspection/page.tsx 수정
+261002_174158 : safesys-app/src/app/project/[id]/manager-inspection/page.tsx 수정
+261002_173945 : safesys-app/src/app/project/[id]/manager-inspection/page.tsx 수정
+261002_173759 : safesys-app/src/app/project/[id]/manager-inspection/page.tsx 수정
+261002_173742 : safesys-app/src/app/project/[id]/manager-inspection/page.tsx 수정
+261002_161029 : docs/database.md 수정 — "회사 공통 주간 점검 테마. 본부급 발주청만 쓸 수 있고 모든 로그인 사용자가 읽는다. 그 주에 행이 없으면…"
+261002_160919 : safesys-app/src/lib/patrol-ledger/themes.ts 수정 — "/** 특정 주에 적용되는 테마 한 건. 그 주에 저장된 테마가 없으면 직전 주들 중 가장 최근 테마를 이어…"
+261002_160910 : safesys-app/tests/patrol-ledger-themes.test.mjs 수정
+261002_153049 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정 — "<p className="mt-1 text-xs text-gray-600">{accident.accident…"
 261002_102628 : safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
 261002_102609 : safesys-app/src/lib/excel/accident-history-export.ts 수정
 261002_102606 : safesys-app/src/lib/excel/accident-history-export.ts 수정
