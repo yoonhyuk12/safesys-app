@@ -1768,11 +1768,11 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
 
           {/* 상세 TBM 테이블 - 전체 가로폭 사용 (모바일에서 먼저 표시) */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="p-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-              <h4 className="text-sm font-medium text-gray-900">
+            <div className="p-4 border-b border-gray-200 bg-gray-50 flex items-start justify-between gap-2">
+              <h4 className="text-sm font-medium text-gray-900 py-1">
                 TBM
               </h4>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 {/* AI 텔레그램 일괄발송 버튼 - 해당 지사 당일 TBM 제출 현장(작업없음 제외) 대상 */}
                 {!deleteMode && telegramTargetRecords.length > 0 && (
                   <button
@@ -1799,33 +1799,6 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                   const smsHref = `sms:${phoneNumbers.join(',')}${isIOS ? '&' : '?'}body=${encodeURIComponent(smsBody)}`
                   return (
                     <>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          const text = `${phoneNumbers.join(',')}\n\n[문자 내용]\n${smsBody}`
-                          try {
-                            await navigator.clipboard.writeText(text)
-                            setSmsCopied(true)
-                            setTimeout(() => setSmsCopied(false), 2000)
-                          } catch {
-                            const textarea = document.createElement('textarea')
-                            textarea.value = text
-                            document.body.appendChild(textarea)
-                            textarea.select()
-                            document.execCommand('copy')
-                            document.body.removeChild(textarea)
-                            setSmsCopied(true)
-                            setTimeout(() => setSmsCopied(false), 2000)
-                          }
-                        }}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium shadow-sm transition-colors ${
-                          smsCopied ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                        }`}
-                        title={`연락처 ${phoneNumbers.length}건 + 문자내용 복사`}
-                      >
-                        {smsCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                        <span className="hidden lg:inline">{smsCopied ? '복사됨' : `복사(${phoneNumbers.length})`}</span>
-                      </button>
                       <a
                         href={smsHref}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 shadow-sm transition-colors"
@@ -3034,33 +3007,6 @@ const TBMStatus: React.FC<TBMStatusProps> = ({
                         const smsHref = `sms:${phoneNumbers.join(',')}${isIOS ? '&' : '?'}body=${encodeURIComponent(smsBody)}`
                         return (
                           <>
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                const text = `${phoneNumbers.join(',')}\n\n[문자 내용]\n${smsBody}`
-                                try {
-                                  await navigator.clipboard.writeText(text)
-                                  setSmsCopied(true)
-                                  setTimeout(() => setSmsCopied(false), 2000)
-                                } catch {
-                                  const textarea = document.createElement('textarea')
-                                  textarea.value = text
-                                  document.body.appendChild(textarea)
-                                  textarea.select()
-                                  document.execCommand('copy')
-                                  document.body.removeChild(textarea)
-                                  setSmsCopied(true)
-                                  setTimeout(() => setSmsCopied(false), 2000)
-                                }
-                              }}
-                              className={`inline-flex items-center justify-center p-1.5 rounded-md shadow-sm transition-colors ${
-                                smsCopied ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
-                              }`}
-                              title={`연락처 ${phoneNumbers.length}건 + 문자내용 복사`}
-                              aria-label={smsCopied ? '복사 완료' : `연락처 ${phoneNumbers.length}건과 문자내용 복사`}
-                            >
-                              {smsCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                            </button>
                             <a
                               href={smsHref}
                               className="inline-flex items-center justify-center p-1.5 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 shadow-sm transition-colors"
