@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   BarChart3,
   CalendarDays,
+  Download,
   Edit,
   ImageOff,
   Loader2,
@@ -42,6 +43,7 @@ import {
   type ProjectAccident,
 } from '@/lib/accident-analysis'
 import { getRegularWorkersByOrg } from '@/lib/tbm'
+import type { AccidentHistoryExcelRow } from '@/lib/excel/accident-history-export'
 
 /** 월별 추이 콤보 차트(사고 막대 + 점검 선형)의 점검 시리즈 정의 */
 const MONTHLY_INSPECTION_SERIES = [
@@ -367,6 +369,8 @@ export default function AccidentAnalysisView({
   const [detailError, setDetailError] = useState('')
   const [downloadingHwpx, setDownloadingHwpx] = useState(false)
   const [downloadError, setDownloadError] = useState('')
+  /** 사고 이력 표 엑셀을 만드는 중인지 */
+  const [historyExcelDownloading, setHistoryExcelDownloading] = useState(false)
   /** 늦게 도착한 이전 상세 응답을 버리는 요청 번호 */
   const detailSeqRef = useRef(0)
   /** 크게 보기로 연 사진. { src, alt } 이며 null이면 닫힌 상태다. */
@@ -924,6 +928,55 @@ export default function AccidentAnalysisView({
     openDetail(accident)
   }
 
+  /** 사고 이력 표에 보이는 행을 화면 표기 그대로 엑셀로 내려받는다. */
+  const handleHistoryExcelDownload = async () => {
+    if (historyExcelDownloading) return
+    setHistoryExcelDownloading(true)
+    setActionError('')
+    try {
+      const rows: AccidentHistoryExcelRow[] = analysis.accidentDetails.map((detail) => {
+        const accident = detail.accident
+        const project = accident.project_id ? projectMap.get(accident.project_id) : undefined
+        return {
+          hq: project?.managing_hq ?? accident.external_managing_hq ?? '',
+          branch: project?.managing_branch ?? accident.external_managing_branch ?? '',
+          projectName: project?.project_name ?? accident.external_project_name ?? '프로젝트 미상',
+          isExternalSite: !accident.project_id,
+          accidentDate: formatShortDate(accident.accident_at),
+          reportDate: formatReportDate(accident),
+          reportDelayDays: reportDelayDays(accident),
+          reportDelayed: isReportDelayed(accident),
+          severity: severityLabel(accident.severity),
+          accidentType: accident.accident_type,
+          compApplied: isCompApproved(accident),
+          treatmentDays: treatmentDays(accident),
+          injuredCount: accident.injured_count,
+          fatalCount: accident.fatal_count,
+          lostWorkdays: accident.lost_workdays,
+          description: accident.description,
+          location: accident.location,
+          workDescription: accident.work_description,
+          cause: accident.cause,
+          preventionAction: accident.prevention_action,
+          daysSinceLatestInspection: detail.daysSinceLatestInspection,
+          latestInspectionLabel: detail.latestInspection
+            ? `${detail.latestInspection.source_label} · ${formatDate(detail.latestInspection.inspected_at)}`
+            : '사고 전 점검 이력 없음',
+          latestInspectionSummary: detail.latestInspection
+            ? detail.latestInspection.summary || '기록된 점검 내용 없음'
+            : '',
+        }
+      })
+      const { downloadAccidentHistoryExcel } = await import('@/lib/excel/accident-history-export')
+      await downloadAccidentHistoryExcel(rows, { startDate, endDate })
+    } catch (caught) {
+      console.error('사고 이력 엑셀 생성 실패', caught)
+      setActionError('사고 이력 엑셀을 만들지 못했습니다.')
+    } finally {
+      setHistoryExcelDownloading(false)
+    }
+  }
+
   /** 점검 조회를 기다리는 동안 그래프·순위 자리에 두는 안내. 실패했으면 오류와 다시 시도를 보여준다. */
   const renderInspectionPending = (label: string) => (
     <div className="mt-4 flex min-h-40 flex-col items-center justify-center gap-2 rounded-md bg-gray-50 text-sm text-gray-500" role="status">
@@ -1386,7 +1439,18 @@ export default function AccidentAnalysisView({
                 </div>
                 <p className="mt-1 text-xs text-gray-500">최근 점검으로부터 사고일까지 경과 일수와 점검 내용을 함께 표시합니다.</p>
               </div>
-              <span className="text-xs text-gray-500">{analysis.accidentDetails.length.toLocaleString()}건</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void handleHistoryExcelDownload()}
+                  disabled={historyExcelDownloading || inspectionsLoading || analysis.accidentDetails.length === 0}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {historyExcelDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                  엑셀
+                </button>
+                <span className="text-xs text-gray-500">{analysis.accidentDetails.length.toLocaleString()}건</span>
+              </div>
             </div>
             {analysis.accidentDetails.length === 0 ? (
               <div className="p-10 text-center">
