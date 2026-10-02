@@ -1555,6 +1555,16 @@ export default function AccidentAnalysisView({
                           <td className="px-3 py-3 text-center">
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${severityBadgeClass(accident.severity)}`}>{severityLabel(accident.severity)}</span>
                             <p className="mt-1 text-xs text-gray-600">{accident.accident_type}</p>
+                            {(accident.is_new_worker === true || accident.is_foreign_worker === true) && (
+                              <div className="mt-1 flex flex-wrap justify-center gap-1">
+                                {accident.is_new_worker === true && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">신규</span>
+                                )}
+                                {accident.is_foreign_worker === true && (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">외국인</span>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="whitespace-nowrap px-3 py-3 text-center">
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${compApproved ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
