@@ -1840,11 +1840,9 @@ export default function ManagerInspectionPage() {
             
             {/* 콘텐츠 영역 */}
             <div className="flex flex-col lg:flex-row h-full">
-              {/* 모바일: 점검 등록 먼저, 데스크톱: 좌측 점검 목록 */}
-              <div className="lg:flex-1 p-2 lg:p-4 relative order-2 lg:order-1">
-                {/* 모바일용 가로 구분선 - 점검 목록 상단 */}
-                <div className="absolute top-0 left-4 right-4 h-1 lg:hidden" style={{ backgroundColor: 'rgb(88, 190, 213)' }}></div>
-                <div className="h-full flex flex-col pt-4 lg:pt-0">
+              {/* 모바일: 점검 목록(등록·조회 중에는 숨김), 데스크톱: 좌측 점검 목록 */}
+              <div className={`lg:flex-1 p-2 lg:p-4 relative order-1 ${showAddForm || selectedRecord ? 'hidden lg:block' : ''}`}>
+                <div className="h-full flex flex-col">
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-3 md:mb-6 gap-3">
                     <div className="flex items-center">
                       <FileText className="h-6 w-6 text-blue-600 mr-3" />
@@ -1955,6 +1953,18 @@ export default function ManagerInspectionPage() {
                           <Download className="h-4 w-4" />
                         )}
                       </button>
+
+                      {/* 점검 등록 버튼 - 모바일 전용, 발주청만 표시 */}
+                      {(userProfile?.role === '발주청') && (
+                        <button
+                          onClick={handleNewInspection}
+                          disabled={showAddForm || !!selectedRecord}
+                          className="lg:hidden p-2 rounded-lg font-medium transition-colors flex items-center justify-center bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="점검 등록"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   {/* 월 네비게이션 제거: 전체 조회 */}
@@ -2061,16 +2071,16 @@ export default function ManagerInspectionPage() {
                   )}
                   
                   {/* 점검 목록 테이블 */}
-                  <div className="bg-gray-50 rounded-lg p-4 flex-1 overflow-auto">
+                  <div className="bg-gray-50 rounded-lg p-1 lg:p-4 flex-1 overflow-auto">
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[600px] lg:min-w-0 border-collapse border border-gray-300 text-sm">
+                      <table className="w-full border-collapse border border-gray-300 text-xs lg:text-sm">
                         <thead>
                           <tr className="bg-gray-200">
                             <th className="border border-gray-300 p-1 text-center font-bold text-xs">연번</th>
                             <th className="border border-gray-300 p-1 text-center font-bold text-xs">일자</th>
                             <th className="border border-gray-300 p-1 text-center font-bold text-xs">점검자</th>
-                            <th className="border border-gray-300 p-1 text-center font-bold text-xs whitespace-nowrap">주요위험요인<br/>(개수)</th>
-                            <th className="border border-gray-300 p-1 text-center font-bold text-xs whitespace-nowrap">사진 업로드<br/>(위험성/예방대책)</th>
+                            <th className="border border-gray-300 p-1 text-center font-bold text-xs lg:whitespace-nowrap">주요위험요인<br/>(개수)</th>
+                            <th className="border border-gray-300 p-1 text-center font-bold text-xs lg:whitespace-nowrap">사진 업로드<br/>(위험성/예방대책)</th>
                             <th className="border border-gray-300 p-1 text-center font-bold text-xs">
                               {isDownloadMode ? '선택' : isDeleteMode ? '삭제' : isSignatureMode ? '서명' : isEditMode ? '수정' : '비고'}
                             </th>
@@ -2085,6 +2095,22 @@ export default function ManagerInspectionPage() {
                             
                             return (
                               <>
+                                {/* 점검 추가 행 - 발주청만, 선택 모드가 아닐 때 */}
+                                {userProfile?.role === '발주청' && !isDownloadMode && !isDeleteMode && !isSignatureMode && !isEditMode && (
+                                  <tr>
+                                    <td colSpan={6} className="border border-gray-300 p-2">
+                                      {/* 표가 가로 스크롤돼도 보이는 영역 가운데에 고정 */}
+                                      <button
+                                        onClick={handleNewInspection}
+                                        disabled={showAddForm || !!selectedRecord}
+                                        className="sticky left-1/2 -translate-x-1/2 inline-flex items-center gap-1 px-3 py-1 rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                      >
+                                        <Plus className="h-4 w-4" />
+                                        추가
+                                      </button>
+                                    </td>
+                                  </tr>
+                                )}
                                 {/* 실제 데이터 행들 */}
                                 {currentPageRecords.map((record, index) => {
                                   const canSelect = userProfile?.role === '발주청'
@@ -2173,8 +2199,8 @@ export default function ManagerInspectionPage() {
                                       setSignature(record.signature || '')
                                     }}
                                   >
-                                    <td className="border border-gray-300 p-2 text-center">{inspectionRecords.length - (startIndex + index)}</td>
-                                    <td className="border border-gray-300 p-2 text-center">
+                                    <td className="border border-gray-300 p-1 lg:p-2 text-center">{inspectionRecords.length - (startIndex + index)}</td>
+                                    <td className="border border-gray-300 p-1 lg:p-2 text-center">
                                       {(() => {
                                         const d = new Date(record.inspection_date)
                                         const yy = String(d.getFullYear()).slice(-2)
@@ -2183,11 +2209,11 @@ export default function ManagerInspectionPage() {
                                         return `${yy}.${mm}.${dd}`
                                       })()}
                                     </td>
-                                    <td className="border border-gray-300 p-2 text-center">
+                                    <td className="border border-gray-300 p-1 lg:p-2 text-center">
                                       {record.inspector_name || '-'}
                                     </td>
                                     <td
-                                      className={`border border-gray-300 p-2 text-center ${
+                                      className={`border border-gray-300 p-1 lg:p-2 text-center ${
                                         isRiskFactorMissing
                                           ? 'ring-1 ring-inset ring-red-500 bg-red-50 text-red-700 font-semibold'
                                           : ''
@@ -2195,12 +2221,12 @@ export default function ManagerInspectionPage() {
                                     >
                                       {isRiskFactorMissing ? '-' : `${riskFactorCount}개`}
                                     </td>
-                                    <td className={`border border-gray-300 p-2 text-center text-xs whitespace-nowrap ${photoIncomplete ? 'bg-red-50 ring-1 ring-inset ring-red-500' : ''}`}>
+                                    <td className={`border border-gray-300 p-1 lg:p-2 text-center text-xs whitespace-nowrap ${photoIncomplete ? 'bg-red-50 ring-1 ring-inset ring-red-500' : ''}`}>
                                       <span className={riskPhotoCount > 0 ? 'text-blue-700 font-semibold' : 'text-gray-400'}>{riskPhotoCount}</span>
                                       <span className="text-gray-400 mx-1">/</span>
                                       <span className={disasterPhotoCount > 0 ? 'text-orange-700 font-semibold' : 'text-gray-400'}>{disasterPhotoCount}</span>
                                     </td>
-                                    <td className={`border border-gray-300 p-2 text-center ${isIncomplete ? 'bg-red-50 ring-1 ring-inset ring-red-500' : ''}`}>
+                                    <td className={`border border-gray-300 p-1 lg:p-2 text-center ${isIncomplete ? 'bg-red-50 ring-1 ring-inset ring-red-500' : ''}`}>
                                       {isDownloadMode ? (
                                         <input
                                           type="checkbox"
@@ -2265,14 +2291,14 @@ export default function ManagerInspectionPage() {
                                 {/* 빈 행들 (최소 11개 행 보장) */}
                                 {Array.from({ length: Math.max(0, itemsPerPage - currentPageRecords.length) }, (_, i) => (
                                   <tr key={`empty-${i}`}>
-                                    <td className="border border-gray-300 p-2 h-10 text-center">
+                                    <td className="border border-gray-300 p-1 lg:p-2 h-10 text-center">
                                       {/* 빈 행은 연번 표시하지 않음 */}
                                     </td>
-                                    <td className="border border-gray-300 p-2 text-center">-</td>
-                                    <td className="border border-gray-300 p-2 text-center">-</td>
-                                    <td className="border border-gray-300 p-2 text-center">-</td>
-                                    <td className="border border-gray-300 p-2 text-center">-</td>
-                                    <td className="border border-gray-300 p-2 text-center">-</td>
+                                    <td className="border border-gray-300 p-1 lg:p-2 text-center">-</td>
+                                    <td className="border border-gray-300 p-1 lg:p-2 text-center">-</td>
+                                    <td className="border border-gray-300 p-1 lg:p-2 text-center">-</td>
+                                    <td className="border border-gray-300 p-1 lg:p-2 text-center">-</td>
+                                    <td className="border border-gray-300 p-1 lg:p-2 text-center">-</td>
                                   </tr>
                                 ))}
                               </>
@@ -2351,10 +2377,8 @@ export default function ManagerInspectionPage() {
                 </div>
               </div>
               
-              {/* 모바일: 점검 등록 먼저, 데스크톱: 우측 점검표 */}
-              <div className="lg:flex-1 p-2 lg:p-4 relative order-1 lg:order-2">
-                {/* 모바일용 가로 구분선 - 점검 등록 하단 */}
-                <div className="absolute bottom-0 left-4 right-4 h-1 lg:hidden" style={{ backgroundColor: 'rgb(88, 190, 213)' }}></div>
+              {/* 모바일: 등록·조회 중에만 목록 대신 표시, 데스크톱: 우측 점검표 */}
+              <div className={`lg:flex-1 p-2 lg:p-4 relative order-2 ${!showAddForm && !selectedRecord ? 'hidden lg:block' : ''}`}>
                 <div className="h-full flex flex-col">
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex flex-col">
