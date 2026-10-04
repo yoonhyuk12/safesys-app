@@ -224,7 +224,7 @@ export default function ProjectAssistantBot({ projectId, projectName }: ProjectA
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className={`fixed ${isSafeDocuments ? 'bottom-20 sm:bottom-24' : 'bottom-4 sm:bottom-6'} ${isQualityTestLedger ? 'left-4 sm:left-6' : 'right-4 sm:right-6'} z-50 w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-full shadow-lg hover:from-emerald-700 hover:to-emerald-800 transition-all duration-300 flex items-center justify-center group hover:scale-110`}
+          className={`fixed ${isSafeDocuments ? 'bottom-20 sm:bottom-24' : 'bottom-4 sm:bottom-6'} left-4 ${isQualityTestLedger ? 'sm:left-6' : 'sm:left-auto sm:right-6'} z-50 w-12 h-12 sm:w-14 sm:h-14 bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-full shadow-lg hover:from-emerald-700 hover:to-emerald-800 transition-all duration-300 flex items-center justify-center group hover:scale-110`}
           title="현장 AI 비서"
         >
           <MessageCircle className="h-6 w-6 sm:h-7 sm:w-7 group-hover:scale-110 transition-transform" />
