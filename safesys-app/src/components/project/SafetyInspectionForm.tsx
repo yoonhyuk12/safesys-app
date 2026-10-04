@@ -270,6 +270,8 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
 
             setDistrictName(project.project_name || '')
             setManagementEntity(project.managing_branch || '')
+            setConstructionStart(project.construction_start_date || '')
+            setConstructionEndPlanned(project.construction_end_date || '')
 
             const position = (project as any).supervisor_position || ''
             const name = project.supervisor_name || ''
