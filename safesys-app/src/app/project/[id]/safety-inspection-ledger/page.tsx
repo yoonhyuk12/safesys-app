@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { ArrowLeft, Plus, Trash2, Eye, FileText, FileSpreadsheet, Upload, Image as ImageIcon, Edit2, MoreVertical, Crop, Ban } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, FileText, FileSpreadsheet, Upload, Image as ImageIcon, Edit2, MoreVertical, Crop, Ban } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import type { Project } from '@/lib/projects'
@@ -13,6 +13,10 @@ import ImageEditor from '../../../../components/ui/ImageEditor'
 import { generateSafetyInspectionReportPdf } from '../../../../lib/reports/safety-inspection-report-pdf'
 import { generateSpecialInspectionDocx } from '../../../../lib/reports/special-inspection-report-docx'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
+import { SAFETY_INSPECTION_TYPES, isSpecial287Type, isSpecial770Type, shortInspectionTypeLabel } from '@/lib/safety-inspection-types'
+import type { Special770InspectionData } from '@/lib/special-inspection-770/types'
+import Special770LedgerRows from '@/components/project/special-770/Special770LedgerRows'
+import { inspectionLedgerRowProps } from '@/lib/inspection-ledger-row'
 
 export interface SafetyInspection {
   id: string
@@ -36,6 +40,7 @@ export interface SafetyInspection {
   created_at: string
   updated_at: string
   additional_items?: any[] | null
+  excavator_inspection?: Special770InspectionData | null
   results?: SafetyInspectionResult[]
   site_before_photo?: string | null
 }
@@ -61,8 +66,6 @@ export interface SafetyInspectionPhoto {
   photo_date: string | null
   sort_order: number
 }
-
-const INSPECTION_TYPES = ['해빙기', '우기', '종합', '특별점검(안전혁신건설-287)'] as const
 
 export default function SafetyInspectionLedgerPage() {
   const { user, loading: authLoading } = useAuth()
@@ -404,7 +407,7 @@ export default function SafetyInspectionLedgerPage() {
                 ({inspections.length})
               </span>
             </button>
-            {INSPECTION_TYPES.map(type => (
+            {SAFETY_INSPECTION_TYPES.map(type => (
               <button
                 key={type}
                 onClick={() => setActiveTab(type)}
@@ -413,7 +416,7 @@ export default function SafetyInspectionLedgerPage() {
                   : 'bg-white/10 text-white/70 hover:bg-white/20'
                   }`}
               >
-                {type === '특별점검(안전혁신건설-287)' ? '특별' : type}
+                {shortInspectionTypeLabel(type)}
                 <span className="ml-1.5 text-xs opacity-75">
                   ({inspections.filter(i => i.inspection_type === type).length})
                 </span>
@@ -462,7 +465,7 @@ export default function SafetyInspectionLedgerPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {filteredInspections.map(ins => {
-                    const isSpecial = ins.inspection_type === '특별점검(안전혁신건설-287)'
+                    const isSpecial = isSpecial287Type(ins.inspection_type)
                     const specialFindings = isSpecial && ins.additional_items
                       ? (ins.additional_items as any[]).map((item, idx) => ({ ...item, _origIndex: idx })).filter(item => item.action && item.action !== '해당없음')
                       : []
@@ -472,11 +475,25 @@ export default function SafetyInspectionLedgerPage() {
 
                     return (
                       <React.Fragment key={ins.id}>
-                        {/* 특별점검: additional_items 기반 렌더링 */}
-                        {isSpecial ? (
+                        {/* 굴삭기 특별점검: excavator_inspection 기반 렌더링 */}
+                        {isSpecial770Type(ins.inspection_type) ? (
+                          <Special770LedgerRows
+                            projectId={projectId}
+                            project={project as unknown as Record<string, unknown> | null}
+                            ins={ins}
+                            deleteConfirming={deleteConfirmId === ins.id}
+                            onView={() => setShowDetail(ins.id)}
+                            onEdit={() => { setEditingId(ins.id); setFormReadOnly(false); setShowForm(true) }}
+                            onDeleteRequest={() => setDeleteConfirmId(ins.id)}
+                            onDeleteConfirm={() => handleDelete(ins.id)}
+                            onDeleteCancel={() => setDeleteConfirmId(null)}
+                            onChanged={loadInspections}
+                          />
+                        ) : /* 특별점검: additional_items 기반 렌더링 */
+                        isSpecial ? (
                           specialFindings.length > 0 ? (
                             specialFindings.map((item, i) => (
-                              <tr key={`${ins.id}-special-${i}`} className="hover:bg-gray-50 bg-white group">
+                              <tr key={`${ins.id}-special-${i}`} className="hover:bg-gray-50 bg-white group cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500" {...inspectionLedgerRowProps(() => { setEditingId(ins.id); setFormReadOnly(true); setShowForm(true) })}>
                                 {i === 0 && (
                                   <>
                                     <td rowSpan={rowCount} className="px-2 py-3 text-center align-middle border-r border-gray-100">
@@ -593,9 +610,6 @@ export default function SafetyInspectionLedgerPage() {
                                 {i === 0 && (
                                   <td rowSpan={rowCount} className="px-2 py-3 text-center align-middle border-l border-gray-100">
                                     <div className="flex flex-row gap-1 items-center justify-center">
-                                      <button onClick={() => { setEditingId(ins.id); setFormReadOnly(true); setShowForm(true) }} title="상세보기" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-colors">
-                                        <Eye className="h-4 w-4" />
-                                      </button>
                                       <button onClick={() => generateSpecialInspectionDocx(ins as any)} title="Word 보고서" className="p-1.5 text-blue-700 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-colors text-[11px] font-bold">
                                         W
                                       </button>
@@ -618,7 +632,7 @@ export default function SafetyInspectionLedgerPage() {
                               </tr>
                             ))
                           ) : (
-                            <tr className="hover:bg-gray-50 bg-white">
+                            <tr className="hover:bg-gray-50 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500" {...inspectionLedgerRowProps(() => { setEditingId(ins.id); setFormReadOnly(true); setShowForm(true) })}>
                               <td className="px-2 py-3 text-center align-middle border-r border-gray-100">
                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-orange-100 text-orange-800 break-keep">
                                   특별점검
@@ -643,9 +657,6 @@ export default function SafetyInspectionLedgerPage() {
                               <td className="px-3 py-3 text-center align-middle text-gray-300 border-l border-gray-100">-</td>
                               <td className="px-2 py-3 text-center align-middle border-l border-gray-100">
                                 <div className="flex flex-row gap-1 items-center justify-center">
-                                  <button onClick={() => { setEditingId(ins.id); setFormReadOnly(true); setShowForm(true) }} title="상세보기" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-colors">
-                                    <Eye className="h-4 w-4" />
-                                  </button>
                                   <button onClick={() => generateSpecialInspectionDocx(ins as any)} title="Word 보고서" className="p-1.5 text-blue-700 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-colors text-[11px] font-bold">
                                     W
                                   </button>
@@ -668,7 +679,7 @@ export default function SafetyInspectionLedgerPage() {
                           )
                         ) : ins.results && ins.results.length > 0 ? (
                           ins.results.map((r, i) => (
-                            <tr key={r.id} className="hover:bg-gray-50 bg-white group">
+                            <tr key={r.id} className="hover:bg-gray-50 bg-white group cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500" {...inspectionLedgerRowProps(() => setShowDetail(ins.id))}>
                               {i === 0 && (
                                 <>
                                   <td rowSpan={rowCount} className="px-2 py-3 text-center align-middle border-r border-gray-100">
@@ -785,7 +796,7 @@ export default function SafetyInspectionLedgerPage() {
                                     </div>
                                   )}
                                   {editingActionId === r.id ? (
-                                    <div className="w-full bg-blue-50 p-2 rounded flex flex-col gap-2 relative">
+                                    <div data-ledger-row-control className="w-full bg-blue-50 p-2 rounded flex flex-col gap-2 relative">
                                       <textarea
                                         autoFocus
                                         className="w-full text-xs p-2 border border-blue-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none bg-white"
@@ -802,6 +813,7 @@ export default function SafetyInspectionLedgerPage() {
                                     </div>
                                   ) : (
                                     <div
+                                      data-ledger-row-control
                                       className="w-full text-left bg-blue-50 p-2 rounded relative group/action cursor-pointer hover:bg-blue-100 transition-colors min-h-[38px] border border-transparent hover:border-blue-200"
                                       onClick={() => { setEditingActionId(r.id); setTempActionText(r.action_items || '') }}
                                     >
@@ -820,9 +832,6 @@ export default function SafetyInspectionLedgerPage() {
                               {i === 0 && (
                                 <td rowSpan={rowCount} className="px-2 py-3 text-center align-middle border-l border-gray-100">
                                   <div className="flex flex-row gap-1 items-center justify-center">
-                                    <button onClick={() => setShowDetail(ins.id)} title="상세보기" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-colors">
-                                      <Eye className="h-4 w-4" />
-                                    </button>
                                     <button onClick={() => handlePdfExport(ins.id)} disabled={pdfExporting} title="PDF 보고서" className="p-1.5 text-blue-500 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                                       <FileText className="h-4 w-4" />
                                     </button>
@@ -845,7 +854,7 @@ export default function SafetyInspectionLedgerPage() {
                             </tr>
                           ))
                         ) : (
-                          <tr className="hover:bg-gray-50 bg-white">
+                          <tr className="hover:bg-gray-50 bg-white cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500" {...inspectionLedgerRowProps(() => setShowDetail(ins.id))}>
                             <td className="px-2 py-3 text-center align-middle border-r border-gray-100">
                               <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-blue-100 text-blue-800">
                                 {ins.inspection_type}
@@ -872,9 +881,6 @@ export default function SafetyInspectionLedgerPage() {
 
                             <td className="px-2 py-3 text-center align-middle border-l border-gray-100">
                               <div className="flex flex-row gap-1 items-center justify-center">
-                                <button onClick={() => setShowDetail(ins.id)} title="상세보기" className="p-1.5 text-blue-600 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-colors">
-                                  <Eye className="h-4 w-4" />
-                                </button>
                                 <button onClick={() => handlePdfExport(ins.id)} title="PDF 보고서" className="p-1.5 text-blue-500 hover:bg-blue-50 rounded border border-transparent hover:border-blue-100 transition-colors">
                                   <FileText className="h-4 w-4" />
                                 </button>
@@ -912,7 +918,7 @@ export default function SafetyInspectionLedgerPage() {
             <h3 className="text-lg font-bold text-gray-900 mb-1">새 점검 등록</h3>
             <p className="text-sm text-gray-500 mb-5">등록할 점검 유형을 선택하세요.</p>
             <div className="grid grid-cols-2 gap-3">
-              {INSPECTION_TYPES.map(type => (
+              {SAFETY_INSPECTION_TYPES.map(type => (
                 <button
                   key={type}
                   onClick={() => {

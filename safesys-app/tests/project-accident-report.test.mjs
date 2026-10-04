@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
+import { posix } from 'node:path'
 import test from 'node:test'
 import ts from 'typescript'
 
@@ -10,7 +11,7 @@ const React = nodeRequire('react')
 const { renderToStaticMarkup } = nodeRequire('react-dom/server')
 
 /**
- * `@/` 별칭 모듈을 실제 소스로 따라가며 전부 transpile한다.
+ * `@/` 별칭과 상대 경로 모듈을 실제 소스로 따라가며 전부 transpile한다.
  * `overrides`에 담긴 이름만 대역으로 바꾸고, 그 밖의 패키지는 node가 해결한다.
  */
 function createLoader(overrides) {
@@ -52,7 +53,10 @@ function createLoader(overrides) {
     const dependencies = new Map()
     for (const match of outputText.matchAll(/require\(["']([^"']+)["']\)/g)) {
       const dependency = match[1]
-      if (!dependencies.has(dependency)) dependencies.set(dependency, await load(dependency))
+      const resolved = dependency.startsWith('.')
+        ? posix.join(posix.dirname(name), dependency)
+        : dependency
+      if (!dependencies.has(dependency)) dependencies.set(dependency, await load(resolved))
     }
 
     const module = { exports: {} }
@@ -410,7 +414,7 @@ async function renderDetail(props) {
 test('사고 분석 산재 신청 열은 양의 유효 요양일만 신청으로 표시한다', async () => {
   for (const [value, approved] of [['14', true], ['1', true], [undefined, false], [null, false], ['', false], ['0', false], ['-1', false], ['1.5', false], ['NaN', false], ['Infinity', false], ['9007199254740992', false]]) {
     let arrayStateIndex = 0
-    const accident = { ...OWN_ACCIDENT, accident_at: new Date().toISOString(), expected_treatment_days: value }
+    const accident = { ...OWN_ACCIDENT, accident_at: `${new Date().getFullYear()}-01-01T00:00:00+09:00`, expected_treatment_days: value }
     const load = createLoader({
       '@/lib/supabase': { supabase: {} },
       '@/lib/tbm': { getRegularWorkersByOrg: async () => ({}) },
@@ -565,6 +569,6 @@ test('안전캐비넷 A(조치)에 사고보고 서류철이 있다', () => {
   const afterLabel = projectPageSource.split('A (조치)</div>')[1] ?? ''
   const actionBlock = afterLabel.split('</CabinetDrawer>')[0]
 
-  assert.match(actionBlock, /title="사고\n보고"/)
+  assert.match(actionBlock, /title="사고\r?\n보고"/)
   assert.match(actionBlock, /\/accident-report`\)/)
 })

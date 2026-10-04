@@ -7,6 +7,15 @@ import SignatureCanvas from 'react-signature-canvas'
 import { useAuth } from '@/contexts/AuthContext'
 import type { Project } from '@/lib/projects'
 import ImageEditor from '@/components/ui/ImageEditor'
+import { SAFETY_INSPECTION_TYPES, isSpecial287Type, isSpecial770Type } from '@/lib/safety-inspection-types'
+import type { Special770InspectionData } from '@/lib/special-inspection-770/types'
+import { inspectionFindings } from '@/lib/special-inspection-770/summary'
+import Special770Overview from '@/components/project/special-770/Special770Overview'
+import Special770Checklist from '@/components/project/special-770/Special770Checklist'
+import Special770Results from '@/components/project/special-770/Special770Results'
+import { createEmpty770Data, fill770ActionDueDates, normalize770Data } from '@/components/project/special-770/state'
+import { computeProgressRate } from '@/lib/work-daily-report/work-daily-report-types'
+import { getProgressAnchors } from '@/lib/work-daily-report/progress-anchors'
 
 interface Props {
     projectId: string
@@ -39,7 +48,6 @@ interface PhotoItem {
     preview?: string
 }
 
-const INSPECTION_TYPES = ['해빙기', '우기', '종합', '특별점검(안전혁신건설-287)'] as const
 const PHOTO_TYPE_LABELS: Record<string, string> = {
     site_before: '점검 전경',
     finding_before: '지적사항 (조치 전)',
@@ -178,6 +186,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
     const [constructionStart, setConstructionStart] = useState('')
     const [constructionEndPlanned, setConstructionEndPlanned] = useState('')
     const [progressRate, setProgressRate] = useState('')
+    const progressRateEditedRef = useRef(false)
     const [majorWorkType, setMajorWorkType] = useState('')
     const [contractor, setContractor] = useState('')
     const [supervisorName, setSupervisorName] = useState('')
@@ -217,7 +226,11 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
     const [photoMenuOpen, setPhotoMenuOpen] = useState<string | null>(null) // "result-{index}" or "photo-{globalIndex}"
     const [editingImage, setEditingImage] = useState<{ url: string; type: 'result' | 'photo'; index: number } | null>(null)
 
-    const isSpecialInspection = inspectionType === '특별점검(안전혁신건설-287)'
+    const isSpecialInspection = isSpecial287Type(inspectionType)
+    const isExcavatorInspection = isSpecial770Type(inspectionType)
+
+    // 굴삭기 특별점검 입력 (excavator_inspection 컬럼)
+    const [excavatorData, setExcavatorData] = useState<Special770InspectionData>(createEmpty770Data)
 
     // 사진 메뉴 외부 클릭 시 닫기
     useEffect(() => {
@@ -324,6 +337,20 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
         }
     }, [project, editingId])
 
+    // 신규 등록: 공정율을 시공 캐비넷과 같은 출처(착공·준공일 + 공정 기준점)로 점검일 기준 자동 입력. 계산 불가면 공란, 직접 고친 값은 유지
+    useEffect(() => {
+        if (editingId || !project || progressRateEditedRef.current) return
+        let cancelled = false
+        getProgressAnchors(project.id)
+            .catch(() => [])
+            .then(anchors => {
+                if (cancelled || progressRateEditedRef.current) return
+                const rate = computeProgressRate(project.construction_start_date, project.construction_end_date, inspectionDate, anchors)
+                setProgressRate(rate === '' ? '' : String(Math.round(parseFloat(rate))))
+            })
+        return () => { cancelled = true }
+    }, [project, editingId, inspectionDate])
+
     // 수정 모드: 기존 데이터 로드
     useEffect(() => {
         if (editingId) {
@@ -371,7 +398,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                 if (missingItems.length > 0) {
                     loadedItems = [...loadedItems, ...JSON.parse(JSON.stringify(missingItems))]
                 }
-            } else if (inspection.inspection_type === '특별점검(안전혁신건설-287)') {
+            } else if (isSpecial287Type(inspection.inspection_type)) {
                 const existingCategories = new Set(loadedItems.map((item: any) => item.category))
                 const missingItems = SPECIAL_INSPECTION_ITEMS.filter(item => !existingCategories.has(item.category))
                 if (missingItems.length > 0) {
@@ -400,10 +427,14 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
             setAdditionalItems(JSON.parse(JSON.stringify(RAINY_SEASON_ITEMS)))
             setCoreItemSlots([null, null, null])
             setSelectedSingleItems(new Map())
-        } else if (inspection.inspection_type === '특별점검(안전혁신건설-287)') {
+        } else if (isSpecial287Type(inspection.inspection_type)) {
             setAdditionalItems(JSON.parse(JSON.stringify(SPECIAL_INSPECTION_ITEMS)))
             setCoreItemSlots([null, null, null])
             setSelectedSingleItems(new Map())
+        }
+
+        if (isSpecial770Type(inspection.inspection_type)) {
+            setExcavatorData(normalize770Data(inspection.excavator_inspection))
         }
 
         if (inspection.signatures && Array.isArray(inspection.signatures) && inspection.signatures.length > 0) {
@@ -654,11 +685,13 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
         setSaving(true)
 
         try {
-            const derivedInspectionTeam = signatures
-                .filter(s => s.role === '점검자')
-                .map(s => `${s.position} ${s.name}`.trim())
-                .filter(s => s)
-                .join(', ')
+            const derivedInspectionTeam = isExcavatorInspection
+                ? excavatorData.inspection_team.trim()
+                : signatures
+                    .filter(s => s.role === '점검자')
+                    .map(s => `${s.position} ${s.name}`.trim())
+                    .filter(s => s)
+                    .join(', ')
 
             const inspectionData = {
                 project_id: projectId,
@@ -680,6 +713,8 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                 good_example_content: goodExampleContent || null,
                 additional_items: (inspectionType === '해빙기' || inspectionType === '우기' || isSpecialInspection) ? additionalItems : null,
                 signatures: signatures,
+                // 굴삭기 특별점검만 excavator_inspection을 보낸다. 다른 유형은 컬럼을 건드리지 않는다.
+                ...(isExcavatorInspection ? { excavator_inspection: fill770ActionDueDates(excavatorData, inspectionDate) } : {}),
                 created_by: user.id,
                 updated_at: new Date().toISOString()
             }
@@ -794,9 +829,11 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                     const hasAppCode = Boolean(projectTgData?.client_app_code || projectTgData?.contractor_app_code)
 
                     if (chatIds || hasAppCode) {
-                        const findingsItems = results
-                            .filter(r => r.findings && r.findings.trim() !== '')
-                            .map(r => `- ${r.field_item}: ${r.findings}`)
+                        const findingsItems = isExcavatorInspection
+                            ? inspectionFindings(excavatorData).map(f => `- ${f.vehicleNo || '굴착기'} ${f.code}: ${f.result.finding?.trim() || f.itemText}`)
+                            : results
+                                .filter(r => r.findings && r.findings.trim() !== '')
+                                .map(r => `- ${r.field_item}: ${r.findings}`)
 
                         const telegramMessage =
                             `📝 <b>정기안전점검 결과 알림</b>\n\n` +
@@ -897,15 +934,17 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                 </div>
 
                 {/* 스텝 인디케이터 */}
-                <div className="flex items-center justify-center gap-2 px-6 py-3 bg-gray-50 border-b">
+                <div className="flex flex-wrap items-center justify-center gap-2 px-6 py-3 bg-gray-50 border-b">
                     {(isSpecialInspection
                         ? ['점검개요', '지적사항']
+                        : isExcavatorInspection
+                        ? ['점검개요', '굴착기 점검표', '점검결과']
                         : ['점검개요', '점검결과 및 사진', '점검자 의견 및 서명', ...((inspectionType === '해빙기' || inspectionType === '우기') ? ['추가 점검 항목'] : [])]
                     ).map((label, i) => (
                         <button
                             key={i}
                             onClick={() => setStep(i + 1)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors ${step === i + 1
+                            className={`min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors ${step === i + 1
                                 ? 'bg-blue-600 text-white'
                                 : 'bg-white text-gray-500 border hover:border-blue-300'
                                 }`}
@@ -928,7 +967,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                                     <label className="block text-sm font-medium text-gray-700 mb-1">점검유형 *</label>
                                     <select value={inspectionType} onChange={e => setInspectionType(e.target.value)}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white shadow-sm">
-                                        {INSPECTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                                        {SAFETY_INSPECTION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                                     </select>
                                 </div>
                                 <div>
@@ -937,6 +976,9 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white shadow-sm" />
                                 </div>
                             </div>
+                            {isExcavatorInspection ? (
+                                <Special770Overview data={excavatorData} setData={setExcavatorData} readOnly={readOnly} />
+                            ) : (
                             <div>
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="block text-sm font-medium text-gray-700">점검반 (점검자)</label>
@@ -980,6 +1022,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                                     )}
                                 </div>
                             </div>
+                            )}
 
                             <div className="pt-4 border-t mt-4">
                                 <h3 className="text-sm font-semibold text-gray-800 mb-3 px-1">점검지구 현황</h3>
@@ -1014,7 +1057,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                                     </div>
                                     <div>
                                         <label className="block text-xs text-gray-500 mb-1">공정율 (%)</label>
-                                        <input type="number" value={progressRate} onChange={e => setProgressRate(e.target.value)}
+                                        <input type="number" value={progressRate} onChange={e => { progressRateEditedRef.current = true; setProgressRate(e.target.value) }}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white shadow-sm" />
                                     </div>
                                     <div>
@@ -1047,8 +1090,18 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                         </div>
                     )}
 
+                    {/* Step 2: 굴삭기 특별점검 점검표 */}
+                    {step === 2 && isExcavatorInspection && (
+                        <Special770Checklist projectId={projectId} data={excavatorData} setData={setExcavatorData} readOnly={readOnly} />
+                    )}
+
+                    {/* Step 3: 굴착기 특별점검 점검결과 */}
+                    {step === 3 && isExcavatorInspection && (
+                        <Special770Results projectId={projectId} data={excavatorData} setData={setExcavatorData} readOnly={readOnly} inspectionDate={inspectionDate} />
+                    )}
+
                     {/* Step 2: 점검결과 및 사진 (특별점검 제외) */}
-                    {step === 2 && !isSpecialInspection && (
+                    {step === 2 && !isSpecialInspection && !isExcavatorInspection && (
                         <div className="space-y-6">
                             {/* 1. 점검 전경업로드 영역 (특별점검 제외) */}
                             {!isSpecialInspection && (
@@ -1203,7 +1256,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                     )}
 
                     {/* Step 3: 점검자 의견 (및 수범사례) - 특별점검 제외 */}
-                    {step === 3 && !isSpecialInspection && (
+                    {step === 3 && !isSpecialInspection && !isExcavatorInspection && (
                         <div className="space-y-6">
                             {/* 종합결과 의견 */}
                             <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
@@ -1951,7 +2004,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                     <div>
                         {step > 1 && (
                             <button onClick={() => setStep(step - 1)}
-                                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium">
+                                className="min-h-[44px] px-4 py-2 text-sm text-gray-600 hover:text-gray-900 font-medium">
                                 ← 이전 단계
                             </button>
                         )}
@@ -1961,7 +2014,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                             <>
                             {step < ((inspectionType === '해빙기' || inspectionType === '우기') ? 4 : isSpecialInspection ? 2 : 3) && (
                                 <button onClick={() => setStep(step + 1)}
-                                    className="px-6 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm">
+                                    className="min-h-[44px] px-6 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors shadow-sm">
                                     다음 단계 →
                                 </button>
                             )}
@@ -1978,7 +2031,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                         </button>
                         {step < ((inspectionType === '해빙기' || inspectionType === '우기') ? 4 : isSpecialInspection ? 2 : 3) && (
                             <button onClick={() => setStep(step + 1)} title="다음 단계"
-                                className="flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+                                className="min-h-[44px] min-w-[44px] flex items-center justify-center w-10 h-10 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
                                 <ArrowRight className="h-5 w-5" />
                             </button>
                         )}

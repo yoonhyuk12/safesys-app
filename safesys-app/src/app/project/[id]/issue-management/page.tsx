@@ -12,6 +12,7 @@ import CopyrightNotice from '@/components/common/CopyrightNotice'
 import { downloadIssueActionReportExcel } from '@/lib/excel/issue-action-report-export'
 import { downloadCorrectiveActionRequestExcel } from '@/lib/excel/corrective-action-request-export'
 import { isRealFinding, isAdditionalFinding, isNaValue, extractUploadDate } from '@/lib/issue-ledger'
+import { isSpecial287Type, isSpecial770Type, shortInspectionTypeLabel } from '@/lib/safety-inspection-types'
 
 // ─── 타입 ───────────────────────────────────────────────
 
@@ -61,8 +62,11 @@ interface LedgerIssue {
 
 const isResolved = (issue: LedgerIssue): boolean => !!issue.afterPhotoUrl
 
-const SPECIAL_TYPE = '특별점검(안전혁신건설-287)'
-const sourceShort = (t: string): string => (t === SPECIAL_TYPE ? '특별점검' : t)
+const sourceShort = (t: string): string => {
+  if (isSpecial287Type(t)) return '특별점검'
+  if (isSpecial770Type(t)) return shortInspectionTypeLabel(t)
+  return t
+}
 
 // 이미지 리사이즈 (본부점검 페이지 업로드 관례: 1920×1440, JPEG 0.95)
 const resizeImageToJpeg = (file: File, maxW = 1920, maxH = 1440, quality = 0.95): Promise<File> =>

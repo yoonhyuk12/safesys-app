@@ -14,8 +14,18 @@ export interface AiModelSetting {
   outputPricePer1m: number | null
 }
 
-/** AI 사용 인벤토리 기본값 23행 — 시드·폴백·관리자 화면 표시의 단일 출처 (2026-08-27 관리자 DB와 폴백 동기화) */
+/** AI 사용 인벤토리 기본값 — 시드·폴백·관리자 화면 표시의 단일 출처 */
 export const DEFAULT_AI_MODELS = [
+  {
+    featureKey: 'ai.special-770-actions',
+    provider: 'OpenAI',
+    model: 'gpt-6-luna',
+    location: 'src/app/api/ai/special-770-actions/route.ts',
+    feature: '특별점검770 HWPX 조치문구',
+    remarks: '다운로드 사본만 생성, gpt-6-luna 고정',
+    inputPricePer1m: null,
+    outputPricePer1m: null,
+  },
   {
     featureKey: 'chat.project-assistant',
     provider: 'OpenAI',

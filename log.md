@@ -1,6 +1,93 @@
 # 작업 로그
 
 <!-- worklog -->
+261004_201911 : .codex_backup/agents 삭제, .codex_backup/commands 삭제, .codex_backup/contexts 삭제, .codex_backup/docs 삭제, .codex_backup/examples 삭제, .codex_backup/hooks 삭제 외 4건
+261004_201457 : button[aria-label 추가
+261004_192500 : safesys-app/tests/special-770-result-hwpx.test.mjs 수정
+261004_192431 : safesys-app/tests/special-770-result-hwpx.test.mjs 수정
+261004_192337 : safesys-app/src/lib/hwpx/special-770-checklist-hwpx.ts 수정
+261004_192152 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정
+261004_192102 : safesys-app/src/lib/hwpx/special-770-checklist-hwpx.ts 추가 — "// 붙임2 점검표 양식을 굴착기마다 채워 붙임3 결과 문서 앞에 붙이도록 header 스타일을 합치고 본문…"
+261004_190818 : safesys-app/tests/special-770-result-hwpx.test.mjs 수정 — "// 사진대지 제목은 새 쪽에서 시작하고, 첫 사진표가 같은 쪽에 들어가도록 사진 칸을 2500씩 줄인다(모…"
+261004_190817 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정 — "// 사진대지 제목은 1쪽 끝에 남지 않게 새 쪽 첫 줄에서 시작하고(첫 사진표와 같은 쪽), 가운데 정렬 …"
+261004_190816 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정 — "let section = await sectionFile.async('string') let manifest…"
+261004_190815 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정 — "appendCenteredParaPr, buildInlinePicXml, budgetInMillion, co…"
+261004_190747 : safesys-app/src/lib/hwpx/special-770-result-hwpx-parts.ts 수정 — "/** * 문단 스타일 하나를 가운데 정렬 복제본으로 만들어 header.xml paraProperties …"
+261004_185455 : safesys-app/tests/special-770-result-hwpx.test.mjs 수정
+261004_185401 : safesys-app/src/lib/hwpx/special-770-result-hwpx-parts.ts 수정 — "new RegExp(String.raw`(<hp:cellAddr colAddr="\d+" rowAddr="$…"
+261004_185335 : safesys-app/src/lib/hwpx/special-770-result-hwpx-parts.ts 수정
+261004_185312 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정, safesys-app/src/lib/hwpx/special-770-result-hwpx-parts.ts 수정
+261004_184851 : safesys-app/tests/special-770-result-hwpx.test.mjs 수정
+261004_184814 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정
+261004_184742 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정
+261004_184701 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정, safesys-app/src/lib/hwpx/special-770-result-hwpx-parts.ts 수정
+261004_184515 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정, safesys-app/src/lib/hwpx/special-770-result-hwpx-parts.ts 수정
+261004_181408 : safesys-app/src/components/project/SafetyNoticeModal.tsx 수정 — "'use client' // 프로젝트에 들어올 때마다 현재 안전 공지를 모달로 띄우고 닫기·확인으로 닫는 컴…"
+261004_181254 : safesys-app/src/components/project/SafetyInspectionForm.tsx 수정 — "import { createEmpty770Data, normalize770Data } from '@/comp…"
+261004_181253 : safesys-app/src/components/project/SafetyInspectionForm.tsx 수정 — "value={progressRate} onChange={e => { progressRateEditedRef.…"
+261004_181252 : safesys-app/src/components/project/SafetyInspectionForm.tsx 수정 — "const [progressRate, setProgressRate] = useState('') const p…"
+261004_181251 : safesys-app/src/components/project/SafetyInspectionForm.tsx 수정 — "if (project && !editingId) { fetchContractor() } }, [project…"
+261004_180418 : docs/database.md 수정 — "- `safety_inspections` — 정기안전점검(해빙기·우기·종합·특별점검). `inspection…"
+261004_180352 : safesys-app/package.json 수정
+261004_180241 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정, safesys-app/tests/special-770-result-hwpx.test.mjs 수정
+261004_180114 : safesys-app/src/lib/projects.ts 수정
+261004_180106 : safesys-app/tests/special-770-result-hwpx.test.mjs 수정
+261004_180054 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정, safesys-app/src/lib/hwpx/special-770-result-hwpx-parts.ts 수정
+261004_180023 : safesys-app/src/lib/excel/special-770-summary-export.ts 수정 — "// A3(8)는 ExcelJS PaperSize 열거에 없어 숫자를 그대로 넘긴다 paperSize: 8 …"
+261004_175956 : safesys-app/src/components/dashboard/SafetyInspectionLedgerView.tsx 수정
+261004_175846 : safesys-app/src/lib/supabase.ts 수정
+261004_175832 : safesys-app/src/lib/accident-analysis.ts 수정
+261004_175812 : safesys-app/tests/special-770-result-hwpx.test.mjs 수정
+261004_175810 : safesys-app/src/app/project/[id]/page.tsx 수정
+261004_175800 : safesys-app/tests/special-770-result-hwpx.test.mjs 추가 — "// 특별점검(굴삭기 버킷 사고) 결과(붙임3) HWPX 생성이 양식 예시값·안내문을 지우고 실제 값으로 채…"
+261004_175757 : safesys-app/src/app/project/[id]/issue-management/page.tsx 수정, safesys-app/src/app/project/[id]/page.tsx 수정, safesys-app/src/components/Dashboard.tsx 수정
+261004_175737 : safesys-app/src/app/project/[id]/safety-inspection-ledger/page.tsx 수정 — "{/* 굴삭기 특별점검: excavator_inspection 기반 렌더링 */} {isSpecial770T…"
+261004_175736 : safesys-app/src/app/project/[id]/safety-inspection-ledger/page.tsx 수정 — "const isSpecial = isSpecial287Type(ins.inspection_type)"
+261004_175735 : safesys-app/src/app/project/[id]/safety-inspection-ledger/page.tsx 수정 — "{SAFETY_INSPECTION_TYPES.map(type => ("
+261004_175725 : safesys-app/src/app/project/[id]/safety-inspection-ledger/page.tsx 수정 — "{shortInspectionTypeLabel(type)}"
+261004_175725 : safesys-app/src/app/project/[id]/safety-inspection-ledger/page.tsx 수정 — "{SAFETY_INSPECTION_TYPES.map(type => ( <button key={type} on…"
+261004_175724 : safesys-app/src/app/project/[id]/safety-inspection-ledger/page.tsx 수정
+261004_175723 : safesys-app/src/app/project/[id]/safety-inspection-ledger/page.tsx 수정 — "additional_items?: any[] | null excavator_inspection?: Speci…"
+261004_175723 : safesys-app/src/app/project/[id]/safety-inspection-ledger/page.tsx 수정 — "import CopyrightNotice from '@/components/common/CopyrightNo…"
+261004_175712 : safesys-app/src/components/project/special-770/Special770LedgerRows.tsx 추가 — "// 안전점검 관리대장의 굴삭기 특별점검 행 — 지적 1건=1행, 조치 후 사진 압축 업로드·편집·삭제, 결…"
+261004_175710 : safesys-app/src/lib/excel/special-770-summary-export.ts 수정, safesys-app/tests/special-770-summary-export.test.mjs 수정
+261004_175651 : safesys-app/src/app/project/[id]/layout.tsx 수정, safesys-app/tests/special-770-summary-export.test.mjs 수정
+261004_175650 : safesys-app/src/app/project/[id]/layout.tsx 수정 — "<ProjectAssistantBot key={projectId} projectId={projectId} p…"
+261004_175648 : safesys-app/src/components/project/SafetyNoticeModal.tsx 추가 — "'use client' // 프로젝트에 들어올 때마다 현재 안전 공지를 모달로 띄우고 닫기·확인으로 닫는 컴…"
+261004_175643 : safesys-app/tests/special-770-summary-export.test.mjs 추가 — "// 굴삭기 특별점검 붙임4 총괄표 워크북의 헤더 라벨·병합·계 수식·데이터 셀·정렬·사진·인쇄 설정을 검증…"
+261004_175642 : safesys-app/src/lib/safety-notice.ts 추가 — "// 프로젝트 진입 시 자동으로 띄우는 안전 공지 내용 — 공지를 바꾸려면 이 상수만 고친다 export i…"
+261004_175626 : safesys-app/src/components/project/SafetyInspectionForm.tsx 수정
+261004_175625 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정
+261004_175617 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 추가 — "// 특별점검(굴삭기 버킷 사고) 1건을 붙임3 「지사 및 사업단 특별점검 결과」 한글 양식(HWPX)으로 …"
+261004_175616 : safesys-app/src/components/project/SafetyInspectionDetail.tsx 수정
+261004_175556 : safesys-app/src/components/project/special-770/Special770Detail.tsx 추가 — "// 굴삭기 특별점검 상세보기(읽기 전용) — 굴착기별 판정표, 지적·조치 사진, 현장점검 사진 'use c…"
+261004_175531 : safesys-app/src/components/project/SafetyInspectionForm.tsx 수정, safesys-app/src/components/project/special-770/state.ts 수정
+261004_175529 : safesys-app/src/lib/excel/special-770-summary-export.ts 추가 — "// 특별점검(굴삭기 버킷 사고) 붙임4 「점검 결과 총괄표」를 ExcelJS로 원본 양식대로 그려 내려받는…"
+261004_175520 : safesys-app/src/components/project/SafetyInspectionForm.tsx 수정
+261004_175502 : safesys-app/src/lib/hwpx/special-770-result-hwpx-parts.ts 추가 — "// 특별점검(굴삭기 버킷 사고) 결과 HWPX의 셀 채우기·그림 XML·글자 스타일 복제 보조 함수 imp…"
+261004_175448 : safesys-app/src/components/project/special-770/Special770Checklist.tsx 추가 — "// 굴삭기 특별점검 점검표 단계 — 점검표 원본 링크, 굴착기 목록, 지적 없을 때 현장점검 사진 'use…"
+261004_175447 : safesys-app/src/components/project/special-770/Special770Overview.tsx 추가 — "// 굴삭기 특별점검 점검개요의 점검반·점검공종 입력 칸 'use client' import React fr…"
+261004_175428 : safesys-app/public/특별점검(굴삭기 버킷 사고) 점검표.hwpx 추가
+261004_175423 : safesys-app/src/components/project/special-770/Special770ExcavatorCard.tsx 추가 — "// 굴착기 한 대의 점검표 카드 — 차량번호와 대분류별 15항목 + 기타 판정 입력 'use client'…"
+261004_175407 : safesys-app/src/components/project/special-770/state.ts 수정
+261004_175359 : safesys-app/src/components/project/special-770/Special770ItemRow.tsx 추가 — "// 굴삭기 점검표 항목 한 줄 — 판정 선택, 부적정 시 지적·조치·사진·조치예정일, 안전핀 증빙사진 입력…"
+261004_175355 : safesys-app/public/특별점검(굴삭기) 결과 양식.hwpx 추가, safesys-app/public/특별점검770 결과 양식.hwpx 삭제
+261004_175341 : safesys-app/src/components/project/special-770/Special770PhotoSlot.tsx 추가 — "// 770 특별점검 사진 한 칸 — 점선 업로드 영역, 압축 업로드, 크롭/회전(ImageEditor)·삭…"
+261004_175322 : safesys-app/src/components/project/special-770/state.ts 추가 — "// 770 특별점검 입력 상태(Special770InspectionData)를 새 객체로 갱신하는 순수 함…"
+261004_175321 : safesys-app/src/components/project/special-770/photo-storage.ts 추가, safesys-app/src/lib/projects.ts 수정
+261004_175320 : database/20261004-1200_특별점검770_굴착기_유형추가.sql 수정, plans/20261004_특별점검770_굴착기.md 수정
+261004_175313 : safesys-app/src/lib/safety-inspection-types.ts 수정 — "if (type === SPECIAL_287_TYPE) return '특별'"
+261004_175312 : safesys-app/src/lib/safety-inspection-types.ts 수정 — "if (type === SPECIAL_770_TYPE) return '특별(굴삭기)'"
+261004_175312 : safesys-app/src/lib/safety-inspection-types.ts 수정 — "export const SPECIAL_770_TYPE = '특별점검(굴삭기 버킷 사고)'"
+261004_175302 : safesys-app/src/lib/projects.ts 수정
+261004_175233 : safesys-app/tests/special-770-summary.test.mjs 추가
+261004_175209 : safesys-app/src/lib/image-compress.ts 추가 — "// 브라우저에서 사진을 긴 변 기준으로 줄이고 JPEG로 다시 인코딩하는 공용 압축 유틸 /** * 이미지…"
+261004_175204 : safesys-app/public/특별점검770 결과 양식.hwpx 추가
+261004_175021 : plans/20261004_특별점검770_굴착기.md 추가 — "# 특별점검(굴삭기 버킷 사고, 안전혁신건설-770) 추가 ## 목표 정기안전점검 대장에 770 특별점검 유…"
+261004_174956 : database/20261004-1200_특별점검770_굴착기_유형추가.sql 추가 — "-- 정기안전점검에 특별점검(굴삭기 버킷 사고, 안전혁신건설-770) 유형을 허용하고, 굴착기별 점검표 데이…"
+261004_174948 : safesys-app/src/lib/special-inspection-770/summary.ts 추가 — "// 770 특별점검 데이터에서 지적 목록·굴착기별 건수·대분류별 지적/조치 문구를 뽑는 순수 함수 impo…"
+261004_174947 : safesys-app/src/lib/special-inspection-770/types.ts 추가 — "// 특별점검(굴삭기 버킷 사고, 안전혁신건설-770) 점검표 항목 정의와 저장 데이터(excavator_i…"
+261004_174946 : safesys-app/src/lib/safety-inspection-types.ts 추가 — "// 정기·특별 안전점검 유형 문자열과 특별점검 판별 헬퍼 — 유형 문자열 비교는 여기 상수만 쓴다 expo…"
 261002_175550 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정
 261002_175147 : safesys-app/src/app/project/[id]/headquarters-inspection/page.tsx 수정
 261002_175034 : safesys-app/src/app/project/[id]/manager-inspection/page.tsx 수정
@@ -27,8 +114,115 @@
 261002_101655 : safesys-app/src/components/project/TBMStatus.tsx 수정
 261002_101647 : safesys-app/src/components/project/TBMStatus.tsx 수정
 261002_101402 : plans/20261002_사고이력_엑셀다운로드/brief-worker.md 추가 — "# Worker 브리프 — 사고 이력 엑셀 다운로드 버튼 ## 목표 `/safe/accident-analys…"
+261001_062258 : .codex/agents 수정, .codex/commands 수정, .codex/contexts 수정, .codex/docs 수정, .codex/examples 수정, .codex/hooks 수정 외 7건
+261001_062242 : .codex/hooks 수정
+261001_062234 : .codex/hooks 수정
+261001_061916 : .codex/hooks 수정
+261001_061907 : .codex/hooks 수정
+261001_061859 : .codex/hooks 수정
+261001_061852 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+261001_061818 : .codex/hooks 수정
+261001_061813 : .codex/hooks 수정
+261001_061530 : .codex/hooks 수정
+261001_061524 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+261001_061456 : .codex/hooks 수정
+261001_061448 : .codex/hooks 수정
+261001_061442 : .codex/hooks 수정
+261001_061431 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+261001_061352 : .codex/hooks 수정
+261001_061348 : .codex/hooks 수정
+261001_061255 : .codex/hooks 수정
+261001_061250 : .codex/hooks 수정
+261001_061242 : .codex/hooks 수정
+261001_061240 : .codex/hooks 수정
+261001_061226 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정, safesys-app/tests/project-accident-report.test.mjs 수정
+261001_061214 : .codex/hooks 수정
+261001_060644 : .codex/hooks 수정
+261001_060634 : .codex/hooks 수정
+261001_060554 : .codex/hooks 수정
+261001_060525 : .codex/hooks 수정
+261001_060523 : .codex/hooks 수정
+261001_060456 : .codex/hooks 수정
+261001_060427 : .codex/hooks 수정
+261001_060425 : .codex/hooks 수정
+261001_060421 : .codex/hooks 수정
+261001_060340 : .codex/hooks 수정
+261001_060335 : .codex/hooks 수정, safesys-app/package.json 수정
+261001_060329 : .codex/hooks 수정
+261001_060325 : .codex/hooks 수정
+261001_060300 : .codex/hooks 수정
+261001_060245 : .codex/hooks 수정
+261001_060232 : .codex/hooks 수정
+261001_060137 : .codex/hooks 수정
+261001_060108 : .codex/hooks 수정
+261001_060100 : .codex/hooks 수정
+261001_060040 : .codex/hooks 수정, docs/database.md 수정, safesys-app/package.json 수정, safesys-app/tests/accident-worker-flags.test.mjs 추가
+261001_060022 : .codex/hooks 수정
+261001_060019 : .codex/hooks 수정, safesys-app/tests/fixtures/project-accidents-db.mjs 수정, safesys-app/tests/project-accident-report-ui.test.mjs 수정, safesys-app/tests/project-accident-report.test.mjs 수정, safesys-app/tests/project-accidents-sql.test.mjs 수정
+261001_060004 : .codex/hooks 수정
+261001_060000 : .codex/hooks 수정
+261001_055957 : .codex/hooks 수정
+261001_055953 : .codex/hooks 수정
+261001_055945 : .codex/hooks 수정
+261001_055940 : .codex/hooks 수정
+261001_055936 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정, safesys-app/src/components/project/accident-report/AccidentReportDetail.tsx 수정
+261001_055918 : .codex/hooks 수정
+261001_055916 : .codex/hooks 수정
+261001_055911 : .codex/hooks 수정
+261001_055906 : .codex/hooks 수정
+261001_055900 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentEntryModal.tsx 수정, safesys-app/src/components/project/accident-report/prefill-merge.ts 수정
+261001_055840 : .codex/hooks 수정
+261001_055836 : .codex/hooks 수정
+261001_055830 : .codex/hooks 수정, safesys-app/src/lib/accident-worker-flags.ts 추가
+261001_055819 : .codex/hooks 수정, safesys-app/src/lib/accident-analysis-types.ts 수정, safesys-app/src/lib/accident-analysis.ts 수정
+261001_055809 : .codex/hooks 수정
+261001_055803 : .codex/hooks 수정
+261001_055753 : .codex/hooks 수정, database/20261001-0556_사고보고_신규근로자_외국인_여부.sql 추가
+261001_055745 : .codex/hooks 수정
+261001_055741 : .codex/hooks 수정
+261001_055629 : .codex/hooks 수정
+261001_055623 : .codex/hooks 수정
+261001_055615 : .codex/hooks 수정
+261001_055549 : .codex/hooks 수정
+261001_055544 : .codex/hooks 수정
+261001_055539 : .codex/hooks 수정
+261001_055529 : .codex/hooks 수정
+261001_055449 : .codex/hooks 수정
+261001_055446 : .codex/hooks 수정
+261001_055442 : .codex/hooks 수정
+261001_055131 : .codex/hooks 수정, safesys-app/src/components/ui/SimpleProjectMap.tsx 수정
+261001_055115 : .codex/hooks 수정
+261001_052854 : .codex/hooks 수정, safesys-app/src/components/Dashboard.tsx 수정, safesys-app/src/components/dashboard/ClientMapView.tsx 수정, safesys-app/src/components/ui/SimpleProjectMap.tsx 수정
+261001_052813 : .codex/hooks 수정
+261001_052806 : .codex/hooks 수정
+261001_052756 : .codex/hooks 수정
+261001_052751 : .codex/hooks 수정
+261001_052748 : .codex/hooks 수정
 260930_130418 : safesys-app/src/lib/excel/patrol-inspection-export.ts 수정 — "// 지적일 오름차순으로 적어 최신 지적일이 맨 마지막 행이 되게 한다. 같은 날은 등록 순서를 따른다. c…"
 260930_130401 : safesys-app/tests/patrol-inspection-export.test.mjs 수정 — "test('행은 지적일 오름차순이라 최신 지적일이 맨 마지막 행이다', async () => { const …"
+260923_102148 : .codex/hooks 수정
+260923_102139 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260923_102131 : .codex/hooks 수정
+260923_102109 : .codex/hooks 수정
+260923_102045 : .codex/hooks 수정
+260923_102023 : .codex/hooks 수정
+260923_101959 : .codex/hooks 수정
+260923_101935 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260923_101932 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260923_101931 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260923_101928 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260923_101927 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260923_101925 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260923_101920 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260923_101916 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260923_101914 : .codex/hooks 수정, safesys-app/src/components/dashboard/AccidentAnalysisView.tsx 수정
+260923_101911 : .codex/hooks 수정
+260923_101907 : .codex/hooks 수정
+260923_101857 : .codex/hooks 수정
+260923_101853 : .codex/hooks 수정
+260923_101850 : .codex/hooks 수정
+260923_101838 : .codex/hooks 수정
+260923_073905 : .codex/hooks 수정
 260923_073854 : .codex/hooks 수정
 260923_073850 : .codex/hooks 수정
 260923_070131 : .codex/hooks 수정

@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import type { Special770InspectionData } from '@/lib/special-inspection-770/types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Database = any
@@ -44,6 +45,8 @@ export interface SafetyInspection {
   created_at: string
   updated_at: string
   checklist_items?: SafetyChecklistItem[]
+  /** 굴삭기 특별점검 데이터. 그 외 유형은 null */
+  excavator_inspection?: Special770InspectionData | null
 }
 
 export interface SafetyChecklistItem {

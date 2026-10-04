@@ -23,6 +23,9 @@ import {
   validateAccidentReportDetails,
 } from '@/lib/accident-report'
 import { resolveFindingCode } from '@/lib/finding-classification'
+import { isSpecial287Type, isSpecial770Type, isSpecialInspectionType } from '@/lib/safety-inspection-types'
+import { inspectionStats } from '@/lib/special-inspection-770/summary'
+import type { Special770InspectionData } from '@/lib/special-inspection-770/types'
 import {
   BATCH_SIZE,
   addCalendarDays,
@@ -61,6 +64,7 @@ interface RawSafetyInspection extends UnknownRecord {
   inspector_opinion?: string
   signatures?: unknown
   additional_items?: unknown
+  excavator_inspection?: unknown
   safety_inspection_results?: unknown
 }
 
@@ -114,7 +118,8 @@ const isRegularFinding = (value: unknown): boolean => {
 }
 
 const isSignedRegularInspection = (signaturesValue: unknown, inspectionType: string): boolean => {
-  if (inspectionType === '특별점검(안전혁신건설-287)') return true
+  // 특별점검(287·굴삭기)은 서명 단계가 없으므로 서명 완료로 본다
+  if (isSpecialInspectionType(inspectionType)) return true
   const signatures = asArray(signaturesValue).map(asRecord).filter((value): value is UnknownRecord => value !== null)
   const required = signatures.filter((signature) =>
     hasNonEmptyValue(signature, ['name', 'position', 'dataUrl', 'data_url', 'signature'])
@@ -133,12 +138,15 @@ const normalizeSafetyInspection = (row: RawSafetyInspection): NormalizedSafetyIn
   })
   const additionalItems = asArray(row.additional_items).map(asRecord).filter((value): value is UnknownRecord => value !== null)
   const realAdditionalItems = additionalItems.filter((item) => isMeaningfulFindingText(item.action))
-  const specialUnresolved = inspectionType === '특별점검(안전혁신건설-287)'
+  const specialUnresolved = isSpecial287Type(inspectionType)
     ? realAdditionalItems.filter((item) => {
         const afterPhoto = textValue(item.after_photo_url)
         return !afterPhoto || afterPhoto === 'N/A'
       }).length
     : 0
+  const excavator = isSpecial770Type(inspectionType)
+    ? inspectionStats(row.excavator_inspection as Special770InspectionData | null | undefined)
+    : null
 
   const resultTexts = realResults.map((value) => {
     const result = asRecord(value)
@@ -182,8 +190,8 @@ const normalizeSafetyInspection = (row: RawSafetyInspection): NormalizedSafetyIn
       ...additionalSummaries,
     ]),
     signed: isSignedRegularInspection(row.signatures, inspectionType),
-    finding_count: realResults.length + realAdditionalItems.length,
-    unresolved_count: unresolvedResults.length + specialUnresolved,
+    finding_count: realResults.length + realAdditionalItems.length + (excavator?.findings ?? 0),
+    unresolved_count: unresolvedResults.length + specialUnresolved + (excavator?.pending ?? 0),
     findings,
   }
 }
@@ -483,6 +491,7 @@ export async function getAccidentAnalysisInspections(
           inspector_opinion,
           signatures,
           additional_items,
+          excavator_inspection,
           safety_inspection_results (field_item, findings, action_items, photo_url, after_photo_url, finding_category_code)
         `)
         .in('project_id', batchIds)

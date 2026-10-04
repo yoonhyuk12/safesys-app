@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { X, FileText, Edit } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import type { Project } from '@/lib/projects'
+import { isSpecial287Type, isSpecial770Type } from '@/lib/safety-inspection-types'
+import Special770Detail from '@/components/project/special-770/Special770Detail'
 
 interface Props {
     inspectionId: string
@@ -63,9 +65,11 @@ export default function SafetyInspectionDetail({ inspectionId, project, onClose,
                         <button onClick={() => onEdit(inspectionId)} className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg text-sm hover:bg-orange-100">
                             <Edit className="h-4 w-4" /> 수정
                         </button>
+                        {!isSpecial770Type(inspection.inspection_type) && (
                         <button onClick={() => onExport(inspectionId)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm hover:bg-blue-100">
                             <FileText className="h-4 w-4" /> PDF
                         </button>
+                        )}
                         <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg"><X className="h-5 w-5 text-gray-500" /></button>
                     </div>
                 </div>
@@ -127,7 +131,9 @@ export default function SafetyInspectionDetail({ inspectionId, project, onClose,
                         </div>
                     </section>
 
-                    {inspection.inspection_type === '특별점검(안전혁신건설-287)' ? (
+                    {isSpecial770Type(inspection.inspection_type) ? (
+                    <Special770Detail data={inspection.excavator_inspection} onEnlarge={setEnlargedPhoto} />
+                    ) : isSpecial287Type(inspection.inspection_type) ? (
                     <>
                     {/* 특별점검: 2. 지적사항 */}
                     <section>

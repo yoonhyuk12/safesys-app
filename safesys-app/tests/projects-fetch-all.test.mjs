@@ -105,6 +105,10 @@ async function loadProjects(supabase) {
     './supabase': { supabase },
     './constants': { BRANCH_OPTIONS, DEBUG_LOGS: false },
     './ptw/permit-types': { PERMIT_TYPE_CONFIGS: {} },
+    './safety-inspection-types': await transpile('../src/lib/safety-inspection-types.ts'),
+    './special-inspection-770/summary': await transpile('../src/lib/special-inspection-770/summary.ts', {
+      '@/lib/special-inspection-770/types': await transpile('../src/lib/special-inspection-770/types.ts'),
+    }),
   })
 }
 

@@ -2,6 +2,9 @@ import { supabase } from './supabase'
 import type { UserProfile } from './supabase'
 import { BRANCH_OPTIONS, DEBUG_LOGS } from './constants'
 import { PERMIT_TYPE_CONFIGS, type PermitType } from './ptw/permit-types'
+import { SPECIAL_770_TYPE, isSpecial287Type, isSpecial770Type } from './safety-inspection-types'
+import { inspectionStats as special770InspectionStats } from './special-inspection-770/summary'
+import type { Special770InspectionData } from './special-inspection-770/types'
 
 export interface Project {
   id: string
@@ -1658,6 +1661,10 @@ export interface SafetyInspectionCountByProject {
   special_findings: number   // 특별 지적건수
   special_unresolved: number // 특별 미조치
   special_unsigned: number   // 특별 미서명
+
+  special770_count: number    // 특별점검(굴삭기 버킷 사고)
+  special770_findings: number // 770 지적건수(부적정 항목)
+  special770_pending: number  // 770 조치중 건수(조치 후 사진 없는 지적)
 }
 
 // 발주청 사용자가 볼 수 있는 정기안전점검 현황 조회
@@ -1735,6 +1742,7 @@ export async function getSafetyInspectionCountsByUserBranch(
           inspection_type,
           signatures,
           additional_items,
+          excavator_inspection,
           safety_inspection_results (findings, action_items, photo_url, after_photo_url)
         `)
         .in('project_id', batchIds)
@@ -1768,7 +1776,8 @@ export async function getSafetyInspectionCountsByUserBranch(
           thawing: { total: 0, findings: 0, additionalFindings: 0, unresolved: 0, unsigned: 0 },
           rainy: { total: 0, findings: 0, additionalFindings: 0, unresolved: 0, unsigned: 0 },
           comprehensive: { total: 0, findings: 0, unresolved: 0, unsigned: 0 },
-          special: { total: 0, findings: 0, unresolved: 0, unsigned: 0 }
+          special: { total: 0, findings: 0, unresolved: 0, unsigned: 0 },
+          special770: { total: 0, findings: 0, pending: 0 }
         }
         existing.total += 1
         const type = (ins.inspection_type || '').trim()
@@ -1826,7 +1835,7 @@ export async function getSafetyInspectionCountsByUserBranch(
           existing.comprehensive.findings += findingsCount
           if (isUnresolved) existing.comprehensive.unresolved += 1
           if (isUnsigned) existing.comprehensive.unsigned += 1
-        } else if (type === '특별점검(안전혁신건설-287)') {
+        } else if (isSpecial287Type(type)) {
           existing.special.total += 1
           // 특별점검: additional_items에서 지적사항(action !== '해당없음') 개수 및 조치사진 미등록 여부 판단
           let specialFindings = 0
@@ -1842,6 +1851,12 @@ export async function getSafetyInspectionCountsByUserBranch(
           existing.special.findings += specialFindings
           if (specialUnresolved) existing.special.unresolved += 1
           // 특별점검은 서명이 없으므로 미서명 카운트 제외
+        } else if (isSpecial770Type(type)) {
+          // 770은 excavator_inspection의 부적정 항목이 지적, 조치 후 사진 없는 지적이 조치중이다
+          const stats770 = special770InspectionStats(ins.excavator_inspection as Special770InspectionData | null)
+          existing.special770.total += 1
+          existing.special770.findings += stats770.findings
+          existing.special770.pending += stats770.pending
         }
 
         statsMap.set(ins.project_id, existing)
@@ -1853,7 +1868,8 @@ export async function getSafetyInspectionCountsByUserBranch(
         thawing: { total: 0, findings: 0, additionalFindings: 0, unresolved: 0, unsigned: 0 },
         rainy: { total: 0, findings: 0, additionalFindings: 0, unresolved: 0, unsigned: 0 },
         comprehensive: { total: 0, findings: 0, unresolved: 0, unsigned: 0 },
-        special: { total: 0, findings: 0, unresolved: 0, unsigned: 0 }
+        special: { total: 0, findings: 0, unresolved: 0, unsigned: 0 },
+        special770: { total: 0, findings: 0, pending: 0 }
       }
       return {
         project_id: p.id,
@@ -1879,6 +1895,9 @@ export async function getSafetyInspectionCountsByUserBranch(
         special_findings: stats.special.findings,
         special_unresolved: stats.special.unresolved,
         special_unsigned: stats.special.unsigned,
+        special770_count: stats.special770.total,
+        special770_findings: stats.special770.findings,
+        special770_pending: stats.special770.pending,
       }
     })
 
@@ -2020,6 +2039,99 @@ export async function getSafetyInspectionDetailsForExcel(
     return { success: true, data }
   } catch (error: any) {
     console.error('정기안전점검 상세 조회 실패:', error)
+    return { success: false, error: error.message || '데이터 조회 실패' }
+  }
+}
+
+// 770 특별점검 총괄표(붙임4)·일괄 HWPX(붙임3)용 점검 1건 = 1행 데이터
+export interface Special770SummaryInspectionRow {
+  inspection_id: string
+  inspection_date: string
+  /** 점검 시 입력한 지구명. 없으면 빈 문자열 */
+  district_name: string
+  data: Special770InspectionData
+  /** projects 행 전체(일괄 HWPX가 현장 정보를 그대로 쓴다) */
+  project: Project
+}
+
+/**
+ * 지정 연도(inspection_date 기준)의 770 특별점검을 권한 범위 안에서 읽는다.
+ * 프로젝트 필터는 getSafetyInspectionDetailsForExcel과 같은 골격(발주청 권한 → 선택 본부·지사 → 준공 제외)이다.
+ */
+export async function getSpecial770SummaryRows(
+  userProfile: UserProfile,
+  selectedHq: string | undefined,
+  selectedBranch: string | undefined,
+  year: number
+): Promise<{ success: boolean; data?: Special770SummaryInspectionRow[]; error?: string }> {
+  try {
+    let projectQuery = supabase
+      .from('projects')
+      .select('*')
+
+    if (userProfile.role === '발주청') {
+      if (userProfile.hq_division === '본사' && userProfile.branch_division === '본사') {
+        // 본사: 전사 조회
+      } else {
+        if (userProfile.hq_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_hq', userProfile.hq_division)
+        }
+        if (userProfile.branch_division && !userProfile.branch_division?.endsWith('본부')) {
+          projectQuery = projectQuery.eq('managing_branch', userProfile.branch_division)
+        }
+      }
+    }
+
+    if (selectedHq) projectQuery = projectQuery.eq('managing_hq', selectedHq)
+    if (selectedBranch) projectQuery = projectQuery.eq('managing_branch', selectedBranch)
+
+    const { data: projects, error: projectError } = await projectQuery
+    if (projectError) return { success: false, error: projectError.message }
+    if (!projects || projects.length === 0) return { success: true, data: [] }
+
+    // 준공 제외
+    const isComp = (p: any): boolean => {
+      if (p.is_active === undefined || p.is_active === null) return false
+      if (typeof p.is_active === 'boolean') return !p.is_active
+      if (typeof p.is_active === 'object') return p.is_active.completed === true
+      return false
+    }
+    const activeProjects = (projects as Project[]).filter(p => !isComp(p))
+    if (activeProjects.length === 0) return { success: true, data: [] }
+
+    const projectMap = new Map(activeProjects.map(p => [p.id, p]))
+    const projectIds = activeProjects.map(p => p.id)
+    const BATCH_SIZE = 30
+    const inspections: any[] = []
+
+    for (let i = 0; i < projectIds.length; i += BATCH_SIZE) {
+      const { data: batch, error: inspError } = await supabase
+        .from('safety_inspections')
+        .select('id, project_id, inspection_date, district_name, excavator_inspection')
+        .in('project_id', projectIds.slice(i, i + BATCH_SIZE))
+        .eq('inspection_type', SPECIAL_770_TYPE)
+        .gte('inspection_date', `${year}-01-01`)
+        .lte('inspection_date', `${year}-12-31`)
+        .order('inspection_date', { ascending: true })
+      if (inspError) return { success: false, error: inspError.message }
+      if (batch) inspections.push(...batch)
+    }
+
+    const data: Special770SummaryInspectionRow[] = inspections.flatMap(ins => {
+      const project = projectMap.get(ins.project_id)
+      if (!project) return []
+      return [{
+        inspection_id: ins.id,
+        inspection_date: ins.inspection_date || '',
+        district_name: ins.district_name || '',
+        data: (ins.excavator_inspection as Special770InspectionData | null) ?? { inspection_team: '', excavators: [] },
+        project,
+      }]
+    })
+
+    return { success: true, data }
+  } catch (error: any) {
+    console.error('770 특별점검 총괄 조회 실패:', error)
     return { success: false, error: error.message || '데이터 조회 실패' }
   }
 }

@@ -55,6 +55,8 @@ import BusinessAllContractView from '@/components/dashboard/BusinessAllContractV
 import TBMChatBot from '@/components/ui/TBMChatBot'
 import BulkProjectUploadModal from '@/components/project/BulkProjectUploadModal'
 import officeLocationsData from '@/lib/office-locations.json'
+import { isSpecial287Type, isSpecial770Type } from '@/lib/safety-inspection-types'
+import { inspectionStats } from '@/lib/special-inspection-770/summary'
 
 // JSX IntrinsicElements 선언: 빌드 도중 JSX 타입 미탐지 방지용 안전망
 // JSX 타입 선언
@@ -1567,7 +1569,7 @@ const Dashboard: React.FC = () => {
 
       const { data: safetyInspections } = await (supabase as any)
         .from('safety_inspections')
-        .select('project_id, id, inspection_type, additional_items, safety_inspection_results(id, findings, after_photo_url)')
+        .select('project_id, id, inspection_type, additional_items, excavator_inspection, safety_inspection_results(id, findings, after_photo_url)')
         .in('project_id', projectIds)
 
       if (safetyInspections) {
@@ -1579,7 +1581,9 @@ const Dashboard: React.FC = () => {
         const sCounts: Record<string, number> = {}
         safetyInspections.forEach((ins: any) => {
           let pending = 0
-          if (ins.inspection_type === '특별점검(안전혁신건설-287)') {
+          if (isSpecial770Type(ins.inspection_type)) {
+            pending = inspectionStats(ins.excavator_inspection).pending
+          } else if (isSpecial287Type(ins.inspection_type)) {
             const items = Array.isArray(ins.additional_items) ? ins.additional_items : []
             pending = items.filter((it: any) => it && it.action && it.action !== '해당없음' && isPendingPhoto(it.after_photo_url)).length
           } else {

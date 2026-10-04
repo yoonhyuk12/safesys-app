@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import ProjectAssistantBot from '@/components/project/ProjectAssistantBot'
+import SafetyNoticeModal from '@/components/project/SafetyNoticeModal'
 
 export default function ProjectLayout({ children }: { children: React.ReactNode }) {
   const params = useParams()
@@ -36,6 +37,8 @@ export default function ProjectLayout({ children }: { children: React.ReactNode 
       {projectId && (
         <ProjectAssistantBot key={projectId} projectId={projectId} projectName={projectName} />
       )}
+      {/* 프로젝트 진입(전환 포함)마다 안전 공지를 다시 띄운다. 챗봇보다 뒤에 둬서 위에 겹치게 한다 */}
+      {projectId && <SafetyNoticeModal key={`notice-${projectId}`} />}
     </>
   )
 }

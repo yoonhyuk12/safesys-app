@@ -25,6 +25,8 @@ import ProjectShareModal from '@/components/project/ProjectShareModal'
 import PWAInstallButtonHeader from '@/components/common/PWAInstallButtonHeader'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
 import NavigationSelector from '@/components/ui/NavigationSelector'
+import { isSpecial287Type, isSpecial770Type } from '@/lib/safety-inspection-types'
+import { inspectionStats } from '@/lib/special-inspection-770/summary'
 
 // 캐비넷에서 서류가 아래로 펼쳐져 나오고(열림), 다시 위로 접혀 들어가는(닫힘) 여닫이 애니메이션 래퍼
 function CabinetDrawer({ open, instantClose = false, children }: { open: boolean; instantClose?: boolean; children: React.ReactNode }) {
@@ -428,7 +430,7 @@ export default function ProjectDetailPage() {
       let safetyFindingPending = 0
       const { data: safetyInspections } = await supabase
         .from('safety_inspections')
-        .select('id, inspection_type, additional_items, safety_inspection_results(id, findings, photo_url, after_photo_url)')
+        .select('id, inspection_type, additional_items, excavator_inspection, safety_inspection_results(id, findings, photo_url, after_photo_url)')
         .eq('project_id', projectId)
 
       if (safetyInspections) {
@@ -438,7 +440,10 @@ export default function ProjectDetailPage() {
           return typeof after === 'string' && after.trim() === ''
         }
         const pendingPhotoCount = (safetyInspections as any[]).reduce((count: number, ins: any) => {
-          if (ins.inspection_type === '특별점검(안전혁신건설-287)') {
+          if (isSpecial770Type(ins.inspection_type)) {
+            return count + inspectionStats(ins.excavator_inspection).pending
+          }
+          if (isSpecial287Type(ins.inspection_type)) {
             const items = Array.isArray(ins.additional_items) ? ins.additional_items : []
             const pending = items.filter((it: any) => it && it.action && it.action !== '해당없음' && isPendingPhoto(it.after_photo_url)).length
             return count + pending
@@ -452,7 +457,11 @@ export default function ProjectDetailPage() {
           return count + pending
         }, 0)
         setSafetyLedgerPendingCount(pendingPhotoCount)
-        safetyFindingPending = pendingPhotoCount
+        // 굴삭기 특별점검 지적은 지적사항 관리대장에 아직 들어가지 않으므로 그 미조치 건수에서는 뺀다
+        const excavatorPending = (safetyInspections as any[])
+          .filter((ins: any) => isSpecial770Type(ins.inspection_type))
+          .reduce((sum: number, ins: any) => sum + inspectionStats(ins.excavator_inspection).pending, 0)
+        safetyFindingPending = pendingPhotoCount - excavatorPending
         setSafetyLedgerCount(safetyInspections.length)
         safetyFindingTotal = (safetyInspections as any[]).reduce((sum: number, ins: any) => {
           const results = Array.isArray(ins.safety_inspection_results) ? ins.safety_inspection_results : []

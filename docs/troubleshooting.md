@@ -6,6 +6,7 @@
 - **빌드 캐시 문제**: `npm run build:no-cache` 사용
 - **dev 서버가 모든 경로에 `Internal Server Error`(500)를 주거나 소스와 다른 옛 코드가 실행될 때**: 오래 켜 둔 `next dev`의 webpack 컴파일러가 멈춘 것이다. `.next/static/webpack/**/*.hot-update.js`의 최신 시각이 소스 mtime보다 앞서면 확정이며, 마지막으로 컴파일된 편집 중간 상태(예: 함수 시그니처는 바뀌고 호출부는 안 바뀐 번들)가 그대로 서빙돼 `x.resolve is not a function` 같은 엉뚱한 런타임 오류가 난다. 코드가 아니라 서버 문제이므로 dev 서버를 재시작한다 (2026-09-22 확인).
 - **프로필 미동기화**: `refreshProfile()` 호출
+- **다운로드에서 `Unexpected token 'I', "Internal S"... is not valid JSON`**: API가 JSON 대신 `Internal Server Error`를 반환한 것이다. 홈페이지와 다른 API까지 모두 500인지 확인하고 dev 터미널 로그를 읽는다. 2026-10-05에는 `.next/static/chunks/app/layout.js` 읽기의 `UNKNOWN` 오류가 원인이었으며 기존 dev 서버를 종료하고 `npm run dev`로 재시작하자 실제 AI 요청이 JSON 200으로 복구됐다. 특별점검770 다운로드는 이런 비 JSON 응답을 HTTP 상태 안내로 처리한다.
 - **중복 요청**: Dashboard.tsx의 ref 기반 캐시 확인
 - **권한 오류**: RLS 정책 및 `hq_division`/`branch_division` 값 확인
 - **지도 문제**: layout.tsx의 API 키 포함 여부, projects 테이블의 latitude/longitude 확인
