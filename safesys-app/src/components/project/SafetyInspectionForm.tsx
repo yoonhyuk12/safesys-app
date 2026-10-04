@@ -936,7 +936,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                 </div>
 
                 {/* 스텝 인디케이터 */}
-                <div className="flex flex-wrap items-center justify-center gap-2 px-6 py-3 bg-gray-50 border-b">
+                <div className="flex flex-wrap items-center justify-center gap-1 px-3 py-3 bg-gray-50 border-b sm:gap-2 sm:px-6">
                     {(isSpecialInspection
                         ? ['점검개요', '지적사항']
                         : isExcavatorInspection
@@ -946,7 +946,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                         <button
                             key={i}
                             onClick={() => setStep(i + 1)}
-                            className={`min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm transition-colors ${step === i + 1
+                            className={`min-h-[44px] flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm whitespace-nowrap transition-colors ${step === i + 1
                                 ? 'bg-blue-600 text-white'
                                 : 'bg-white text-gray-500 border hover:border-blue-300'
                                 }`}
@@ -954,7 +954,7 @@ export default function SafetyInspectionForm({ projectId, project, editingId, in
                             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${step === i + 1 ? 'bg-white/20' : 'bg-gray-200'}`}>
                                 {i + 1}
                             </span>
-                            {label}
+                            <span className={step === i + 1 ? '' : 'sr-only sm:not-sr-only'}>{label}</span>
                         </button>
                     ))}
                 </div>
