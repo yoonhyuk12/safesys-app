@@ -7,6 +7,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ArrowLeft, Plus, Trash2, Edit2, FileSpreadsheet, FileText, Ban, X, Upload, Crop } from 'lucide-react'
 import ImageEditor from '@/components/ui/ImageEditor'
 import { supabase } from '@/lib/supabase'
+import { special770LedgerRows, saveSpecial770Action, type Special770IssueSource } from '@/lib/special-inspection-770/issue-ledger'
+import { uploadSpecial770Photo, removeSpecial770Photo } from '@/components/project/special-770/photo-storage'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import CopyrightNotice from '@/components/common/CopyrightNotice'
 import { downloadIssueActionReportExcel } from '@/lib/excel/issue-action-report-export'
@@ -35,6 +37,7 @@ interface DirectIssue {
 }
 
 type IssueSource =
+  | Special770IssueSource
   | { kind: 'hq'; inspectionId: string; issueNo: 1 | 2 }
   | { kind: 'safety_result'; resultId: string }
   | { kind: 'safety_additional'; inspectionId: string; itemIndex: number }
@@ -191,10 +194,11 @@ export default function IssueManagementPage() {
       })
 
       // 2) 정기점검 (해빙기/우기/종합/특별) — 결과 항목 실지적 + 추가항목 지적
-      const { data: siData } = await supabase
+      const { data: siData, error: siError } = await supabase
         .from('safety_inspections')
-        .select('id, inspection_type, inspection_date, supervisor_name, contractor, additional_items, signatures, safety_inspection_results(id, field_item, findings, action_items, photo_url, after_photo_url, sort_order)')
+        .select('id, inspection_type, inspection_date, supervisor_name, contractor, additional_items, excavator_inspection, signatures, safety_inspection_results(id, field_item, findings, action_items, photo_url, after_photo_url, sort_order)')
         .eq('project_id', projectId)
+      if (siError) throw siError
       siData?.forEach((ins: any) => {
         const sigs = Array.isArray(ins.signatures) ? ins.signatures : []
         const writerSig = sigs.find((s: any) => s?.role === '현장대리인')
@@ -209,6 +213,12 @@ export default function IssueManagementPage() {
           contractorSignature: writerSig?.dataUrl || null,
           supervisorSignature: confirmerSig?.dataUrl || null,
           actionDate: null,
+        }
+        if (isSpecial770Type(ins.inspection_type)) {
+          list.push(...special770LedgerRows(ins.id, ins.excavator_inspection).map(row => ({
+            ...common, ...row, inspectorName: ins.excavator_inspection?.inspection_team || common.inspectorName,
+          })))
+          return
         }
         const results = Array.isArray(ins.safety_inspection_results) ? ins.safety_inspection_results : []
         results
@@ -302,6 +312,7 @@ export default function IssueManagementPage() {
       setIssues(list)
     } catch (err) {
       console.error('지적사항 로딩 실패:', err)
+      alert('지적사항을 불러오지 못했습니다. 다시 시도해 주세요.')
     } finally {
       setLoading(false)
     }
@@ -324,7 +335,9 @@ export default function IssueManagementPage() {
 
   const applyAction = async (issue: LedgerIssue, afterPhotoUrl: string | null) => {
     const src = issue.source
-    if (src.kind === 'hq') {
+    if (src.kind === 'safety_770') {
+      await saveSpecial770Action(supabase, projectId, src, { after_photo_url: afterPhotoUrl })
+    } else if (src.kind === 'hq') {
       await (supabase.from('headquarters_inspections') as any)
         .update({
           [`action_photo_issue${src.issueNo}`]: afterPhotoUrl,
@@ -381,7 +394,9 @@ export default function IssueManagementPage() {
       const resized = await resizeImageToJpeg(file)
       const src = issue.source
       let url: string | null = null
-      if (src.kind === 'hq') {
+      if (src.kind === 'safety_770') {
+        url = await uploadSpecial770Photo(projectId, file, `after_${src.excavatorId}_${src.code}`)
+      } else if (src.kind === 'hq') {
         // 본부점검 페이지와 동일 버킷·폴더
         const ext = 'jpg'
         url = await uploadToStorage(resized, 'inspection-photos', `headquarters-actions/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`)
@@ -428,6 +443,12 @@ export default function IssueManagementPage() {
       // 정기점검·직접등록 사진은 Storage에서도 제거 (원본 페이지 관례)
       const url = issue.afterPhotoUrl
       const kind = issue.source.kind
+      if (kind === 'safety_770') {
+        await applyAction(issue, null)
+        await removeSpecial770Photo(url)
+        await loadAll()
+        return
+      }
       if (kind === 'safety_result' || kind === 'safety_additional' || kind === 'patrol') {
         const path = url.split('/safety-inspection-photos/')[1]
         if (path) await supabase.storage.from('safety-inspection-photos').remove([decodeURIComponent(path)])
@@ -449,7 +470,9 @@ export default function IssueManagementPage() {
   const handleSaveActionText = async (issue: LedgerIssue) => {
     setWorkingKey(issue.key)
     try {
-      if (issue.source.kind === 'safety_result') {
+      if (issue.source.kind === 'safety_770') {
+        await saveSpecial770Action(supabase, projectId, issue.source, { action: tempActionText })
+      } else if (issue.source.kind === 'safety_result') {
         await (supabase.from('safety_inspection_results') as any)
           .update({ action_items: tempActionText })
           .eq('id', issue.source.resultId)
@@ -645,7 +668,7 @@ export default function IssueManagementPage() {
       // 점검내용 및 시정조치 요구사항: 지적부위 + 지적사항 (+ 정기점검의 조치 요구 텍스트)
       let content = issue.findingText || ''
       if (issue.location) content = `(지적부위: ${issue.location})\n${content}`
-      if ((kind === 'safety_result' || kind === 'safety_additional') && issue.actionText) {
+      if ((kind === 'safety_result' || kind === 'safety_additional' || kind === 'safety_770') && issue.actionText) {
         content += `\n\n[시정조치 요구사항]\n${issue.actionText}`
       }
       await downloadCorrectiveActionRequestExcel({
@@ -877,7 +900,7 @@ export default function IssueManagementPage() {
                             ) : (
                               <div className="flex items-start gap-1">
                                 <span className="flex-1">{issue.actionText || '-'}</span>
-                                {(issue.source.kind === 'safety_result' || issue.source.kind === 'patrol' || issue.source.kind === 'direct') && (
+                                {(issue.source.kind === 'safety_770' || issue.source.kind === 'safety_result' || issue.source.kind === 'patrol' || issue.source.kind === 'direct') && (
                                   <button
                                     onClick={() => {
                                       setEditingActionKey(issue.key)
@@ -921,12 +944,12 @@ export default function IssueManagementPage() {
                                   <Plus className="h-3 w-3" /> 추가
                                   <input type="file" accept="image/*" className="hidden" onChange={(e) => handleAfterPhotoUpload(issue, e)} />
                                 </label>
-                                <button
+                                {issue.source.kind !== 'safety_770' && <button
                                   onClick={() => handleToggleNotApplicable(issue)}
                                   className="inline-flex items-center gap-0.5 text-xs text-gray-400 hover:text-gray-600"
                                 >
                                   <Ban className="h-3 w-3" /> 해당없음
-                                </button>
+                                </button>}
                               </div>
                             )}
                           </td>

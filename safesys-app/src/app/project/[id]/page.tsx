@@ -428,11 +428,12 @@ export default function ProjectDetailPage() {
       // 안전점검 관리대장 조치 후 사진 미등록 건수 조회 (+ 카드 표시용 등록·지적 건수)
       let safetyFindingTotal = 0
       let safetyFindingPending = 0
-      const { data: safetyInspections } = await supabase
+      const { data: safetyInspections, error: safetyInspectionsError } = await supabase
         .from('safety_inspections')
         .select('id, inspection_type, additional_items, excavator_inspection, safety_inspection_results(id, findings, photo_url, after_photo_url)')
         .eq('project_id', projectId)
 
+      if (safetyInspectionsError) throw safetyInspectionsError
       if (safetyInspections) {
         const isPendingPhoto = (after: any) => {
           if (after === 'N/A') return false
@@ -457,13 +458,10 @@ export default function ProjectDetailPage() {
           return count + pending
         }, 0)
         setSafetyLedgerPendingCount(pendingPhotoCount)
-        // 굴삭기 특별점검 지적은 지적사항 관리대장에 아직 들어가지 않으므로 그 미조치 건수에서는 뺀다
-        const excavatorPending = (safetyInspections as any[])
-          .filter((ins: any) => isSpecial770Type(ins.inspection_type))
-          .reduce((sum: number, ins: any) => sum + inspectionStats(ins.excavator_inspection).pending, 0)
-        safetyFindingPending = pendingPhotoCount - excavatorPending
+        safetyFindingPending = pendingPhotoCount
         setSafetyLedgerCount(safetyInspections.length)
         safetyFindingTotal = (safetyInspections as any[]).reduce((sum: number, ins: any) => {
+          if (isSpecial770Type(ins.inspection_type)) return sum + inspectionStats(ins.excavator_inspection).findings
           const results = Array.isArray(ins.safety_inspection_results) ? ins.safety_inspection_results : []
           const additional = Array.isArray(ins.additional_items) ? ins.additional_items : []
           return sum + results.filter(isRealFinding).length + additional.filter(isAdditionalFinding).length
