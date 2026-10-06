@@ -42,6 +42,8 @@ const canSeeAllHq = userProfile?.role === '발주청' &&
 
 ## 인증 플로우
 
+패트롤 시정조치계획(`/api/ai/patrol-corrective-plan`)은 기존 패트롤 엑셀과 동일하게 Bearer JWT `getUser` 검증, 발주청 프로필, `isOrganizationInUserScope` 관할 검사를 거친다. 요청은 점검 ID만 받으며 저장된 패트롤 원본을 다시 조회한다. 해당없음·빈 지적은 AI를 호출하지 않는다. 생성 성공·외부 호출 실패·응답 검증 실패는 `ai.patrol-corrective-plan` 사용량 로그로 기록한다. 원문은 각 지적 10,000자까지 유지하며 초과하면 명시적으로 거절한다.
+
 특별점검770 HWPX 조치문구(`/api/ai/special-770-actions`)는 Bearer JWT를 `getUser`로 검증하고 같은 사용자 클라이언트로 `safety_inspections` 원본과 `projects` 조회 RLS를 모두 확인한다. 클라이언트는 점검 ID만 전달하며, 서버는 저장된 실제 지적사항이 있고 수기 조치가 빈 항목만 gpt-6-luna 고정 모델로 생성한다. 응답의 항목 식별자와 원본 지적을 다운로드 입력과 대조한 뒤 사본에만 적용하며 DB에는 저장하지 않는다. 실제 지적사항이 없는 결과표 조치 칸은 오래된 조치·예정일이 있어도 비운다. AI 실패·잘림·거절·누락은 전체 다운로드 오류로 처리한다.
 
 - **AuthContext** (`src/contexts/AuthContext.tsx`): 전역 인증 상태 (user, userProfile, refreshProfile, signOut)

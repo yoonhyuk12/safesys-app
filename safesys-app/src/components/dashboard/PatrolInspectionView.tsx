@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Car, ChevronDown, ChevronUp, Download, Loader2, RefreshCw } from 'lucide-react'
+import { downloadPatrolCorrective, PATROL_CORRECTIVE_LABELS, type PatrolCorrectiveKind } from '@/lib/patrol-corrective-download'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { useAuth } from '@/contexts/AuthContext'
 import { BRANCH_OPTIONS, HEADQUARTERS_OPTIONS } from '@/lib/constants'
@@ -200,6 +201,9 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
   )
   const [selectedHq, setSelectedHq] = useState<string | null>(hq0)
   const [selectedBranch, setSelectedBranch] = useState<string | null>(branch0)
+  const downloadLock = useRef(false)
+  const [hwpxProgress, setHwpxProgress] = useState('')
+  const [hwpxBusy, setHwpxBusy] = useState(false)
   const [selectedQuarter, setSelectedQuarter] = useState(getCurrentQuarter)
   const [projects, setProjects] = useState<Project[]>([])
   const [inspections, setInspections] = useState<PatrolInspection[]>([])
@@ -506,7 +510,8 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
   }
 
   const handleDownloadExcel = async () => {
-    if (downloading || scopeRows.length === 0) return
+    if (downloadLock.current || scopeRows.length === 0) return
+    downloadLock.current = true
     setDownloading(true)
     setDownloadError('')
     setDownloadProgress(null)
@@ -524,10 +529,44 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
           : '엑셀 다운로드 중 오류가 발생했습니다.'
       )
     } finally {
+      downloadLock.current = false
       setDownloading(false)
       setDownloadProgress(null)
     }
   }
+
+  const handleDownloadHwpx = async (kind: PatrolCorrectiveKind, inspection?: PatrolInspection) => {
+    if (downloadLock.current || loading) return
+    const rows = inspection ? [inspection] : scopeRows.map(row => row.inspection)
+    if (!rows.length) return
+    downloadLock.current = true
+    setHwpxBusy(true)
+    setDownloadError('')
+    setHwpxProgress('한글 서류 준비 중...')
+    try {
+      await downloadPatrolCorrective(rows, kind, selectedQuarter, setHwpxProgress, !inspection)
+      setHwpxProgress(`${PATROL_CORRECTIVE_LABELS[kind]} ${rows.length}건 다운로드 완료`)
+    } catch (error) {
+      setHwpxProgress('')
+      setDownloadError(error instanceof Error ? error.message : '한글 서류 다운로드에 실패했습니다.')
+    } finally {
+      downloadLock.current = false
+      setHwpxBusy(false)
+    }
+  }
+
+  const hwpxButtons = (inspection?: PatrolInspection) => (
+    <div className="flex flex-wrap gap-2" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+      {(Object.keys(PATROL_CORRECTIVE_LABELS) as PatrolCorrectiveKind[]).map(kind => (
+        <button key={kind} type="button" disabled={downloading || hwpxBusy || loading || (!inspection && scopeRows.length === 0)}
+          onClick={() => void handleDownloadHwpx(kind, inspection)}
+          aria-label={`${inspection ? `${inspection.project_name || '사업'} ${inspection.inspection_date} ` : '현재 범위 전체 '}${PATROL_CORRECTIVE_LABELS[kind]} HWPX 다운로드`}
+          className="min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+          {PATROL_CORRECTIVE_LABELS[kind]}
+        </button>
+      ))}
+    </div>
+  )
 
   const title =
     viewLevel === 'project'
@@ -664,10 +703,11 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
           </div>
 
           <div className="flex flex-col items-end gap-1">
+            <div className="flex flex-wrap justify-end gap-2">
             <button
               type="button"
               onClick={handleDownloadExcel}
-              disabled={downloading || loading || scopeRows.length === 0}
+              disabled={downloading || hwpxBusy || loading || scopeRows.length === 0}
               className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {downloading ? (
@@ -684,6 +724,10 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
                 </>
               )}
             </button>
+            {hwpxButtons()}
+            </div>
+            <p className="text-xs text-gray-500">한글 서류는 현재 범위 전체를 ZIP으로 받습니다. 계획서는 AI 초안이므로 제출 전 검토해 주세요.</p>
+            {hwpxProgress && <p role="status" aria-live="polite" className="text-xs text-gray-600">{hwpxProgress}</p>}
             <p className="text-xs text-gray-500">
               {loading
                 ? '불러오는 중...'
@@ -866,6 +910,7 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
                     <th className="whitespace-nowrap px-3 py-2.5 text-center text-xs font-medium text-gray-500">
                       공사감독
                     </th>
+                    <th className="px-3 py-3 text-center text-xs font-medium text-gray-500">한글 서류</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
@@ -913,11 +958,12 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
                       <td className="whitespace-nowrap px-3 py-2.5 text-center text-sm text-gray-700">
                         {formatSupervisor(project)}
                       </td>
+                      <td className="px-3 py-3 text-sm text-center">{hwpxButtons(inspection)}</td>
                     </tr>
                   ))}
                   {scopeRows.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
+                      <td colSpan={7} className="px-4 py-10 text-center text-sm text-gray-500">
                         해당 분기에 패트롤 점검 기록이 없습니다.
                       </td>
                     </tr>

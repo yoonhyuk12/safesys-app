@@ -92,6 +92,9 @@ accident-report, daily-inspection, edit, equipment-inspection, headquarters-insp
 - `/api/ai/write-risk-analysis` — AI 위험분석 작성
 - `/api/ai/patrol-ledger` — (AI) 순회점검대장 점검항목 생성 (Bearer 인증·프로젝트 RLS, gpt-6-luna 고정)
 - `/api/ai/patrol-inspection` — KRC 패트롤 점검 엑셀용 재발방지대책·재해유형 작성 (Bearer 인증·관할 검증, gpt-6-luna)
+- `/api/ai/patrol-corrective-plan` — KRC 패트롤 시정조치계획 초안 생성. Bearer 토큰·발주청 조직 관할 검증 후 저장된 지적만 사용하며 gpt-6-luna low로 고정한다. 최대 20건씩 처리하고 원문·지적유형을 반환해 클라이언트 목록 변경을 검사한다.
+
+`/safe/patrol`의 시정조치요구서·조치결과 보고서·시정조치계획서는 `public/patrol-corrective/*.hwpx` 원본 양식을 사용한다. 상단 버튼은 현재 분기·조직 범위의 모든 점검을 개별 HWPX ZIP으로, 점검행 버튼은 HWPX로 내려받는다. 결과보고서는 지적별 전후 사진을 각각 연결하고 장문은 양식을 복제해 이어 쓴다. 점검부서장·서명·제출일·실제 완료일은 근거 없이 생성하지 않는다. 계획서는 AI 초안이며 제출 전 검토한다. 생성 모듈은 `src/lib/hwpx/patrol-corrective-hwpx-export.ts`, 배치·다운로드는 `src/lib/patrol-corrective-download.ts`다.
 
 **외부 서비스 연동:**
 
