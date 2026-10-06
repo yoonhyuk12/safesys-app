@@ -14,7 +14,7 @@ const labels = { request: '시정조치요구서', result: '조치결과 보고�
 const rows = Array.from({ length: 43 }, (_, i) => ({ id: String(i), project_name: '같은 사업', inspection_date: '2026-10-01', issue_content1: `지적${i}`, issue_content2: '', finding_type: 'corrective_action' }))
 
 function setup({ failAt = -1, changed = false, authenticated = true } = {}) {
-  const built = [], downloaded = [], requests = [], blobs = new Map()
+  const built = [], builtRows = [], downloaded = [], requests = [], blobs = new Map()
   const deps = {
     jszip: JSZip,
     '@/lib/supabase': { supabase: { auth: { getSession: async () => ({ data: { session: authenticated ? { access_token: 'token' } : null } }) } } },
@@ -24,6 +24,7 @@ function setup({ failAt = -1, changed = false, authenticated = true } = {}) {
       buildPatrolCorrectiveHwpx: async row => {
         if (built.length === failAt) throw new Error('사진 읽기 실패')
         built.push(row.id)
+        builtRows.push(row)
         return new Blob([row.id], { type: 'application/hwp+zip' })
       },
     },
@@ -43,7 +44,7 @@ function setup({ failAt = -1, changed = false, authenticated = true } = {}) {
   new Function('module', 'exports', 'require', 'setTimeout', 'clearTimeout', output)(module, module.exports, name => {
     assert.ok(name in deps, name); return deps[name]
   }, () => 0, () => {})
-  return { api: module.exports, built, downloaded, requests }
+  return { api: module.exports, built, builtRows, downloaded, requests }
 }
 
 test('현재 범위 전체 43건을 빠짐없이 중복 파일명 없는 ZIP으로 저장한다', async () => {
@@ -116,3 +117,11 @@ for (const kind of Object.keys(labels)) {
     }
   })
 }
+
+
+test('계획서 일괄 다운로드는 각 점검의 지적일을 독립적으로 생성기에 전달한다', async () => {
+  const { api, builtRows } = setup()
+  const inputs = [ { ...rows[0], inspection_date: '2026-09-16' }, { ...rows[1], inspection_date: '2026-08-03' } ]
+  await api.downloadPatrolCorrective(inputs, 'plan', '2026Q3', () => {})
+  assert.deepEqual(builtRows.map(row => row.inspection_date), ['2026-09-16', '2026-08-03'])
+})

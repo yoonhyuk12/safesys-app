@@ -197,6 +197,7 @@ for (const kind of ['request', 'result', 'plan']) {
     const $ = load(xml, { xml: true })
     const original = await JSZip.loadAsync(await readFile(new URL(`../public/patrol-corrective/${kind}.hwpx`, import.meta.url)))
     const template = load(await original.file('Contents/section0.xml').async('string'), { xml: true })
+    if (kind === 'plan') template('hp\\:tc').filter((_, e) => template(e).children('hp\\:cellAddr').attr('rowAddr') === '5').children('hp\\:cellSz').attr('height', '27396')
     const sizes = document => document('hp\\:tc').map((_, e) => JSON.stringify(document(e).children('hp\\:cellSz').attr())).get()
     assert.deepEqual(sizes($).slice(0, sizes(template).length), sizes(template))
     assert.equal($('hp\\:tbl').first().find('hp\\:t').first().text(), template('hp\\:tbl').first().find('hp\\:t').first().text())
@@ -251,6 +252,10 @@ test('장문 지적은 잘라내지 않고 원본 양식의 다음 쪽으로 이
     const $ = load(xml, { xml: true })
     assert.ok($('hp\\:t').text().includes('끝표식'))
     assert.ok($('hp\\:tbl').length > 1)
+    if (kind === 'plan') {
+      const requirements = $('hp\\:tc').filter((_, e) => $(e).children('hp\\:cellAddr').attr('rowAddr') === '5' && $(e).children('hp\\:cellAddr').attr('colAddr') === '0')
+      assert.equal(requirements.find('hp\\:t').text(), text)
+    }
     assert.equal($('hp\\:secPr').length, 1)
     assert.ok(xml.includes('pageBreak="1"'))
     if (process.env.PATROL_SAMPLE_DIR) await writeFile(`${process.env.PATROL_SAMPLE_DIR}/${kind}-long.hwpx`, bytes)
@@ -363,7 +368,80 @@ test('사용자 예시 계획은 두 항목을 한 쪽에 담고 장문 AI 문�
     assert.ok(text.includes(plan.action))
     assert.ok(text.includes(plan.prevention))
     assert.equal($('hp\\:tbl').length, long ? cells.length : 1)
-    cells.each((_, e) => assert.ok($(e).find('hp\\:p').length <= 9))
+    assert.ok(!long || cells.length > 1)
     if (process.env.PATROL_SAMPLE_DIR) await writeFile(`${process.env.PATROL_SAMPLE_DIR}/plan-${long ? 'long-ai' : 'example'}.hwpx`, bytes)
   }
+})
+
+
+test('참조 분량 계획은 한 표에 담고 LEFT 내어쓰기와 지적일 제출일을 적용한다', async () => {
+  const plan = {
+    action: '해당 중장비의 후진 경고음 작동 여부와 전원·배선 상태를 현장에서 확인하고, 미작동 원인을 점검해 필요한 수리 또는 교체 방안을 검토한 뒤 작업 전 정상 작동 여부를 확인하도록 계획한다.',
+    prevention: '작업 전 점검 항목에 후진 경고음 작동 확인을 포함하고, 관련 작업자에게 이상 발견 시 운행을 중지하고 보고하는 절차를 안내하며 현장 점검을 통해 이행 여부를 확인하도록 계획한다.',
+  }
+  for (const inspection_date of ['2026-09-16', '2026-08-03']) {
+    const bytes = Buffer.from(await (await api.buildPatrolCorrectiveHwpx({ ...row, inspection_date, issue_content1: '중장비 후진 경고음 미사용', issue_content2: '', action_photo_issue1: 'https://photo.test/1791158400000-action.jpg' }, 'plan', plan)).arrayBuffer())
+    const zip = await JSZip.loadAsync(bytes)
+    const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+    const h = load(await zip.file('Contents/header.xml').async('string'), { xml: true })
+    assert.equal($('hp\\:tbl').length, 1)
+    const cell = $('hp\\:tc').filter((_, e) => $(e).children('hp\\:cellAddr').attr('rowAddr') === '5' && $(e).children('hp\\:cellAddr').attr('colAddr') === '1')
+    assert.equal(cell.children('hp\\:cellSz').attr('height'), '27396')
+    assert.equal(cell.find('hp\\:p').length, 4, '자동 줄바꿈을 강제 문단으로 쪼개지 않는다')
+    cell.find('hp\\:p').each((i, e) => {
+      const para = h('hh\\:paraPr').filter((_, p) => h(p).attr('id') === $(e).attr('paraPrIDRef'))
+      assert.equal(para.find('hh\\:align').attr('horizontal'), 'LEFT')
+      assert.equal(para.find('hh\\:lineSpacing').first().attr('value'), '210')
+      assert.equal(para.find('hp\\:case hc\\:intent').attr('value'), i % 2 ? '-2688' : '0')
+      assert.equal(para.find('hp\\:default hc\\:intent').attr('value'), i % 2 ? '-5376' : '0')
+      assert.equal(para.find('hc\\:left').attr('value'), '0')
+    })
+    const [y, m, d] = inspection_date.split('-')
+    assert.ok($('hp\\:t').text().includes(`${y}년 ${m}월 ${d}일`))
+    const date = $('hp\\:t').filter((_, e) => $(e).text() === `${y}년 ${m}월 ${d}일`).closest('hp\\:p')
+    const dateStyle = h('hh\\:paraPr').filter((_, e) => h(e).attr('id') === date.attr('paraPrIDRef'))
+    assert.equal(dateStyle.find('hh\\:align').attr('horizontal'), 'RIGHT')
+    assert.equal(dateStyle.find('hp\\:case hc\\:right').attr('value'), '5000')
+    assert.equal(dateStyle.find('hp\\:default hc\\:right').attr('value'), '10000')
+    assert.ok(cell.text().includes(plan.action))
+    assert.ok(cell.text().includes(plan.prevention))
+    if (process.env.PATROL_SAMPLE_DIR) await writeFile(`${process.env.PATROL_SAMPLE_DIR}/plan-reference-${inspection_date}.hwpx`, bytes)
+  }
+})
+
+test('요구서·계획서 점검자 입력은 가운데 정렬한다', async () => {
+  for (const kind of ['request', 'plan']) {
+    const zip = await JSZip.loadAsync(await (await api.buildPatrolCorrectiveHwpx(row, kind, { action: '설치 예정', prevention: '확인 예정' })).arrayBuffer())
+    const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+    const h = load(await zip.file('Contents/header.xml').async('string'), { xml: true })
+    const p = $('hp\\:t').filter((_, e) => $(e).text() === row.inspector_name).closest('hp\\:p')
+    assert.equal(h('hh\\:paraPr').filter((_, e) => h(e).attr('id') === p.attr('paraPrIDRef')).find('hh\\:align').attr('horizontal'), 'CENTER')
+  }
+})
+
+
+test('긴 공사명·서명란은 계획 본문 예산에서 확보하고 여러 개조식 항목을 보존한다', async () => {
+  const project_name = '공사현장 정비사업 '.repeat(10)
+  const plan = { action: '작동 상태 확인 예정\n필요한 수리 방안 검토 예정', prevention: '정기 점검 및 미흡사항 보완 예정' }
+  const bytes = Buffer.from(await (await api.buildPatrolCorrectiveHwpx({ ...row, project_name, issue_content2: '', owner_name: '현장대리인'.repeat(9), supervisor_name: '공사감독'.repeat(9) }, 'plan', plan)).arrayBuffer())
+  const zip = await JSZip.loadAsync(bytes)
+  const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+  assert.equal($('hp\\:tbl').length, 1)
+  assert.ok($('hp\\:t').text().includes(project_name))
+  const cell = $('hp\\:tc').filter((_, e) => $(e).children('hp\\:cellAddr').attr('rowAddr') === '5' && $(e).children('hp\\:cellAddr').attr('colAddr') === '1')
+  assert.ok(Number(cell.children('hp\\:cellSz').attr('height')) < 27396)
+  for (const item of [...plan.action.split('\n'), plan.prevention]) assert.ok(cell.find('hp\\:t').map((_, e) => $(e).text()).get().includes(`  - ${item}`))
+  if (process.env.PATROL_SAMPLE_DIR) await writeFile(`${process.env.PATROL_SAMPLE_DIR}/plan-long-project.hwpx`, bytes)
+})
+
+// 사용자의 개인 정보는 저장소에 넣지 않고 선택적 로컬 참조 파일에서만 읽는다.
+test('선택적 로컬 참조 원문의 동일 내용 표본을 생성한다', { skip: !process.env.PATROL_REFERENCE_TEXT || !process.env.PATROL_SAMPLE_DIR }, async () => {
+  const reference = JSON.parse((await readFile(process.env.PATROL_REFERENCE_TEXT, 'utf8')).replace(/^\uFEFF/, ''))
+  const input = { ...row, project_name: reference['3,1'][0], inspector_name: reference['2,1'][0], inspection_date: reference['2,3'][0], issue_content1: reference['5,0'].join(''), issue_content2: '', owner_name: reference['6,0'][5].split('현장대리인 ')[1].split('    ')[0], supervisor_position: '', supervisor_name: reference['6,0'][6].split('공사감독 ')[1].split('    ')[0], managing_branch: reference['6,0'][8].replace('한국농어촌공사 ', '').replace('장  귀하', '') }
+  const plan = { action: reference['5,1'][1].replace(/^  - /, ''), prevention: reference['5,1'][3].replace(/^  - /, '') }
+  const bytes = Buffer.from(await (await api.buildPatrolCorrectiveHwpx(input, 'plan', plan)).arrayBuffer())
+  const zip = await JSZip.loadAsync(bytes)
+  const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+  assert.equal($('hp\\:tbl').length, 1)
+  await writeFile(`${process.env.PATROL_SAMPLE_DIR}/plan-reference-exact.hwpx`, bytes)
 })

@@ -106,7 +106,7 @@ function makeSupabaseAdmin({ user, authError = null, profile = 발주청_PROFILE
   }
 }
 
-function aiContent(ids, { action = '작업 전 안전점검을 강화하고 관리감독자 확인 절차를 정한다.', prevention = '작업 전 안전시설을 점검한다.' } = {}) {
+function aiContent(ids, { action = '작업 전 안전점검 강화 및 관리감독자 확인 절차 수립 예정', prevention = '작업 전 안전시설 점검 예정' } = {}) {
   return JSON.stringify({ results: ids.map((id) => ({ id, action, prevention })) })
 }
 
@@ -337,7 +337,7 @@ test('120자를 넘는 조치내용도 자르지 않고 그대로 돌려준다',
   const longAction =
     '작업 착수 전 관리감독자가 안전난간 설치 상태를 확인하고, 미설치 구간은 당일 작업을 중지한 뒤 ' +
     '설치 완료를 사진으로 확인하며, 매주 순회점검 시 난간 결속 상태와 고정 볼트 조임 상태를 재확인하고 ' +
-    '그 결과를 안전점검일지에 남기도록 현장 절차를 문서화한다.'
+    '그 결과를 안전점검일지에 남기도록 현장 절차를 문서화할 예정'
   assert.ok(longAction.length > 120, '테스트 문장이 120자를 넘지 않는다')
 
   const { route } = await loadRoute(
@@ -350,9 +350,9 @@ test('120자를 넘는 조치내용도 자르지 않고 그대로 돌려준다',
   assert.equal(response.body.results[uuid(1)].action, longAction)
 })
 
-test('조치내용의 줄바꿈만 공백으로 정리하고 앞뒤 공백을 다듬는다', async () => {
+test('개조식 항목의 줄바꿈을 유지하고 중복 불릿과 공백만 정리한다', async () => {
   const ids = [uuid(1)]
-  const rawAction = '  작업 전 안전점검을 강화한다.\n\n  관리감독자 확인 절차를 정한다.  '
+  const rawAction = '  - 작업 전 안전점검 강화 예정\n\n  - 관리감독자 확인 절차 수립 예정  '
   const { route } = await loadRoute(
     makeSupabaseAdmin({ user: { id: 'u-newline' }, rows: [makeRow(1)] }),
     () => openAiResponse(aiContent(ids, { action: rawAction }))
@@ -362,7 +362,7 @@ test('조치내용의 줄바꿈만 공백으로 정리하고 앞뒤 공백을 �
   assert.equal(response.status, 200)
   assert.equal(
     response.body.results[uuid(1)].action,
-    '작업 전 안전점검을 강화한다. 관리감독자 확인 절차를 정한다.'
+    '작업 전 안전점검 강화 예정\n관리감독자 확인 절차 수립 예정'
   )
 })
 
@@ -471,5 +471,15 @@ test('외부 호출 오류와 정상 응답 모두 사용량을 기록한다', a
     assert.equal((await route.POST(makeRequest({ inspectionIds: [uuid(1)] }))).status, ok ? 200 : 502)
     assert.equal(logs.length, 1)
     assert.equal(logs[0].success, ok)
+  }
+})
+
+
+test('서술형 계획은 의미를 임의 변환하지 않고 명시적으로 거절한다', async () => {
+  for (const action of ['안전시설을 점검하도록 계획한다.', '대피훈련을 실시할 예정이다.', '장비를 확인했다. 이상이 없으면 운행 예정']) {
+    const { route } = await loadRoute(makeSupabaseAdmin({ user: { id: 'u-bullet' }, rows: [makeRow(1)] }), () => openAiResponse(aiContent([uuid(1)], { action })))
+    const response = await route.POST(makeRequest({ inspectionIds: [uuid(1)] }))
+    assert.equal(response.status, 502)
+    assert.match(response.body.error, /개조식/)
   }
 })

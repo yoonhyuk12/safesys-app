@@ -23,35 +23,103 @@ function pages(text: string, count: number, width = 28): string[] {
   return Array.from({ length: Math.max(1, Math.ceil(all.length / count)) }, (_, i) => all.slice(i * count, (i + 1) * count).join('\n'))
 }
 
-interface DocumentStyle { header: string; id: number; bodyId: number; photoId: number; signatureId: number; dateId: number }
+interface DocumentStyle { header: string; id: number; bodyId: number; photoId: number; signatureId: number; dateId: number; planHeadingId: number; planItemId: number }
+
+const PLAN_BODY_HEIGHT = 27396
+const PLAN_LINE_HEIGHT = 2730 // 참조 13pt·210% 문단의 줄 전진.
+const PLAN_HANGING = 2688
+const CELL_PADDING = 282
+
+// 한양신명조 13pt의 전각/영문/공백 폭을 구분한다. 자동 줄바꿈은 한글에 맡긴다.
+function textWidth(char: string): number {
+  if (/\s/.test(char)) return char === '\t' ? 2600 : 650
+  return /[\u0021-\u007e]/.test(char) ? 780 : 1300
+}
+
+function wrappedLines(text: string, width: number, hanging = 0): string[] {
+  const result: string[] = []
+  let line = ''
+  let used = 0
+  for (const char of Array.from(text)) {
+    const limit = Math.max(1300, width - (result.length ? hanging : 0))
+    if (line && used + textWidth(char) > limit) {
+      // 한글은 공백으로 구분된 어절을 우선 이동한다. 글자 수만 세면 좁은 요구사항 셀이 늘어난다.
+      const boundary = line.lastIndexOf(' ')
+      const split = boundary > 0 ? boundary + 1 : line.length
+      result.push(line.slice(0, split))
+      line = line.slice(split)
+      used = Array.from(line).reduce((sum, value) => sum + textWidth(value), 0)
+    }
+    line += char
+    used += textWidth(char)
+  }
+  result.push(line)
+  return result
+}
+
+function planPages(text: string, width: number, height: number, hanging = 0, lineHeight = PLAN_LINE_HEIGHT): string[] {
+  const capacity = Math.max(1, Math.floor((height - CELL_PADDING - 1300) / lineHeight) + 1)
+  const output: string[] = []
+  let paragraphs: string[] = []
+  let used = 0
+  for (const paragraph of text.replace(/\r/g, '').split('\n')) {
+    const wrapped = wrappedLines(paragraph, width - CELL_PADDING, paragraph.startsWith('□') ? 0 : hanging)
+    while (wrapped.length) {
+      if (used === capacity) { output.push(paragraphs.join('\n')); paragraphs = []; used = 0 }
+      const chunk = wrapped.splice(0, capacity - used)
+      paragraphs.push(chunk.join(''))
+      used += chunk.length
+    }
+  }
+  if (paragraphs.length) output.push(paragraphs.join('\n'))
+  return output
+}
+
+function planBodyHeight(row: PatrolInspection): number {
+  const height = (text: string, width: number) => wrappedLines(text, width - CELL_PADDING).length * 2080 + CELL_PADDING
+  const projectGrowth = Math.max(0, height(row.project_name || '', 40913) - 3096)
+  const inspectorGrowth = Math.max(0, height(row.inspector_name || '', 16777) - 2997)
+  const author = `작 성 자 : 현장대리인 ${row.owner_name || ''}    󰄫`
+  const reviewer = `검 토 자 : 공사감독 ${row.supervisor_position || ''} ${row.supervisor_name || ''}    󰄫`
+  const recipient = `한국농어촌공사 ${row.managing_branch || '________지사'}장  귀하`
+  const footerGrowth = [author, reviewer, recipient].reduce((sum, text) => sum + Math.max(0, height(text, 47927 - 2000) - 2362), 0)
+  return Math.max(PLAN_LINE_HEIGHT + CELL_PADDING, PLAN_BODY_HEIGHT - projectGrowth - inspectorGrowth - footerGrowth)
+}
 
 // 13pt·160% 본문, 셀 위아래 여백 282, 그림 기준선 여유 13pt를 제외한다.
 function photoHeight(cellHeight: number, text: string): number {
   return Math.max(1, cellHeight - (text ? lines(text).length * 2080 : 0) - 282 - 1300)
 }
 
-function fill(cell: string, text: string, style: DocumentStyle, picture = '', body = false): string {
+function fill(cell: string, text: string, style: DocumentStyle, picture = '', body = false, paragraphId?: number, plan = false): string {
   const range = topLevelRanges(cell, 'hp:subList')[0]
   if (!range) throw new Error('양식의 셀 본문을 찾지 못했습니다.')
   const sub = cell.slice(...range)
   const p = /<hp:p\s[^>]*>/.exec(sub)?.[0]
   if (!p) throw new Error('양식의 문단 서식이 없습니다.')
-  const textP = body ? p.replace(/paraPrIDRef="\d+"/, `paraPrIDRef="${style.bodyId}"`) : p
-  const content = (picture && !text ? [] : text.split('\n')).map(line => `${textP}<hp:run charPrIDRef="${style.id}"><hp:t>${esc(line)}</hp:t></hp:run></hp:p>`).join('')
+  const textP = paragraphId !== undefined || body ? p.replace(/paraPrIDRef="\d+"/, `paraPrIDRef="${paragraphId ?? style.bodyId}"`) : p
+  const content = (picture && !text ? [] : text.split('\n')).map(line => {
+    const open = plan ? p.replace(/paraPrIDRef="\d+"/, `paraPrIDRef="${line.startsWith('□') ? style.planHeadingId : style.planItemId}"`) : textP
+    return `${open}<hp:run charPrIDRef="${style.id}"><hp:t>${esc(line)}</hp:t></hp:run></hp:p>`
+  }).join('')
   const imageP = p.replace(/paraPrIDRef="\d+"/, `paraPrIDRef="${style.photoId}"`)
   const image = picture ? `${imageP}<hp:run charPrIDRef="${style.id}">${picture}<hp:t/></hp:run></hp:p>` : ''
   return rebuild(cell, [range], [sub.slice(0, sub.indexOf('>') + 1) + content + image + '</hp:subList>'])
 }
 
-function fillTable(table: string, values: Record<string, string>, style: DocumentStyle, pictures: Record<string, string> = {}): string {
+function fillTable(table: string, values: Record<string, string>, style: DocumentStyle, pictures: Record<string, string> = {}, planHeight?: number): string {
+  if (planHeight) table = table.replace(/(<hp:sz\b[^>]*height=")\d+/, `$1${56432 - 21453 + planHeight}`)
   const ranges = topLevelRanges(table, 'hp:tc')
   return rebuild(table, ranges, ranges.map(range => {
-    const cell = table.slice(...range)
+    let cell = table.slice(...range)
     const addr = /<hp:cellAddr colAddr="(\d+)" rowAddr="(\d+)"/.exec(cell)
     const key = addr ? `${addr[2]},${addr[1]}` : ''
     const height = Number(/height="(\d+)"/.exec(cell.match(/<hp:cellSz[^>]*>/)?.[0] || '')?.[1])
     const isBody = ['2,1', '4,1', '5,1'].includes(key) && height > 5000
-    return key in values ? fill(cell, values[key], style, pictures[key], isBody) : cell
+    if (planHeight && key.startsWith('5,')) cell = cell.replace(/(<hp:cellSz\b[^>]*height=")\d+/, `$1${planHeight}`)
+    const inspector = key === '2,1' && height < 5000
+    const paragraphId = inspector ? style.dateId : planHeight && key === '3,1' ? style.bodyId : undefined
+    return key in values ? fill(cell, values[key], style, pictures[key], isBody, paragraphId, !!planHeight && key === '5,1') : cell
   }))
 }
 
@@ -90,9 +158,24 @@ function textStyle(header: string): DocumentStyle {
     .replace(/<hp:default>[\s\S]*?<\/hp:default>/g, value => value.replace(/<hc:right value="2000"/g, '<hc:right value="4000"'))
   const date = paragraph(bodyId + 3, 'CENTER', 160)
     .replace(/<hc:(intent|left|right)\b[^>]*\/>/g, (_, tag) => `<hc:${tag} value="0" unit="HWPUNIT"/>`)
-  header = header.replace('</hh:paraProperties>', paragraph(bodyId, 'LEFT', 160) + paragraph(bodyId + 1, 'CENTER', 100) + signature + date + '</hh:paraProperties>')
-    .replace(/(<hh:paraProperties itemCnt=")(\d+)/, (_, start, n) => start + (Number(n) + 4))
-  return { id, bodyId, photoId: bodyId + 1, signatureId: bodyId + 2, dateId: bodyId + 3, header }
+  const planParagraph = (id: number, hanging: boolean) => paragraph(id, 'LEFT', 210)
+    .replace(/snapToGrid="\d+"/, 'snapToGrid="0"')
+    .replace(/<hc:(intent|left|right|prev|next)\b[^>]*\/>/g, (_, tag) => `<hc:${tag} value="${hanging && tag === 'intent' ? -PLAN_HANGING : 0}" unit="HWPUNIT"/>`)
+    .replace(/<hp:default>[\s\S]*?<\/hp:default>/g, value => value.replace(/value="-2688"/g, 'value="-5376"'))
+  header = header.replace('</hh:paraProperties>', paragraph(bodyId, 'LEFT', 160) + paragraph(bodyId + 1, 'CENTER', 100) + signature + date + planParagraph(bodyId + 4, false) + planParagraph(bodyId + 5, true) + '</hh:paraProperties>')
+    .replace(/(<hh:paraProperties itemCnt=")(\d+)/, (_, start, n) => start + (Number(n) + 6))
+  return { id, bodyId, photoId: bodyId + 1, signatureId: bodyId + 2, dateId: bodyId + 3, planHeadingId: bodyId + 4, planItemId: bodyId + 5, header }
+}
+
+function planDate(section: string, date: string, style: DocumentStyle): string {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date)
+  const value = parts ? `${parts[1]}년 ${parts[2]}월 ${parts[3]}일` : ''
+  return section.replace(/<hp:p\b[^>]*>(?:(?!<hp:p\b)[\s\S])*?<\/hp:p>/g, paragraph => {
+    const text = Array.from(paragraph.matchAll(/<hp:t>([\s\S]*?)<\/hp:t>/g), m => m[1]).join('')
+    if (!/^\s*년\s*월\s*일\s*$/.test(text)) return paragraph
+    const open = /<hp:p\b[^>]*>/.exec(paragraph)![0]
+    return `${open}<hp:run charPrIDRef="${style.id}"><hp:t>${esc(value)}</hp:t></hp:run></hp:p>`
+  })
 }
 
 function identities(section: string, row: PatrolInspection, style: DocumentStyle): string {
@@ -218,14 +301,16 @@ export async function buildPatrolCorrectiveHwpx(row: PatrolInspection, kind: Pat
   } else {
     const issueText = buildPatrolIssueContent(row) || '지적내용 미기록'
     const requestText = row.finding_type === 'not_applicable' ? '해당 사항 없음' : buildPatrolIssueContent(row) ? `${issueText}\n\n위 지적사항에 대한 시정조치 및 결과 제출을 요청합니다.` : issueText
-    const content = kind === 'plan' ? `□ 시정조치계획\n  - ${plan!.action}\n□ 재발방지·확인계획\n  - ${plan!.prevention}` : requestText
-    // 계획 21453 / 요구 43231 높이에서 2080 줄 전진과 셀 여백·여유를 반영한다.
-    const rightPages = pages(content, kind === 'plan' ? 9 : 19)
-    const leftPages = kind === 'plan' ? pages(issueText, 9, 4) : []
+    const bullets = (text: string) => text.split(/\r?\n/).filter(line => line.trim()).map(line => `  - ${line.trim().replace(/^[-•]\s*/, '')}`).join('\n')
+    const content = kind === 'plan' ? `□ 시정조치계획\n${bullets(plan!.action)}\n□ 재발방지·확인계획\n${bullets(plan!.prevention)}` : requestText
+    const bodyHeight = kind === 'plan' ? planBodyHeight(row) : undefined
+    const rightPages = bodyHeight ? planPages(content, 40913, bodyHeight, PLAN_HANGING) : pages(content, 19)
+    const leftPages = bodyHeight ? planPages(issueText, 7014, bodyHeight, 0, 2080) : []
     for (let page = 0; page < Math.max(rightPages.length, leftPages.length); page++) {
       const tables = topLevelRanges(original, 'hp:tbl')
-      const values = kind === 'plan' ? { ...common, '5,0': leftPages[page] || '', '5,1': rightPages[page] || '' } : { ...common, '4,1': rightPages[page] }
-      let section = rebuild(original, tables, tables.map(r => fillTable(original.slice(...r), values, style)))
+      const values = kind === 'plan' ? { ...common, '3,1': row.project_name || '', '5,0': leftPages[page] || '', '5,1': rightPages[page] || '' } : { ...common, '4,1': rightPages[page] }
+      let section = rebuild(original, tables, tables.map(r => fillTable(original.slice(...r), values, style, {}, bodyHeight)))
+      if (kind === 'plan') section = planDate(section, row.inspection_date, style)
       section = section.replace(/OO지사장/g, esc(row.managing_branch ? `${row.managing_branch}장` : '________지사장'))
       sections.push(section)
     }
