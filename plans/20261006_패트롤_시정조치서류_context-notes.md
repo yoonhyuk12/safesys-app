@@ -1,5 +1,13 @@
 # 컨텍스트 노트
 
+## 결과 날짜·계획 생성 표시 후속 보정
+
+- 결과 페이지별 `getPatrolActionState({ action_photo_issue1: issue.after }).completedDate`를 재사용한다. 사진 파일명의 실제 업로드 시각을 서울 날짜로 변환하며 지적1·2 사진의 날짜를 혼용하지 않는다.
+- 상단은 YYYY-MM-DD, 하단은 YYYY. MM. DD. 형식이며 하단 문단은 가운데 정렬·좌우 들여쓰기0·13pt다. 날짜 미상은 기존 빈 날짜란을 유지한다.
+- UI는 activeHwpx의 문서 종류·점검ID(null은 일괄)로 실행한 버튼을 구분한다. 해당 버튼만 Loader2·aria-busy를 표시하고 AI 진행 중에는 `AI 생성 중…`, 이후 `파일 생성 중…`으로 바꾼다. finally에서 초기화한다.
+- 브라우저 별도 검증 탭에서 AI 요청만 지연·오류 응답으로 대체해 일괄과 개별 각각 스피너1개·AI 문구·비활성 상태를 확인했고 오류 후 busy/spinner0·버튼 복구를 확인했다. 실제 AI 호출은 없었고 원래 사용자 탭은 유지했다. 시정조치 테스트68개·타입·린트 통과(기존 경고).
+- `C:/Users/User/AppData/Local/Temp/safesys-patrol-date-20261006`의 result-upload-date/result-photo HWPX가 각각 한글 Open·PDF 저장 성공, 각2쪽이다. 네 페이지를 육안 확인했으며 등록일은 2026-10-03/04로 각 페이지 상하 일치하고 서명20pt 우측 정렬을 유지한다.
+
 ## 사진 확대·서명 정렬 후속 보정
 
 - 사용자 범위 확인은 요구서·결과보고서 사진 확대이며 계획서 사진은 추가하지 않는다.

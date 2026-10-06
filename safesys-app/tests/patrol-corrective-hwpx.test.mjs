@@ -57,6 +57,41 @@ globalThis.fetch = async url => {
 
 const row = { id: 'inspection-1', project_id: 'p', project_name: '시험 & 사업', managing_hq: '경기', managing_branch: '안전지사', inspection_date: '2026-10-01', inspector_name: '홍점검', issue_content1: '안전난간 미설치', issue_content2: '통로 정리 필요', issue1_status: 'pending', patrol_car_used: true, finding_type: 'corrective_action', created_at: '' }
 
+test('결과보고서 각 지적의 상단·하단 날짜는 해당 조치사진 업로드일(서울)이다', async () => {
+  const uploaded = time => `https://photo.test/storage/v1/object/public/inspection-photos/headquarters-actions/${Date.parse(time)}-action.jpg`
+  const input = { ...row, action_photo_issue1: uploaded('2026-10-02T15:30:00Z'), action_photo_issue2: uploaded('2026-10-04T00:00:00Z') }
+  const bytes = Buffer.from(await (await api.buildPatrolCorrectiveHwpx(input, 'result')).arrayBuffer())
+  const zip = await JSZip.loadAsync(bytes)
+  const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+  const h = load(await zip.file('Contents/header.xml').async('string'), { xml: true })
+  const paragraphs = $('hs\\:sec').children('hp\\:p').filter((_, p) => !$(p).find('hp\\:tbl').length)
+  const headers = paragraphs.filter((_, p) => $(p).text().includes('5. 조치완료일'))
+  assert.deepEqual(headers.map((_, p) => $(p).text().split('5. 조치완료일 : ')[1]).get(), ['2026-10-03', '2026-10-04'])
+  const footers = paragraphs.filter((_, p) => /^2026\. /.test($(p).text()))
+  assert.deepEqual(footers.map((_, p) => $(p).text()).get(), ['2026. 10. 03.', '2026. 10. 04.'])
+  footers.each((_, p) => {
+    const style = h('hh\\:paraPr').filter((_, e) => h(e).attr('id') === $(p).attr('paraPrIDRef'))
+    assert.equal(style.find('hh\\:align').attr('horizontal'), 'CENTER')
+    style.find('hc\\:left, hc\\:right, hc\\:intent').each((_, e) => assert.equal(h(e).attr('value'), '0'))
+    const char = h('hh\\:charPr').filter((_, e) => h(e).attr('id') === $(p).find('hp\\:run').attr('charPrIDRef'))
+    assert.equal(char.attr('height'), '1300')
+  })
+  if (process.env.PATROL_SAMPLE_DIR) {
+    await mkdir(process.env.PATROL_SAMPLE_DIR, { recursive: true })
+    await writeFile(`${process.env.PATROL_SAMPLE_DIR}/result-upload-date.hwpx`, bytes)
+  }
+})
+
+test('조치사진이 없거나 업로드일 근거가 없으면 결과 날짜를 추측하지 않는다', async () => {
+  for (const photo of [null, '해당 사항 없음', 'https://photo.test/no-timestamp.jpg']) {
+    const zip = await JSZip.loadAsync(await (await api.buildPatrolCorrectiveHwpx({ ...row, issue_content2: '', action_photo_issue1: photo }, 'result')).arrayBuffer())
+    const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+    const paragraphs = $('hs\\:sec').children('hp\\:p').filter((_, p) => !$(p).find('hp\\:tbl').length)
+    assert.ok(paragraphs.filter((_, p) => $(p).text().includes('5. 조치완료일')).text().endsWith('5. 조치완료일 : '))
+    assert.equal(paragraphs.filter((_, p) => /^\.\s*\.\s*\.$/.test($(p).text())).length, 1)
+  }
+})
+
 test('생성 글자는 언어별 신명조 13pt이며 인물은 등록 정보만 채운다', async () => {
   for (const kind of ['request', 'result', 'plan']) {
     const input = { ...row, owner_name: '김현장', supervisor_position: '4급', supervisor_name: '이감독' }

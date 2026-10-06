@@ -23,7 +23,7 @@ function pages(text: string, count: number, width = 28): string[] {
   return Array.from({ length: Math.max(1, Math.ceil(all.length / count)) }, (_, i) => all.slice(i * count, (i + 1) * count).join('\n'))
 }
 
-interface DocumentStyle { header: string; id: number; bodyId: number; photoId: number; signatureId: number }
+interface DocumentStyle { header: string; id: number; bodyId: number; photoId: number; signatureId: number; dateId: number }
 
 // 13pt·160% 본문, 셀 위아래 여백 282, 그림 기준선 여유 13pt를 제외한다.
 function photoHeight(cellHeight: number, text: string): number {
@@ -88,9 +88,11 @@ function textStyle(header: string): DocumentStyle {
     .replace(/<hc:(intent|left|right)\b[^>]*\/>/g, (_, tag) => `<hc:${tag} value="${tag === 'right' ? 2000 : 0}" unit="HWPUNIT"/>`)
     // 구형 기본 분기의 문단 여백은 HwpUnitChar 분기의 두 배 단위다.
     .replace(/<hp:default>[\s\S]*?<\/hp:default>/g, value => value.replace(/<hc:right value="2000"/g, '<hc:right value="4000"'))
-  header = header.replace('</hh:paraProperties>', paragraph(bodyId, 'LEFT', 160) + paragraph(bodyId + 1, 'CENTER', 100) + signature + '</hh:paraProperties>')
-    .replace(/(<hh:paraProperties itemCnt=")(\d+)/, (_, start, n) => start + (Number(n) + 3))
-  return { id, bodyId, photoId: bodyId + 1, signatureId: bodyId + 2, header }
+  const date = paragraph(bodyId + 3, 'CENTER', 160)
+    .replace(/<hc:(intent|left|right)\b[^>]*\/>/g, (_, tag) => `<hc:${tag} value="0" unit="HWPUNIT"/>`)
+  header = header.replace('</hh:paraProperties>', paragraph(bodyId, 'LEFT', 160) + paragraph(bodyId + 1, 'CENTER', 100) + signature + date + '</hh:paraProperties>')
+    .replace(/(<hh:paraProperties itemCnt=")(\d+)/, (_, start, n) => start + (Number(n) + 4))
+  return { id, bodyId, photoId: bodyId + 1, signatureId: bodyId + 2, dateId: bodyId + 3, header }
 }
 
 function identities(section: string, row: PatrolInspection, style: DocumentStyle): string {
@@ -109,19 +111,22 @@ function identities(section: string, row: PatrolInspection, style: DocumentStyle
   })
 }
 
-function resultFacts(section: string, row: PatrolInspection, charId: number): string {
+function resultFacts(section: string, row: PatrolInspection, style: DocumentStyle, completedDate: string | null): string {
   const ranges = topLevelRanges(section, 'hp:p')
   return rebuild(section, ranges, ranges.map(range => {
     const paragraph = section.slice(...range)
     if (topLevelRanges(paragraph, 'hp:tbl').length) return paragraph
-    const text = Array.from(paragraph.matchAll(/<hp:t>([\s\S]*?)<\/hp:t>/g), match => match[1]).join('')
+    const text = Array.from(paragraph.matchAll(/<hp:t>([\s\S]*?)<\/hp:t>/g), match => match[1].replace(/<[^>]*>/g, '')).join('')
+    const isDate = /^\s*\.\s*\.\s*\.\s*$/.test(text)
     let value: string | undefined
     if (text.includes('1. 공사명')) value = `1. 공사명 : ${row.project_name || ''}    2. 수급인 : ${row.contractor_name || ''}`
     if (text.includes('3. 점검자')) value = `3. 점검자 : ${row.inspector_name || ''}`
-    if (text.includes('4. 점검일')) value = `4. 점검일 : ${row.inspection_date}    5. 조치완료일 : `
+    if (text.includes('4. 점검일')) value = `4. 점검일 : ${row.inspection_date}    5. 조치완료일 : ${completedDate || ''}`
+    if (isDate) value = completedDate ? `${completedDate.replace(/-/g, '. ')}.` : '.    .    .'
     if (!value) return paragraph
     const open = /<hp:p\b[^>]*>/.exec(paragraph)![0]
-    return `${open}<hp:run charPrIDRef="${charId}"><hp:t>${esc(value)}</hp:t></hp:run></hp:p>`
+    const formatted = isDate ? open.replace(/paraPrIDRef="\d+"/, `paraPrIDRef="${style.dateId}"`) : open
+    return `${formatted}<hp:run charPrIDRef="${style.id}"><hp:t>${esc(value)}</hp:t></hp:run></hp:p>`
   }))
 }
 
@@ -182,7 +187,7 @@ export async function buildPatrolCorrectiveHwpx(row: PatrolInspection, kind: Pat
         const values = { '0,1': row.actual_work_address || row.site_address || '', '1,2': `지적 ${index + 1} · 점검일 ${row.inspection_date}`, '2,1': text, '3,2': status, '4,1': state.notApplicable ? '해당 사항 없음' : state.completed ? '' : '조치사진 미등록' }
         const pictures: Record<string, string> = part === 0 ? { '2,1': await picture(issue.before, photoHeight(16891, text)), '4,1': await picture(issue.after, photoHeight(15846, values['4,1'])) } : {}
         const section = rebuild(original, tables, tables.map((r, i) => i === 1 ? fillTable(original.slice(...r), values, style, pictures) : original.slice(...r)))
-        sections.push(resultFacts(section, row, style.id))
+        sections.push(resultFacts(section, row, style, state.completedDate))
       }
     }
   } else if (kind === 'request' && [row.site_photo_issue1, hasPatrolSecondIssue(row) ? row.site_photo_issue2 : null].some(url => url && /^https?:\/\//i.test(url))) {

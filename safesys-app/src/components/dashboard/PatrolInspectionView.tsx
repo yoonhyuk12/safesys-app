@@ -204,6 +204,7 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
   const downloadLock = useRef(false)
   const [hwpxProgress, setHwpxProgress] = useState('')
   const [hwpxBusy, setHwpxBusy] = useState(false)
+  const [activeHwpx, setActiveHwpx] = useState<{ kind: PatrolCorrectiveKind; inspectionId: string | null } | null>(null)
   const [selectedQuarter, setSelectedQuarter] = useState(getCurrentQuarter)
   const [projects, setProjects] = useState<Project[]>([])
   const [inspections, setInspections] = useState<PatrolInspection[]>([])
@@ -545,8 +546,9 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
     if (!rows.length) return
     downloadLock.current = true
     setHwpxBusy(true)
+    setActiveHwpx({ kind, inspectionId: inspection?.id ?? null })
     setDownloadError('')
-    setHwpxProgress('한글 서류 준비 중...')
+    setHwpxProgress(kind === 'plan' ? 'AI 생성 중…' : '한글 서류 준비 중...')
     try {
       await downloadPatrolCorrective(rows, kind, selectedQuarter, setHwpxProgress, !inspection)
       setHwpxProgress(`${PATROL_CORRECTIVE_LABELS[kind]} ${rows.length}건 다운로드 완료`)
@@ -556,6 +558,7 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
     } finally {
       downloadLock.current = false
       setHwpxBusy(false)
+      setActiveHwpx(null)
     }
   }
 
@@ -563,14 +566,20 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
     <span className="text-gray-500">—</span>
   ) : (
     <div className="flex flex-wrap gap-2" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
-      {(Object.keys(PATROL_CORRECTIVE_LABELS) as PatrolCorrectiveKind[]).map(kind => (
+      {(Object.keys(PATROL_CORRECTIVE_LABELS) as PatrolCorrectiveKind[]).map(kind => {
+        const active = hwpxBusy && activeHwpx?.kind === kind && activeHwpx.inspectionId === (inspection?.id ?? null)
+        const pendingLabel = kind === 'plan' && hwpxProgress.startsWith('AI') ? 'AI 생성 중…' : '파일 생성 중…'
+        return (
         <button key={kind} type="button" disabled={downloading || hwpxBusy || loading || (!inspection && hwpxScopeRows.length === 0)}
           onClick={() => void handleDownloadHwpx(kind, inspection)}
-          aria-label={`${inspection ? `${inspection.project_name || '사업'} ${inspection.inspection_date} ` : '현재 범위 전체 '}${PATROL_CORRECTIVE_LABELS[kind]} HWPX 다운로드`}
-          className="min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
-          {PATROL_CORRECTIVE_LABELS[kind]}
+          aria-busy={active}
+          aria-label={`${inspection ? `${inspection.project_name || '사업'} ${inspection.inspection_date} ` : '현재 범위 전체 '}${PATROL_CORRECTIVE_LABELS[kind]} ${active ? pendingLabel : 'HWPX 다운로드'}`}
+          className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+          {active && <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin motion-reduce:animate-none" />}
+          {active ? pendingLabel : PATROL_CORRECTIVE_LABELS[kind]}
         </button>
-      ))}
+        )
+      })}
     </div>
   )
 
