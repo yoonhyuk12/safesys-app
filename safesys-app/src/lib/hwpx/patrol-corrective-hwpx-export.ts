@@ -23,7 +23,7 @@ function pages(text: string, count: number, width = 28): string[] {
   return Array.from({ length: Math.max(1, Math.ceil(all.length / count)) }, (_, i) => all.slice(i * count, (i + 1) * count).join('\n'))
 }
 
-interface DocumentStyle { header: string; id: number; bodyId: number; photoId: number; signatureId: number; dateId: number; planHeadingId: number; planItemId: number }
+interface DocumentStyle { header: string; id: number; bodyId: number; photoId: number; signatureId: number; dateId: number; planHeadingId: number; planItemId: number; planLeftId?: number }
 
 const PLAN_BODY_HEIGHT = 27396
 const PLAN_LINE_HEIGHT = 2730 // 참조 13pt·210% 문단의 줄 전진.
@@ -75,6 +75,25 @@ function planPages(text: string, width: number, height: number, hanging = 0, lin
   return output
 }
 
+// 셀 전체가 들어가는 가장 큰 정수 줄간격을 먼저 고르고, 130%에서도 넘칠 때만 분할한다.
+function planSpacing(text: string, width: number, height: number, hanging: number, reference: number): number {
+  const count = text.replace(/\r/g, '').split('\n').reduce((sum, paragraph) =>
+    sum + wrappedLines(paragraph, width - CELL_PADDING, paragraph.startsWith('□') ? 0 : hanging).length, 0)
+  return count <= 1 ? reference : Math.max(130, Math.min(reference, Math.floor((height - CELL_PADDING - 1300) / ((count - 1) * 13))))
+}
+
+function cloneSpacing(style: DocumentStyle, sourceId: number, spacing: number): number {
+  const paragraphs = Array.from(style.header.matchAll(/<hh:paraPr id="(\d+)"[^>]*>[\s\S]*?<\/hh:paraPr>/g))
+  const source = paragraphs.find(p => Number(p[1]) === sourceId)
+  if (!source) throw new Error('계획 셀의 문단 서식을 찾지 못했습니다.')
+  const id = Math.max(...paragraphs.map(p => Number(p[1]))) + 1
+  const clone = source[0].replace(/id="\d+"/, `id="${id}"`)
+    .replace(/<hh:lineSpacing[^>]*\/>/g, `<hh:lineSpacing type="PERCENT" value="${spacing}" unit="HWPUNIT"/>`)
+  style.header = style.header.replace('</hh:paraProperties>', clone + '</hh:paraProperties>')
+    .replace(/(<hh:paraProperties itemCnt=")(\d+)/, (_, start, n) => start + (Number(n) + 1))
+  return id
+}
+
 function planBodyHeight(row: PatrolInspection): number {
   const height = (text: string, width: number) => wrappedLines(text, width - CELL_PADDING).length * 2080 + CELL_PADDING
   const projectGrowth = Math.max(0, height(row.project_name || '', 40913) - 3096)
@@ -118,7 +137,7 @@ function fillTable(table: string, values: Record<string, string>, style: Documen
     const isBody = ['2,1', '4,1', '5,1'].includes(key) && height > 5000
     if (planHeight && key.startsWith('5,')) cell = cell.replace(/(<hp:cellSz\b[^>]*height=")\d+/, `$1${planHeight}`)
     const inspector = key === '2,1' && height < 5000
-    const paragraphId = inspector ? style.dateId : planHeight && key === '3,1' ? style.bodyId : undefined
+    const paragraphId = inspector ? style.dateId : planHeight && key === '3,1' ? style.bodyId : planHeight && key === '5,0' ? style.planLeftId : undefined
     return key in values ? fill(cell, values[key], style, pictures[key], isBody, paragraphId, !!planHeight && key === '5,1') : cell
   }))
 }
@@ -304,8 +323,21 @@ export async function buildPatrolCorrectiveHwpx(row: PatrolInspection, kind: Pat
     const bullets = (text: string) => text.split(/\r?\n/).filter(line => line.trim()).map(line => `  - ${line.trim().replace(/^[-•]\s*/, '')}`).join('\n')
     const content = kind === 'plan' ? `□ 시정조치계획\n${bullets(plan!.action)}\n□ 재발방지·확인계획\n${bullets(plan!.prevention)}` : requestText
     const bodyHeight = kind === 'plan' ? planBodyHeight(row) : undefined
-    const rightPages = bodyHeight ? planPages(content, 40913, bodyHeight, PLAN_HANGING) : pages(content, 19)
-    const leftPages = bodyHeight ? planPages(issueText, 7014, bodyHeight, 0, 2080) : []
+    const rightSpacing = bodyHeight ? planSpacing(content, 40913, bodyHeight, PLAN_HANGING, 210) : 210
+    const leftSpacing = bodyHeight ? planSpacing(issueText, 7014, bodyHeight, 0, 160) : 160
+    if (bodyHeight && rightSpacing < 210) {
+      style.planHeadingId = cloneSpacing(style, style.planHeadingId, rightSpacing)
+      style.planItemId = cloneSpacing(style, style.planItemId, rightSpacing)
+    }
+    if (bodyHeight && leftSpacing < 160) {
+      const cell = topLevelRanges(original, 'hp:tc').map(range => original.slice(...range))
+        .find(value => /<hp:cellAddr colAddr="0" rowAddr="5"/.test(value))
+      const sourceId = cell && /paraPrIDRef="(\d+)"/.exec(cell)?.[1]
+      if (!sourceId) throw new Error('계획 요구사항 셀의 문단 서식을 찾지 못했습니다.')
+      style.planLeftId = cloneSpacing(style, Number(sourceId), leftSpacing)
+    }
+    const rightPages = bodyHeight ? planPages(content, 40913, bodyHeight, PLAN_HANGING, rightSpacing * 13) : pages(content, 19)
+    const leftPages = bodyHeight ? planPages(issueText, 7014, bodyHeight, 0, leftSpacing * 13) : []
     for (let page = 0; page < Math.max(rightPages.length, leftPages.length); page++) {
       const tables = topLevelRanges(original, 'hp:tbl')
       const values = kind === 'plan' ? { ...common, '3,1': row.project_name || '', '5,0': leftPages[page] || '', '5,1': rightPages[page] || '' } : { ...common, '4,1': rightPages[page] }

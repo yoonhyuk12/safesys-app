@@ -214,6 +214,49 @@ for (const kind of ['request', 'result', 'plan']) {
     }
   })
 }
+for (const side of ['right', 'left']) {
+  test(`계획 ${side} 셀만 넘치면 최대 줄간격으로 압축해 한 쪽에 담는다`, async () => {
+    const issue = side === 'left' ? Array.from({ length: 14 }, (_, i) => `지적${i}`).join('\n') : '난간 미설치'
+    const plan = side === 'right'
+      ? { action: Array.from({ length: 5 }, (_, i) => `조치${i} 예정`).join('\n'), prevention: Array.from({ length: 5 }, (_, i) => `확인${i} 예정`).join('\n') }
+      : { action: '난간 설치 예정', prevention: '정기 확인 예정' }
+    const bytes = Buffer.from(await (await api.buildPatrolCorrectiveHwpx({ ...row, issue_content1: issue, issue_content2: '' }, 'plan', plan)).arrayBuffer())
+    const zip = await JSZip.loadAsync(bytes)
+    const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+    const h = load(await zip.file('Contents/header.xml').async('string'), { xml: true })
+    const baselineZip = await JSZip.loadAsync(await (await api.buildPatrolCorrectiveHwpx({ ...row, issue_content1: '난간 미설치', issue_content2: '' }, 'plan', { action: '설치 예정', prevention: '확인 예정' })).arrayBuffer())
+    const baseline = load(await baselineZip.file('Contents/header.xml').async('string'), { xml: true })
+    baseline('hh\\:paraPr').each((_, e) => {
+      const unchanged = h('hh\\:paraPr').filter((_, p) => h(p).attr('id') === baseline(e).attr('id'))
+      assert.equal(h.html(unchanged), baseline.html(e), '기존 공유 서식은 수정하지 않는다')
+    })
+    const allStyles = h('hh\\:paraPr')
+    assert.equal(new Set(allStyles.map((_, e) => h(e).attr('id')).get()).size, allStyles.length)
+    assert.equal(Number(h('hh\\:paraProperties').attr('itemCnt')), allStyles.length)
+    assert.equal(allStyles.length - baseline('hh\\:paraPr').length, side === 'right' ? 2 : 1)
+    assert.equal($('hp\\:tbl').length, 1)
+    for (const col of [0, 1]) {
+      const cell = $('hp\\:tc').filter((_, e) => $(e).children('hp\\:cellAddr').attr('rowAddr') === '5' && $(e).children('hp\\:cellAddr').attr('colAddr') === String(col))
+      const expected = col ? side === 'right' ? 180 : 210 : side === 'left' ? 152 : 160
+      cell.find('hp\\:p').each((_, e) => {
+        const para = h('hh\\:paraPr').filter((_, p) => h(p).attr('id') === $(e).attr('paraPrIDRef'))
+        assert.equal(para.find('hh\\:align').attr('horizontal'), col ? 'LEFT' : 'CENTER')
+        para.find('hh\\:lineSpacing').each((_, spacing) => assert.equal(Number(h(spacing).attr('value')), expected))
+        if (col) {
+          assert.equal(para.find('hp\\:case hc\\:intent').attr('value'), $(e).text().startsWith('□') ? '0' : '-2688')
+          assert.equal(para.find('hp\\:default hc\\:intent').attr('value'), $(e).text().startsWith('□') ? '0' : '-5376')
+          assert.equal(para.find('hc\\:left').attr('value'), '0')
+          assert.equal(para.find('hc\\:right').attr('value'), '0')
+        }
+      })
+      cell.find('hp\\:run').each((_, e) => assert.equal(h('hh\\:charPr').filter((_, p) => h(p).attr('id') === $(e).attr('charPrIDRef')).attr('height'), '1300'))
+    }
+    assert.ok($('hp\\:t').text().includes(issue.replace(/\n/g, '')))
+    for (const text of [...plan.action.split('\n'), ...plan.prevention.split('\n')]) assert.ok($('hp\\:t').text().includes(text))
+    if (process.env.PATROL_SAMPLE_DIR) await writeFile(`${process.env.PATROL_SAMPLE_DIR}/plan-compress-${side}.hwpx`, bytes)
+  })
+}
+
 test('계획은 초안 없이는 생성하지 않는다', async () => {
   await assert.rejects(api.buildPatrolCorrectiveHwpx(row, 'plan'), /계획/)
 })
@@ -255,6 +298,8 @@ test('장문 지적은 잘라내지 않고 원본 양식의 다음 쪽으로 이
     if (kind === 'plan') {
       const requirements = $('hp\\:tc').filter((_, e) => $(e).children('hp\\:cellAddr').attr('rowAddr') === '5' && $(e).children('hp\\:cellAddr').attr('colAddr') === '0')
       assert.equal(requirements.find('hp\\:t').text(), text)
+      const h = load(await zip.file('Contents/header.xml').async('string'), { xml: true })
+      requirements.find('hp\\:p').each((_, e) => assert.equal(h('hh\\:paraPr').filter((_, p) => h(p).attr('id') === $(e).attr('paraPrIDRef')).find('hh\\:lineSpacing').first().attr('value'), '130'))
     }
     assert.equal($('hp\\:secPr').length, 1)
     assert.ok(xml.includes('pageBreak="1"'))
@@ -369,6 +414,10 @@ test('사용자 예시 계획은 두 항목을 한 쪽에 담고 장문 AI 문�
     assert.ok(text.includes(plan.prevention))
     assert.equal($('hp\\:tbl').length, long ? cells.length : 1)
     assert.ok(!long || cells.length > 1)
+    if (long) {
+      const h = load(await zip.file('Contents/header.xml').async('string'), { xml: true })
+      cells.find('hp\\:p').each((_, e) => assert.equal(h('hh\\:paraPr').filter((_, p) => h(p).attr('id') === $(e).attr('paraPrIDRef')).find('hh\\:lineSpacing').first().attr('value'), '130'))
+    }
     if (process.env.PATROL_SAMPLE_DIR) await writeFile(`${process.env.PATROL_SAMPLE_DIR}/plan-${long ? 'long-ai' : 'example'}.hwpx`, bytes)
   }
 })

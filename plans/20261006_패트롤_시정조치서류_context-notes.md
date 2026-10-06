@@ -83,3 +83,11 @@ Advisor 보고. `C:/Users/User/AppData/Local/Temp/safesys-patrol-review-20261006
 검증. npm run test:patrol-corrective는 로컬 참조 입력 포함74/74 통과(기본 실행73통과·선택 표본1skip), 수정 TS 파일 eslint 통과. Advisor의 v2 한글 검증에서 참조/예시1쪽, 장문 AI10표10쪽, 장문 지적20표20쪽이며 별도 제목·주석 쪽이 없다. 계획 날짜는 참조 para43의 RIGHT/right5000(구형10000)을 유지한다. 최종 표본은 %TEMP%/patrol-reference-layout-reviewed이며 긴 공사명 및 동일 참조 내용 표본을 포함한다. 전체 린트·타입체크·최종 네이티브 검증·커밋은 Advisor가 담당한다.
 
 Advisor 최종 추가 확인. 120자 공사명·긴 서명 및 동일 참조 내용 표본도 한글1쪽이며 본문·서명·주석이 보존된다. 전체 lint exit0(기존 경고만), tsc exit0 확인을 전달받았다. 제출일 RIGHT 보존본은 reviewed 폴더에 재생성 완료했다.
+
+## 계획 셀별 자동 줄간격 보정
+
+Advisor 최종 검증. 한글 COM Open/PDF 변환 성공. 오른쪽180%·왼쪽152% 압축 표본은 각각1쪽이며 반대 셀은 기본 간격을 유지했다. 예시·긴 공사명1쪽, 장문AI7표7쪽·장문지적17표17쪽으로 전 페이지를 확인했다. 도메인75통과·선택표본1skip, 전체 lint exit0(기존 경고), tsc exit0.
+
+planSpacing은 기존 wrappedLines로 셀 전체 표시 줄 수를 구하고 `(height - 282 - 1300) / ((lines - 1) * 13)`의 정수 내림을 기본 간격과130% 사이로 제한한다. 우측 제목·항목은 각각 기존 전용 서식에서, 좌측은 원본 요구사항 셀 서식에서 새 ID로 복제하며 모든 lineSpacing 분기를 변경하고 paraProperties 개수를 갱신한다. 전체 원본 서식 XML 불변도 테스트했다. planDate·점검자·사진·메타데이터·서명 서식은 수정하지 않았다.
+
+검증. test:patrol-corrective 75통과·로컬 참조입력 선택 테스트1skip. TEMP/patrol-plan-spacing-20261006에 plan-compress-right(180%/160%,1표), plan-compress-left(210%/152%,1표), plan-long-ai, plan-long, plan-example 및 참조 표본을 생성했다. 네이티브 쪽수·육안 검증과 최종 lint/tsc는 Advisor 소유이며 빌드·커밋·푸시는 실행하지 않았다.
