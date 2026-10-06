@@ -44,7 +44,11 @@ globalThis.document = {
     return canvas
   },
 }
-globalThis.fetch = async url => url.startsWith('https://photo.test/') ? new Response(photoBytes) : new Response(await readFile(new URL(`../public${url}`, import.meta.url)))
+const photoRequests = []
+globalThis.fetch = async url => {
+  if (url.startsWith('https://photo.test/')) { photoRequests.push(url); return new Response(photoBytes) }
+  return new Response(await readFile(new URL(`../public${url}`, import.meta.url)))
+}
 
 const row = { id: 'inspection-1', project_id: 'p', project_name: '시험 & 사업', managing_hq: '경기', managing_branch: '안전지사', inspection_date: '2026-10-01', inspector_name: '홍점검', issue_content1: '안전난간 미설치', issue_content2: '통로 정리 필요', issue1_status: 'pending', patrol_car_used: true, finding_type: 'corrective_action', created_at: '' }
 for (const kind of ['request', 'result', 'plan']) {
@@ -74,6 +78,7 @@ test('계획은 초안 없이는 생성하지 않는다', async () => {
 })
 
 test('지적별 전후 사진 네 장을 본문과 매니페스트에 연결한다', async () => {
+  photoRequests.length = 0
   const blob = await api.buildPatrolCorrectiveHwpx({ ...row, site_photo_issue1: 'https://photo.test/before1', site_photo_issue2: 'https://photo.test/before2', action_photo_issue1: 'https://photo.test/after1', action_photo_issue2: 'https://photo.test/after2' }, 'result')
   const bytes = Buffer.from(await blob.arrayBuffer())
   const zip = await JSZip.loadAsync(bytes)
@@ -82,6 +87,12 @@ test('지적별 전후 사진 네 장을 본문과 매니페스트에 연결한�
   assert.equal($('hp\\:pic').length, 4)
   const ids = $('hc\\:img').map((_, e) => $(e).attr('binaryItemIDRef')).get()
   assert.equal(new Set(ids).size, 4)
+  assert.deepEqual(photoRequests, ['https://photo.test/before1', 'https://photo.test/after1', 'https://photo.test/before2', 'https://photo.test/after2'])
+  const bodyTables = $('hp\\:tbl').filter((_, table) => $(table).find('hp\\:pic').length > 0)
+  bodyTables.each((index, table) => {
+    assert.ok($(table).text().includes(index ? row.issue_content2 : row.issue_content1))
+    assert.deepEqual($(table).find('hc\\:img').map((_, image) => $(image).attr('binaryItemIDRef')).get(), ids.slice(index * 2, index * 2 + 2))
+  })
   for (const id of ids) assert.ok(zip.file(`BinData/${id}.jpg`))
   assert.equal($('hp\\:secPr').length, 1)
   if (process.env.PATROL_SAMPLE_DIR) await writeFile(`${process.env.PATROL_SAMPLE_DIR}/result-photo.hwpx`, bytes)
@@ -120,4 +131,63 @@ test('수신자는 본부·지사·사업단 조직명에 맞는 장으로 표�
     const xml = await zip.file('Contents/section0.xml').async('string')
     assert.ok(xml.includes(`${branch}장`), branch)
   }
+})
+
+for (const count of [1, 2]) {
+  test(`요구서는 지적별 현장사진 ${count}장만 연결한다`, async () => {
+    photoRequests.length = 0
+    const input = { ...row, issue_content2: count === 2 ? row.issue_content2 : '', site_photo_issue1: 'https://photo.test/before1', site_photo_issue2: count === 2 ? 'https://photo.test/before2' : null, action_photo_issue1: 'https://photo.test/after1' }
+    const bytes = Buffer.from(await (await api.buildPatrolCorrectiveHwpx(input, 'request')).arrayBuffer())
+    const zip = await JSZip.loadAsync(bytes)
+    const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+    assert.equal($('hp\\:pic').length, count)
+    assert.deepEqual(photoRequests, Array.from({ length: count }, (_, i) => `https://photo.test/before${i + 1}`))
+    const manifest = await zip.file('Contents/content.hpf').async('string')
+    $('hp\\:tbl').each((index, table) => {
+      assert.ok($(table).text().includes(`지적 ${index + 1}`))
+      assert.ok($(table).text().includes(index ? row.issue_content2 : row.issue_content1))
+      const id = $(table).find('hc\\:img').attr('binaryItemIDRef')
+      assert.ok(zip.file(`BinData/${id}.jpg`))
+      assert.ok(manifest.includes(`id="${id}"`))
+    })
+    if (count === 2 && process.env.PATROL_SAMPLE_DIR) await writeFile(`${process.env.PATROL_SAMPLE_DIR}/request-photo.hwpx`, bytes)
+  })
+}
+
+test('요구서의 사진 없는 지적도 보존하고 조치사진으로 대신 채우지 않는다', async () => {
+  photoRequests.length = 0
+  const blob = await api.buildPatrolCorrectiveHwpx({ ...row, site_photo_issue2: 'https://photo.test/before2', action_photo_issue1: 'https://photo.test/after1' }, 'request')
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer())
+  const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+  assert.equal($('hp\\:pic').length, 1)
+  assert.ok($('hp\\:tbl').first().text().includes(row.issue_content1))
+  assert.equal($('hp\\:tbl').first().find('hp\\:pic').length, 0)
+  assert.ok($('hp\\:tbl').last().text().includes(row.issue_content2))
+  assert.deepEqual(photoRequests, ['https://photo.test/before2'])
+})
+
+test('요구서 장문과 두 현장사진은 다음 쪽에도 누락 없이 유지한다', async () => {
+  const text = '위험구간의 안전난간을 설치하고 통행로를 정리해야 합니다. '.repeat(32) + '끝표식'
+  const blob = await api.buildPatrolCorrectiveHwpx({ ...row, issue_content1: text, site_photo_issue1: 'https://photo.test/before1', site_photo_issue2: 'https://photo.test/before2' }, 'request')
+  const bytes = Buffer.from(await blob.arrayBuffer())
+  const zip = await JSZip.loadAsync(bytes)
+  const xml = await zip.file('Contents/section0.xml').async('string')
+  const $ = load(xml, { xml: true })
+  assert.equal($('hp\\:pic').length, 2)
+  assert.equal($('hp\\:secPr').length, 1)
+  assert.ok($('hp\\:tbl').length > 2)
+  assert.ok($('hp\\:t').text().includes('끝표식'))
+  assert.ok(xml.includes('pageBreak="1"'))
+  const issueText = $('hp\\:tc').filter((_, cell) => $(cell).children('hp\\:cellAddr').attr('rowAddr') === '4' && $(cell).children('hp\\:cellAddr').attr('colAddr') === '1').map((_, cell) => $(cell).find('hp\\:t').map((_, node) => $(node).text()).get().filter(value => !value.startsWith('지적 ') && !value.includes('위 지적사항') && !value.includes('제출을 요청')).join('')).get().join('')
+  assert.ok(issueText.includes(text))
+  if (process.env.PATROL_SAMPLE_DIR) await writeFile(`${process.env.PATROL_SAMPLE_DIR}/request-long-photo.hwpx`, bytes)
+})
+
+test('계획서는 사진이 저장된 점검도 사진 호출 없이 텍스트만 생성한다', async () => {
+  photoRequests.length = 0
+  const blob = await api.buildPatrolCorrectiveHwpx({ ...row, site_photo_issue1: 'https://photo.test/before1', action_photo_issue1: 'https://photo.test/after1' }, 'plan', { action: '시정 계획', prevention: '예방 계획' })
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer())
+  const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+  assert.equal($('hp\\:pic').length, 0)
+  assert.deepEqual(photoRequests, [])
 })

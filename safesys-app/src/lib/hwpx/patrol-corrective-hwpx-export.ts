@@ -127,6 +127,21 @@ export async function buildPatrolCorrectiveHwpx(row: PatrolInspection, kind: Pat
         sections.push(resultFacts(section, row, style.id))
       }
     }
+  } else if (kind === 'request' && [row.site_photo_issue1, hasPatrolSecondIssue(row) ? row.site_photo_issue2 : null].some(url => url && /^https?:\/\//i.test(url))) {
+    const issues = [{ text: row.issue_content1, photo: row.site_photo_issue1 }]
+    if (hasPatrolSecondIssue(row)) issues.push({ text: row.issue_content2 || '', photo: row.site_photo_issue2 })
+    for (const [index, issue] of issues.entries()) {
+      // 원본 큰 셀(높이 43231)에 본문 10줄·지적 번호·요청 문구와 최대 15000 높이 사진을 넣는다.
+      const chunks = pages(issue.text || '지적내용 미기록', 10)
+      for (const [part, text] of chunks.entries()) {
+        const content = `지적 ${index + 1}${part ? ' (계속)' : ''}\n${text}\n\n위 지적사항에 대한 시정조치 및 결과\n제출을 요청합니다.`
+        const pictures: Record<string, string> = part === 0 ? { '4,1': await picture(issue.photo, 15000) } : {}
+        const tables = topLevelRanges(original, 'hp:tbl')
+        const values = { ...common, '4,1': content }
+        const section = rebuild(original, tables, tables.map(r => fillTable(original.slice(...r), values, style.id, pictures)))
+        sections.push(section)
+      }
+    }
   } else {
     const issueText = buildPatrolIssueContent(row) || '지적내용 미기록'
     const requestText = row.finding_type === 'not_applicable' ? '해당 사항 없음' : buildPatrolIssueContent(row) ? `${issueText}\n\n위 지적사항에 대한 시정조치 및 결과 제출을 요청합니다.` : issueText

@@ -2,7 +2,7 @@
 import JSZip from 'jszip'
 import { supabase } from '@/lib/supabase'
 import type { PatrolInspection } from '@/lib/patrol-inspections'
-import { PATROL_MAX_AI_ITEMS } from '@/lib/patrol-inspection-utils'
+import { getPatrolActionState, PATROL_MAX_AI_ITEMS } from '@/lib/patrol-inspection-utils'
 import { buildPatrolCorrectiveHwpx, PATROL_CORRECTIVE_LABELS, type PatrolCorrectiveKind, type PatrolCorrectivePlan } from '@/lib/hwpx/patrol-corrective-hwpx-export'
 
 export { PATROL_CORRECTIVE_LABELS }
@@ -58,8 +58,9 @@ function save(blob: Blob, filename: string): void {
 
 const filenamePart = (value: string) => value.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').slice(0, 80)
 
-export async function downloadPatrolCorrective(rows: PatrolInspection[], kind: PatrolCorrectiveKind, quarter: string, progress: Progress, bulk = true): Promise<void> {
-  if (!rows.length) throw new Error('다운로드할 점검이 없습니다.')
+export async function downloadPatrolCorrective(inspections: PatrolInspection[], kind: PatrolCorrectiveKind, quarter: string, progress: Progress, bulk = true): Promise<void> {
+  const rows = inspections.filter(row => !getPatrolActionState(row).notApplicable)
+  if (!rows.length) throw new Error('다운로드할 해당 점검이 없습니다.')
   const plans = kind === 'plan' ? await generatePlans(rows, progress) : {}
   const zip = new JSZip()
   for (const [index, row] of rows.entries()) {

@@ -94,7 +94,7 @@ accident-report, daily-inspection, edit, equipment-inspection, headquarters-insp
 - `/api/ai/patrol-inspection` — KRC 패트롤 점검 엑셀용 재발방지대책·재해유형 작성 (Bearer 인증·관할 검증, gpt-6-luna)
 - `/api/ai/patrol-corrective-plan` — KRC 패트롤 시정조치계획 초안 생성. Bearer 토큰·발주청 조직 관할 검증 후 저장된 지적만 사용하며 gpt-6-luna low로 고정한다. 최대 20건씩 처리하고 원문·지적유형을 반환해 클라이언트 목록 변경을 검사한다.
 
-`/safe/patrol`의 시정조치요구서·조치결과 보고서·시정조치계획서는 `public/patrol-corrective/*.hwpx` 원본 양식을 사용한다. 상단 버튼은 현재 분기·조직 범위의 모든 점검을 개별 HWPX ZIP으로, 점검행 버튼은 HWPX로 내려받는다. 결과보고서는 지적별 전후 사진을 각각 연결하고 장문은 양식을 복제해 이어 쓴다. 점검부서장·서명·제출일·실제 완료일은 근거 없이 생성하지 않는다. 계획서는 AI 초안이며 제출 전 검토한다. 생성 모듈은 `src/lib/hwpx/patrol-corrective-hwpx-export.ts`, 배치·다운로드는 `src/lib/patrol-corrective-download.ts`다.
+`/safe/patrol`의 시정조치요구서·조치결과 보고서·시정조치계획서는 `public/patrol-corrective/*.hwpx` 원본 양식을 사용한다. 상단 버튼은 현재 분기·조직 범위의 대상 점검을 개별 HWPX ZIP으로, 점검행 버튼은 HWPX로 내려받는다. 3종 모두 `getPatrolActionState(row).notApplicable`인 점검(지적유형 해당없음 또는 필요한 조치 전부 면제)은 AI 호출·문서 생성 전에 제외한다. 같은 지구의 다른 대상 점검은 유지하며, 대상·제외 건수를 표시하고 대상이 없으면 범위 버튼을 비활성화한다. 제외 점검의 개별 버튼은 대시로 표시하며 엑셀·원본 행·통계는 그대로 유지한다. 요구서는 현장사진이 있으면 지적별로 원본 큰 셀에 번호·본문·해당 현장사진을 넣고 쪽을 나눈다. 결과보고서는 지적별 전후 사진을 각각 연결하고 장문은 양식을 복제해 이어 쓴다. 점검부서장·서명·제출일·실제 완료일은 근거 없이 생성하지 않는다. 계획서는 사진 없는 AI 텍스트 초안이며 제출 전 검토한다. 생성 모듈은 `src/lib/hwpx/patrol-corrective-hwpx-export.ts`, 배치·다운로드는 `src/lib/patrol-corrective-download.ts`다.
 
 **외부 서비스 연동:**
 

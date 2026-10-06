@@ -535,9 +535,13 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
     }
   }
 
+  const hwpxScopeRows = scopeRows.filter(row => !row.action.notApplicable)
+
   const handleDownloadHwpx = async (kind: PatrolCorrectiveKind, inspection?: PatrolInspection) => {
     if (downloadLock.current || loading) return
-    const rows = inspection ? [inspection] : scopeRows.map(row => row.inspection)
+    const rows = inspection
+      ? [inspection].filter(row => !getPatrolActionState(row).notApplicable)
+      : hwpxScopeRows.map(row => row.inspection)
     if (!rows.length) return
     downloadLock.current = true
     setHwpxBusy(true)
@@ -555,10 +559,12 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
     }
   }
 
-  const hwpxButtons = (inspection?: PatrolInspection) => (
+  const hwpxButtons = (inspection?: PatrolInspection) => inspection && getPatrolActionState(inspection).notApplicable ? (
+    <span className="text-gray-500">—</span>
+  ) : (
     <div className="flex flex-wrap gap-2" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
       {(Object.keys(PATROL_CORRECTIVE_LABELS) as PatrolCorrectiveKind[]).map(kind => (
-        <button key={kind} type="button" disabled={downloading || hwpxBusy || loading || (!inspection && scopeRows.length === 0)}
+        <button key={kind} type="button" disabled={downloading || hwpxBusy || loading || (!inspection && hwpxScopeRows.length === 0)}
           onClick={() => void handleDownloadHwpx(kind, inspection)}
           aria-label={`${inspection ? `${inspection.project_name || '사업'} ${inspection.inspection_date} ` : '현재 범위 전체 '}${PATROL_CORRECTIVE_LABELS[kind]} HWPX 다운로드`}
           className="min-h-[44px] px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -726,7 +732,7 @@ const PatrolInspectionView = ({ initialHq, initialBranch, onBack }: PatrolInspec
             </button>
             {hwpxButtons()}
             </div>
-            <p className="text-xs text-gray-500">한글 서류는 현재 범위 전체를 ZIP으로 받습니다. 계획서는 AI 초안이므로 제출 전 검토해 주세요.</p>
+            <p className="text-xs text-gray-500">한글 서류 대상 {hwpxScopeRows.length}건 · 해당 사항 없음 제외 {scopeRows.length - hwpxScopeRows.length}건. 대상 점검을 ZIP으로 받습니다. 계획서는 AI 초안이므로 제출 전 검토해 주세요.</p>
             {hwpxProgress && <p role="status" aria-live="polite" className="text-xs text-gray-600">{hwpxProgress}</p>}
             <p className="text-xs text-gray-500">
               {loading
