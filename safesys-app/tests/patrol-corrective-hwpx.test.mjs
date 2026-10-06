@@ -27,6 +27,11 @@ context.fillStyle = '#c9dfec'; context.fillRect(0, 0, 1200, 800)
 context.fillStyle = '#ffc400'; context.fillRect(300, 300, 600, 300)
 context.fillStyle = '#202020'; context.font = '64px sans-serif'; context.fillText('PATROL PHOTO', 300, 500)
 const photoBytes = canvas.toBuffer('image/png')
+const photoVariants = new Map([['portrait', [800, 1200]], ['square', [1000, 1000]]].map(([name, [w, h]]) => {
+  const variant = createCanvas(w, h)
+  variant.getContext('2d').drawImage(canvas, 0, 0, w, h)
+  return [name, variant.toBuffer('image/png')]
+}))
 const blobs = new Map()
 let blobId = 0
 URL.createObjectURL = blob => { const id = `blob:${++blobId}`; blobs.set(id, blob); return id }
@@ -46,7 +51,7 @@ globalThis.document = {
 }
 const photoRequests = []
 globalThis.fetch = async url => {
-  if (url.startsWith('https://photo.test/')) { photoRequests.push(url); return new Response(photoBytes) }
+  if (url.startsWith('https://photo.test/')) { photoRequests.push(url); return new Response(photoVariants.get(url.split('/').at(-1)) || photoBytes) }
   return new Response(await readFile(new URL(`../public${url}`, import.meta.url)))
 }
 
@@ -70,11 +75,61 @@ test('생성 글자는 언어별 신명조 13pt이며 인물은 등록 정보만
       }
     }
     assert.ok($('hp\\:t').text().includes('검 토 자'))
+    const signatures = $('hp\\:p').filter((_, e) => /^(작 성 자|검 토 자)/.test($(e).text()))
+    assert.equal(signatures.length, kind === 'result' ? 4 : 2)
+    signatures.each((_, e) => {
+      const paragraph = h('hh\\:paraPr').filter((_, p) => h(p).attr('id') === $(e).attr('paraPrIDRef'))
+      assert.equal(paragraph.find('hh\\:align').attr('horizontal'), 'RIGHT')
+      for (const [tag, value] of [['right', '2000'], ['left', '0'], ['intent', '0']]) {
+        paragraph.find(`hc\\:${tag}`).each((_, margin) => assert.equal(h(margin).attr('value'), tag === 'right' && h(margin).closest('hp\\:default').length ? '4000' : value))
+      }
+    })
     if (process.env.PATROL_SAMPLE_DIR) {
       await mkdir(process.env.PATROL_SAMPLE_DIR, { recursive: true })
       await writeFile(`${process.env.PATROL_SAMPLE_DIR}/${kind}-identities.hwpx`, Buffer.from(await zip.generateAsync({ type: 'nodebuffer' })))
     }
   }
+})
+
+for (const kind of ['request', 'result']) {
+  for (const shape of ['landscape', 'portrait', 'square']) {
+    for (const long of [false, true]) {
+      test(`${kind} ${shape} ${long ? '긴' : '짧은'} 본문 사진을 남는 높이까지 확대한다`, async () => {
+        const text = long ? '안전난간을 설치하고 통행로를 정리합니다. '.repeat(kind === 'request' ? 7 : 3) : '안전난간 미설치'
+        const input = { ...row, issue_content1: text, issue_content2: '', site_photo_issue1: `https://photo.test/${shape}`, action_photo_issue1: `https://photo.test/${shape}` }
+        const bytes = Buffer.from(await (await api.buildPatrolCorrectiveHwpx(input, kind)).arrayBuffer())
+        const zip = await JSZip.loadAsync(bytes)
+        const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+        const ratio = shape === 'landscape' ? 1.5 : shape === 'portrait' ? 2 / 3 : 1
+        $('hp\\:pic').each((_, pic) => {
+          const picture = $(pic)
+          const w = Number(picture.children('hp\\:sz').attr('width'))
+          const height = Number(picture.children('hp\\:sz').attr('height'))
+          const cell = picture.closest('hp\\:tc')
+          const textLines = cell.find('hp\\:p').filter((_, p) => !$(p).find('hp\\:pic').length).length
+          const available = Number(cell.children('hp\\:cellSz').attr('height')) - textLines * 2080 - 282 - 1300
+          assert.ok(height + textLines * 2080 + 282 + 1300 <= Number(cell.children('hp\\:cellSz').attr('height')))
+          assert.ok(Math.abs(w / height - ratio) < 0.001)
+          assert.ok(Math.abs(w - 38500) <= 1 || Math.abs(height - available) <= 1, '폭 또는 높이 예산을 채운다')
+          if (!long) assert.ok(height > (kind === 'request' ? 15000 : 8000))
+        })
+        if (!long) assert.equal($('hp\\:p[pageBreak="1"]').length, 0)
+        if (process.env.PATROL_SAMPLE_DIR) await writeFile(`${process.env.PATROL_SAMPLE_DIR}/${kind}-${shape}-${long ? 'long' : 'short'}.hwpx`, bytes)
+      })
+    }
+  }
+}
+
+test('요구서 긴 공사명은 상단 증가분을 본문 셀에서 확보한다', async () => {
+  const project = '장문공사명'.repeat(20)
+  const bytes = Buffer.from(await (await api.buildPatrolCorrectiveHwpx({ ...row, project_name: project, issue_content2: '', site_photo_issue1: 'https://photo.test/portrait' }, 'request')).arrayBuffer())
+  const zip = await JSZip.loadAsync(bytes)
+  const $ = load(await zip.file('Contents/section0.xml').async('string'), { xml: true })
+  assert.ok($('hp\\:t').text().includes(project))
+  assert.equal($('hp\\:tbl').length, 1)
+  const body = $('hp\\:pic').closest('hp\\:tc')
+  assert.ok(Number(body.children('hp\\:cellSz').attr('height')) < 43231)
+  if (process.env.PATROL_SAMPLE_DIR) await writeFile(`${process.env.PATROL_SAMPLE_DIR}/request-long-project.hwpx`, bytes)
 })
 
 test('계획 항목은 네모 머리글과 두 칸 들여쓴 AI 문장이다', async () => {

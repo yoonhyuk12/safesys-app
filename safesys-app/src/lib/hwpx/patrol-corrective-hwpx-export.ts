@@ -23,7 +23,12 @@ function pages(text: string, count: number, width = 28): string[] {
   return Array.from({ length: Math.max(1, Math.ceil(all.length / count)) }, (_, i) => all.slice(i * count, (i + 1) * count).join('\n'))
 }
 
-interface DocumentStyle { header: string; id: number; bodyId: number; photoId: number }
+interface DocumentStyle { header: string; id: number; bodyId: number; photoId: number; signatureId: number }
+
+// 13pt·160% 본문, 셀 위아래 여백 282, 그림 기준선 여유 13pt를 제외한다.
+function photoHeight(cellHeight: number, text: string): number {
+  return Math.max(1, cellHeight - (text ? lines(text).length * 2080 : 0) - 282 - 1300)
+}
 
 function fill(cell: string, text: string, style: DocumentStyle, picture = '', body = false): string {
   const range = topLevelRanges(cell, 'hp:subList')[0]
@@ -79,9 +84,13 @@ function textStyle(header: string): DocumentStyle {
     .replace(/id="\d+"/, `id="${id}"`).replace(/horizontal="[^"]*"/, `horizontal="${align}"`)
     .replace(/<hh:lineSpacing[^>]*\/>/g, `<hh:lineSpacing type="PERCENT" value="${spacing}" unit="HWPUNIT"/>`)
     .replace(/breakLatinWord="[^"]*"/g, 'breakLatinWord="BREAK_WORD"').replace(/breakNonLatinWord="[^"]*"/g, 'breakNonLatinWord="BREAK_WORD"')
-  header = header.replace('</hh:paraProperties>', paragraph(bodyId, 'LEFT', 160) + paragraph(bodyId + 1, 'CENTER', 100) + '</hh:paraProperties>')
-    .replace(/(<hh:paraProperties itemCnt=")(\d+)/, (_, start, n) => start + (Number(n) + 2))
-  return { id, bodyId, photoId: bodyId + 1, header }
+  const signature = paragraph(bodyId + 2, 'RIGHT', 160)
+    .replace(/<hc:(intent|left|right)\b[^>]*\/>/g, (_, tag) => `<hc:${tag} value="${tag === 'right' ? 2000 : 0}" unit="HWPUNIT"/>`)
+    // 구형 기본 분기의 문단 여백은 HwpUnitChar 분기의 두 배 단위다.
+    .replace(/<hp:default>[\s\S]*?<\/hp:default>/g, value => value.replace(/<hc:right value="2000"/g, '<hc:right value="4000"'))
+  header = header.replace('</hh:paraProperties>', paragraph(bodyId, 'LEFT', 160) + paragraph(bodyId + 1, 'CENTER', 100) + signature + '</hh:paraProperties>')
+    .replace(/(<hh:paraProperties itemCnt=")(\d+)/, (_, start, n) => start + (Number(n) + 3))
+  return { id, bodyId, photoId: bodyId + 1, signatureId: bodyId + 2, header }
 }
 
 function identities(section: string, row: PatrolInspection, style: DocumentStyle): string {
@@ -96,7 +105,7 @@ function identities(section: string, row: PatrolInspection, style: DocumentStyle
     if (!marker) return p
     const value = /^\s*(?:작\s*성|입\s*회)\s*자\s*:/.test(text) ? author : /^\s*(?:검\s*토|확\s*인)\s*자\s*:/.test(text) ? reviewer : null
     if (!value) return p
-    return paragraph(/<hp:p\b[^>]*>/.exec(p)![0], `${value}    ${marker}`)
+    return paragraph(/<hp:p\b[^>]*>/.exec(p)![0].replace(/paraPrIDRef="\d+"/, `paraPrIDRef="${style.signatureId}"`), `${value}    ${marker}`)
   })
 }
 
@@ -164,14 +173,14 @@ export async function buildPatrolCorrectiveHwpx(row: PatrolInspection, kind: Pat
     const issues = [{ text: row.issue_content1, before: row.site_photo_issue1, after: row.action_photo_issue1, status: row.issue1_status }]
     if (hasPatrolSecondIssue(row)) issues.push({ text: row.issue_content2 || '', before: row.site_photo_issue2, after: row.action_photo_issue2, status: row.issue2_status || 'pending' })
     for (const [index, issue] of issues.entries()) {
-      // 16891 높이 셀에서 13pt 160% 세 줄 + 사진 8000 + 여백을 확보한다.
+      // 16891 높이 셀에서 13pt 160% 본문은 세 줄씩 유지하고 남는 높이를 사진에 쓴다.
       const chunks = pages(issue.text || '지적내용 미기록', 3)
       for (const [part, text] of chunks.entries()) {
         const tables = topLevelRanges(original, 'hp:tbl')
         const state = getPatrolActionState({ action_photo_issue1: issue.after })
         const status = state.notApplicable ? '해당 사항 없음' : state.completed ? '조치사진 등록' : '조치사진 미등록'
         const values = { '0,1': row.actual_work_address || row.site_address || '', '1,2': `지적 ${index + 1} · 점검일 ${row.inspection_date}`, '2,1': text, '3,2': status, '4,1': state.notApplicable ? '해당 사항 없음' : state.completed ? '' : '조치사진 미등록' }
-        const pictures: Record<string, string> = part === 0 ? { '2,1': await picture(issue.before, 8000), '4,1': await picture(issue.after, 13500) } : {}
+        const pictures: Record<string, string> = part === 0 ? { '2,1': await picture(issue.before, photoHeight(16891, text)), '4,1': await picture(issue.after, photoHeight(15846, values['4,1'])) } : {}
         const section = rebuild(original, tables, tables.map((r, i) => i === 1 ? fillTable(original.slice(...r), values, style, pictures) : original.slice(...r)))
         sections.push(resultFacts(section, row, style.id))
       }
@@ -180,14 +189,24 @@ export async function buildPatrolCorrectiveHwpx(row: PatrolInspection, kind: Pat
     const issues = [{ text: row.issue_content1, photo: row.site_photo_issue1 }]
     if (hasPatrolSecondIssue(row)) issues.push({ text: row.issue_content2 || '', photo: row.site_photo_issue2 })
     for (const [index, issue] of issues.entries()) {
-      // 43231 높이에 13pt 본문 7줄·번호·요청 3줄과 사진 15000을 넣는다.
+      // 긴 공사명으로 늘어난 상단 행만큼 본문 셀을 줄여 전체 표 높이를 유지한다.
+      const headerGrowth = Math.max(0, lines(row.project_name || '').length * 2080 + 282 - 3096)
+      const bodyHeight = Math.max(15000, 43231 - headerGrowth)
       const chunks = pages(issue.text || '지적내용 미기록', 7)
       for (const [part, text] of chunks.entries()) {
         const content = `지적 ${index + 1}${part ? ' (계속)' : ''}\n${text}\n\n위 지적사항에 대한 시정조치 및 결과\n제출을 요청합니다.`
-        const pictures: Record<string, string> = part === 0 ? { '4,1': await picture(issue.photo, 15000) } : {}
+        const pictures: Record<string, string> = part === 0 ? { '4,1': await picture(issue.photo, photoHeight(bodyHeight, content)) } : {}
         const tables = topLevelRanges(original, 'hp:tbl')
         const values = { ...common, '4,1': content }
-        const section = rebuild(original, tables, tables.map(r => fillTable(original.slice(...r), values, style, pictures)))
+        const section = rebuild(original, tables, tables.map(r => {
+          const table = fillTable(original.slice(...r), values, style, pictures)
+          const cells = topLevelRanges(table, 'hp:tc')
+          return rebuild(table, cells, cells.map(range => {
+            const cell = table.slice(...range)
+            return /<hp:cellAddr colAddr="\d+" rowAddr="4"/.test(cell)
+              ? cell.replace(/(<hp:cellSz\b[^>]*height=")\d+/, `$1${bodyHeight}`) : cell
+          }))
+        }))
         sections.push(section)
       }
     }
