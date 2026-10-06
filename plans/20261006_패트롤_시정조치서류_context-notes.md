@@ -1,5 +1,18 @@
 # 컨텍스트 노트
 
+## 13pt 서식 후속 보정 근거
+
+- 기존 projects.ts 소유자 조인과 supabase.ts UserProfile의 성명 컬럼은 full_name이다. 관계·RLS를 유지한 채 이 컬럼만 추가 조회한다.
+- 원본 언어별 글꼴 ID는 서로 다르고 USER에는 신명조가 없다. 언어별로 참조를 해결하고 없는 글꼴은 추가해야 한다.
+- 원본 본문 줄간격은 요구·계획 160%, 결과 130%다. 13pt에서 각각 2080·1690 HWPUNIT이며 사진 높이와 셀 여백을 별도로 예산에 포함한다.
+- 기존 JSZip/XML 스캐너·사진 헬퍼를 재사용한다. Supabase 공식 joins-and-nesting 문서의 기존 관계 조회 문법을 확인했으며 changelog.md는 웹 도구 content-type 오류로 읽히지 않았다.
+- Advisor의 한글 COM 실측에서 `신명조` 이름은 적용 실패, `한양신명조` HFT 적용 성공을 확인했다. 기존 언어별 한양신명조 ID를 재사용하고 USER에만 같은 font 정의를 새 ID로 복제한다.
+- 이번 보정은 아래 이전 10pt 검증 기록의 줄 수를 대체한다. 13pt 본문은 160%(2080) 줄 전진, 폭 28글자, 요구 사진 본문 7줄/사진 없는 요구 19줄/결과 3줄/계획 9줄 예산이다. 계획 왼쪽은 폭 4글자로 제한한다. 결과 후사진 앞 빈 문단은 제거하여 15846 높이 안에 13500 사진을 수용한다.
+- 원본 제목·cellSz 보존, 인물 3종 표시와 누락 공란, 객체/배열/null 소유자 조인, 글꼴 7개 언어 참조, 사진 전용 가운데 정렬, 사용자 예시 계획 한 쪽 및 장문 AI 끝까지 보존을 회귀 검증했다.
+- 요청대로 작성·검토 필드를 3종 모두 제공한다. 요구서의 입회자·확인자 및 계획·결과의 기존 작성·검토 문단을 치환하며 서명 기호·수신자를 보존한다. 별도 문단 추가로 인한 요구서 넘침은 Advisor 네이티브 검증에서 발견되어 기존 문단 치환으로 수정했다. 등록된 감독을 쓰는 방안은 사용자가 확인했다.
+- 최종 Advisor 보고(2026-10-06). 53개 시정조치 + 67개 패트롤 테스트, 타입 검사·전체 린트 exit0(기존 경고)을 직접 재검증했다. 최종 한글 Open/SaveAs 성공 및 모든 페이지 육안 확인 결과 요구 인물1쪽·사진2쪽·장문사진7쪽·장문3쪽, 결과 사진2쪽·장문14쪽, 계획 예시1쪽·인물1쪽·장문AI12쪽·장문지적32쪽이며 잘림 없다. 사진은 셀 안 가운데 정렬, 글꼴은 네이티브 참조로 표시됐다.
+- 최종 표본 14개는 `C:/Users/User/AppData/Local/Temp/safesys-patrol-format-20261006`에 있다. request/result/plan 각각 sample·identities·long, request-photo·request-long-photo·result-photo, plan-example·plan-long-ai를 생성했다. 소스 2개·테스트 2개·계획 3개·architecture만 수정했고 빌드·커밋·푸시는 하지 않았다.
+
 - patrol-ledger-hwpx-export의 템플릿 복사·셀 채우기 패턴과 accident-report-xml의 중첩 XML 스캐너를 재사용한다.
 - 기존 patrol-inspection API는 getUser 토큰 검증 후 발주청 프로필 및 isOrganizationInUserScope로 원본 점검 관할을 검사한다.
 - GitHub 저장소 검색에서 rhwp/hwpxlib를 확인했으나 기존 JSZip 3.10.1과 XML 스캐너로 충분하다. npm 최신 JSZip은 3.10.2이며 신규 의존성은 필요 없다.

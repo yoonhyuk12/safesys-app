@@ -36,6 +36,8 @@ export interface PatrolInspection {
   total_budget?: string
   /** 시공사명 (projects → user_profiles.company_name) */
   contractor_name?: string
+  /** 현장 소유자 성명 (projects → user_profiles.full_name) */
+  owner_name?: string
   supervisor_position?: string
   supervisor_name?: string
   actual_work_address?: string
@@ -87,7 +89,7 @@ const SELECT_COLUMNS = `
     supervisor_name,
     actual_work_address,
     site_address,
-    user_profiles ( company_name )
+    user_profiles ( company_name, full_name )
   )
 `
 
@@ -109,7 +111,7 @@ interface PatrolRowProject {
   supervisor_name?: string | null
   actual_work_address?: string | null
   site_address?: string | null
-  user_profiles?: { company_name?: string | null } | Array<{ company_name?: string | null }> | null
+  user_profiles?: { company_name?: string | null; full_name?: string | null } | Array<{ company_name?: string | null; full_name?: string | null }> | null
 }
 
 /** PostgREST가 돌려주는 행 모양 — 조인 결과는 객체나 배열로 올 수 있다. */
@@ -151,6 +153,7 @@ function transform(row: PatrolInspectionRow): PatrolInspection {
     project_category: project.project_category ?? undefined,
     total_budget: project.total_budget ?? undefined,
     contractor_name: profile?.company_name ?? undefined,
+    owner_name: profile?.full_name?.trim() || undefined,
     supervisor_position: project.supervisor_position ?? undefined,
     supervisor_name: project.supervisor_name ?? undefined,
     actual_work_address: project.actual_work_address ?? undefined,

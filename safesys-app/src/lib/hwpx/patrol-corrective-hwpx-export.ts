@@ -11,45 +11,93 @@ export const PATROL_CORRECTIVE_LABELS = { request: '시정조치요구서', resu
 const MIME = 'application/hwp+zip'
 const esc = (text: string) => text.replace(/[&<>"\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] ?? ''))
 
-// 한글 10pt 기준 폭에 여유를 두고 명시적으로 줄을 나누어 원본 고정 높이를 넘지 않는다.
-function lines(text: string, width = 34): string[] {
+// 13pt 전각 글자 폭(1300)에 여유를 둔다. 본문 셀 유효 폭은 약 40000이다.
+function lines(text: string, width = 28): string[] {
   return text.replace(/\r/g, '').split('\n').flatMap(line => {
     const chars = Array.from(line)
     return chars.length ? Array.from({ length: Math.ceil(chars.length / width) }, (_, i) => chars.slice(i * width, (i + 1) * width).join('')) : ['']
   })
 }
-function pages(text: string, count: number, width = 34): string[] {
+function pages(text: string, count: number, width = 28): string[] {
   const all = lines(text, width)
   return Array.from({ length: Math.max(1, Math.ceil(all.length / count)) }, (_, i) => all.slice(i * count, (i + 1) * count).join('\n'))
 }
 
-function fill(cell: string, text: string, charId: number, picture = ''): string {
+interface DocumentStyle { header: string; id: number; bodyId: number; photoId: number }
+
+function fill(cell: string, text: string, style: DocumentStyle, picture = '', body = false): string {
   const range = topLevelRanges(cell, 'hp:subList')[0]
   if (!range) throw new Error('양식의 셀 본문을 찾지 못했습니다.')
   const sub = cell.slice(...range)
   const p = /<hp:p\s[^>]*>/.exec(sub)?.[0]
   if (!p) throw new Error('양식의 문단 서식이 없습니다.')
-  const content = text.split('\n').map(line => `${p}<hp:run charPrIDRef="${charId}"><hp:t>${esc(line)}</hp:t></hp:run></hp:p>`).join('')
-  const image = picture ? `${p}<hp:run charPrIDRef="${charId}">${picture}<hp:t/></hp:run></hp:p>` : ''
+  const textP = body ? p.replace(/paraPrIDRef="\d+"/, `paraPrIDRef="${style.bodyId}"`) : p
+  const content = (picture && !text ? [] : text.split('\n')).map(line => `${textP}<hp:run charPrIDRef="${style.id}"><hp:t>${esc(line)}</hp:t></hp:run></hp:p>`).join('')
+  const imageP = p.replace(/paraPrIDRef="\d+"/, `paraPrIDRef="${style.photoId}"`)
+  const image = picture ? `${imageP}<hp:run charPrIDRef="${style.id}">${picture}<hp:t/></hp:run></hp:p>` : ''
   return rebuild(cell, [range], [sub.slice(0, sub.indexOf('>') + 1) + content + image + '</hp:subList>'])
 }
 
-function fillTable(table: string, values: Record<string, string>, charId: number, pictures: Record<string, string> = {}): string {
+function fillTable(table: string, values: Record<string, string>, style: DocumentStyle, pictures: Record<string, string> = {}): string {
   const ranges = topLevelRanges(table, 'hp:tc')
   return rebuild(table, ranges, ranges.map(range => {
     const cell = table.slice(...range)
     const addr = /<hp:cellAddr colAddr="(\d+)" rowAddr="(\d+)"/.exec(cell)
     const key = addr ? `${addr[2]},${addr[1]}` : ''
-    return key in values ? fill(cell, values[key], charId, pictures[key]) : cell
+    const height = Number(/height="(\d+)"/.exec(cell.match(/<hp:cellSz[^>]*>/)?.[0] || '')?.[1])
+    const isBody = ['2,1', '4,1', '5,1'].includes(key) && height > 5000
+    return key in values ? fill(cell, values[key], style, pictures[key], isBody) : cell
   }))
 }
 
-function textStyle(header: string): { header: string; id: number } {
+function textStyle(header: string): DocumentStyle {
+  // 한글에 등록된 신명조의 HFT 이름. exact '신명조'는 네이티브에서 적용되지 않는다.
+  const fontName = '한양신명조'
+  const fallbackFont = Array.from(header.matchAll(/<hh:font\b[^>]*>[\s\S]*?<\/hh:font>/g)).find(font => font[0].includes(`face="${fontName}"`))?.[0]
+  const fonts: Record<string, number> = {}
+  header = header.replace(/<hh:fontface\b[^>]*>[\s\S]*?<\/hh:fontface>/g, face => {
+    const lang = /lang="([^"]+)"/.exec(face)![1].toLowerCase()
+    const entries = Array.from(face.matchAll(/<hh:font\b[^>]*>[\s\S]*?<\/hh:font>/g))
+    const existing = entries.find(font => font[0].includes(`face="${fontName}"`))
+    const id = existing ? Number(/id="(\d+)"/.exec(existing[0])![1]) : Math.max(-1, ...entries.map(font => Number(/id="(\d+)"/.exec(font[0])![1]))) + 1
+    fonts[lang] = id
+    if (existing) return face
+    const base = fallbackFont
+    if (!base) throw new Error('양식의 언어별 글꼴을 찾지 못했습니다.')
+    const font = base.replace(/id="\d+"/, `id="${id}"`)
+    return face.replace('</hh:fontface>', font + '</hh:fontface>').replace(/fontCnt="\d+"/, `fontCnt="${entries.length + 1}"`)
+  })
   const styles = Array.from(header.matchAll(/<hh:charPr id="(\d+)"[^>]*>[\s\S]*?<\/hh:charPr>/g))
   if (!styles.length) throw new Error('양식의 글자 서식을 찾지 못했습니다.')
   const id = Math.max(...styles.map(style => Number(style[1]))) + 1
-  const clone = styles[0][0].replace(/id="\d+"/, `id="${id}"`).replace(/height="\d+"/, 'height="1000"').replace(/textColor="[^"]*"/, 'textColor="#000000"')
-  return { id, header: header.replace('</hh:charProperties>', clone + '</hh:charProperties>').replace(/(<hh:charProperties itemCnt=")(\d+)/, (_, start, n) => start + (Number(n) + 1)) }
+  const clone = styles[0][0].replace(/id="\d+"/, `id="${id}"`).replace(/height="\d+"/, 'height="1300"').replace(/textColor="[^"]*"/, 'textColor="#000000"')
+    .replace(/<hh:fontRef[^>]*\/>/, `<hh:fontRef ${Object.entries(fonts).map(([lang, fontId]) => `${lang}="${fontId}"`).join(' ')}/>`)
+  header = header.replace('</hh:charProperties>', clone + '</hh:charProperties>').replace(/(<hh:charProperties itemCnt=")(\d+)/, (_, start, n) => start + (Number(n) + 1))
+  const paragraphs = Array.from(header.matchAll(/<hh:paraPr id="(\d+)"[^>]*>[\s\S]*?<\/hh:paraPr>/g))
+  const bodyId = Math.max(...paragraphs.map(p => Number(p[1]))) + 1
+  const paragraph = (id: number, align: string, spacing: number) => paragraphs[0][0]
+    .replace(/id="\d+"/, `id="${id}"`).replace(/horizontal="[^"]*"/, `horizontal="${align}"`)
+    .replace(/<hh:lineSpacing[^>]*\/>/g, `<hh:lineSpacing type="PERCENT" value="${spacing}" unit="HWPUNIT"/>`)
+    .replace(/breakLatinWord="[^"]*"/g, 'breakLatinWord="BREAK_WORD"').replace(/breakNonLatinWord="[^"]*"/g, 'breakNonLatinWord="BREAK_WORD"')
+  header = header.replace('</hh:paraProperties>', paragraph(bodyId, 'LEFT', 160) + paragraph(bodyId + 1, 'CENTER', 100) + '</hh:paraProperties>')
+    .replace(/(<hh:paraProperties itemCnt=")(\d+)/, (_, start, n) => start + (Number(n) + 2))
+  return { id, bodyId, photoId: bodyId + 1, header }
+}
+
+function identities(section: string, row: PatrolInspection, style: DocumentStyle): string {
+  const author = `작 성 자 : 현장대리인 ${row.owner_name?.trim() || ''}`
+  const reviewer = `검 토 자 : 공사감독 ${[row.supervisor_position?.trim(), row.supervisor_name?.trim()].filter(Boolean).join(' ')}`
+  const paragraph = (open: string, text: string) => `${open}<hp:run charPrIDRef="${style.id}"><hp:t>${esc(text)}</hp:t></hp:run></hp:p>`
+  // 서명 문단만 치환한다. 표를 감싼 상위 문단과 수신자·서명 기호는 보존한다.
+  return section.replace(/<hp:p\b[^>]*>(?:(?!<hp:p\b)[\s\S])*?<\/hp:p>/g, p => {
+    const text = Array.from(p.matchAll(/<hp:t>([\s\S]*?)<\/hp:t>/g), m => m[1].replace(/<[^>]*>/g, '')).join('')
+    if (text.includes('한국농어촌공사') && text.includes('귀하')) return p.replace(/charPrIDRef="\d+"/g, `charPrIDRef="${style.id}"`)
+    const marker = text.includes('󰄫') ? '󰄫' : text.includes('(인)') ? '(인)' : ''
+    if (!marker) return p
+    const value = /^\s*(?:작\s*성|입\s*회)\s*자\s*:/.test(text) ? author : /^\s*(?:검\s*토|확\s*인)\s*자\s*:/.test(text) ? reviewer : null
+    if (!value) return p
+    return paragraph(/<hp:p\b[^>]*>/.exec(p)![0], `${value}    ${marker}`)
+  })
 }
 
 function resultFacts(section: string, row: PatrolInspection, charId: number): string {
@@ -111,19 +159,20 @@ export async function buildPatrolCorrectiveHwpx(row: PatrolInspection, kind: Pat
     return buildInlinePicXml(photo.id, size.w, size.h)
   }
   const sections: string[] = []
-  const common = { '1,1': '', '1,3': 'KRC 패트롤 점검', '2,1': row.inspector_name || '', '2,3': row.inspection_date, '3,1': lines(row.project_name || '', 34).join('\n') }
+  const common = { '1,1': '', '1,3': 'KRC 패트롤 점검', '2,1': row.inspector_name || '', '2,3': row.inspection_date, '3,1': lines(row.project_name || '').join('\n') }
   if (kind === 'result') {
     const issues = [{ text: row.issue_content1, before: row.site_photo_issue1, after: row.action_photo_issue1, status: row.issue1_status }]
     if (hasPatrolSecondIssue(row)) issues.push({ text: row.issue_content2 || '', before: row.site_photo_issue2, after: row.action_photo_issue2, status: row.issue2_status || 'pending' })
     for (const [index, issue] of issues.entries()) {
-      const chunks = pages(issue.text || '지적내용 미기록', 5)
+      // 16891 높이 셀에서 13pt 160% 세 줄 + 사진 8000 + 여백을 확보한다.
+      const chunks = pages(issue.text || '지적내용 미기록', 3)
       for (const [part, text] of chunks.entries()) {
         const tables = topLevelRanges(original, 'hp:tbl')
         const state = getPatrolActionState({ action_photo_issue1: issue.after })
         const status = state.notApplicable ? '해당 사항 없음' : state.completed ? '조치사진 등록' : '조치사진 미등록'
         const values = { '0,1': row.actual_work_address || row.site_address || '', '1,2': `지적 ${index + 1} · 점검일 ${row.inspection_date}`, '2,1': text, '3,2': status, '4,1': state.notApplicable ? '해당 사항 없음' : state.completed ? '' : '조치사진 미등록' }
         const pictures: Record<string, string> = part === 0 ? { '2,1': await picture(issue.before, 8000), '4,1': await picture(issue.after, 13500) } : {}
-        const section = rebuild(original, tables, tables.map((r, i) => i === 1 ? fillTable(original.slice(...r), values, style.id, pictures) : original.slice(...r)))
+        const section = rebuild(original, tables, tables.map((r, i) => i === 1 ? fillTable(original.slice(...r), values, style, pictures) : original.slice(...r)))
         sections.push(resultFacts(section, row, style.id))
       }
     }
@@ -131,32 +180,33 @@ export async function buildPatrolCorrectiveHwpx(row: PatrolInspection, kind: Pat
     const issues = [{ text: row.issue_content1, photo: row.site_photo_issue1 }]
     if (hasPatrolSecondIssue(row)) issues.push({ text: row.issue_content2 || '', photo: row.site_photo_issue2 })
     for (const [index, issue] of issues.entries()) {
-      // 원본 큰 셀(높이 43231)에 본문 10줄·지적 번호·요청 문구와 최대 15000 높이 사진을 넣는다.
-      const chunks = pages(issue.text || '지적내용 미기록', 10)
+      // 43231 높이에 13pt 본문 7줄·번호·요청 3줄과 사진 15000을 넣는다.
+      const chunks = pages(issue.text || '지적내용 미기록', 7)
       for (const [part, text] of chunks.entries()) {
         const content = `지적 ${index + 1}${part ? ' (계속)' : ''}\n${text}\n\n위 지적사항에 대한 시정조치 및 결과\n제출을 요청합니다.`
         const pictures: Record<string, string> = part === 0 ? { '4,1': await picture(issue.photo, 15000) } : {}
         const tables = topLevelRanges(original, 'hp:tbl')
         const values = { ...common, '4,1': content }
-        const section = rebuild(original, tables, tables.map(r => fillTable(original.slice(...r), values, style.id, pictures)))
+        const section = rebuild(original, tables, tables.map(r => fillTable(original.slice(...r), values, style, pictures)))
         sections.push(section)
       }
     }
   } else {
     const issueText = buildPatrolIssueContent(row) || '지적내용 미기록'
     const requestText = row.finding_type === 'not_applicable' ? '해당 사항 없음' : buildPatrolIssueContent(row) ? `${issueText}\n\n위 지적사항에 대한 시정조치 및 결과 제출을 요청합니다.` : issueText
-    const content = kind === 'plan' ? `시정조치계획\n${plan!.action}\n재발방지·확인계획\n${plan!.prevention}` : requestText
-    const rightPages = pages(content, kind === 'plan' ? 11 : 27)
-    const leftPages = kind === 'plan' ? pages(issueText, 11, 5) : []
+    const content = kind === 'plan' ? `□ 시정조치계획\n  - ${plan!.action}\n□ 재발방지·확인계획\n  - ${plan!.prevention}` : requestText
+    // 계획 21453 / 요구 43231 높이에서 2080 줄 전진과 셀 여백·여유를 반영한다.
+    const rightPages = pages(content, kind === 'plan' ? 9 : 19)
+    const leftPages = kind === 'plan' ? pages(issueText, 9, 4) : []
     for (let page = 0; page < Math.max(rightPages.length, leftPages.length); page++) {
       const tables = topLevelRanges(original, 'hp:tbl')
       const values = kind === 'plan' ? { ...common, '5,0': leftPages[page] || '', '5,1': rightPages[page] || '' } : { ...common, '4,1': rightPages[page] }
-      let section = rebuild(original, tables, tables.map(r => fillTable(original.slice(...r), values, style.id)))
+      let section = rebuild(original, tables, tables.map(r => fillTable(original.slice(...r), values, style)))
       section = section.replace(/OO지사장/g, esc(row.managing_branch ? `${row.managing_branch}장` : '________지사장'))
       sections.push(section)
     }
   }
-  const section = combine(sections)
+  const section = combine(sections.map(section => identities(section, row, style)))
   output.file('Contents/section0.xml', section)
   output.file('Contents/header.xml', style.header)
   output.file('Contents/content.hpf', manifest)

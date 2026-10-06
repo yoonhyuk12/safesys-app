@@ -269,3 +269,21 @@ test('상수는 계약대로 고정한다', () => {
   assert.equal(PATROL_ACTION_OVERDUE_DAYS, 7)
   assert.equal(PATROL_MAX_AI_ITEMS, 20)
 })
+
+test('패트롤 조회는 기존 소유자 조인의 full_name을 읽고 누락된 성명은 만들지 않는다', async () => {
+  const profiles = [{ full_name: '김현장', company_name: '시험건설' }, [{ full_name: '이현장' }], null, [], { full_name: '  ' }]
+  let selected = ''
+  const query = {
+    select(value) { selected = value; return this },
+    in() { return this }, eq() { return this }, gte() { return this }, lte() { return this }, order() { return this },
+    async range() { return { data: profiles.map((profile, i) => ({ ...baseInspection(), id: String(i), projects: i === 1 ? [{ user_profiles: profile }] : { user_profiles: profile } })), error: null } },
+  }
+  const api = await transpile('../src/lib/patrol-inspections.ts', {
+    '@/lib/supabase': { supabase: { from: () => query } },
+    '@/lib/inspection/headquarters-finding-type': { normalizeHeadquartersFindingType: value => value },
+    '@/lib/patrol-inspection-utils': { patrolQuarterRange },
+  })
+  const result = await api.getPatrolInspections(['proj-1'], '2026Q3')
+  assert.match(selected, /user_profiles\s*\(\s*company_name,\s*full_name\s*\)/)
+  assert.deepEqual(result.map(row => row.owner_name), ['김현장', '이현장', undefined, undefined, undefined])
+})
