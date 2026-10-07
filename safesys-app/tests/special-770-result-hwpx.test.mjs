@@ -367,3 +367,10 @@ test('실제 지적이 비어 있으면 오래된 조치와 날짜가 결과표 
   assert.ok(!result.includes('오래된 조치'))
   assert.ok(!result.includes('2030'))
 })
+
+test('일괄 zip 안의 파일명은 지사명_점검일자_지구명.hwpx다', () => {
+  const name = api.special770BulkResultFileName({ inspectionDate: '2026-10-12', data, project: { ...project, managing_branch: '여주·이천지사' } })
+  assert.equal(name, '여주·이천지사_2026-10-12_시험지구.hwpx')
+  // 파일명에 못 쓰는 문자는 '_'로 바꾼다.
+  assert.equal(api.special770BulkResultFileName({ inspectionDate: '2026-10-12', data, project: { project_name: 'A/B 현장', managing_branch: '' } }), '지사_2026-10-12_A_B.hwpx')
+})

@@ -1,6 +1,13 @@
 # 작업 로그
 
 <!-- worklog -->
+261007_153053 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정 — "const base = special770BulkResultFileName(input)"
+261007_153052 : safesys-app/src/lib/hwpx/special-770-result-hwpx-export.ts 수정 — "/** 일괄 zip 안의 파일명. 지사명_점검일자_지구명.hwpx (지구명은 문서 제목과 같은 규칙) */ …"
+261007_153048 : safesys-app/tests/special-770-result-hwpx.test.mjs 수정
+261007_152711 : safesys-app/src/lib/excel/special-770-summary-export.ts 수정 — "/** 목록에서의 자리. 목록에 없으면 맨 뒤로 보낸다. */ function optionOrder(opti…"
+261007_152706 : safesys-app/src/lib/excel/special-770-summary-export.ts 수정 — "import ExcelJS from 'exceljs' import { BRANCH_OPTIONS, HEADQ…"
+261007_152651 : safesys-app/tests/special-770-summary-export.test.mjs 수정 — "assert.ok(!special770SummaryFileName(2026).includes('770')) …"
+261007_152647 : safesys-app/tests/special-770-summary-export.test.mjs 수정 — "'@/lib/special-inspection-770/summary': summary, '@/lib/cons…"
 261006_151401 : safesys-app/package.json 수정, safesys-app/src/components/Dashboard.tsx 수정, safesys-app/src/components/dashboard/SafetyInspectionLedgerView.tsx 수정, safesys-app/src/components/dashboard/SafetyManagerView.tsx 수정, safesys-app/src/lib/projects.ts 수정
 261006_151345 : safesys-app/src/components/dashboard/SafetyInspectionLedgerView.tsx 수정
 261006_151256 : safesys-app/src/components/Dashboard.tsx 수정

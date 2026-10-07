@@ -362,6 +362,13 @@ function resultFileName(input: Special770ResultInput): string {
   return safeFileName(`${SPECIAL_770_TYPE}_결과_${input.project.project_name ?? '현장'}_${input.inspectionDate}.hwpx`)
 }
 
+/** 일괄 zip 안의 파일명. 지사명_점검일자_지구명.hwpx (지구명은 문서 제목과 같은 규칙) */
+export function special770BulkResultFileName(input: Special770ResultInput): string {
+  const branch = input.project.managing_branch || '지사'
+  const district = districtName(input.project.project_name) || '현장'
+  return safeFileName(`${branch}_${input.inspectionDate}_${district}.hwpx`)
+}
+
 function triggerDownload(blob: Blob, fileName: string): void {
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
@@ -402,7 +409,7 @@ export async function downloadSpecial770ResultHwpxBulk(inputs: Special770ResultI
   const zip = new JSZip()
   const used = new Set<string>()
   for (const input of inputs) {
-    const base = resultFileName(input)
+    const base = special770BulkResultFileName(input)
     let name = base
     for (let n = 2; used.has(name); n++) name = base.replace(/\.hwpx$/, `_${n}.hwpx`)
     used.add(name)
