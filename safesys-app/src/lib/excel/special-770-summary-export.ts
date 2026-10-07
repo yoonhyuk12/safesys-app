@@ -1,5 +1,6 @@
 // 특별점검(굴삭기 버킷 사고) 붙임4 「점검 결과 총괄표」를 ExcelJS로 원본 양식대로 그려 내려받는다.
 import ExcelJS from 'exceljs'
+import { BRANCH_OPTIONS, HEADQUARTERS_OPTIONS } from '@/lib/constants'
 import { excavatorFindings, excavatorStats, findingsByCategory } from '@/lib/special-inspection-770/summary'
 import type { Special770InspectionData } from '@/lib/special-inspection-770/types'
 
@@ -118,14 +119,25 @@ function summaryDistrict(source: Special770SummarySource): string {
   return name.match(/^(.+?지구)/)?.[1] || name.split(/\s+/)[0] || ''
 }
 
-/** 점검 목록을 굴착기 1대 = 1행으로 펴고 본부 → 지사 → 현장명 → 점검일 순으로 정렬한다. */
+/** 목록에서의 자리. 목록에 없으면 맨 뒤로 보낸다. */
+function optionOrder(options: readonly string[], value: string): number {
+  const index = options.indexOf(value)
+  return index === -1 ? options.length : index
+}
+
+/** 점검 목록을 굴착기 1대 = 1행으로 펴고 본부 → 지사(목차 순서) → 현장명 → 점검일 순으로 정렬한다. */
 export function toSpecial770SummaryRows(sources: Special770SummarySource[]): Special770SummaryRow[] {
   const ordered = sources
     .map((source, index) => ({ source, index }))
     .sort((a, b) => {
       const pa = a.source.project
       const pb = b.source.project
-      return (pa.managing_hq || '').localeCompare(pb.managing_hq || '', 'ko')
+      const hqA = pa.managing_hq || ''
+      const hqB = pb.managing_hq || ''
+      const branches = BRANCH_OPTIONS[hqA] ?? []
+      return optionOrder(HEADQUARTERS_OPTIONS, hqA) - optionOrder(HEADQUARTERS_OPTIONS, hqB)
+        || hqA.localeCompare(hqB, 'ko')
+        || optionOrder(branches, pa.managing_branch || '') - optionOrder(branches, pb.managing_branch || '')
         || (pa.managing_branch || '').localeCompare(pb.managing_branch || '', 'ko')
         || (pa.project_name || '').localeCompare(pb.project_name || '', 'ko')
         || (a.source.inspection_date || '').localeCompare(b.source.inspection_date || '')

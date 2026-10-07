@@ -37,6 +37,7 @@ const {
 } = await transpile('../src/lib/excel/special-770-summary-export.ts', {
   exceljs: ExcelJS,
   '@/lib/special-inspection-770/summary': summary,
+  '@/lib/constants': await transpile('../src/lib/constants.ts'),
 })
 
 // 1x1 PNG
@@ -95,6 +96,18 @@ test('점검을 굴착기 1대 = 1행으로 펴고 본부 → 지사 → 현장�
   assert.equal(formatSpecial770InspectionDate('2026-10-10'), '26.10.10')
   assert.equal(special770SummaryFileName(2026, '경기본부'), '특별점검(굴삭기 버킷 사고)_총괄표_2026_경기본부.xlsx')
   assert.ok(!special770SummaryFileName(2026).includes('770'))
+})
+
+test('본부·지사는 가나다가 아니라 HEADQUARTERS_OPTIONS·BRANCH_OPTIONS 목차 순서로 정렬한다', () => {
+  const one = (id) => [{ id, vehicle_no: id, items: {} }]
+  const rows = toSpecial770SummaryRows([
+    source('강원', '원주지사', '강원 현장', '2026-10-10', one('강원-원주')),
+    source('경기', '양평·광주·서울지사', '양평 현장', '2026-10-10', one('경기-양평')),
+    source('경기', '여주·이천지사', '여주 현장', '2026-10-10', one('경기-여주')),
+    source('경기', '목록에없는지사', '기타 현장', '2026-10-10', one('경기-목록외')),
+    source('강원', '홍천·춘천지사', '홍천 현장', '2026-10-10', one('강원-홍천')),
+  ])
+  assert.deepEqual(rows.map(r => r.vehicleNo), ['경기-여주', '경기-양평', '경기-목록외', '강원-홍천', '강원-원주'])
 })
 
 test('헤더 3단 라벨·병합 14개·틀 고정·인쇄 설정을 원본대로 만든다', async () => {
