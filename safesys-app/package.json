@@ -12,7 +12,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:special-770": "node --test tests/special-770-issue-ledger.test.mjs tests/special-770-summary.test.mjs tests/special-770-summary-export.test.mjs tests/special-770-result-hwpx.test.mjs tests/special-770-results-ui.test.mjs tests/special-770-ai-actions.test.mjs",
-    "test:safety-inspection-ledger": "node --test tests/inspection-ledger-row.test.mjs",
+    "test:safety-inspection-ledger": "node --test tests/inspection-ledger-row.test.mjs tests/safety-inspection-count-groups.test.mjs",
     "test:merge-sql": "node --test tests/merge-projects-sql.test.mjs",
     "test:csi": "node --test tests/csi-self-quality-scrape.test.mjs tests/csi-session.test.mjs tests/csi-credential-store.test.mjs tests/csi-self-quality-route.test.mjs tests/csi-self-quality-prefill.test.mjs tests/csi-date-range.test.mjs",
     "test:g2b": "node --test tests/g2b-contract-period.test.mjs",

@@ -11,6 +11,7 @@ import { downloadDefectPhotoHwpx } from '@/lib/hwpx/safety-inspection-defect-pho
 import { downloadSpecial770ResultHwpxBulk, type Special770ResultInput } from '@/lib/hwpx/special-770-result-hwpx-export'
 import { downloadSpecial770SummaryExcel } from '@/lib/excel/special-770-summary-export'
 import { SPECIAL_287_TYPE, SPECIAL_770_TYPE, isSpecial287Type, isSpecial770Type, shortInspectionTypeLabel } from '@/lib/safety-inspection-types'
+import type { SafetyInspectionCountGroup } from '@/lib/safety-inspection-count-groups'
 import { useAuth } from '@/contexts/AuthContext'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
 import DownloadProgressModal from '@/components/ui/DownloadProgressModal'
@@ -22,6 +23,9 @@ interface SafetyInspectionLedgerViewProps {
   loading: boolean
   projects: Project[]
   inspectionCounts: SafetyInspectionCountByProject[]
+  loadedGroups: SafetyInspectionCountGroup[]
+  loadingGroup: SafetyInspectionCountGroup | null
+  onLoadGroup: (group: SafetyInspectionCountGroup) => void
   selectedSafetyHq: string | null
   selectedSafetyBranch: string | null
   selectedHq: string
@@ -82,6 +86,9 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
   loading,
   projects,
   inspectionCounts,
+  loadedGroups,
+  loadingGroup,
+  onLoadGroup,
   selectedSafetyHq,
   selectedSafetyBranch,
   selectedHq,
@@ -648,6 +655,26 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
     )
   }
 
+  // 유형 컬럼 머리글: 이름 아래에 그 유형만 불러오는 조회(재조회) 버튼을 둔다
+  const renderGroupHeaderLabel = (label: string, group: SafetyInspectionCountGroup) => {
+    const isLoading = loadingGroup === group
+    const isLoaded = loadedGroups.includes(group)
+    return (
+      <div className="flex flex-col items-center gap-0.5">
+        <span>{label}</span>
+        <button
+          type="button"
+          onClick={() => onLoadGroup(group)}
+          disabled={loadingGroup !== null}
+          className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded hover:bg-teal-100 disabled:opacity-50"
+        >
+          {isLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+          {isLoaded ? '재조회' : '조회'}
+        </button>
+      </div>
+    )
+  }
+
   const renderTableHeader = (firstColName: string, showProjectCount = true) => (
     <thead className="bg-gray-50 border-b border-gray-200">
       <tr>
@@ -656,11 +683,11 @@ const SafetyInspectionLedgerView: React.FC<SafetyInspectionLedgerViewProps> = ({
           <th rowSpan={2} className="px-1.5 sm:px-3 py-1.5 sm:py-3 text-center text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wider align-middle border-r border-gray-200">지구</th>
         )}
         <th colSpan={2} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">총</th>
-        <th colSpan={4} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">해빙기</th>
-        <th colSpan={4} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">우기</th>
-        <th colSpan={4} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">종합</th>
-        <th colSpan={3} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">특별</th>
-        <th colSpan={3} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200">{shortInspectionTypeLabel(SPECIAL_770_TYPE)}</th>
+        <th colSpan={4} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">{renderGroupHeaderLabel('해빙기', 'thawing')}</th>
+        <th colSpan={4} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">{renderGroupHeaderLabel('우기', 'rainy')}</th>
+        <th colSpan={4} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">{renderGroupHeaderLabel('종합', 'comprehensive')}</th>
+        <th colSpan={3} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200 border-r-2 border-gray-300">{renderGroupHeaderLabel('특별', 'special')}</th>
+        <th colSpan={3} className="px-1.5 sm:px-3 py-1 sm:py-2 text-center text-[10px] sm:text-xs font-medium text-gray-500 border-b border-gray-200">{renderGroupHeaderLabel(shortInspectionTypeLabel(SPECIAL_770_TYPE), 'special770')}</th>
       </tr>
       <tr>
         <th className="px-1 sm:px-2 py-1 sm:py-2 text-center text-[10px] sm:text-[11px] font-medium text-teal-700 bg-teal-50/50">실시</th>

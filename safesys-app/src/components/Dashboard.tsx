@@ -37,6 +37,7 @@ import SafetyPtwView from '@/components/dashboard/SafetyPtwView'
 import SafetyWorkerView from '@/components/dashboard/SafetyWorkerView'
 import SafetyNewWorkerOrientationView from '@/components/dashboard/SafetyNewWorkerOrientationView'
 import SafetyInspectionLedgerView from '@/components/dashboard/SafetyInspectionLedgerView'
+import { SAFETY_INSPECTION_COUNT_GROUPS, SAFETY_INSPECTION_GROUP_TYPES, mergeSafetyInspectionGroupCounts, type SafetyInspectionCountGroup } from '@/lib/safety-inspection-count-groups'
 import LegalComplianceView from '@/components/dashboard/LegalComplianceView'
 import FiveKeyStatusView from '@/components/dashboard/FiveKeyStatusView'
 import WorkPlanStatusView from '@/components/dashboard/WorkPlanStatusView'
@@ -310,6 +311,8 @@ const Dashboard: React.FC = () => {
   const [ptwYear, setPtwYear] = useState<number>(new Date().getFullYear())
   const [workerCounts, setWorkerCounts] = useState<WorkerCountByProject[]>([])
   const [safetyInspectionCounts, setSafetyInspectionCounts] = useState<SafetyInspectionCountByProject[]>([])
+  const [safetyInspectionLoadedGroups, setSafetyInspectionLoadedGroups] = useState<SafetyInspectionCountGroup[]>([])
+  const [safetyInspectionGroupLoading, setSafetyInspectionGroupLoading] = useState<SafetyInspectionCountGroup | null>(null)
   const [safetyInspectionYear, setSafetyInspectionYear] = useState<number>(new Date().getFullYear())
   const [materialCounts, setMaterialCounts] = useState<MaterialCountByProject[]>([])
   const [selectedBusinessCard, setSelectedBusinessCard] = useState<string | null>(() => (pathname === '/business' ? searchParams.get('card') : null))
@@ -1049,23 +1052,13 @@ const Dashboard: React.FC = () => {
           console.error('❌ 근로자 등록현황 데이터 로드 실패:', result.error)
           setWorkerCounts([])
         }
-      } else if (selectedSafetyCard === 'safetyInspection') {
-        console.log('📋 정기안전점검 현황 데이터만 조회 중...')
-        const result = await getSafetyInspectionCountsByUserBranch(userProfile, selectedHq, selectedBranch, safetyInspectionYear)
-        if (result.success && result.inspectionCounts) {
-          console.log(`✅ 정기안전점검 현황 조회 완료: ${result.inspectionCounts.length}개 프로젝트`)
-          setSafetyInspectionCounts(result.inspectionCounts)
-        } else {
-          console.error('❌ 정기안전점검 현황 데이터 로드 실패:', result.error)
-          setSafetyInspectionCounts([])
-        }
       }
     } catch (err: any) {
       console.error('점검 데이터 로드 실패:', err)
     } finally {
       setInspectionDataLoading(false)
     }
-  }, [userProfile, selectedSafetyCard, selectedQuarter, selectedHq, selectedBranch, safetyInspectionYear, ptwYear])
+  }, [userProfile, selectedSafetyCard, selectedQuarter, selectedHq, selectedBranch, ptwYear])
 
   // 관리자 점검 선택 시 관리자 점검 데이터만 로드
   useEffect(() => {
@@ -1217,7 +1210,8 @@ const Dashboard: React.FC = () => {
     loadInspectionData()
   }, [user, userProfile, selectedSafetyCard, selectedHq, selectedBranch, workerCounts.length, loadInspectionData])
 
-  // 정기안전점검 현황 선택 시 데이터만 로드
+  // 정기안전점검 현황은 진입 시 자동 조회하지 않고 대장 표의 유형별 조회 버튼으로만 불러온다.
+  // 범위(본부·지사·연도)가 바뀌면 이전 범위로 조회한 값을 비운다.
   const lastSafetyInspectionParams = useRef<{ hq: string; branch: string; year: number } | null>(null)
   useEffect(() => {
     if (!(user && userProfile && userProfile.role === '발주청' && selectedSafetyCard === 'safetyInspection')) {
@@ -1226,19 +1220,35 @@ const Dashboard: React.FC = () => {
     if (!isSelectionInitialized.current) return
 
     const currentParams = { hq: selectedHq || '', branch: selectedBranch || '', year: safetyInspectionYear }
-    if (lastSafetyInspectionParams.current &&
-      lastSafetyInspectionParams.current.hq === currentParams.hq &&
-      lastSafetyInspectionParams.current.branch === currentParams.branch &&
-      lastSafetyInspectionParams.current.year === currentParams.year &&
-      safetyInspectionCounts.length > 0) {
-      if (DEBUG_LOGS) console.log('✅ 정기안전점검 현황 데이터 이미 로딩됨. 재로딩 스킵')
-      return
-    }
+    const prev = lastSafetyInspectionParams.current
+    if (prev && prev.hq === currentParams.hq && prev.branch === currentParams.branch && prev.year === currentParams.year) return
 
-    if (DEBUG_LOGS) console.log('🔍 정기안전점검 현황 전용 데이터 로딩 시작')
     lastSafetyInspectionParams.current = currentParams
-    loadInspectionData()
-  }, [user, userProfile, selectedSafetyCard, selectedHq, selectedBranch, safetyInspectionYear, safetyInspectionCounts.length, loadInspectionData])
+    setSafetyInspectionCounts([])
+    setSafetyInspectionLoadedGroups([])
+  }, [user, userProfile, selectedSafetyCard, selectedHq, selectedBranch, safetyInspectionYear])
+
+  const loadSafetyInspectionGroup = useCallback(async (group: SafetyInspectionCountGroup) => {
+    if (!userProfile) return
+    const requestParams = { hq: selectedHq || '', branch: selectedBranch || '', year: safetyInspectionYear }
+    setSafetyInspectionGroupLoading(group)
+    try {
+      const r = await getSafetyInspectionCountsByUserBranch(userProfile, selectedHq, selectedBranch, safetyInspectionYear, [SAFETY_INSPECTION_GROUP_TYPES[group]])
+      const latest = lastSafetyInspectionParams.current
+      // 조회 중에 범위가 바뀌었으면 이전 범위 결과를 버린다.
+      if (latest && (latest.hq !== requestParams.hq || latest.branch !== requestParams.branch || latest.year !== requestParams.year)) return
+      if (r.success && r.inspectionCounts) {
+        const incoming = r.inspectionCounts
+        setSafetyInspectionCounts(prev => mergeSafetyInspectionGroupCounts(prev, incoming, group))
+        setSafetyInspectionLoadedGroups(prev => prev.includes(group) ? prev : [...prev, group])
+      } else {
+        console.error('❌ 정기안전점검 유형별 조회 실패:', r.error)
+        alert(r.error || '정기안전점검 현황을 불러오지 못했습니다.')
+      }
+    } finally {
+      setSafetyInspectionGroupLoading(null)
+    }
+  }, [userProfile, selectedHq, selectedBranch, safetyInspectionYear])
 
   // 신규근로자 현장안내 데이터 로드 (안전현황 진입 시 카드 숫자 표시용)
   // 메인 /safe 페이지에서는 카드별 조회 버튼으로만 로딩 → 메인에서는 차단, 상세 카드(orientation) 진입시에만 동작
@@ -1363,7 +1373,11 @@ const Dashboard: React.FC = () => {
         }
         case 'safetyInspection': {
           const r = await getSafetyInspectionCountsByUserBranch(userProfile, selectedHq, selectedBranch, safetyInspectionYear)
-          if (r.success && r.inspectionCounts) setSafetyInspectionCounts(r.inspectionCounts)
+          if (r.success && r.inspectionCounts) {
+            setSafetyInspectionCounts(r.inspectionCounts)
+            setSafetyInspectionLoadedGroups([...SAFETY_INSPECTION_COUNT_GROUPS])
+            lastSafetyInspectionParams.current = { hq: selectedHq || '', branch: selectedBranch || '', year: safetyInspectionYear }
+          }
           break
         }
         case 'orientation': {
@@ -3674,6 +3688,9 @@ const Dashboard: React.FC = () => {
                     loading={inspectionDataLoading}
                     projects={projects}
                     inspectionCounts={safetyInspectionCounts}
+                    loadedGroups={safetyInspectionLoadedGroups}
+                    loadingGroup={safetyInspectionGroupLoading}
+                    onLoadGroup={loadSafetyInspectionGroup}
                     selectedSafetyHq={selectedSafetyHq}
                     selectedSafetyBranch={selectedSafetyBranch}
                     selectedHq={selectedHq}

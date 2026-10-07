@@ -1672,7 +1672,8 @@ export async function getSafetyInspectionCountsByUserBranch(
   userProfile: UserProfile,
   selectedHq?: string,
   selectedBranch?: string,
-  selectedYear?: number
+  selectedYear?: number,
+  inspectionTypes?: string[] // 지정하면 해당 유형만 집계한다(대장 컬럼별 조회)
 ): Promise<{ success: boolean; inspectionCounts?: SafetyInspectionCountByProject[]; error?: string }> {
   try {
     if (DEBUG_LOGS) console.log('정기안전점검 현황 조회 시작:', { selectedHq, selectedBranch })
@@ -1752,6 +1753,10 @@ export async function getSafetyInspectionCountsByUserBranch(
         inspQuery = inspQuery
           .gte('inspection_date', `${selectedYear}-01-01`)
           .lte('inspection_date', `${selectedYear}-12-31`)
+      }
+
+      if (inspectionTypes && inspectionTypes.length > 0) {
+        inspQuery = inspQuery.in('inspection_type', inspectionTypes)
       }
 
       const { data: batchData, error: inspError } = await inspQuery
