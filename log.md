@@ -1,6 +1,18 @@
 # 작업 로그
 
 <!-- worklog -->
+261006_151401 : safesys-app/package.json 수정, safesys-app/src/components/Dashboard.tsx 수정, safesys-app/src/components/dashboard/SafetyInspectionLedgerView.tsx 수정, safesys-app/src/components/dashboard/SafetyManagerView.tsx 수정, safesys-app/src/lib/projects.ts 수정
+261006_151345 : safesys-app/src/components/dashboard/SafetyInspectionLedgerView.tsx 수정
+261006_151256 : safesys-app/src/components/Dashboard.tsx 수정
+261006_151232 : safesys-app/package.json 수정, safesys-app/src/lib/projects.ts 수정
+261006_151223 : safesys-app/tests/safety-inspection-count-groups.test.mjs 추가 — "// 정기안전점검 대장의 유형별 부분 조회 결과 병합(그룹 필드만 교체·총 건수 재계산)을 검증한다. imp…"
+261006_151212 : safesys-app/src/lib/safety-inspection-count-groups.ts 추가 — "// 정기안전점검 대장의 유형별 컬럼(해빙기·우기·종합·특별·특별(굴삭기)) 조회 그룹과 부분 조회 결과 병…"
+261006_151103 : docs/architecture.md 수정, plans/20261006_패트롤_시정조치서류.md 수정, plans/20261006_패트롤_시정조치서류_checklist.md 수정, plans/20261006_패트롤_시정조치서류_context-notes.md 수정, safesys-app/src/lib/hwpx/patrol-corrective-hwpx-export.ts 수정, safesys-app/src/lib/patrol-inspections.ts 수정 외 2건
+261006_145408 : plans/20261006_패트롤_시정조치서류_checklist.md 수정, plans/20261006_패트롤_시정조치서류_context-notes.md 수정
+261006_145332 : safesys-app/src/components/dashboard/SafetyManagerView.tsx 수정 — "(지사) 관리자 점검 현황 </h3> <button type="button" onClick={() => se…"
+261006_145327 : safesys-app/src/components/dashboard/SafetyManagerView.tsx 수정 — "const [tempYear, setTempYear] = useState(new Date().getFullY…"
+261006_145326 : safesys-app/src/components/dashboard/SafetyManagerView.tsx 수정, safesys-app/src/lib/hwpx/patrol-corrective-hwpx-export.ts 수정
+261006_145321 : docs/architecture.md 수정, plans/20261006_패트롤_시정조치서류.md 수정, plans/20261006_패트롤_시정조치서류_checklist.md 수정, plans/20261006_패트롤_시정조치서류_context-notes.md 수정, safesys-app/src/components/dashboard/ManagerInspectionDailyView.tsx 추가, safesys-app/src/components/dashboard/PatrolInspectionView.tsx 수정 외 4건
 261004_201911 : .codex_backup/agents 삭제, .codex_backup/commands 삭제, .codex_backup/contexts 삭제, .codex_backup/docs 삭제, .codex_backup/examples 삭제, .codex_backup/hooks 삭제 외 4건
 261004_201457 : button[aria-label 추가
 261004_192500 : safesys-app/tests/special-770-result-hwpx.test.mjs 수정

@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useState } from 'react'
-import { ChevronLeft, Download, CheckCircle, ArrowLeft, PenTool, Loader2 } from 'lucide-react'
+import { ChevronLeft, Download, CheckCircle, ArrowLeft, PenTool, Loader2, CalendarDays } from 'lucide-react'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import SignaturePad from '@/components/ui/SignaturePad'
+import ManagerInspectionDailyView from '@/components/dashboard/ManagerInspectionDailyView'
 import type { Project, ManagerInspection } from '@/lib/projects'
 import { HEADQUARTERS_OPTIONS, BRANCH_OPTIONS } from '@/lib/constants'
 
@@ -94,6 +95,7 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
   const [isSavingSignature, setIsSavingSignature] = useState(false)
   const [showYearModal, setShowYearModal] = useState(false)
   const [tempYear, setTempYear] = useState(new Date().getFullYear())
+  const [isDailyView, setIsDailyView] = useState(false)
 
   // 디버깅용 로그
   console.log('SafetyManagerView 렌더링:', {
@@ -856,11 +858,32 @@ const SafetyManagerView: React.FC<SafetyManagerViewProps> = ({
               <CheckCircle className="h-5 w-5 text-green-600 mr-2" />
               (지사) 관리자 점검 현황
             </h3>
+            <button
+              type="button"
+              onClick={() => setIsDailyView((prev) => !prev)}
+              className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isDailyView
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              aria-pressed={isDailyView}
+            >
+              <CalendarDays className="h-4 w-4 mr-2" />
+              일자별 보기
+            </button>
           </div>
           {loading ? (
             <div className="flex justify-center items-center py-12">
               <LoadingSpinner />
             </div>
+          ) : isDailyView ? (
+            // 일자별 보기: 현재 범위(선택 본부 또는 전체)의 점검을 점검일자별로 묶어 표시
+            <ManagerInspectionDailyView
+              inspections={managerInspections.filter((ins) => selectedSafetyHq
+                ? ins.managing_hq === selectedSafetyHq
+                : (!selectedHq || ins.managing_hq === selectedHq) && (!selectedBranch || ins.managing_branch === selectedBranch))}
+              projects={projects}
+              onRowClick={onRowClick}
+            />
           ) : selectedSafetyHq ? (
             // 특정 본부 선택 시: 해당 본부의 지사별 점검 통계
             (() => {
