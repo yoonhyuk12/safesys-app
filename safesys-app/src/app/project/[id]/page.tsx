@@ -18,7 +18,7 @@ import HeatWaveCheckModal from '@/components/project/HeatWaveCheckModal'
 import BulkSignModal, { BulkSignSigner } from '@/components/project/BulkSignModal'
 import PenHolderButton from '@/components/project/PenHolderButton'
 import { countUnsignedBySigner } from '@/lib/bulk-sign/bulk-sign-counts'
-import { earliestStartDate } from '@/lib/g2b-contract-period'
+import { resolveContractPeriod, type ContractPeriodRecord } from '@/lib/g2b-contract-period'
 import { isRealFinding, isAdditionalFinding, countHqIssues } from '@/lib/issue-ledger'
 import ProjectHandoverModal from '@/components/project/ProjectHandoverModal'
 import ProjectShareModal from '@/components/project/ProjectShareModal'
@@ -585,7 +585,7 @@ export default function ProjectDetailPage() {
       // 장기계속(연차) 계약은 해마다 확정계약번호가 새로 부여돼 최신 차수 조회로는 당해년도 시작일만 온다 —
       // 최초 착공일은 공고번호로 조회해야 나오므로 공고번호가 따로 있으면 함께 조회한다 (best-effort)
       const noticeNo = project.g2b_ntce_no && project.g2b_ntce_no !== no ? project.g2b_ntce_no : null
-      const [res, noticeContracts] = await Promise.all([
+      const [res, noticeContracts, periodRecords] = await Promise.all([
         fetch(`/api/g2b/contract?no=${encodeURIComponent(no)}&latest=1`),
         noticeNo
           ? fetch(`/api/g2b/contract?no=${encodeURIComponent(noticeNo)}`)
@@ -594,8 +594,23 @@ export default function ProjectDetailPage() {
                 const j = await r.json()
                 return j.success && Array.isArray(j.data?.contracts) ? j.data.contracts : []
               })
-              // 보조 조회 실패는 갱신을 막지 않는다 — 착공일만 최신 차수 기준으로 남는다
+              // 보조 조회 실패는 갱신을 막지 않고 기존 전체 기간을 보존한다.
               .catch(() => [])
+          : Promise.resolve([]),
+        project.representative_contract_id
+          ? (async (): Promise<ContractPeriodRecord[]> => {
+              try {
+                const { data, error } = await supabase
+                  .from('project_contracts')
+                  .select('id, contract_type, cntrct_nm, tot_cntrct_amt, thtm_cntrct_amt, start_date, end_date')
+                  .eq('project_id', project.id)
+                if (error) throw error
+                return (data || []) as ContractPeriodRecord[]
+              } catch (err) {
+                console.error('대표계약 전체 기간 조회 실패:', err)
+                return []
+              }
+            })()
           : Promise.resolve([]),
       ])
       const json = await res.json()
@@ -605,12 +620,15 @@ export default function ProjectDetailPage() {
       }
       const latestContracts = json.data.contracts
       const c = latestContracts[0]
+      const period = resolveContractPeriod(
+        [...latestContracts, ...noticeContracts], periodRecords, project.representative_contract_id,
+        project.construction_start_date, project.construction_end_date,
+      )
       // 값이 있는 항목만 갱신 후보로 삼는다 (조회값이 비었다고 기존 값을 지우지 않음)
       const next = {
-        // 착공일만 최초 계약 기준 — 준공일·금액·업체는 최신 차수 값이 맞다
-        construction_start_date:
-          earliestStartDate([...latestContracts, ...noticeContracts]) || project.construction_start_date || null,
-        construction_end_date: c.endDate || project.construction_end_date || null,
+        // 전체 기간은 대표계약 그룹까지 포함하고 금액·업체는 최신 차수 값으로 갱신한다.
+        construction_start_date: period.startDate,
+        construction_end_date: period.endDate,
         g2b_corp_nm: (c.corpNms || []).join(', ') || project.g2b_corp_nm || null,
         g2b_tot_amt: c.totCntrctAmt > 0 ? c.totCntrctAmt : (project.g2b_tot_amt || null),
         g2b_thtm_amt: c.thtmCntrctAmt > 0 ? c.thtmCntrctAmt : (project.g2b_thtm_amt || null),

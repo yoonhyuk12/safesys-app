@@ -98,6 +98,7 @@ accident-report, daily-inspection, edit, equipment-inspection, headquarters-insp
 
 **외부 서비스 연동:**
 
+- `/api/g2b/contract` — 나라장터 계약 조회. 프로젝트 상세 갱신은 `g2b-contract-period.ts`의 계약현황 공통 그룹 규칙으로 대표계약의 연차 내역까지 모아 전체 기간을 반영한다. 기존 착공일을 늦추거나 준공일을 앞당기지 않으며, 보조 조회 실패 시에도 기존 전체 기간을 보존한다. 금액·업체는 최신 계약 응답을 반영한다.
 - `/api/weather/*` — 기상청 API (ASOS, 역사데이터, 체감온도)
 - `/api/geocoding`, `/api/address-search` — 주소/좌표 변환
 - `/api/telegram/*` — Telegram 알림 (텍스트/사진)

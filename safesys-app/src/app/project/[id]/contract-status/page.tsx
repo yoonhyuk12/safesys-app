@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { Project } from '@/lib/projects'
 import { guessInstName } from '@/lib/g2b-inst'
+import { nameGroupKey, isThtmPartial } from '@/lib/g2b-contract-period'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { downloadContractStatusExcel, type ContractExcelRow } from '@/lib/excel/contract-status-export'
 import { ArrowLeft, Plus, RefreshCw, X, FileText, ExternalLink, Trash2, Loader2, Search, Download } from 'lucide-react'
@@ -362,23 +363,6 @@ const contractGroupKey = (i: G2bCntrctItem): string =>
   ctrtNoFromUrl(i.url) ||
   (i.cntrctNo.length >= 13 ? i.cntrctNo.slice(0, -2) : i.cntrctNo) ||
   i.name
-
-// 장기계속계약의 연차별 차수는 계약번호가 서로 달라 번호로 못 묶는다 — 계약명(공백 제거)+구분으로 묶는다.
-// 연차 표기 접미어는 차수마다 달라("(2차년도_2025년도)", "(3차년도, 2026년)", 괄호 없는 "2차년도" 등,
-// 1차는 접미어 없음) 제거 후 비교한다.
-// 연차를 연도로만 표기하는 실데이터 패턴("2025년 ○○" 접두, "○○(2026년)" 접미 — 2026-07-12 실호출 확인)은
-// 단년도 반복 계약과 혼동될 수 있어 차수분 계약(stripYearAffix=true)에만 제거를 적용한다
-const nameGroupKey = (type: string, name: string, stripYearAffix = false): string => {
-  let n = name.replace(/(?:\(\s*\d+\s*차[^)]*\)|\d+\s*차년도)\s*$/, '')
-  if (stripYearAffix) {
-    n = n.replace(/^20\d{2}\s*년도?\s*/, '').replace(/\(\s*20\d{2}\s*년도?\s*\)\s*$/, '')
-  }
-  return `${type}|${n.replace(/\s+/g, '')}`
-}
-
-// 차수분 계약 판별 — 장기계속계약의 연차 차수 행은 총액과 금차가 다르다 (단년도 계약은 총액=금차)
-const isThtmPartial = (tot?: number | null, thtm?: number | null): boolean =>
-  tot != null && thtm != null && tot > 0 && thtm > 0 && tot !== thtm
 
 // 계약명 연차 접미어의 차수 번호 — "(3차년도_2026년)"·"3차년도" → 3, 접미어 없으면 1(원계약)
 const iterOrdFromName = (name: string): number => {
