@@ -38,7 +38,7 @@ SafeSys — Next.js 15 · React 19 · Supabase로 만든 한국 건설 안전관
 | 규칙 파일 | 한 줄 요약 | 로드 |
 |-----------|-----------|------|
 | [roles.md](./.claude/rules/safesys/roles.md) | 너는 Advisor다. 구현은 Codex `gpt-6-astra` low Worker에게 위임하고 diff·테스트로 직접 검증한다 | 항상 |
-| [deploy.md](./.claude/rules/safesys/deploy.md) | main 푸시 = 즉시 운영 배포. `npm run build`는 동의 없이 시작 금지 | 항상 |
+| [deploy.md](./.claude/rules/safesys/deploy.md) | 모든 커밋은 추가 확인 없이 푸시까지 완료한다. main 푸시 = 즉시 운영 배포. `npm run build`는 동의 없이 시작 금지 | 항상 |
 | [language.md](./.claude/rules/safesys/language.md) | 한국어로 답하고 문장을 콜론으로 끝내지 않는다. 새 소스 파일 첫 줄에 한국어 역할 주석 | 항상 |
 | [surgical-change.md](./.claude/rules/safesys/surgical-change.md) | 요청과 무관한 코드는 손대지 않는다. 완료 전 린트·타입체크·테스트 | 항상 |
 | [signature-overlay.md](./.claude/rules/safesys/signature-overlay.md) | 출력물 서명 이미지는 `(서명 또는 인)` 문구 위에 겹친다 | `src/lib/{excel,reports,hwpx}`·`scripts` 편집 시 |
@@ -64,4 +64,4 @@ npm run build            # 프로덕션 빌드 (동의 없이 시작 금지)
 1. [conventions.md](./docs/conventions.md)의 행동 가이드라인을 따른다 — 가정 명시, 단순성 우선, 계획·체크리스트·컨텍스트 노트 산출.
 2. 관련 docs 문서를 열어 컨텍스트를 확보한다 (예: DB 작업 → [database.md](./docs/database.md), 권한 → [auth.md](./docs/auth.md)).
 3. Worker에게 위임할 브리프에 파일 경로·컨벤션·함정·완료 기준을 담는다.
-4. diff·테스트로 직접 검증한 뒤 의미 단위로 커밋한다.
+4. diff·테스트로 직접 검증한 뒤 의미 단위로 커밋하고, 추가 확인 없이 현재 브랜치를 원격에 푸시한다. 사용자에게서 푸시 금지·보류 지시가 있으면 그 지시를 우선한다.
